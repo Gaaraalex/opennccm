@@ -423,7 +423,7 @@ fetch_code() {
       mv "$APP_DIR" "${APP_DIR}.pre-git-$(date +%Y%m%d%H%M%S)"
     fi
     mkdir -p "$APP_DIR"
-    run rsync -a --delete --exclude .venv --exclude .git "$SOURCE_DIR/" "$APP_DIR/"
+    run rsync -a --no-owner --no-group --delete --exclude .venv --exclude .git "$SOURCE_DIR/" "$APP_DIR/"
     local ver; ver=$(grep -oP '__version__ = "\K[^"]+' "$APP_DIR/app/__init__.py")
     if [[ ! -d $APP_DIR/.git ]]; then run git -C "$APP_DIR" init -q -b main; fi
     run git -C "$APP_DIR" -c user.name=opennccm -c user.email=opennccm@localhost add -A

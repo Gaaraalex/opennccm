@@ -72,6 +72,27 @@ jobs:
           sudo tail -n 120 /var/log/opennccm-install.log || true
           sudo journalctl -u opennccm -n 120 --no-pager || true
 
+  package:
+    name: Instalación desde paquete .tar.gz (ubuntu-24.04)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar desde el paquete (sin historial git)
+        run: |
+          mkdir -p /tmp/pkg
+          git archive --format=tar.gz --prefix=opennccm/ -o /tmp/pkg/opennccm.tar.gz HEAD
+          cd /tmp/pkg && tar xzf opennccm.tar.gz && cd opennccm
+          sudo bash install.sh --unattended --source "$(pwd)" --host 127.0.0.1 --admin-pass 'Admin12345' --no-upgrade
+      - name: Verificar
+        run: |
+          curl -fsk https://127.0.0.1/healthz
+          sudo opennccm status
+          test "$(sudo git -C /opt/opennccm remote get-url origin)" = "https://github.com/Gaaraalex/opennccm.git"
+          sudo grep -q "REPO_URL='https://github.com/Gaaraalex/opennccm.git'" /etc/opennccm/install.conf
+      - name: Registro (si falla)
+        if: failure()
+        run: sudo tail -n 120 /var/log/opennccm-install.log || true
+
   tui:
     name: Asistente con menús (ubuntu-24.04)
     runs-on: ubuntu-24.04
@@ -102,7 +123,7 @@ jobs:
   release:
     name: Publicar versión
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [lint, app, install, tui]
+    needs: [lint, app, install, package, tui]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
