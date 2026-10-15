@@ -289,6 +289,8 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
 
         if result == "changed":
             diff = "\n".join(diff_lines(prev_text, running)[:200])
+            # releer las opciones: pueden haber cambiado mientras se conectaba al equipo
+            db.refresh(dev, ["auto_rollback", "maintenance_until"])
             in_maintenance = dev.maintenance_until and dev.maintenance_until > now()
             sev = "info" if trigger == "push" else "warning"
             add_event(sev, "Cambio de configuración",

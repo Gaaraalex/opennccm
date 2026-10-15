@@ -12,6 +12,8 @@
 - `/healthz` informa la versión y comprueba la base de datos.
 - Pruebas automáticas en Ubuntu 22.04 y 24.04 en cada cambio: aplicación, instalación, asistente,
   actualización y vuelta atrás.
+- Corrección: la reversión automática podía omitirse si un respaldo en curso había leído la configuración
+  del equipo antes de activarla; ahora se vuelve a leer al decidir.
 
 ## 1.1.0
 - 122 plataformas de unos 70 fabricantes (antes ~40) y perfil genérico con comando de respaldo personalizado.
