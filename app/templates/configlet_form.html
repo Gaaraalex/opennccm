@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% block title %}Configlet{% endblock %}
+{% block content %}
+<h1>{{ 'Editar configlet' if c else 'Nuevo configlet' }}</h1>
+<div class="card" style="max-width:900px">
+<form method="post">
+  <div class="row">
+    <div><label>Nombre</label><input name="name" required value="{{ c.name if c }}"></div>
+    <div><label>Tipo</label><select name="kind">
+      <option value="config" {{ 'selected' if c and c.kind == 'config' }}>config — modo configuración (requiere aprobación)</option>
+      <option value="exec" {{ 'selected' if c and c.kind == 'exec' }}>exec — comandos show/diagnóstico</option></select></div>
+    <div><label>Aplica a (regex de device_type)</label><input name="device_type_filter" value="{{ c.device_type_filter or '' if c }}" placeholder="cisco|arista"></div>
+  </div>
+  <label>Descripción</label><input name="description" style="width:100%" value="{{ c.description or '' if c }}">
+  <label>Comandos (una línea por comando)</label>
+  <textarea name="body" rows="14" required>{{ c.body if c }}</textarea>
+  <p class="small muted">Variables: <code>{{ '{{ device.name }}' }}</code>, <code>{{ '{{ device.host }}' }}</code>, <code>{{ '{{ device.model }}' }}</code>, <code>{{ '{{ device.location }}' }}</code>, <code>{{ '{{ device.group }}' }}</code>
+  y cualquier variable propia como <code>{{ '{{ vlan_id }}' }}</code> (se piden al ejecutar). Admite <code>{{ '{% if %}' }}</code> y <code>{{ '{% for %}' }}</code>.</p>
+  <p><button>Guardar</button> <a class="btn sec" href="/configlets">Cancelar</a></p>
+</form>
+</div>
+{% endblock %}

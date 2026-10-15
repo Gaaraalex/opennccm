@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block title %}Buscar en configuraciones{% endblock %}
+{% block content %}
+<h1>Buscar en configuraciones</h1>
+<form class="card row" method="get">
+  <input name="q" value="{{ q }}" placeholder="p. ej. snmp-server community, 10.1.1.1, vlan 20" style="flex:1 1 400px" autofocus>
+  <label class="chk"><input type="checkbox" name="regex" value="1" {{ 'checked' if regex }}> Expresión regular</label>
+  <button>Buscar</button>
+</form>
+{% if q %}<p class="muted">{{ results|length }} equipos con coincidencias (última configuración en ejecución).</p>{% endif %}
+{% for dev, v, hits, total in results %}
+<div class="card">
+  <b><a href="/devices/{{ dev.id }}">{{ dev.name }}</a></b> <span class="muted small">{{ dev.host }} · {{ total }} coincidencias · <a href="/versions/{{ v.id }}">ver configuración</a></span>
+  <pre style="margin-top:8px">{% for n, l in hits %}{{ '%5d'|format(n) }}  {{ l }}
+{% endfor %}</pre>
+</div>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends "base.html" %}{% block title %}Tareas programadas{% endblock %}
+{% block content %}
+<h1>Tareas programadas</h1>
+<div class="card">
+<table><tr><th>Nombre</th><th>Acción</th><th>Cron</th><th>Grupo</th><th>Última ejecución</th><th>Próxima</th><th></th></tr>
+{% for s in items %}
+<tr><td>{{ s.name }}</td><td>{{ s.action }}</td><td><code>{{ s.cron }}</code></td><td>{{ s.group.name if s.group else 'todos' }}</td>
+<td class="small">{{ s.last_run|dt }}</td><td class="small">{{ jobs.get('sched-' ~ s.id)|dt if s.enabled else 'deshabilitada' }}</td>
+<td style="white-space:nowrap">
+  {% if ROLES[user.role] >= 1 %}<form class="inline" method="post" action="/schedules/{{ s.id }}/run"><button class="sm">Ejecutar ya</button></form>{% endif %}
+  {% if user.role == 'admin' %}
+  <form class="inline" method="post" action="/schedules/{{ s.id }}/toggle"><button class="sm sec">{{ 'Pausar' if s.enabled else 'Activar' }}</button></form>
+  <form class="inline" method="post" action="/schedules/{{ s.id }}/delete" onsubmit="return confirm('¿Eliminar?')"><button class="sm danger">×</button></form>
+  {% endif %}</td></tr>
+{% else %}<tr><td colspan="7" class="muted">Sin tareas. Se recomienda un respaldo nocturno: <code>0 2 * * *</code>.</td></tr>{% endfor %}
+</table>
+</div>
+{% if user.role == 'admin' %}
+<div class="card" style="max-width:900px">
+<h2 style="margin-top:0">Nueva tarea</h2>
+<form method="post" action="/schedules">
+  <div class="row">
+    <div><label>Nombre</label><input name="name" required value="Respaldo nocturno"></div>
+    <div><label>Acción</label><select name="action">
+      <option value="backup">Respaldo de configuración</option><option value="compliance">Auditoría de cumplimiento</option>
+      <option value="cve">Escaneo de vulnerabilidades (NVD)</option><option value="configlet">Ejecutar configlet</option>
+      <option value="report_email">Enviar informes por correo</option>
+      <option value="system_backup">Copia de recuperación de OpenNCCM</option></select></div>
+    <div><label>Cron (min hora día mes día-semana)</label><input name="cron" required value="0 2 * * *"></div>
+    <div><label>Grupo</label><select name="group_id"><option value="">Todos</option>{% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}</select></div>
+    <div><label>Configlet (si aplica)</label><select name="configlet_id"><option value="">—</option>{% for c in configlets %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></div>
+  </div>
+  <p class="small muted">Ejemplos: <code>0 2 * * *</code> diario 02:00 · <code>*/30 * * * *</code> cada 30 min · <code>0 6 * * 1</code> lunes 06:00. Los configlets programados se consideran aprobados por el administrador que crea la tarea.</p>
+  <p><button>Crear tarea</button></p>
+</form>
+</div>
+{% endif %}
+{% endblock %}

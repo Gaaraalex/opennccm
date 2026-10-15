@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block title %}Solicitudes de cambio{% endblock %}
+{% block content %}
+<h1>Solicitudes de cambio</h1>
+<div class="toolbar">
+  {% for s, l in [('', 'Todas'), ('pending', 'Pendientes'), ('done', 'Ejecutadas'), ('failed', 'Fallidas'), ('rejected', 'Rechazadas')] %}
+  <a class="btn sm {{ '' if s == status else 'sec' }}" href="/changes?status={{ s }}">{{ l }}</a>{% endfor %}
+</div>
+<div class="card">
+<table><tr><th>#</th><th>Fecha</th><th>Título</th><th>Solicitante</th><th>Revisor</th><th>Estado</th></tr>
+{% for cr in items %}
+<tr><td>{{ cr.id }}</td><td class="small">{{ cr.created_at|dt }}</td>
+<td><a href="/changes/{{ cr.id }}">{{ cr.title }}</a>{% if cr.is_rollback %} <span class="badge b-warning">reversión</span>{% endif %}</td>
+<td>{{ cr.requested_by }}</td><td>{{ cr.reviewed_by or '—' }}</td><td><span class="badge b-{{ cr.status }}">{{ cr.status }}</span></td></tr>
+{% else %}<tr><td colspan="6" class="muted">Sin solicitudes. Se crean desde <a href="/configlets">Configlets</a>, reversiones o correcciones de cumplimiento.</td></tr>{% endfor %}
+</table>
+</div>
+{% endblock %}

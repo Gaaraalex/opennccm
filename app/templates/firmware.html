@@ -1,0 +1,48 @@
+{% extends "base.html" %}{% block title %}Firmware{% endblock %}
+{% block content %}
+<h1>Actualización de firmware</h1>
+<p class="muted">Repositorio de imágenes y actualización remota: transferencia SCP, verificación MD5 en el equipo,
+configuración de arranque y reinicio opcional. Plataformas: Cisco IOS / IOS-XE / NX-OS / ASA, Arista EOS y Juniper Junos.
+Las vulnerabilidades de cada versión se consultan en <a href="/vulns">CVE</a>.</p>
+
+<div class="card">
+<h2 style="margin-top:0">Imágenes</h2>
+<table><tr><th>Archivo</th><th>Versión</th><th>Para</th><th>Tamaño</th><th>MD5</th><th>Cargada</th><th></th></tr>
+{% for i in images %}
+<tr><td><code>{{ i.filename }}</code></td><td>{{ i.version or '—' }}</td><td class="small"><code>{{ i.device_type_filter or 'cualquiera' }}</code></td>
+<td class="small">{{ '{:,}'.format(i.size) }} B</td><td class="small"><code>{{ i.md5 }}</code></td><td class="small">{{ i.uploaded_at|dt }} · {{ i.uploaded_by }}</td>
+<td>{% if user.role == 'admin' %}<form class="inline" method="post" action="/firmware/{{ i.id }}/delete" onsubmit="return confirm('¿Eliminar imagen?')"><button class="sm danger">×</button></form>{% endif %}</td></tr>
+{% else %}<tr><td colspan="7" class="muted">No hay imágenes cargadas.</td></tr>{% endfor %}
+</table>
+{% if user.role == 'admin' %}
+<form method="post" action="/firmware/upload" enctype="multipart/form-data" class="row" style="margin-top:12px">
+  <div><label>Archivo de imagen</label><input type="file" name="file" required></div>
+  <div><label>Versión</label><input name="version" placeholder="15.2(4)M11"></div>
+  <div><label>Para device_type (regex)</label><input name="device_type_filter" placeholder="cisco_ios"></div>
+  <button>Cargar</button>
+</form>
+{% endif %}
+</div>
+
+{% if ROLES[user.role] >= 1 %}
+<div class="card">
+<h2 style="margin-top:0">Actualizar equipos</h2>
+{% if images and devices %}
+<form method="post" action="/firmware/upgrade">
+  <div class="row">
+    <div><label>Imagen</label><select name="image_id">{% for i in images %}<option value="{{ i.id }}">{{ i.filename }}{% if i.version %} ({{ i.version }}){% endif %}</option>{% endfor %}</select></div>
+    <label class="chk"><input type="checkbox" name="reload"> Reiniciar los equipos al terminar</label>
+  </div>
+  <table style="margin-top:10px"><tr><th></th><th>Equipo</th><th>Tipo</th><th>Modelo</th><th>Versión actual</th><th>Grupo</th></tr>
+  {% for d in devices %}
+  <tr><td><input type="checkbox" name="device_ids" value="{{ d.id }}"></td><td><a href="/devices/{{ d.id }}">{{ d.name }}</a></td>
+  <td>{{ d.device_type }}</td><td>{{ d.model or '—' }}</td><td>{{ d.os_version or '—' }}</td><td>{{ d.group.name if d.group else '—' }}</td></tr>
+  {% endfor %}
+  </table>
+  <p><button>Crear solicitud de actualización</button> <span class="small muted">Siempre requiere aprobación de un administrador.</span></p>
+</form>
+{% elif not devices %}<p class="muted">No hay equipos de plataformas compatibles.</p>
+{% else %}<p class="muted">Cargue primero una imagen.</p>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

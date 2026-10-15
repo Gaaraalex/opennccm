@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Ejecuta las pruebas de extremo a extremo contra un router Cisco simulado.
+# Uso (desde la raíz del repositorio, con las dependencias instaladas):  bash tests/run-tests.sh [python]
+set -euo pipefail
+PY=${1:-python3}
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+WORK=$(mktemp -d)
+export NCM_DATA_DIR=$WORK/data NCM_KEY_FILE=$WORK/data/secret.key NCM_SYSLOG_PORT=5514
+mkdir -p "$NCM_DATA_DIR"
+cd "$ROOT"
+cleanup() { kill "${APP_PID:-}" "${DEV_PID:-}" 2>/dev/null || true; }
+trap cleanup EXIT
+
+"$PY" -c "import sys; sys.path.insert(0,'.'); from app.cli import main; sys.argv=['x','create-admin','admin','Admin12345']; main(); sys.argv=['x','seed']; main()"
+"$PY" tests/fakedev.py 2222 > "$WORK/fakedev.log" 2>&1 & DEV_PID=$!
+"$PY" -m uvicorn app.main:app --host 127.0.0.1 --port 8000 > "$WORK/app.log" 2>&1 & APP_PID=$!
+for _ in $(seq 1 30); do curl -fsS http://127.0.0.1:8000/healthz >/dev/null 2>&1 && break; sleep 1; done
+
+status=0
+for t in e2e e2e_syslog e2e2 e2e_window; do
+  echo "=================== $t ==================="
+  if ! "$PY" "tests/$t.py"; then status=1; fi
+done
+if [[ $status -ne 0 ]]; then echo "--- app.log ---"; tail -n 80 "$WORK/app.log"; fi
+exit $status

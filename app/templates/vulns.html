@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% block title %}Vulnerabilidades de firmware{% endblock %}
+{% block content %}
+<h1>Vulnerabilidades de firmware</h1>
+<p class="muted">Consulta la base NVD (NIST) según fabricante y versión de firmware detectada en el inventario. Los resultados son orientativos: confirme siempre con el boletín del fabricante.</p>
+<div class="toolbar">
+  {% if ROLES[user.role] >= 1 %}<form class="inline" method="post" action="/cve/all"><button>Escanear todos</button></form>{% endif %}
+  <a class="btn sec" href="/reports/vulns.csv">Exportar CSV</a>
+</div>
+<div class="card">
+<table><tr><th>Equipo</th><th>Versión</th><th>CVE</th><th>CVSS</th><th>Severidad</th><th>Descripción</th></tr>
+{% for v in items %}
+<tr><td><a href="/devices/{{ v.device_id }}">{{ v.device.name }}</a></td><td>{{ v.device.os_version }}</td>
+<td><a href="{{ v.url }}" target="_blank" rel="noopener">{{ v.cve_id }}</a></td><td>{{ v.score or '—' }}</td>
+<td><span class="badge b-{{ v.severity }}">{{ v.severity or '?' }}</span></td><td class="small">{{ (v.description or '')[:220] }}</td></tr>
+{% else %}<tr><td colspan="6" class="muted">Sin datos todavía.</td></tr>{% endfor %}
+</table>
+</div>
+{% endblock %}

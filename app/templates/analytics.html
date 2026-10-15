@@ -1,0 +1,27 @@
+{% extends "base.html" %}{% block title %}Análisis{% endblock %}
+{% block content %}
+<h1>Análisis de configuración</h1>
+<div class="toolbar">
+  {% for d in [7, 30, 90, 365] %}<a class="btn sm {{ '' if d == days else 'sec' }}" href="/analytics?days={{ d }}">{{ d }} días</a>{% endfor %}
+</div>
+<div class="grid">
+  <div class="stat"><small>Equipos</small><b>{{ data.total }}</b></div>
+  <div class="stat"><small>Cambios en {{ days }} días</small><b>{{ data.changes }}</b></div>
+  <a class="stat" href="/devices?status=conflict"><small>Startup ≠ running</small><b>{{ data.conflicts }}</b></a>
+  <a class="stat" href="/devices?status=drift"><small>Fuera de línea base</small><b>{{ data.drift }}</b></a>
+</div>
+<div class="card" style="margin-top:16px">
+  <h2>Cambios de configuración por día</h2>{{ c_days|safe }}
+  <p class="small muted" style="margin-bottom:0"><a href="/reports/view/changes?days={{ days }}">Ver como tabla</a></p>
+</div>
+<div class="charts">
+  <div class="card"><h2>Equipos con más cambios</h2>{{ c_device|safe }}</div>
+  <div class="card"><h2>Cambios por origen</h2>{{ c_trigger|safe }}
+    <p class="small muted">manual = respaldo a pedido · scheduled = programado · syslog = detectado en tiempo real · push = aplicado por OpenNCCM</p></div>
+  <div class="card"><h2>Cambios por usuario</h2>{{ c_user|safe }}</div>
+  <div class="card"><h2>Cumplimiento por política</h2>{{ c_comp|safe }}</div>
+  <div class="card"><h2>Equipos por fabricante</h2>{{ c_vendor|safe }}</div>
+  <div class="card"><h2>Versiones de firmware más usadas</h2>{{ c_version|safe }}</div>
+  <div class="card"><h2>Ciclo de vida (EOL/EOS)</h2>{{ c_eol|safe }}<p class="small muted"><a href="/eol">Ver detalle</a></p></div>
+</div>
+{% endblock %}

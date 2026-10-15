@@ -1,0 +1,112 @@
+{% extends "base.html" %}{% block title %}{{ device.name }}{% endblock %}
+{% block content %}
+<h1>{{ device.name }} <span class="badge b-{{ device.last_status }}">{{ device.last_status }}</span>
+{% if device.startup_conflict %}<span class="badge b-warning">running ≠ startup</span>{% endif %}</h1>
+<div class="toolbar">
+  {% if ROLES[user.role] >= 1 %}
+  <form class="inline" method="post" action="/devices/{{ device.id }}/backup"><button>Respaldar ahora</button></form>
+  <form class="inline" method="post" action="/devices/{{ device.id }}/compliance"><button class="sec">Auditar cumplimiento</button></form>
+  <form class="inline" method="post" action="/devices/{{ device.id }}/cve"><button class="sec">Buscar CVE de firmware</button></form>
+  {% endif %}
+  {% if user.role == 'admin' %}
+  <a class="btn sec" href="/devices/{{ device.id }}/edit">Editar</a>
+  <form class="inline" method="post" action="/devices/{{ device.id }}/delete" onsubmit="return confirm('¿Eliminar el equipo y todo su historial?')"><button class="danger">Eliminar</button></form>
+  {% endif %}
+</div>
+{% if device.last_error %}<div class="flash error"><b>Último error:</b> {{ device.last_error }}</div>{% endif %}
+{% if profile.note and not device.custom_backup_cmd %}<div class="flash error" style="background:transparent">ⓘ {{ profile.note }}</div>{% endif %}
+{% if device.baseline_drift %}<div class="flash error">⚠ La configuración actual difiere de la línea base (versión #{{ device.baseline_version_id }}).
+  <a href="/devices/{{ device.id }}/baseline-diff">Ver diferencias</a>
+  {% if ROLES[user.role] >= 1 %}· <form class="inline" method="post" action="/versions/{{ device.baseline_version_id }}/rollback"><button class="sm danger">Volver a la línea base…</button></form>{% endif %}
+</div>{% endif %}
+
+<div class="row" style="align-items:start">
+<div class="card" style="flex:1 1 380px">
+  <h2 style="margin-top:0">Inventario</h2>
+  <dl class="kv">
+    <dt>Host</dt><dd>{{ device.host }}:{{ device.port }} ({{ device.protocol }})</dd>
+    <dt>Fabricante</dt><dd>{{ profile.vendor }} — {{ profile.label }}</dd>
+    <dt>Modelo</dt><dd>{{ device.model or '—' }}</dd>
+    <dt>Nº de serie</dt><dd>{{ device.serial or '—' }}</dd>
+    <dt>Versión firmware</dt><dd>{{ device.os_version or '—' }}</dd>
+    <dt>Grupo</dt><dd>{{ device.group.name if device.group else '—' }}</dd>
+    <dt>Ubicación</dt><dd>{{ device.location or '—' }}</dd>
+    <dt>Credencial</dt><dd>{{ device.credential.name if device.credential else '—' }}</dd>
+    <dt>Último respaldo</dt><dd>{{ device.last_backup_at|dt }}</dd>
+    <dt>Reversión automática</dt><dd>{{ 'Sí' if device.auto_rollback else 'No' }}</dd>
+    <dt>Línea base</dt><dd>{% if device.baseline_version_id %}<a href="/versions/{{ device.baseline_version_id }}">versión #{{ device.baseline_version_id }}</a>
+      <span class="badge b-{{ 'warning' if device.baseline_drift else 'ok' }}">{{ 'difiere' if device.baseline_drift else 'coincide' }}</span>
+      {% else %}<span class="muted">sin definir (márquela desde una versión)</span>{% endif %}</dd>
+    <dt>Ciclo de vida</dt><dd><span class="badge b-{{ eol_sev[eol_status] }}">{{ eol_labels[eol_status] }}</span>
+      {% if eol_entry %}<span class="small muted">fin de soporte {{ eol_entry.end_of_support|ymd }}{% if eol_entry.replacement %} · reemplazo {{ eol_entry.replacement }}{% endif %}</span>{% endif %}</dd>
+    {% if device.custom_backup_cmd %}<dt>Comando de respaldo</dt><dd><code>{{ device.custom_backup_cmd }}</code></dd>{% endif %}
+  </dl>
+  {% if device.notes %}<p class="small">{{ device.notes }}</p>{% endif %}
+  {% if inventory %}<details><summary class="small">Salida de inventario ({{ profile.inventory }})</summary><pre>{{ inventory }}</pre></details>{% endif %}
+</div>
+
+<div class="card" style="flex:2 1 560px">
+  <h2 style="margin-top:0">Versiones de configuración</h2>
+  <form method="get" action="/diff">
+  <table>
+    <tr><th>A</th><th>B</th><th>#</th><th>Fecha</th><th>Tipo</th><th>Origen</th><th>Δ</th><th>Etiqueta</th><th></th></tr>
+    {% for v in versions %}
+    <tr>
+      <td><input type="radio" name="a" value="{{ v.id }}" {{ 'checked' if loop.index == 2 }}></td>
+      <td><input type="radio" name="b" value="{{ v.id }}" {{ 'checked' if loop.index == 1 }}></td>
+      <td>{{ v.id }}</td><td class="small">{{ v.created_at|dt }}</td><td>{{ v.kind }}</td>
+      <td class="small">{{ v.trigger }}{% if v.username %} · {{ v.username }}{% endif %}</td>
+      <td class="small"><span style="color:var(--ok)">+{{ v.added }}</span> <span style="color:var(--crit)">-{{ v.removed }}</span></td>
+      <td>{% if v.id == device.baseline_version_id %}<span class="badge b-ok">línea base</span>{% elif v.label %}<span class="badge b-info">{{ v.label }}</span>{% endif %}</td>
+      <td><a href="/versions/{{ v.id }}">ver</a> · <a href="/versions/{{ v.id }}?raw=1">descargar</a></td>
+    </tr>
+    {% else %}<tr><td colspan="9" class="muted">Sin versiones aún.</td></tr>{% endfor %}
+  </table>
+  {% if versions|length > 1 %}<p><button class="sec">Comparar A ↔ B</button></p>{% endif %}
+  </form>
+</div>
+</div>
+
+{% if images and ROLES[user.role] >= 1 %}
+<div class="card" id="firmware">
+  <h2 style="margin-top:0">Actualizar firmware</h2>
+  <form method="post" action="/firmware/upgrade" class="row">
+    <input type="hidden" name="device_ids" value="{{ device.id }}">
+    <div><label>Imagen</label><select name="image_id">{% for i in images %}<option value="{{ i.id }}">{{ i.filename }}{% if i.version %} ({{ i.version }}){% endif %}</option>{% endfor %}</select></div>
+    <label class="chk"><input type="checkbox" name="reload"> Reiniciar al terminar</label>
+    <button>Solicitar actualización…</button>
+  </form>
+  <p class="small muted">Se transfiere por SCP a <code>{{ profile.firmware.fs }}</code>, se verifica el MD5 en el equipo y se configura el arranque. Requiere aprobación.</p>
+</div>
+{% endif %}
+
+<div class="card" id="compliance">
+  <h2 style="margin-top:0">Cumplimiento</h2>
+  <table><tr><th>Política</th><th>Regla</th><th>Severidad</th><th>Resultado</th><th>Revisado</th><th></th></tr>
+  {% for c in comp|sort(attribute='passed') %}
+  <tr><td>{{ c.policy.name }}</td><td>{{ c.rule.name }}</td><td><span class="badge b-{{ c.rule.severity }}">{{ c.rule.severity }}</span></td>
+  <td><span class="badge b-{{ 'ok' if c.passed else 'error' }}">{{ 'Cumple' if c.passed else 'Infracción' }}</span></td>
+  <td class="small">{{ c.checked_at|dt }}</td>
+  <td>{% if not c.passed and c.rule.remediation and ROLES[user.role] >= 1 %}
+    <form class="inline" method="post" action="/compliance/remediate/{{ c.id }}"><button class="sm">Corregir</button></form>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="6" class="muted">No hay políticas aplicables o aún no se audita.</td></tr>{% endfor %}
+  </table>
+</div>
+
+<div class="card" id="vulns">
+  <h2 style="margin-top:0">Vulnerabilidades de firmware ({{ vulns|length }})</h2>
+  <table><tr><th>CVE</th><th>CVSS</th><th>Severidad</th><th>Descripción</th></tr>
+  {% for v in vulns %}
+  <tr><td><a href="{{ v.url }}" target="_blank" rel="noopener">{{ v.cve_id }}</a></td><td>{{ v.score or '—' }}</td>
+  <td><span class="badge b-{{ v.severity }}">{{ v.severity or '?' }}</span></td><td class="small">{{ (v.description or '')[:300] }}</td></tr>
+  {% else %}<tr><td colspan="4" class="muted">Sin datos. Pulse "Buscar CVE de firmware".</td></tr>{% endfor %}
+  </table>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Eventos del equipo</h2>
+  <table>{% for e in events %}
+  <tr><td><span class="badge b-{{ e.severity }}">{{ e.severity }}</span></td><td class="small">{{ e.created_at|dt }}</td><td><b>{{ e.category }}</b><pre style="max-height:160px">{{ e.message }}</pre></td></tr>
+  {% else %}<tr><td class="muted">Sin eventos.</td></tr>{% endfor %}</table>
+</div>
+{% endblock %}

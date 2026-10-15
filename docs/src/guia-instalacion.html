@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light">
+<title>OpenNCCM — Guía de instalación en Ubuntu Server</title>
+<link rel="stylesheet" href="doc.css">
+</head>
+<body>
+
+<div class="cover">
+  <div class="brand">Open<span>NCCM</span></div>
+  <div>
+    <h1>Guía de instalación en Ubuntu Server</h1>
+    <p class="sub">Paso a paso para instalar, configurar, asegurar, respaldar y actualizar OpenNCCM, el sistema de gestión
+    de configuración, cambios y cumplimiento de red.</p>
+  </div>
+  <div class="meta">Versión del software: 1.1.0<br>Sistemas soportados: Ubuntu Server 22.04 LTS y 24.04 LTS (64 bits)<br>
+  Octubre de 2026</div>
+</div>
+
+<section class="chapter">
+<h1>Contenido</h1>
+<div class="toc"><ol>
+  <li>Qué se instala y cómo funciona</li>
+  <li>Requisitos</li>
+  <li>Preparar el servidor Ubuntu</li>
+  <li>Copiar el paquete al servidor</li>
+  <li>Ejecutar el instalador</li>
+  <li>Primer acceso</li>
+  <li>Configuración inicial</li>
+  <li>Enviar syslog desde los equipos</li>
+  <li>Tareas programadas recomendadas</li>
+  <li>Notificaciones por correo, Teams, Slack o Telegram</li>
+  <li>Certificado HTTPS propio</li>
+  <li>Cortafuegos</li>
+  <li>Copias de seguridad y recuperación</li>
+  <li>Actualizar a una versión nueva y volver atrás</li>
+  <li>PostgreSQL para instalaciones grandes</li>
+  <li>Verificación y solución de problemas</li>
+  <li>Desinstalar</li>
+  <li>Referencia de rutas, servicios y comandos</li>
+</ol></div>
+
+<div class="note" style="margin-top:8mm"><b>Convenciones de esta guía</b>
+Los bloques oscuros son comandos para escribir en la consola del servidor. Las líneas que empiezan con <code>$</code> son
+comandos; no escriba el símbolo <code>$</code>. Reemplace los valores en <code>MAYÚSCULAS</code> por los suyos
+(por ejemplo <code>IP_DEL_SERVIDOR</code>). Las capturas de pantalla son de la aplicación real.</div>
+</section>
+
+<section class="chapter">
+<h1>1. Qué se instala y cómo funciona</h1>
+<p>OpenNCCM es una aplicación web que se instala en un único servidor Ubuntu. Se conecta a sus switches, routers y
+firewalls por SSH (o Telnet) para respaldar su configuración, compararla, auditarla y aplicar cambios. Los equipos le
+avisan de los cambios en tiempo real enviando mensajes syslog.</p>
+
+<div class="diagram">
+<svg viewBox="0 0 720 330" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, sans-serif" font-size="12">
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5b6675"/></marker></defs>
+  <rect x="10" y="20" width="150" height="70" rx="8" fill="#eef4fd" stroke="#1f6feb"/>
+  <text x="85" y="50" text-anchor="middle" font-weight="600">Navegador</text>
+  <text x="85" y="68" text-anchor="middle" fill="#5b6675" font-size="11">administradores</text>
+  <rect x="210" y="10" width="300" height="250" rx="10" fill="#f7f9fb" stroke="#9fb0c2" stroke-dasharray="4 3"/>
+  <text x="360" y="30" text-anchor="middle" font-weight="700">Servidor Ubuntu</text>
+  <rect x="230" y="45" width="120" height="44" rx="6" fill="#fff" stroke="#5b6675"/>
+  <text x="290" y="64" text-anchor="middle" font-weight="600">nginx</text><text x="290" y="80" text-anchor="middle" fill="#5b6675" font-size="10.5">HTTPS 443</text>
+  <rect x="370" y="45" width="125" height="44" rx="6" fill="#fff" stroke="#1f6feb"/>
+  <text x="432" y="64" text-anchor="middle" font-weight="600">OpenNCCM</text><text x="432" y="80" text-anchor="middle" fill="#5b6675" font-size="10.5">127.0.0.1:8000</text>
+  <rect x="370" y="110" width="125" height="44" rx="6" fill="#fff" stroke="#5b6675"/>
+  <text x="432" y="129" text-anchor="middle" font-weight="600">Receptor syslog</text><text x="432" y="145" text-anchor="middle" fill="#5b6675" font-size="10.5">UDP 514</text>
+  <rect x="230" y="110" width="120" height="44" rx="6" fill="#fff" stroke="#5b6675"/>
+  <text x="290" y="129" text-anchor="middle" font-weight="600">Tareas cron</text><text x="290" y="145" text-anchor="middle" fill="#5b6675" font-size="10.5">respaldos, auditorías</text>
+  <rect x="230" y="180" width="120" height="56" rx="6" fill="#fff" stroke="#5b6675"/>
+  <text x="290" y="200" text-anchor="middle" font-weight="600">Base de datos</text><text x="290" y="216" text-anchor="middle" fill="#5b6675" font-size="10.5">SQLite (o PostgreSQL)</text>
+  <text x="290" y="230" text-anchor="middle" fill="#5b6675" font-size="10.5">cifrada AES-256</text>
+  <rect x="370" y="180" width="125" height="56" rx="6" fill="#fff" stroke="#c62828"/>
+  <text x="432" y="200" text-anchor="middle" font-weight="600">secret.key</text><text x="432" y="216" text-anchor="middle" fill="#5b6675" font-size="10.5">/etc/opennccm</text>
+  <text x="432" y="230" text-anchor="middle" fill="#c62828" font-size="10.5">¡respaldar aparte!</text>
+  <rect x="560" y="20" width="150" height="150" rx="8" fill="#eefaf1" stroke="#1a7f37"/>
+  <text x="635" y="45" text-anchor="middle" font-weight="600">Equipos de red</text>
+  <text x="635" y="68" text-anchor="middle" fill="#5b6675" font-size="11">switches</text>
+  <text x="635" y="84" text-anchor="middle" fill="#5b6675" font-size="11">routers</text>
+  <text x="635" y="100" text-anchor="middle" fill="#5b6675" font-size="11">firewalls</text>
+  <text x="635" y="116" text-anchor="middle" fill="#5b6675" font-size="11">controladoras Wi-Fi</text>
+  <text x="635" y="140" text-anchor="middle" fill="#5b6675" font-size="10.5">122 plataformas</text>
+  <rect x="560" y="200" width="150" height="110" rx="8" fill="#fff6e5" stroke="#d29922"/>
+  <text x="635" y="222" text-anchor="middle" font-weight="600">Internet (opcional)</text>
+  <text x="635" y="244" text-anchor="middle" fill="#5b6675" font-size="11">NVD (CVE)</text>
+  <text x="635" y="260" text-anchor="middle" fill="#5b6675" font-size="11">API Cisco EoX</text>
+  <text x="635" y="276" text-anchor="middle" fill="#5b6675" font-size="11">correo / Teams / Telegram</text>
+  <text x="635" y="292" text-anchor="middle" fill="#5b6675" font-size="11">SFTP de respaldo</text>
+  <line x1="160" y1="58" x2="228" y2="65" stroke="#5b6675" marker-end="url(#a)"/>
+  <line x1="350" y1="67" x2="368" y2="67" stroke="#5b6675" marker-end="url(#a)"/>
+  <line x1="495" y1="60" x2="558" y2="60" stroke="#1a7f37" stroke-width="1.6" marker-end="url(#a)"/>
+  <text x="527" y="52" text-anchor="middle" font-size="10" fill="#1a7f37">SSH 22</text>
+  <line x1="558" y1="125" x2="497" y2="132" stroke="#1a7f37" stroke-width="1.6" marker-end="url(#a)"/>
+  <text x="527" y="118" text-anchor="middle" font-size="10" fill="#1a7f37">syslog</text>
+  <line x1="495" y1="225" x2="558" y2="245" stroke="#d29922" marker-end="url(#a)"/>
+  <text x="360" y="285" text-anchor="middle" fill="#5b6675" font-size="11">Todo corre como el usuario de sistema «opennccm», sin privilegios de root.</text>
+</svg>
+</div>
+
+<table>
+  <tr><th style="width:30%">Componente</th><th>Función</th></tr>
+  <tr><td>nginx</td><td>Recibe las conexiones HTTPS (puerto 443) y las pasa a la aplicación. Redirige HTTP (80) a HTTPS.</td></tr>
+  <tr><td>Servicio <code>opennccm</code></td><td>Aplicación web (FastAPI + Uvicorn) escuchando solo en el propio servidor (127.0.0.1:8000).
+  Incluye el planificador de tareas y el receptor syslog.</td></tr>
+  <tr><td>Netmiko</td><td>Biblioteca que habla con cada fabricante por SSH/Telnet y SCP.</td></tr>
+  <tr><td>Base de datos</td><td>SQLite en <code>/var/lib/opennccm</code> por defecto. Configuraciones y contraseñas cifradas.</td></tr>
+  <tr><td>Clave de cifrado</td><td><code>/etc/opennccm/secret.key</code>. Sin ella los datos no se pueden leer.</td></tr>
+</table>
+</section>
+
+<section class="chapter">
+<h1>2. Requisitos</h1>
+<h2>Servidor</h2>
+<table>
+  <tr><th>Tamaño de la red</th><th>CPU</th><th>RAM</th><th>Disco</th><th>Base de datos</th></tr>
+  <tr><td>Hasta 300 equipos</td><td>2 vCPU</td><td>4 GB</td><td>40 GB</td><td>SQLite (por defecto)</td></tr>
+  <tr><td>300 – 2 000 equipos</td><td>4 vCPU</td><td>8 GB</td><td>100 GB</td><td>SQLite o PostgreSQL</td></tr>
+  <tr><td>Más de 2 000 equipos</td><td>8 vCPU</td><td>16 GB</td><td>200 GB+</td><td>PostgreSQL (sección 15)</td></tr>
+</table>
+<p class="small">Valores orientativos. El disco crece con la cantidad de versiones guardadas y con las imágenes de firmware; puede
+limitar las versiones por equipo en <b>Ajustes → Retención</b>.</p>
+<ul>
+  <li>Ubuntu Server <b>22.04 LTS</b> o <b>24.04 LTS</b>, 64 bits, recién instalado (físico o máquina virtual).</li>
+  <li>Acceso con un usuario que tenga <code>sudo</code>.</li>
+  <li>Acceso a internet durante la instalación (descarga de paquetes de Ubuntu y de Python).</li>
+  <li>IP fija y nombre DNS recomendados.</li>
+</ul>
+<h2>Red</h2>
+<table>
+  <tr><th>Origen</th><th>Destino</th><th>Puerto</th><th>Para qué</th></tr>
+  <tr><td>Navegadores de los administradores</td><td>Servidor</td><td>TCP 443 (y 80)</td><td>Interfaz web</td></tr>
+  <tr><td>Servidor</td><td>Equipos de red</td><td>TCP 22 (SSH) o 23 (Telnet)</td><td>Respaldos, cambios, firmware (SCP sobre SSH)</td></tr>
+  <tr><td>Equipos de red</td><td>Servidor</td><td>UDP 514</td><td>Syslog: detección de cambios en tiempo real</td></tr>
+  <tr><td>Servidor</td><td>Internet</td><td>TCP 443</td><td>Opcional: NVD (CVE), API Cisco EoX, Telegram, webhooks</td></tr>
+  <tr><td>Servidor</td><td>Servidor de correo</td><td>TCP 587 / 465 / 25</td><td>Opcional: alertas e informes por correo</td></tr>
+</table>
+<h2>En los equipos de red</h2>
+<ul>
+  <li>SSH habilitado y un usuario para OpenNCCM (idealmente uno dedicado, con privilegio para ver y cambiar la configuración).</li>
+  <li>Para la actualización de firmware en Cisco: <code>ip scp server enable</code>.</li>
+</ul>
+</section>
+
+<section class="chapter">
+<h1>3. Preparar el servidor Ubuntu</h1>
+<p>Conéctese al servidor por SSH (desde Windows puede usar PowerShell, PuTTY o Windows Terminal):</p>
+<div class="term" data-title="PowerShell en su PC"><span class="p">PS&gt;</span> ssh USUARIO@IP_DEL_SERVIDOR</div>
+<p>Actualice el sistema y configure la zona horaria (importante: las fechas de cambios y tareas usan la hora del servidor):</p>
+<div class="term" data-title="Servidor Ubuntu"><span class="p">$</span> sudo apt update &amp;&amp; sudo apt -y full-upgrade
+<span class="p">$</span> timedatectl list-timezones | grep America        <span class="c"># buscar su zona</span>
+<span class="p">$</span> sudo timedatectl set-timezone America/Mexico_City  <span class="c"># ejemplo: use la suya</span>
+<span class="p">$</span> timedatectl                                        <span class="c"># verificar hora y "NTP service: active"</span>
+<span class="p">$</span> sudo hostnamectl set-hostname opennccm             <span class="c"># opcional</span>
+<span class="p">$</span> sudo reboot                                        <span class="c"># si se actualizó el kernel</span></div>
+<div class="tip"><b>Recomendación</b>Si el servidor es una máquina virtual, tome una instantánea (snapshot) ahora. Permite volver a
+este punto si algo sale mal durante la instalación.</div>
+</section>
+
+<section class="chapter">
+<h1>4. Copiar el paquete al servidor</h1>
+<p>El software se entrega en el archivo <code>opennccm.tar.gz</code>. Cópielo a la carpeta personal del usuario en el servidor.</p>
+<h2>Opción A — Desde Windows con PowerShell (scp viene incluido en Windows 10/11)</h2>
+<div class="term" data-title="PowerShell en su PC"><span class="p">PS&gt;</span> cd C:\ruta\donde\esta\el\archivo
+<span class="p">PS&gt;</span> scp .\opennccm.tar.gz USUARIO@IP_DEL_SERVIDOR:~/</div>
+<h2>Opción B — Con WinSCP</h2>
+<ol>
+  <li>Abra WinSCP, protocolo <b>SFTP</b>, servidor <code>IP_DEL_SERVIDOR</code>, su usuario y contraseña.</li>
+  <li>Arrastre <code>opennccm.tar.gz</code> a la carpeta personal (<code>/home/USUARIO</code>).</li>
+</ol>
+<h2>Descomprimir</h2>
+<div class="term" data-title="Servidor Ubuntu"><span class="p">$</span> cd ~
+<span class="p">$</span> tar xzf opennccm.tar.gz
+<span class="p">$</span> cd opennccm
+<span class="p">$</span> ls
+<span class="o">app  CHANGELOG.md  install.sh  README.md  requirements.txt  rollback-update.sh</span></div>
+</section>
+
+<section class="chapter">
+<h1>5. Ejecutar el instalador</h1>
+<div class="term" data-title="Servidor Ubuntu"><span class="p">$</span> sudo bash install.sh</div>
+<p>El instalador tarda entre 2 y 5 minutos según la conexión. Hace lo siguiente, en orden:</p>
+<div class="diagram">
+<svg viewBox="0 0 720 150" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, sans-serif" font-size="11">
+  <defs><marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5b6675"/></marker></defs>
+  <g>
+    <rect x="5" y="20" width="128" height="58" rx="8" fill="#eef4fd" stroke="#1f6feb"/><text x="69" y="44" text-anchor="middle" font-weight="600">1. Paquetes</text><text x="69" y="62" text-anchor="middle" fill="#5b6675">python3, nginx, openssl</text>
+    <rect x="148" y="20" width="128" height="58" rx="8" fill="#eef4fd" stroke="#1f6feb"/><text x="212" y="44" text-anchor="middle" font-weight="600">2. Usuario y carpetas</text><text x="212" y="62" text-anchor="middle" fill="#5b6675">opennccm, /opt, /var/lib</text>
+    <rect x="291" y="20" width="128" height="58" rx="8" fill="#eef4fd" stroke="#1f6feb"/><text x="355" y="44" text-anchor="middle" font-weight="600">3. Entorno Python</text><text x="355" y="62" text-anchor="middle" fill="#5b6675">venv + dependencias</text>
+    <rect x="434" y="20" width="128" height="58" rx="8" fill="#fff6e5" stroke="#d29922"/><text x="498" y="44" text-anchor="middle" font-weight="600">4. Clave AES-256</text><text x="498" y="62" text-anchor="middle" fill="#5b6675">secret.key</text>
+    <rect x="577" y="20" width="138" height="58" rx="8" fill="#eef4fd" stroke="#1f6feb"/><text x="646" y="44" text-anchor="middle" font-weight="600">5. Servicio systemd</text><text x="646" y="62" text-anchor="middle" fill="#5b6675">opennccm.service</text>
+    <rect x="148" y="92" width="128" height="50" rx="8" fill="#eef4fd" stroke="#1f6feb"/><text x="212" y="114" text-anchor="middle" font-weight="600">6. nginx + HTTPS</text><text x="212" y="130" text-anchor="middle" fill="#5b6675">certificado autofirmado</text>
+    <rect x="291" y="92" width="128" height="50" rx="8" fill="#eef4fd" stroke="#1f6feb"/><text x="355" y="114" text-anchor="middle" font-weight="600">7. Cortafuegos</text><text x="355" y="130" text-anchor="middle" fill="#5b6675">si ufw está activo</text>
+    <rect x="434" y="92" width="128" height="50" rx="8" fill="#eefaf1" stroke="#1a7f37"/><text x="498" y="114" text-anchor="middle" font-weight="600">8. Usuario admin</text><text x="498" y="130" text-anchor="middle" fill="#5b6675">+ políticas de ejemplo</text>
+  </g>
+  <g stroke="#5b6675" marker-end="url(#b)"><line x1="133" y1="49" x2="146" y2="49"/><line x1="276" y1="49" x2="289" y2="49"/><line x1="419" y1="49" x2="432" y2="49"/><line x1="562" y1="49" x2="575" y2="49"/>
+  <path d="M646,78 V86 H212 V90" fill="none"/><line x1="276" y1="117" x2="289" y2="117"/><line x1="419" y1="117" x2="432" y2="117"/></g>
+</svg>
+</div>
+<p>Al terminar, el instalador muestra un resumen como este (los valores de IP y contraseña serán los suyos):</p>
+<div class="term" data-title="Servidor Ubuntu — final de la instalación"><span class="o">==&gt; Instalando OpenNCCM 1.1.0 en Ubuntu 24.04 LTS
+==&gt; Creando entorno Python
+==&gt; Generando clave AES-256 en /etc/opennccm/secret.key (¡respáldela! sin ella no se pueden leer los datos)
+==&gt; Configurando nginx con HTTPS (certificado autofirmado)
+
+  Usuario inicial:  admin
+  Contraseña:       (contraseña aleatoria)     (cámbiela en 'Mi cuenta')
+
+  OpenNCCM listo en https://IP_DEL_SERVIDOR/
+  Logs: journalctl -u opennccm -f
+  Respalde SIEMPRE /etc/opennccm/secret.key junto con /var/lib/opennccm</span></div>
+<div class="warn"><b>Anote la contraseña inicial</b>Se muestra una sola vez. Si la pierde, puede crear una nueva con
+<code>sudo opennccm-cli reset-password admin 'NuevaClave123'</code>.</div>
+<h2>Comprobar que el servicio está activo</h2>
+<div class="term" data-title="Servidor Ubuntu"><span class="p">$</span> systemctl status opennccm --no-pager
+<span class="o">● opennccm.service - OpenNCCM - Network Configuration &amp; Change Management
+     Active: active (running)</span>
+<span class="p">$</span> curl -k https://localhost/healthz
+<span class="o">{"status":"ok"}</span></div>
+<div class="keep"><h2>Opciones del instalador</h2>
+<table class="keep">
+  <tr><th>Comando</th><th>Uso</th></tr>
+  <tr><td><code>sudo bash install.sh</code></td><td>Instalación normal (HTTPS con nginx). También sirve para actualizar.</td></tr>
+  <tr><td><code>sudo bash install.sh --no-nginx</code></td><td>Sin nginx: la aplicación queda en <code>http://IP:8000</code>. Solo para laboratorio.</td></tr>
+</table></div>
+</section>
+
+<section class="chapter">
+<h1>6. Primer acceso</h1>
+<ol class="steps">
+  <li>En su PC abra el navegador y vaya a <code>https://IP_DEL_SERVIDOR/</code>.</li>
+  <li>El navegador avisará que la conexión «no es privada»: es normal con el certificado autofirmado. Pulse
+  <b>Configuración avanzada → Continuar</b>. Para quitar el aviso instale un certificado propio (sección 11).</li>
+  <li>Ingrese con el usuario <b>admin</b> y la contraseña que mostró el instalador.</li>
+</ol>
+<figure><img src="img/01-login.png" style="max-width:70%"><figcaption>Pantalla de ingreso.</figcaption></figure>
+<ol class="steps" start="4" style="counter-reset:s 3">
+  <li>Cambie la contraseña de inmediato: clic en su nombre de usuario (arriba a la derecha) → <b>Mi cuenta</b>.</li>
+</ol>
+<figure><img src="img/31-cuenta.png" style="max-width:80%"><figcaption>Mi cuenta: cambio de contraseña (mínimo 8 caracteres).</figcaption></figure>
+<div class="note"><b>Protección contra fuerza bruta</b>Tras 10 intentos fallidos desde la misma IP, el ingreso se bloquea 15 minutos.
+Cada intento queda en <b>Auditoría</b>.</div>
+</section>
+
+<section class="chapter">
+<h1>7. Configuración inicial</h1>
+<h2>7.1 Credenciales de los equipos</h2>
+<p>Menú <b>Credenciales</b>. Cree un perfil por cada combinación de usuario/contraseña que usen sus equipos (por ejemplo
+«red-admin» y «firewalls»). Si sus equipos Cisco requieren <code>enable</code>, complete también «Enable / secret».
+Las contraseñas se guardan cifradas y nunca se vuelven a mostrar.</p>
+<p>En la misma página cree los <b>grupos</b> de dispositivos (sede, función o cliente). Los grupos sirven para tareas,
+políticas, filtros y para limitar qué equipos ve cada usuario.</p>
+<figure><img src="img/25-credenciales.png"><figcaption>Credenciales y grupos.</figcaption></figure>
+
+<h2>7.2 Agregar dispositivos</h2>
+<p>Menú <b>Dispositivos → + Agregar</b>. Complete nombre, IP, fabricante/sistema operativo, protocolo, credencial y grupo.
+Al guardar, OpenNCCM hace el primer respaldo automáticamente.</p>
+<figure><img src="img/04-dispositivo-nuevo.png" class="tall"><figcaption>Alta de un dispositivo.</figcaption></figure>
+
+<h2>7.3 Importación masiva por CSV</h2>
+<p>Para muchos equipos, prepare un CSV en Excel (guardar como «CSV UTF-8») con estas columnas y cárguelo al pie de la página
+<b>Dispositivos</b>:</p>
+<pre>name,host,device_type,credential,group,port,protocol,location
+core-sw1,10.0.0.1,cisco_ios,red-admin,Core,22,ssh,Datacenter
+fw-01,10.0.0.254,fortinet,firewalls,Seguridad,22,ssh,Datacenter
+edge-r1,10.0.1.1,juniper_junos,red-admin,WAN,22,ssh,Sucursal Norte</pre>
+<p>El valor de <code>device_type</code> de cada plataforma está en <b>Sistema → plataformas soportadas</b> (página
+<code>/vendors</code>). Los grupos que no existan se crean solos.</p>
+
+<h2>7.4 Verificar el primer respaldo</h2>
+<p>Abra el dispositivo. Si el estado es <span class="badge b-ok">ok</span> verá su modelo, número de serie, versión de
+firmware y la primera versión de configuración. Si es <span class="badge b-crit">error</span>, el recuadro rojo indica la
+causa (ver sección 16).</p>
+<figure><img src="img/03-dispositivos.png"><figcaption>Lista de dispositivos con su estado.</figcaption></figure>
+</section>
+
+<section class="chapter">
+<h1>8. Enviar syslog desde los equipos</h1>
+<p>Para que OpenNCCM detecte los cambios <b>en el momento</b> en que alguien los hace, cada equipo debe enviar sus mensajes
+syslog al servidor (UDP 514). Al recibir un aviso de cambio, OpenNCCM espera 20 segundos, respalda el equipo, compara,
+alerta y, si está activada, revierte el cambio no autorizado.</p>
+<div class="tip"><b>Atajo</b>Hay configlets listos para Cisco IOS, Junos y Huawei en <b>Configlets → «Configurar syslog hacia
+OpenNCCM»</b>: elija los equipos, escriba la IP del servidor en la variable <code>servidor_ncm</code> y apruebe.</div>
+<div class="two">
+<div>
+<h3>Cisco IOS / IOS-XE</h3>
+<pre>logging host IP_DEL_SERVIDOR
+logging trap notifications
+archive
+ log config
+  logging enable
+  notify syslog contenttype plaintext</pre>
+<h3>Juniper Junos</h3>
+<pre>set system syslog host IP_DEL_SERVIDOR interactive-commands notice
+set system syslog host IP_DEL_SERVIDOR change-log info
+commit</pre>
+<h3>Huawei VRP / H3C</h3>
+<pre>info-center loghost IP_DEL_SERVIDOR</pre>
+</div>
+<div>
+<h3>Fortinet FortiGate</h3>
+<pre>config log syslogd setting
+    set status enable
+    set server "IP_DEL_SERVIDOR"
+end</pre>
+<h3>MikroTik RouterOS</h3>
+<pre>/system logging action add name=ncm target=remote remote=IP_DEL_SERVIDOR
+/system logging add topics=system,info action=ncm</pre>
+<h3>Aruba / HPE / Arista</h3>
+<pre>logging IP_DEL_SERVIDOR</pre>
+</div>
+</div>
+<p>El equipo debe estar dado de alta en OpenNCCM con la <b>misma IP</b> desde la que envía el syslog (o con un nombre DNS que
+resuelva a ella). Puede comprobar la recepción en <b>Alarmas</b>: aparece un evento «Syslog de cambio».</p>
+</section>
+
+<section class="chapter">
+<h1>9. Tareas programadas recomendadas</h1>
+<p>Menú <b>Tareas</b>. Las expresiones usan el formato cron de 5 campos: minuto, hora, día, mes y día de la semana.</p>
+<table>
+  <tr><th>Tarea</th><th>Acción</th><th>Cron</th><th>Significado</th></tr>
+  <tr><td>Respaldo nocturno</td><td>Respaldo de configuración</td><td><code>0 2 * * *</code></td><td>Todos los días a las 02:00</td></tr>
+  <tr><td>Copia de recuperación</td><td>Copia de recuperación de OpenNCCM</td><td><code>30 3 * * *</code></td><td>Todos los días a las 03:30</td></tr>
+  <tr><td>Auditoría semanal</td><td>Auditoría de cumplimiento</td><td><code>0 6 * * 1</code></td><td>Lunes a las 06:00</td></tr>
+  <tr><td>Vulnerabilidades</td><td>Escaneo de vulnerabilidades (NVD)</td><td><code>0 4 * * 0</code></td><td>Domingos a las 04:00</td></tr>
+  <tr><td>Informe semanal</td><td>Enviar informes por correo</td><td><code>0 7 * * 1</code></td><td>Lunes a las 07:00</td></tr>
+</table>
+<figure><img src="img/20-tareas.png"><figcaption>Tareas programadas con su próxima ejecución.</figcaption></figure>
+</section>
+
+<section class="chapter">
+<h1>10. Notificaciones</h1>
+<p>Menú <b>Ajustes → Notificaciones</b>. Configure uno o varios canales y pulse <b>Enviar notificación de prueba</b>.</p>
+<table>
+  <tr><th>Canal</th><th>Qué completar</th></tr>
+  <tr><td>Correo</td><td>Servidor SMTP, puerto (587 con STARTTLS o 465 con SSL), usuario, contraseña, remitente y destinatarios separados por coma.</td></tr>
+  <tr><td>Microsoft Teams / Slack / Mattermost / Google Chat</td><td>URL del <i>incoming webhook</i> del canal.</td></tr>
+  <tr><td>Telegram</td><td>Token del bot (de @BotFather) y el ID del chat o grupo.</td></tr>
+</table>
+<p>La «severidad mínima» define qué se notifica: <code>warning</code> envía cambios de configuración, infracciones y
+fallos; <code>critical</code> solo reversiones automáticas y vulnerabilidades críticas.</p>
+<figure><img src="img/29-ajustes.png" class="tall"><figcaption>Ajustes: flujo de cambios, notificaciones, API Cisco y recuperación.</figcaption></figure>
+</section>
+
+<section class="chapter">
+<h1>11. Certificado HTTPS propio</h1>
+<p>El instalador crea un certificado autofirmado válido por 10 años. Para evitar el aviso del navegador, reemplácelo por uno
+de la CA de su empresa o de Let's Encrypt.</p>
+<h2>Certificado de su CA interna</h2>
+<div class="term" data-title="Servidor Ubuntu"><span class="p">$</span> sudo cp servidor.crt /etc/ssl/certs/opennccm.crt       <span class="c"># incluya la cadena intermedia</span>
+<span class="p">$</span> sudo cp servidor.key /etc/ssl/private/opennccm.key
+<span class="p">$</span> sudo chmod 600 /etc/ssl/private/opennccm.key
+<span class="p">$</span> sudo nginx -t &amp;&amp; sudo systemctl reload nginx</div>
+<h2>Let's Encrypt (solo si el servidor tiene un nombre DNS público accesible por el puerto 80)</h2>
+<div class="term" data-title="Servidor Ubuntu"><span class="p">$</span> sudo apt install -y certbot python3-certbot-nginx
+<span class="p">$</span> sudo certbot --nginx -d opennccm.SU-DOMINIO.com</div>
+</section>
+
+<section class="chapter">
+<h1>12. Cortafuegos</h1>
+<p>Si usa <code>ufw</code>, el instalador abre los puertos necesarios cuando ya está activo. Para activarlo desde cero
+<b>sin perder su sesión SSH</b>:</p>
+<div class="term" data-title="Servidor Ubuntu"><span class="p">$</span> sudo ufw allow OpenSSH
+<span class="p">$</span> sudo ufw allow 'Nginx Full'
+<span class="p">$</span> sudo ufw allow 514/udp comment 'OpenNCCM syslog'
+<span class="p">$</span> sudo ufw enable
+<span class="p">$</span> sudo ufw status</div>
+<div class="tip"><b>Más seguro</b>Limite el syslog y la web a sus redes de gestión, por ejemplo:
+<code>sudo ufw allow from 10.0.0.0/8 to any port 514 proto udp</code>.</div>
+</section>
+
+<section class="chapter">
+<h1>13. Copias de seguridad y recuperación</h1>
+<p>OpenNCCM guarda todo lo importante en dos lugares:</p>
+<table>
+  <tr><th>Ruta</th><th>Contenido</th></tr>
+  <tr><td><code>/var/lib/opennccm</code></td><td>Base de datos (configuraciones, historial, usuarios, políticas), imágenes de firmware y copias.</td></tr>
+  <tr><td><code>/etc/opennccm</code></td><td><b>secret.key</b> (clave de cifrado) y <code>opennccm.env</code> (configuración del servicio).</td></tr>
+</table>
+<h2>Desde la interfaz</h2>
+<p>Menú <b>Sistema → Crear copia ahora</b>. Programe la copia diaria en <b>Tareas</b> y, en <b>Ajustes → Recuperación ante
+desastres</b>, defina cuántas copias conservar y un servidor SFTP remoto donde enviar cada copia.</p>
+<figure><img src="img/28-sistema.png"><figcaption>Sistema: copias de recuperación y comando de restauración.</figcaption></figure>
+<h2>Desde la consola</h2>
+<div class="term" data-title="Servidor Ubuntu"><span class="p">$</span> sudo opennccm-cli system-backup              <span class="c"># sin la clave</span>
+<span class="p">$</span> sudo opennccm-cli system-backup --with-key   <span class="c"># incluye secret.key: proteja el archivo</span></div>
+<h2>Restaurar (en el mismo servidor o en uno nuevo)</h2>
+<ol class="steps">
+  <li>En un servidor nuevo, instale primero OpenNCCM (secciones 3 a 5).</li>
+  <li>Si la copia no incluye la clave, copie el <code>secret.key</code> original a <code>/etc/opennccm/secret.key</code>.</li>
+  <li>Restaure:</li>
+</ol>
+<div class="term" data-title="Servidor Ubuntu"><span class="p">$</span> sudo systemctl stop opennccm
+<span class="p">$</span> sudo opennccm-cli restore /ruta/opennccm-AAAAMMDD-HHMMSS.tar.gz
+<span class="p">$</span> sudo chown -R opennccm:opennccm /var/lib/opennccm /etc/opennccm
+<span class="p">$</span> sudo systemctl start opennccm</div>
+<div class="warn"><b>La clave es imprescindible</b>Sin el <code>secret.key</code> correcto las configuraciones y contraseñas
+respaldadas no se pueden descifrar. Guárdela en un lugar seguro, separado de las copias (por ejemplo, en el gestor de
+contraseñas del equipo).</div>
+</section>
+
+<section class="chapter">
+<h1>14. Actualizar a una versión nueva y volver atrás</h1>
+<p>Las actualizaciones usan el mismo instalador. Sus datos, la clave y la configuración se conservan.</p>
+<div class="diagram">
+<svg viewBox="0 0 720 120" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, sans-serif" font-size="11">
+  <defs><marker id="c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5b6675"/></marker></defs>
+  <rect x="5" y="25" width="120" height="60" rx="8" fill="#eef4fd" stroke="#1f6feb"/><text x="65" y="50" text-anchor="middle" font-weight="600">Detener servicio</text><text x="65" y="67" text-anchor="middle" fill="#5b6675">datos consistentes</text>
+  <rect x="150" y="25" width="135" height="60" rx="8" fill="#fff6e5" stroke="#d29922"/><text x="217" y="50" text-anchor="middle" font-weight="600">Copia previa</text><text x="217" y="67" text-anchor="middle" fill="#5b6675">código + base de datos</text>
+  <rect x="310" y="25" width="125" height="60" rx="8" fill="#eef4fd" stroke="#1f6feb"/><text x="372" y="50" text-anchor="middle" font-weight="600">Nuevo código</text><text x="372" y="67" text-anchor="middle" fill="#5b6675">y dependencias</text>
+  <rect x="460" y="25" width="125" height="60" rx="8" fill="#eef4fd" stroke="#1f6feb"/><text x="522" y="50" text-anchor="middle" font-weight="600">Migración</text><text x="522" y="67" text-anchor="middle" fill="#5b6675">columnas/tablas nuevas</text>
+  <rect x="610" y="25" width="105" height="60" rx="8" fill="#eefaf1" stroke="#1a7f37"/><text x="662" y="50" text-anchor="middle" font-weight="600">Iniciar</text><text x="662" y="67" text-anchor="middle" fill="#5b6675">versión nueva</text>
+  <g stroke="#5b6675" marker-end="url(#c)"><line x1="125" y1="55" x2="148" y2="55"/><line x1="285" y1="55" x2="308" y2="55"/><line x1="435" y1="55" x2="458" y2="55"/><line x1="585" y1="55" x2="608" y2="55"/></g>
+  <text x="217" y="108" text-anchor="middle" fill="#9a6700" font-size="10.5">se guardan las 5 últimas en /var/lib/opennccm/pre-update/</text>
+</svg>
+</div>
+<h2>Actualizar</h2>
+<div class="term" data-title="Servidor Ubuntu"><span class="p">$</span> cd ~ &amp;&amp; rm -rf opennccm
+<span class="p">$</span> tar xzf opennccm-NUEVA.tar.gz &amp;&amp; cd opennccm
+<span class="p">$</span> cat CHANGELOG.md                 <span class="c"># qué cambia en la versión</span>
+<span class="p">$</span> sudo bash install.sh
+<span class="o">==&gt; Actualizando OpenNCCM 1.1.0 -&gt; 1.2.0 en Ubuntu 24.04 LTS
+    Copia previa en /var/lib/opennccm/pre-update/AAAAMMDD-HHMMSS_v1.1.0 (código + base de datos). Para volver atrás:
+    sudo bash /home/USUARIO/opennccm/rollback-update.sh /var/lib/opennccm/pre-update/AAAAMMDD-HHMMSS_v1.1.0</span>
+<span class="p">$</span> sudo opennccm-cli version
+<span class="o">1.2.0</span></div>
+<p>La versión instalada también aparece al pie de todas las páginas. Los navegadores cargan automáticamente los estilos nuevos.</p>
+<h2>Volver a la versión anterior</h2>
+<div class="term" data-title="Servidor Ubuntu"><span class="p">$</span> sudo bash rollback-update.sh                       <span class="c"># lista las copias previas</span>
+<span class="p">$</span> sudo bash rollback-update.sh /var/lib/opennccm/pre-update/AAAAMMDD-HHMMSS_v1.1.0</div>
+<div class="warn"><b>Atención</b>Volver atrás restaura también la base de datos de ese momento: se pierden los respaldos y cambios
+registrados después de actualizar (la base descartada se conserva con el sufijo <code>.descartada-…</code>).</div>
+<h2>Buenas prácticas</h2>
+<ul>
+  <li>Lea el <code>CHANGELOG.md</code> antes de actualizar.</li>
+  <li>Cree además una copia de recuperación con la clave y, si es una VM, una instantánea.</li>
+  <li>Actualice fuera del horario de respaldos programados.</li>
+</ul>
+</section>
+
+<section class="chapter">
+<h1>15. PostgreSQL para instalaciones grandes</h1>
+<p>SQLite es suficiente para la mayoría de las redes. Para miles de equipos o varios administradores trabajando a la vez, use
+PostgreSQL. Hágalo <b>antes</b> de cargar datos (no hay migración automática de SQLite a PostgreSQL).</p>
+<div class="term" data-title="Servidor Ubuntu"><span class="p">$</span> sudo apt install -y postgresql
+<span class="p">$</span> sudo -u postgres psql -c "CREATE USER ncm WITH PASSWORD 'CLAVE_SEGURA';"
+<span class="p">$</span> sudo -u postgres psql -c "CREATE DATABASE opennccm OWNER ncm;"
+<span class="p">$</span> sudo /opt/opennccm/.venv/bin/pip install psycopg2-binary
+<span class="p">$</span> sudo nano /etc/opennccm/opennccm.env
+<span class="c">  # agregue la línea:  NCM_DATABASE_URL=postgresql+psycopg2://ncm:CLAVE_SEGURA@localhost/opennccm</span>
+<span class="p">$</span> sudo systemctl restart opennccm
+<span class="p">$</span> sudo opennccm-cli create-admin admin 'ClaveNueva123'
+<span class="p">$</span> sudo opennccm-cli seed</div>
+<p>Con PostgreSQL las copias de recuperación usan <code>pg_dump</code> (instale <code>postgresql-client</code>) y se restauran con
+<code>pg_restore</code>.</p>
+</section>
+
+<section class="chapter">
+<h1>16. Verificación y solución de problemas</h1>
+<h2>Lista de verificación</h2>
+<table>
+  <tr><th>Comprobación</th><th>Cómo</th><th>Resultado esperado</th></tr>
+  <tr><td>Servicio activo</td><td><code>systemctl status opennccm</code></td><td>active (running)</td></tr>
+  <tr><td>Web responde</td><td><code>curl -k https://localhost/healthz</code></td><td><code>{"status":"ok"}</code></td></tr>
+  <tr><td>Syslog escuchando</td><td><code>sudo ss -ulpn | grep 514</code></td><td>proceso python en 0.0.0.0:514</td></tr>
+  <tr><td>Llega a un equipo</td><td><code>ssh USUARIO@IP_EQUIPO</code> desde el servidor</td><td>pide contraseña</td></tr>
+  <tr><td>Primer respaldo</td><td>Ficha del dispositivo</td><td>estado ok + versión #1</td></tr>
+  <tr><td>Alertas</td><td>Ajustes → Enviar notificación de prueba</td><td>llega el mensaje</td></tr>
+</table>
+<h2>Problemas frecuentes</h2>
+<table>
+  <tr><th style="width:32%">Síntoma</th><th>Causa probable y solución</th></tr>
+  <tr><td>La web no abre</td><td>Ver logs: <code>journalctl -u opennccm -n 100</code> y <code>sudo nginx -t</code>. Revise el cortafuegos (puerto 443).</td></tr>
+  <tr><td>«No se pudo abrir syslog UDP/514» en el log</td><td>Otro servicio usa el puerto (p. ej. rsyslog con recepción UDP activada). Desactive esa recepción o cambie <code>NCM_SYSLOG_PORT</code> en <code>/etc/opennccm/opennccm.env</code>.</td></tr>
+  <tr><td>Respaldo: «TCP connection to device failed» o timeout</td><td>Sin conectividad o SSH cerrado. Pruebe <code>ssh</code> desde el servidor; revise ACL de VTY en el equipo.</td></tr>
+  <tr><td>Respaldo: «Authentication failed»</td><td>Usuario/contraseña incorrectos en la credencial asignada.</td></tr>
+  <tr><td>Respaldo: «Pattern not detected»</td><td>El prompt o el modo privilegiado no son los esperados: falta la contraseña de <i>enable</i>, o el <code>device_type</code> no corresponde al equipo.</td></tr>
+  <tr><td>Respaldo: «salida inválida»</td><td>El comando de respaldo no existe en esa versión. Defina un <b>comando de respaldo personalizado</b> en el dispositivo.</td></tr>
+  <tr><td>Los cambios no se detectan en tiempo real</td><td>El equipo no envía syslog, lo envía desde otra IP, o un cortafuegos bloquea UDP 514. Verifique con <code>sudo tcpdump -ni any udp port 514</code>.</td></tr>
+  <tr><td>Telnet «no soportado»</td><td>Esa plataforma no tiene variante Telnet en Netmiko: use SSH.</td></tr>
+  <tr><td>Olvidó la contraseña de admin</td><td><code>sudo opennccm-cli reset-password admin 'NuevaClave123'</code></td></tr>
+  <tr><td>Firmware: «MD5 no verificado»</td><td>Imagen dañada o espacio insuficiente; en Cisco habilite <code>ip scp server enable</code>.</td></tr>
+</table>
+</section>
+
+<section class="chapter">
+<h1>17. Desinstalar</h1>
+<div class="warn"><b>Antes de desinstalar</b>Cree y descargue una copia de recuperación con la clave si quiere conservar los datos.</div>
+<div class="term" data-title="Servidor Ubuntu"><span class="p">$</span> sudo systemctl disable --now opennccm
+<span class="p">$</span> sudo rm -f /etc/systemd/system/opennccm.service /usr/local/bin/opennccm-cli
+<span class="p">$</span> sudo rm -f /etc/nginx/sites-enabled/opennccm /etc/nginx/sites-available/opennccm &amp;&amp; sudo systemctl reload nginx
+<span class="p">$</span> sudo rm -rf /opt/opennccm
+<span class="c"># borra TODOS los datos y la clave:</span>
+<span class="p">$</span> sudo rm -rf /var/lib/opennccm /etc/opennccm
+<span class="p">$</span> sudo userdel opennccm</div>
+</section>
+
+<section class="chapter">
+<h1>18. Referencia</h1>
+<h2>Rutas</h2>
+<table>
+  <tr><th>Ruta</th><th>Contenido</th></tr>
+  <tr><td><code>/opt/opennccm</code></td><td>Código de la aplicación y entorno Python (<code>.venv</code>)</td></tr>
+  <tr><td><code>/var/lib/opennccm/opennccm.db</code></td><td>Base de datos SQLite</td></tr>
+  <tr><td><code>/var/lib/opennccm/firmware</code></td><td>Imágenes de firmware cargadas</td></tr>
+  <tr><td><code>/var/lib/opennccm/system-backups</code></td><td>Copias de recuperación</td></tr>
+  <tr><td><code>/var/lib/opennccm/pre-update</code></td><td>Copias previas a cada actualización</td></tr>
+  <tr><td><code>/etc/opennccm/secret.key</code></td><td>Clave AES-256</td></tr>
+  <tr><td><code>/etc/opennccm/opennccm.env</code></td><td>Variables del servicio</td></tr>
+  <tr><td><code>/etc/systemd/system/opennccm.service</code></td><td>Servicio systemd</td></tr>
+  <tr><td><code>/etc/nginx/sites-available/opennccm</code></td><td>Configuración de nginx</td></tr>
+</table>
+<h2>Variables de <code>/etc/opennccm/opennccm.env</code></h2>
+<table>
+  <tr><th>Variable</th><th>Por defecto</th><th>Uso</th></tr>
+  <tr><td><code>NCM_DATABASE_URL</code></td><td>SQLite</td><td>Cadena de conexión (PostgreSQL)</td></tr>
+  <tr><td><code>NCM_SYSLOG_PORT</code></td><td>514</td><td>Puerto UDP del receptor syslog</td></tr>
+  <tr><td><code>NCM_SYSLOG_ENABLED</code></td><td>1</td><td>0 para desactivar el receptor</td></tr>
+  <tr><td><code>NCM_WORKERS</code></td><td>16</td><td>Equipos procesados en paralelo</td></tr>
+  <tr><td><code>NCM_NVD_API_KEY</code></td><td>(vacío)</td><td>Clave gratuita de NVD: acelera el escaneo de CVE</td></tr>
+</table>
+<p>Tras editar el archivo: <code>sudo systemctl restart opennccm</code>.</p>
+<h2>Comandos</h2>
+<table>
+  <tr><th>Comando</th><th>Acción</th></tr>
+  <tr><td><code>sudo systemctl status|restart|stop opennccm</code></td><td>Controlar el servicio</td></tr>
+  <tr><td><code>sudo journalctl -u opennccm -f</code></td><td>Ver logs en vivo</td></tr>
+  <tr><td><code>sudo opennccm-cli version</code></td><td>Versión instalada</td></tr>
+  <tr><td><code>sudo opennccm-cli reset-password USUARIO 'CLAVE'</code></td><td>Cambiar contraseña / crear administrador</td></tr>
+  <tr><td><code>sudo opennccm-cli backup-all</code></td><td>Respaldar todos los equipos ahora</td></tr>
+  <tr><td><code>sudo opennccm-cli system-backup [--with-key]</code></td><td>Copia de recuperación</td></tr>
+  <tr><td><code>sudo opennccm-cli restore ARCHIVO</code></td><td>Restaurar (con el servicio detenido)</td></tr>
+  <tr><td><code>sudo opennccm-cli seed</code></td><td>Recargar políticas y configlets de ejemplo</td></tr>
+  <tr><td><code>sudo bash rollback-update.sh [CARPETA]</code></td><td>Volver a la versión anterior</td></tr>
+</table>
+<div class="note"><b>Estado de validación de esta versión</b>La aplicación se probó de extremo a extremo contra un router Cisco
+IOS simulado (respaldos, cambios, reversión, syslog, firmware por SCP, copias y restauración). El instalador y la
+actualización están escritos para Ubuntu 22.04/24.04; valide la instalación en un servidor de pruebas antes de pasar a
+producción.</div>
+</section>
+</body>
+</html>

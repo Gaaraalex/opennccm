@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% block title %}Auditoría{% endblock %}
+{% block content %}
+<h1>Actividad de usuarios</h1>
+<div class="toolbar">
+  <form class="row" method="get"><input name="q" value="{{ q }}" placeholder="Usuario, acción o detalle"><button class="sec">Buscar</button></form>
+  <a class="btn sec" href="/reports/audit.csv?days=90">Exportar 90 días</a>
+</div>
+<div class="card">
+<table><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Detalle</th><th>IP</th></tr>
+{% for a in items %}
+<tr><td class="small">{{ a.created_at|dt }}</td><td>{{ a.username }}</td><td><code>{{ a.action }}</code></td><td class="small">{{ a.detail or '' }}</td><td class="small">{{ a.ip or '' }}</td></tr>
+{% else %}<tr><td colspan="5" class="muted">Sin registros.</td></tr>{% endfor %}
+</table>
+</div>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% block title %}Versión #{{ v.id }}{% endblock %}
+{% block content %}
+<h1><a href="/devices/{{ v.device_id }}">{{ v.device.name }}</a> · versión #{{ v.id }} ({{ v.kind }})</h1>
+<p class="muted">{{ v.created_at|dt }} · origen: {{ v.trigger }}{% if v.username %} · {{ v.username }}{% endif %} · {{ v.size }} bytes · SHA-256 <code>{{ v.sha256[:16] }}…</code></p>
+<div class="toolbar">
+  <a class="btn sec" href="/versions/{{ v.id }}?raw=1">Descargar</a>
+  {% if prev %}<a class="btn sec" href="/diff?a={{ prev.id }}&b={{ v.id }}">Comparar con anterior</a>{% endif %}
+  {% if ROLES[user.role] >= 1 %}
+  <form class="inline row" method="post" action="/versions/{{ v.id }}/label">
+    <input name="label" value="{{ v.label or '' }}" placeholder="Etiqueta (p. ej. baseline)"><button class="sec">Etiquetar</button></form>
+  {% if v.kind == 'running' %}
+  {% if is_baseline %}<span class="badge b-ok">Línea base del equipo</span>
+  {% else %}<form class="inline" method="post" action="/versions/{{ v.id }}/baseline"><button class="sec">Marcar como línea base</button></form>{% endif %}
+  <form class="inline" method="post" action="/versions/{{ v.id }}/rollback"><button class="danger">Revertir el equipo a esta versión…</button></form>
+  {% endif %}{% endif %}
+</div>
+<pre>{{ text }}</pre>
+{% endblock %}

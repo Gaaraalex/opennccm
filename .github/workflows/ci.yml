@@ -1,0 +1,121 @@
+name: Pruebas
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Revisión de código
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: |
+          sudo apt-get install -y -qq shellcheck
+          shellcheck -S warning -e SC1091,SC2015 install.sh scripts/opennccm.sh rollback-update.sh tests/*.sh
+      - name: pyflakes
+        run: |
+          python3 -m pip install -q pyflakes
+          python3 -m pyflakes app tests
+
+  app:
+    name: Aplicación (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencias
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -q --upgrade pip
+          .venv/bin/pip install -q -r requirements.txt
+      - name: Pruebas de extremo a extremo (router Cisco simulado)
+        run: bash tests/run-tests.sh .venv/bin/python
+
+  install:
+    name: Instalación y actualización (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Instalación desatendida (curl | bash)
+        run: cat install.sh | sudo bash -s -- --unattended --source "$GITHUB_WORKSPACE" --host 127.0.0.1 --admin-pass 'Admin12345' --no-upgrade
+      - name: Verificar la instalación
+        run: |
+          curl -fsk https://127.0.0.1/healthz
+          curl -fsk https://127.0.0.1/login | grep -q "OpenNCCM"
+          sudo opennccm status
+          systemctl is-active opennccm nginx
+          sudo ss -lunp | grep -q ':514 '
+      - name: Repetir el instalador detecta la instalación existente
+        run: sudo bash install.sh --unattended | tee /tmp/out.txt && grep -q "ya está instalado" /tmp/out.txt
+      - name: Actualización, vuelta atrás y recuperación automática
+        run: sudo bash tests/update-test.sh "$GITHUB_WORKSPACE"
+      - name: Registros (si falla)
+        if: failure()
+        run: |
+          sudo tail -n 120 /var/log/opennccm-install.log || true
+          sudo journalctl -u opennccm -n 120 --no-pager || true
+
+  tui:
+    name: Asistente con menús (ubuntu-24.04)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Instalar como una persona (tmux + whiptail)
+        run: |
+          sudo apt-get install -y -qq tmux
+          sudo python3 tests/tui_drive.py "$GITHUB_WORKSPACE" "$RUNNER_TEMP/capturas"
+      - name: Verificar
+        run: |
+          curl -fsk https://127.0.0.1/healthz
+          jar=$(mktemp)
+          dest=$(curl -s -c "$jar" -b "$jar" -o /dev/null -w '%{redirect_url}' -d 'username=admin&password=Admin12345' http://127.0.0.1:8000/login)
+          test "$dest" = "http://127.0.0.1:8000/"
+      - name: Capturas de pantalla del asistente
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capturas-asistente
+          path: ${{ runner.temp }}/capturas
+      - name: Registro (si falla)
+        if: failure()
+        run: sudo tail -n 120 /var/log/opennccm-install.log || true
+
+  release:
+    name: Publicar versión
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [lint, app, install, tui]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Crear la versión en GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          VER=${TAG#v}
+          awk -v v="## $VER" '$0==v{f=1;next} /^## /{if(f)exit} f' CHANGELOG.md > notas.md
+          printf '\n### Instalar\n```bash\ncurl -fsSL https://raw.githubusercontent.com/%s/main/install.sh | sudo bash\n```\n### Actualizar una instalación existente\n```bash\nsudo opennccm update\n```\n' "$GITHUB_REPOSITORY" >> notas.md
+          git archive --format=tar.gz --prefix=opennccm/ -o "opennccm-$VER.tar.gz" "$TAG"
+          gh release create "$TAG" --title "OpenNCCM $VER" --notes-file notas.md \
+            "opennccm-$VER.tar.gz" docs/*.pdf

@@ -1,0 +1,24 @@
+name: Solicitar soporte para un equipo
+description: Un fabricante o modelo que todavía no está soportado o no respalda bien
+labels: [fabricante]
+body:
+  - type: input
+    id: modelo
+    attributes:
+      label: Fabricante y modelo
+    validations:
+      required: true
+  - type: input
+    id: so
+    attributes:
+      label: Sistema operativo y versión
+  - type: input
+    id: comando
+    attributes:
+      label: Comando que muestra la configuración completa
+      description: p. ej. show running-config
+  - type: textarea
+    id: muestra
+    attributes:
+      label: Ejemplo de la salida de "show version" (sin datos sensibles)
+      render: text

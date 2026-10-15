@@ -1,0 +1,50 @@
+{% extends "base.html" %}{% block title %}Dispositivos{% endblock %}
+{% block content %}
+<h1>Dispositivos ({{ devices|length }})</h1>
+<div class="toolbar">
+  <form class="row" method="get">
+    <input name="q" value="{{ q }}" placeholder="Nombre, IP, modelo, serie, versión…">
+    <select name="group"><option value="0">Todos los grupos</option>
+      {% for g in groups %}<option value="{{ g.id }}" {{ 'selected' if g.id == group }}>{{ g.name }}</option>{% endfor %}</select>
+    <select name="status"><option value="">Cualquier estado</option>
+      {% for s, l in [('ok','ok'),('error','error'),('pending','pendiente'),('conflict','startup ≠ running'),('drift','fuera de línea base')] %}<option value="{{ s }}" {{ 'selected' if s == status }}>{{ l }}</option>{% endfor %}</select>
+    <button class="sec">Filtrar</button>
+  </form>
+  <span style="flex:1"></span>
+  {% if ROLES[user.role] >= 1 %}
+  <form class="inline" method="post" action="/backup/all"><input type="hidden" name="group" value="{{ group }}">
+    <button onclick="return confirm('¿Respaldar ahora todos los equipos{{ ' del grupo' if group }}?')">Respaldar todos</button></form>
+  {% endif %}
+  {% if user.role == 'admin' %}<a class="btn" href="/devices/new">+ Agregar</a>{% endif %}
+</div>
+<div class="card">
+<table>
+<tr><th>Nombre</th><th>IP / Host</th><th class="hide-sm">Fabricante / tipo</th><th class="hide-sm">Modelo</th><th class="hide-sm">Versión</th><th>Grupo</th><th>Último respaldo</th><th>Estado</th></tr>
+{% for d in devices %}
+<tr>
+  <td><a href="/devices/{{ d.id }}"><b>{{ d.name }}</b></a>{% if not d.enabled %} <span class="badge">deshabilitado</span>{% endif %}</td>
+  <td>{{ d.host }}<span class="muted small">:{{ d.port }} {{ d.protocol }}</span></td>
+  <td class="hide-sm">{{ profile_map[d.device_type].label if d.device_type in profile_map else d.device_type }}</td>
+  <td class="hide-sm">{{ d.model or '—' }}</td><td class="hide-sm">{{ d.os_version or '—' }}</td>
+  <td>{{ d.group.name if d.group else '—' }}</td>
+  <td class="small">{{ d.last_backup_at|dt }}</td>
+  <td><span class="badge b-{{ d.last_status }}">{{ d.last_status }}</span>
+      {% if d.startup_conflict %}<span class="badge b-warning" title="Running ≠ startup">sin guardar</span>{% endif %}
+      {% if d.baseline_drift %}<span class="badge b-warning" title="Difiere de la línea base">≠ baseline</span>{% endif %}</td>
+</tr>
+{% else %}<tr><td colspan="8" class="muted">No hay dispositivos.</td></tr>{% endfor %}
+</table>
+</div>
+
+{% if user.role == 'admin' %}
+<div class="card">
+  <h2 style="margin-top:0">Importación masiva (CSV)</h2>
+  <p class="small muted">Columnas: <code>name,host,device_type,credential,group,port,protocol,location</code>.
+  <code>credential</code> es el nombre de una credencial existente; los grupos inexistentes se crean.
+  Valores de <code>device_type</code>: ver la <a href="/vendors">lista de {{ profiles|length }} plataformas soportadas</a>.</p>
+  <form method="post" action="/devices/import" enctype="multipart/form-data" class="row">
+    <input type="file" name="file" accept=".csv" required><button>Importar</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

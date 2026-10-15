@@ -1,0 +1,29 @@
+name: Reportar un error
+description: Algo no funciona como se espera
+labels: [error]
+body:
+  - type: textarea
+    id: que
+    attributes:
+      label: ¿Qué pasó?
+      description: Qué hizo, qué esperaba y qué ocurrió.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versión de OpenNCCM
+      description: Resultado de `opennccm version`
+    validations:
+      required: true
+  - type: input
+    id: equipo
+    attributes:
+      label: Equipo de red afectado (si aplica)
+      description: Fabricante, modelo, device_type y versión de firmware
+  - type: textarea
+    id: logs
+    attributes:
+      label: Registros
+      description: Salida de `sudo opennccm logs` o de /var/log/opennccm-install.log (quite contraseñas e IP sensibles)
+      render: text

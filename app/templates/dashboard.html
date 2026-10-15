@@ -1,0 +1,45 @@
+{% extends "base.html" %}{% block title %}Panel{% endblock %}
+{% block content %}
+<h1>Panel</h1>
+<div class="grid">
+  <a class="stat" href="/devices"><small>Dispositivos</small><b>{{ total }}</b></a>
+  <a class="stat" href="/devices?status=ok"><small>Respaldo OK</small><b style="color:var(--ok)">{{ ok }}</b></a>
+  <a class="stat" href="/devices?status=error"><small>Con error</small><b style="color:var(--crit)">{{ err }}</b></a>
+  <a class="stat" href="/reports/changes.csv?days=1"><small>Cambios 24 h</small><b>{{ changes24 }}</b></a>
+  <a class="stat" href="/compliance"><small>Reglas cumplidas</small><b>{{ comp ~ '%' if comp is not none else '—' }}</b></a>
+  <a class="stat" href="/devices?status=conflict"><small>Startup ≠ running</small><b style="color:var(--warn)">{{ conflicts }}</b></a>
+  <a class="stat" href="/devices?status=drift"><small>Fuera de línea base</small><b style="color:var(--warn)">{{ drift }}</b></a>
+  <a class="stat" href="/eol"><small>Equipos sin soporte</small><b style="color:var(--crit)">{{ eol_bad }}</b></a>
+  <a class="stat" href="/events?unack=1"><small>Alarmas abiertas</small><b style="color:var(--major)">{{ alarms }}</b></a>
+  <a class="stat" href="/vulns"><small>Equipos con CVE altos</small><b style="color:var(--crit)">{{ vcrit }}</b></a>
+  <a class="stat" href="/changes?status=pending"><small>Cambios por aprobar</small><b>{{ pending }}</b></a>
+</div>
+
+<div class="card" style="margin-top:16px">
+  <h2 style="margin-top:0">Cambios de configuración por día (últimos 30 días)</h2>
+  {{ chart_changes|safe }}
+  <p class="small muted" style="margin-bottom:0"><a href="/analytics">Más análisis →</a> · <a href="/reports/view/changes">ver como tabla</a></p>
+</div>
+<div class="row" style="align-items:start">
+<div class="card" style="flex:1 1 480px">
+  <h2 style="margin-top:0">Últimos cambios de configuración</h2>
+  <table><tr><th>Fecha</th><th>Equipo</th><th>Origen</th><th>Δ</th><th></th></tr>
+  {% for v in recent %}
+  <tr><td class="small">{{ v.created_at|dt }}</td><td><a href="/devices/{{ v.device_id }}">{{ v.device.name }}</a></td>
+  <td>{{ v.trigger }}</td><td class="small"><span style="color:var(--ok)">+{{ v.added }}</span> <span style="color:var(--crit)">-{{ v.removed }}</span></td>
+  <td><a href="/versions/{{ v.id }}">ver</a></td></tr>
+  {% else %}<tr><td colspan="5" class="muted">Sin respaldos todavía. <a href="/devices/new">Agregue un dispositivo</a>.</td></tr>{% endfor %}
+  </table>
+</div>
+<div class="card" style="flex:1 1 480px">
+  <h2 style="margin-top:0">Eventos recientes</h2>
+  <table>
+  {% for e in events %}
+  <tr><td><span class="badge b-{{ e.severity }}">{{ e.severity }}</span></td><td class="small">{{ e.created_at|dt }}</td>
+  <td><b>{{ e.category }}</b>{% if e.device %} · <a href="/devices/{{ e.device_id }}">{{ e.device.name }}</a>{% endif %}
+  <div class="small muted">{{ e.message[:160] }}</div></td></tr>
+  {% else %}<tr><td class="muted">Sin eventos.</td></tr>{% endfor %}
+  </table>
+</div>
+</div>
+{% endblock %}

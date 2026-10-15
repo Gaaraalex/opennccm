@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% block title %}Plataformas soportadas{% endblock %}
+{% block content %}
+<h1>Plataformas soportadas ({{ rows|length }})</h1>
+<p class="muted">Use el valor de <b>device_type</b> en la importación CSV. Las marcadas «verificar» usan el comando de la documentación del
+fabricante sin prueba en hardware: si el respaldo falla, defina un comando personalizado en el dispositivo. Cualquier otro equipo con
+CLI por SSH puede gestionarse con el perfil <code>generic</code>.</p>
+<div class="card">
+<table><tr><th>Fabricante</th><th>Plataforma</th><th>device_type</th><th>Comando de respaldo</th><th>Startup</th><th>Reversión</th><th>Firmware</th><th></th></tr>
+{% for p in rows %}
+<tr><td>{{ p.vendor }}</td><td>{{ p.label }}</td><td><code>{{ p.key }}</code></td><td class="small"><code>{{ p.backup }}</code></td>
+<td>{{ '✓' if p.startup else '' }}</td>
+<td class="small">{{ {'ios': 'no …', 'huawei': 'undo …', 'set': 'delete …', 'merge': 'reaplicar'}[p.family] }}</td>
+<td>{{ '✓' if upgrade(p.key) else '' }}</td>
+<td>{% if p.note %}<span class="badge b-warning" title="{{ p.note }}">verificar</span>{% endif %}</td></tr>
+{% endfor %}
+</table>
+</div>
+{% endblock %}

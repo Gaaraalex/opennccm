@@ -1,0 +1,59 @@
+{% extends "base.html" %}{% block title %}Ajustes{% endblock %}
+{% block content %}
+<h1>Ajustes</h1>
+<form method="post" action="/settings">
+<div class="card" style="max-width:900px">
+  <h2 style="margin-top:0">Flujo de cambios</h2>
+  <label class="chk"><input type="checkbox" name="require_approval" {{ 'checked' if s.require_approval != '0' }}> Exigir aprobación de un administrador para aplicar cambios</label><br>
+  <label class="chk"><input type="checkbox" name="allow_self_approval" {{ 'checked' if s.allow_self_approval == '1' }}> Permitir que un administrador apruebe sus propias solicitudes</label><br>
+  <label class="chk"><input type="checkbox" name="notify_compliance" {{ 'checked' if s.notify_compliance != '0' }}> Notificar infracciones de cumplimiento</label>
+  <label>Retención: versiones por equipo (0 = ilimitado; las etiquetadas nunca se borran)</label>
+  <input name="retention_versions" type="number" min="0" value="{{ s.retention_versions or '0' }}">
+</div>
+<div class="card" style="max-width:900px">
+  <h2 style="margin-top:0">Notificaciones</h2>
+  <label>Severidad mínima para notificar</label>
+  <select name="alert_min_severity">{% for v in ['info','warning','major','critical'] %}<option {{ 'selected' if (s.alert_min_severity or 'warning') == v }}>{{ v }}</option>{% endfor %}</select>
+  <div class="row">
+    <div><label>Servidor SMTP</label><input name="smtp_host" value="{{ s.smtp_host }}"></div>
+    <div><label>Puerto</label><input name="smtp_port" value="{{ s.smtp_port or '587' }}" style="width:90px"></div>
+    <div><label>Seguridad</label><select name="smtp_security">{% for v in ['starttls','ssl','none'] %}<option {{ 'selected' if (s.smtp_security or 'starttls') == v }}>{{ v }}</option>{% endfor %}</select></div>
+  </div>
+  <div class="row">
+    <div><label>Usuario SMTP</label><input name="smtp_user" value="{{ s.smtp_user }}" autocomplete="off"></div>
+    <div><label>Contraseña SMTP {{ '(guardada)' if s.smtp_password_set }}</label><input name="smtp_password" type="password" autocomplete="new-password"></div>
+    <div><label>Remitente</label><input name="smtp_from" value="{{ s.smtp_from }}"></div>
+  </div>
+  <label>Destinatarios (separados por coma)</label><input name="alert_emails" value="{{ s.alert_emails }}" style="width:100%">
+  <label>Webhook (Slack / Teams / Mattermost / Google Chat)</label><input name="webhook_url" value="{{ s.webhook_url }}" style="width:100%">
+  <div class="row">
+    <div><label>Telegram bot token</label><input name="telegram_token" value="{{ s.telegram_token }}"></div>
+    <div><label>Telegram chat ID</label><input name="telegram_chat_id" value="{{ s.telegram_chat_id }}"></div>
+  </div>
+  <p><button>Guardar ajustes</button></p>
+</div>
+<div class="card" style="max-width:900px">
+  <h2 style="margin-top:0">Fin de vida: API Cisco EoX (opcional)</h2>
+  <p class="small muted">Credenciales de aplicación de <a href="https://apiconsole.cisco.com" target="_blank" rel="noopener">apiconsole.cisco.com</a> con acceso a "EoX". Permiten completar automáticamente las fechas de fin de venta/soporte de los equipos Cisco.</p>
+  <div class="row">
+    <div><label>Client ID</label><input name="cisco_api_client_id" value="{{ s.cisco_api_client_id }}" autocomplete="off"></div>
+    <div><label>Client Secret {{ '(guardado)' if s.cisco_api_secret_set }}</label><input name="cisco_api_secret" type="password" autocomplete="new-password"></div>
+  </div>
+  <p><button>Guardar ajustes</button></p>
+</div>
+<div class="card" style="max-width:900px">
+  <h2 style="margin-top:0">Recuperación ante desastres</h2>
+  <label>Copias locales a conservar</label><input name="dr_keep" type="number" min="1" value="{{ s.dr_keep or '14' }}">
+  <p class="small muted">Copia remota opcional por SFTP de cada copia de recuperación:</p>
+  <div class="row">
+    <div><label>Servidor SFTP</label><input name="dr_remote_host" value="{{ s.dr_remote_host }}"></div>
+    <div><label>Puerto</label><input name="dr_remote_port" value="{{ s.dr_remote_port or '22' }}" style="width:80px"></div>
+    <div><label>Usuario</label><input name="dr_remote_user" value="{{ s.dr_remote_user }}" autocomplete="off"></div>
+    <div><label>Contraseña {{ '(guardada)' if s.dr_remote_password_set }}</label><input name="dr_remote_password" type="password" autocomplete="new-password"></div>
+    <div><label>Carpeta remota</label><input name="dr_remote_path" value="{{ s.dr_remote_path }}" placeholder="/backups/opennccm"></div>
+  </div>
+  <p><button>Guardar ajustes</button></p>
+</div>
+</form>
+<form method="post" action="/settings/test-alert"><button class="sec">Enviar notificación de prueba</button></form>
+{% endblock %}

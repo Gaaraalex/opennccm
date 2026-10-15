@@ -1,0 +1,43 @@
+{% extends "base.html" %}{% block title %}Política {{ p.name }}{% endblock %}
+{% block content %}
+<h1><a href="/compliance">Cumplimiento</a> / {{ p.name }}</h1>
+{% if user.role == 'admin' %}
+<div class="card">
+<form method="post" action="/compliance/policies" class="row">
+  <input type="hidden" name="id" value="{{ p.id }}">
+  <div><label>Nombre</label><input name="name" value="{{ p.name }}" required></div>
+  <div><label>Regex de device_type</label><input name="device_type_filter" value="{{ p.device_type_filter or '' }}"></div>
+  <div><label>Grupo</label><select name="group_id"><option value="">Todos</option>{% for g in groups %}<option value="{{ g.id }}" {{ 'selected' if g.id == p.group_id }}>{{ g.name }}</option>{% endfor %}</select></div>
+  <div><label>Descripción</label><input name="description" value="{{ p.description or '' }}"></div>
+  <label class="chk"><input type="checkbox" name="enabled" {{ 'checked' if p.enabled }}> Activa</label>
+  <button>Guardar</button>
+</form>
+<form method="post" action="/compliance/policies/{{ p.id }}/delete" onsubmit="return confirm('¿Eliminar política y reglas?')" style="margin-top:10px"><button class="sm danger">Eliminar política</button></form>
+</div>
+{% endif %}
+<div class="card">
+<h2 style="margin-top:0">Reglas</h2>
+<table><tr><th>Nombre</th><th>Condición</th><th>Patrón (regex)</th><th>Severidad</th><th>Corrección</th><th></th></tr>
+{% for r in p.rules %}
+<tr><td>{{ r.name }}</td><td>{{ 'debe contener' if r.kind == 'must_contain' else 'no debe contener' }}</td><td><code>{{ r.pattern }}</code></td>
+<td><span class="badge b-{{ r.severity }}">{{ r.severity }}</span></td><td><pre style="padding:4px">{{ r.remediation or '—' }}</pre></td>
+<td>{% if user.role == 'admin' %}<form class="inline" method="post" action="/compliance/rules/{{ r.id }}/delete"><button class="sm danger">×</button></form>{% endif %}</td></tr>
+{% else %}<tr><td colspan="6" class="muted">Sin reglas.</td></tr>{% endfor %}
+</table>
+</div>
+{% if user.role == 'admin' %}
+<div class="card" style="max-width:820px">
+<h2 style="margin-top:0">Agregar regla</h2>
+<form method="post" action="/compliance/policies/{{ p.id }}/rules">
+  <div class="row">
+    <div><label>Nombre</label><input name="name" required></div>
+    <div><label>Condición</label><select name="kind"><option value="must_contain">Debe contener</option><option value="must_not_contain">No debe contener</option></select></div>
+    <div><label>Severidad</label><select name="severity"><option>critical</option><option selected>major</option><option>minor</option></select></div>
+  </div>
+  <label>Patrón (regex multilínea, <code>^</code> = inicio de línea)</label><input name="pattern" required style="width:100%" placeholder="^ip ssh version 2">
+  <label>Comandos de corrección (opcional, Jinja2)</label><textarea name="remediation" rows="4"></textarea>
+  <p><button>Agregar</button></p>
+</form>
+</div>
+{% endif %}
+{% endblock %}

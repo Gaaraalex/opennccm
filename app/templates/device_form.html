@@ -1,0 +1,44 @@
+{% extends "base.html" %}{% block title %}{{ 'Editar' if device else 'Nuevo' }} dispositivo{% endblock %}
+{% block content %}
+<h1>{{ 'Editar ' ~ device.name if device else 'Nuevo dispositivo' }}</h1>
+{% if not credentials %}<div class="flash error">Primero cree una <a href="/credentials">credencial</a> para conectarse a los equipos.</div>{% endif %}
+<div class="card" style="max-width:760px">
+<form method="post">
+  <div class="row">
+    <div><label>Nombre</label><input name="name" required value="{{ device.name if device }}"></div>
+    <div><label>IP / hostname</label><input name="host" required value="{{ device.host if device }}"></div>
+  </div>
+  <label>Fabricante / sistema operativo</label>
+  <select name="device_type" required>
+    {% set vendor = namespace(v='') %}
+    {% for p in profiles|sort(attribute='vendor') %}
+      {% if p.vendor != vendor.v %}{% if vendor.v %}</optgroup>{% endif %}<optgroup label="{{ p.vendor }}">{% set vendor.v = p.vendor %}{% endif %}
+      <option value="{{ p.key }}" {{ 'selected' if device and device.device_type == p.key }}>{{ p.label }}</option>
+    {% endfor %}</optgroup>
+  </select>
+  <div class="row">
+    <div><label>Protocolo</label><select name="protocol">
+      <option value="ssh" {{ 'selected' if not device or device.protocol == 'ssh' }}>SSH</option>
+      <option value="telnet" {{ 'selected' if device and device.protocol == 'telnet' }}>Telnet</option></select></div>
+    <div><label>Puerto</label><input name="port" type="number" style="width:100px" value="{{ device.port if device else '' }}" placeholder="22"></div>
+    <div><label>Credencial</label><select name="credential_id" required>
+      {% for c in credentials %}<option value="{{ c.id }}" {{ 'selected' if device and device.credential_id == c.id }}>{{ c.name }} ({{ c.username }})</option>{% endfor %}</select></div>
+    <div><label>Grupo</label><select name="group_id"><option value="">—</option>
+      {% for g in groups %}<option value="{{ g.id }}" {{ 'selected' if device and device.group_id == g.id }}>{{ g.name }}</option>{% endfor %}</select></div>
+  </div>
+  <label>Ubicación</label><input name="location" style="width:100%" value="{{ device.location or '' if device }}">
+  <label>Notas</label><textarea name="notes" rows="3">{{ device.notes or '' if device }}</textarea>
+  <label>Comando de respaldo personalizado (opcional)</label>
+  <input name="custom_backup_cmd" style="width:100%" value="{{ device.custom_backup_cmd or '' if device }}"
+         placeholder="Vacío = comando del perfil. Ej.: cat /conf/config.xml (pfSense con perfil Genérico/Linux)">
+  <p class="small muted">Úselo para equipos con perfil «Genérico SSH» o cuando el comando del fabricante difiera en su versión.
+  <a href="/vendors" target="_blank">Ver comandos por fabricante</a>.</p>
+  <p>
+    <label class="chk"><input type="checkbox" name="enabled" {{ 'checked' if not device or device.enabled }}> Habilitado (incluir en tareas)</label>
+    <label class="chk"><input type="checkbox" name="auto_rollback" {{ 'checked' if device and device.auto_rollback }}> Revertir automáticamente cambios no autorizados</label>
+  </p>
+  <p class="small muted">La reversión automática actúa cuando un cambio se detecta por syslog o respaldo programado y no proviene de una solicitud aprobada en OpenNCCM.</p>
+  <p><button>Guardar</button> <a class="btn sec" href="{{ '/devices/' ~ device.id if device else '/devices' }}">Cancelar</a></p>
+</form>
+</div>
+{% endblock %}

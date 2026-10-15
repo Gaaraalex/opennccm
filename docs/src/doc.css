@@ -1,0 +1,55 @@
+@page { size: A4; margin: 18mm 16mm 20mm 16mm;
+  @bottom-left { content: "OpenNCCM 1.1.0"; font: 8pt "Segoe UI", sans-serif; color: #8a94a3; }
+  @bottom-right { content: "Página " counter(page) " de " counter(pages); font: 8pt "Segoe UI", sans-serif; color: #8a94a3; } }
+@page :first { margin: 0; @bottom-left { content: none } @bottom-right { content: none } }
+:root { --ink:#1d2733; --muted:#5b6675; --line:#dfe4ea; --accent:#1f6feb; --accent-d:#174fb0; --soft:#eef4fd;
+  --ok:#1a7f37; --warn:#9a6700; --crit:#c62828; --term:#0f1720; }
+* { box-sizing: border-box; }
+html { color-scheme: light; }
+body { margin: 0; font: 10.2pt/1.5 "Segoe UI", system-ui, sans-serif; color: var(--ink); background: #fff; }
+h1, h2, h3 { line-height: 1.25; break-after: avoid; }
+h1 { font-size: 20pt; margin: 0 0 6mm; color: var(--ink); padding-bottom: 3mm; border-bottom: 2px solid var(--accent); }
+h2 { font-size: 13.5pt; margin: 7mm 0 2.5mm; color: var(--accent-d); }
+h3 { font-size: 11pt; margin: 5mm 0 2mm; }
+p { margin: 0 0 2.6mm; } ul, ol { margin: 0 0 3mm; padding-left: 6mm; } li { margin: 0 0 1mm; }
+a { color: var(--accent-d); text-decoration: none; }
+code { font: 9pt Consolas, "Cascadia Mono", monospace; background: #f1f3f6; padding: 0 1.2mm; border-radius: 1mm; }
+section.chapter { break-before: page; }
+.cover { height: 297mm; display: flex; flex-direction: column; justify-content: space-between; padding: 32mm 22mm 22mm;
+  background: linear-gradient(160deg, #14202e 0%, #1b3354 60%, #1f6feb 140%); color: #fff; }
+.cover .brand { font-size: 15pt; font-weight: 700; letter-spacing: .3px; } .cover .brand span { color: #6cb0ff; }
+.cover h1 { border: none; color: #fff; font-size: 30pt; margin: 0 0 5mm; padding: 0; }
+.cover .sub { font-size: 13pt; color: #c8d6e8; max-width: 140mm; }
+.cover .meta { font-size: 9.5pt; color: #9fb3cc; line-height: 1.7; }
+.toc { columns: 2; column-gap: 10mm; font-size: 10pt; } .toc ol { padding-left: 5mm; } .toc li { break-inside: avoid; }
+pre, .term { font: 8.6pt/1.45 Consolas, "Cascadia Mono", monospace; white-space: pre-wrap; word-break: break-word;
+  border-radius: 2mm; padding: 3mm 4mm; margin: 0 0 3.5mm; break-inside: avoid; }
+pre { background: #f5f7fa; border: 1px solid var(--line); }
+.term { background: var(--term); color: #d7e0ea; border: 1px solid #0b1118; position: relative; padding-top: 7mm; }
+.term::before { content: attr(data-title); position: absolute; top: 1.6mm; left: 4mm; font: 7.5pt "Segoe UI", sans-serif; color: #7f8ea3; }
+.term .p { color: #7ee787; } .term .c { color: #7f8ea3; } .term .o { color: #a5b4c6; }
+figure { margin: 2mm 0 5mm; break-inside: avoid; text-align: center; }
+figure img { max-width: 100%; border: 1px solid var(--line); border-radius: 1.5mm; box-shadow: 0 1mm 3mm rgba(20,32,46,.08); }
+figure img.tall { max-height: 215mm; } figure img.phone { max-height: 120mm; }
+figcaption { font-size: 8.6pt; color: var(--muted); margin-top: 1.6mm; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 4mm; font-size: 9.2pt; break-inside: auto; }
+th { text-align: left; background: #f1f4f8; color: #3a4655; font-weight: 600; }
+th, td { border: 1px solid var(--line); padding: 1.6mm 2.2mm; vertical-align: top; }
+tr { break-inside: avoid; }
+.note, .warn, .tip, .ok { border-radius: 2mm; padding: 2.6mm 3.6mm; margin: 0 0 4mm; break-inside: avoid; font-size: 9.6pt; }
+.note { background: var(--soft); border-left: 3px solid var(--accent); }
+.tip { background: #eefaf1; border-left: 3px solid var(--ok); }
+.warn { background: #fff6e5; border-left: 3px solid #d29922; }
+.note b:first-child, .tip b:first-child, .warn b:first-child { display: block; margin-bottom: .6mm; }
+.steps { counter-reset: s; list-style: none; padding: 0; }
+.steps > li { counter-increment: s; position: relative; padding-left: 9mm; margin-bottom: 2.4mm; }
+.steps > li::before { content: counter(s); position: absolute; left: 0; top: .2mm; width: 6mm; height: 6mm; border-radius: 50%;
+  background: var(--accent); color: #fff; font: 600 8.5pt/6mm "Segoe UI", sans-serif; text-align: center; }
+.diagram { break-inside: avoid; margin: 2mm 0 5mm; text-align: center; }
+.diagram svg { max-width: 100%; height: auto; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; } .two > * { min-width: 0; }
+.badge { display: inline-block; padding: 0 2mm; border-radius: 3mm; font-size: 8pt; font-weight: 600; color: #fff; background: #6b7785; }
+.b-ok { background: var(--ok); } .b-warn { background: #b7791f; } .b-crit { background: var(--crit); } .b-info { background: #4a6fa5; }
+.kbd { font: 8.5pt Consolas, monospace; border: 1px solid #c9d1db; border-bottom-width: 2px; border-radius: 1mm; padding: 0 1.2mm; }
+.small { font-size: 8.8pt; color: var(--muted); }
+.keep { break-inside: avoid; }

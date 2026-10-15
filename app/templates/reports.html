@@ -1,0 +1,30 @@
+{% extends "base.html" %}{% block title %}Informes{% endblock %}
+{% block content %}
+<h1>Informes</h1>
+<div class="card">
+<table><tr><th>Informe</th><th>Descripción</th><th></th></tr>
+{% set desc = {
+  'inventory': 'Modelo, serie, firmware, estado de respaldo, conflictos y línea base',
+  'changes': 'Versiones nuevas por equipo, origen y usuario (30 días)',
+  'compliance': 'Resultado por equipo, política y regla',
+  'conflicts': 'Equipos cuya configuración en ejecución no está guardada en arranque',
+  'baseline': 'Equipos con línea base y si se han desviado de ella',
+  'eol': 'Fin de venta, fin de parches y fin de soporte por equipo',
+  'vulns': 'CVE de firmware por equipo',
+  'changes_requests': 'Quién pidió cada cambio, quién lo aprobó y su resultado',
+  'audit': 'Actividad de usuarios (90 días, solo administradores)'} %}
+{% for k, title in titles.items() %}{% if k != 'audit' or user.role == 'admin' %}
+<tr><td><b>{{ title }}</b></td><td class="small muted">{{ desc[k] }}</td>
+<td style="white-space:nowrap"><a class="btn sm sec" href="/reports/view/{{ k }}{{ '?days=90' if k == 'audit' }}">Ver</a>
+<a class="btn sm" href="/reports/{{ k }}.csv{{ '?days=90' if k == 'audit' }}">CSV</a></td></tr>
+{% endif %}{% endfor %}
+</table>
+</div>
+{% if user.role == 'admin' %}
+<div class="card">
+  <form class="inline" method="post" action="/reports/email"><button class="sec">Enviar informes por correo ahora</button></form>
+  <span class="small muted">Para enviarlos periódicamente cree una <a href="/schedules">tarea</a> «Enviar informes por correo».</span>
+</div>
+{% endif %}
+<p class="muted">Los CSV (UTF-8) se abren en Excel o LibreOffice. Gráficas en <a href="/analytics">Análisis</a>. API JSON de inventario: <a href="/api/devices">/api/devices</a>.</p>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block title %}Ingresar{% endblock %}
+{% block content %}
+<div class="login card">
+  <h1>Open<span style="color:var(--accent)">NCCM</span></h1>
+  <p class="muted">Gestión de configuración, cambios y cumplimiento de red</p>
+  <form method="post" action="/login">
+    <label>Usuario</label><input name="username" autofocus required autocomplete="username">
+    <label>Contraseña</label><input name="password" type="password" required autocomplete="current-password">
+    <p><button style="width:100%">Ingresar</button></p>
+  </form>
+</div>
+{% endblock %}

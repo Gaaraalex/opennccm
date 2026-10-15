@@ -1,0 +1,11 @@
+fastapi>=0.110,<1.0
+uvicorn[standard]>=0.29
+jinja2>=3.1
+python-multipart>=0.0.9
+itsdangerous>=2.1
+sqlalchemy>=2.0.25,<3.0
+netmiko>=4.4,<5.0
+apscheduler>=3.10,<4.0
+cryptography>=42
+requests>=2.31
+# Para usar PostgreSQL en lugar de SQLite agregue: psycopg2-binary>=2.9

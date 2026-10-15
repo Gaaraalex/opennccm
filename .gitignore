@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+*.db
+*.db-wal
+*.db-shm
+secret.key
+docs/src/_pages/
+docs/src/_estado.json
+*.log
+.DS_Store

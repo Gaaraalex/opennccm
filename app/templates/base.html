@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}OpenNCCM{% endblock %} · OpenNCCM</title>
+<link rel="stylesheet" href="/static/style.css?v={{ VERSION }}-{{ CSS_HASH }}">
+</head>
+<body>
+{% if user %}
+{% set p = request.url.path %}
+<header>
+  <div class="brand">Open<span>NCCM</span></div>
+  <nav>
+    <a href="/" class="{{ 'on' if p == '/' }}">Panel</a>
+    <a href="/devices" class="{{ 'on' if p.startswith('/devices') }}">Dispositivos</a>
+    <a href="/search" class="{{ 'on' if p.startswith('/search') }}">Buscar</a>
+    <a href="/changes" class="{{ 'on' if p.startswith('/changes') }}">Cambios</a>
+    <a href="/configlets" class="{{ 'on' if p.startswith('/configlets') }}">Configlets</a>
+    <a href="/compliance" class="{{ 'on' if p.startswith('/compliance') }}">Cumplimiento</a>
+    <a href="/vulns" class="{{ 'on' if p.startswith('/vulns') }}">CVE</a>
+    <a href="/firmware" class="{{ 'on' if p.startswith('/firmware') }}">Firmware</a>
+    <a href="/eol" class="{{ 'on' if p.startswith('/eol') }}">EOL/EOS</a>
+    <a href="/schedules" class="{{ 'on' if p.startswith('/schedules') }}">Tareas</a>
+    <a href="/events" class="{{ 'on' if p.startswith('/events') }}">Alarmas</a>
+    <a href="/analytics" class="{{ 'on' if p.startswith('/analytics') }}">Análisis</a>
+    <a href="/reports" class="{{ 'on' if p.startswith('/reports') }}">Informes</a>
+    {% if user.role == 'admin' %}
+    <a href="/credentials" class="{{ 'on' if p.startswith('/credentials') }}">Credenciales</a>
+    <a href="/users" class="{{ 'on' if p.startswith('/users') }}">Usuarios</a>
+    <a href="/audit" class="{{ 'on' if p.startswith('/audit') }}">Auditoría</a>
+    <a href="/system" class="{{ 'on' if p.startswith('/system') }}">Sistema</a>
+    <a href="/settings" class="{{ 'on' if p.startswith('/settings') }}">Ajustes</a>
+    {% endif %}
+  </nav>
+  <div class="who"><a href="/account">{{ user.username }}</a> ({{ user.role }}) · <a href="/logout">Salir</a></div>
+</header>
+{% endif %}
+<main>
+{% for kind, msg in flashes %}<div class="flash {{ kind }}">{{ msg }}</div>{% endfor %}
+{% block content %}{% endblock %}
+{% if user %}<p class="small muted" style="margin-top:40px;text-align:center">OpenNCCM v{{ VERSION }}</p>{% endif %}
+</main>
+</body>
+</html>

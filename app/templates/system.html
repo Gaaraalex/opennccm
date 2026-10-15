@@ -1,0 +1,33 @@
+{% extends "base.html" %}{% block title %}Sistema{% endblock %}
+{% block content %}
+<h1>Sistema y recuperación ante desastres</h1>
+<div class="card">
+  <dl class="kv">
+    <dt>Base de datos</dt><dd><code>{{ db_url }}</code></dd>
+    <dt>Clave de cifrado</dt><dd><code>{{ key_file }}</code></dd>
+    <dt>Plataformas soportadas</dt><dd><a href="/vendors">{{ profiles_count }} plataformas de {{ vendors_count }} fabricantes</a>
+      {% if unknown %}<span class="badge b-warning">la versión de Netmiko instalada no conoce: {{ unknown|join(', ') }}</span>{% endif %}</dd>
+  </dl>
+</div>
+<div class="card">
+  <h2 style="margin-top:0">Copias de recuperación</h2>
+  <p class="small muted">Copia consistente de la base de datos (configuraciones, historial, usuarios, políticas). Las configuraciones y contraseñas
+  van cifradas: para restaurar en otro servidor necesita también <code>secret.key</code>. Guárdela aparte o inclúyala marcando la opción
+  (entonces proteja el archivo como una contraseña). Programe copias diarias en <a href="/schedules">Tareas</a> y configure la copia remota en <a href="/settings">Ajustes</a>.</p>
+  <form method="post" action="/system/backup" class="row">
+    <label class="chk"><input type="checkbox" name="include_key"> Incluir la clave de cifrado</label>
+    <button>Crear copia ahora</button>
+  </form>
+  <table style="margin-top:12px"><tr><th>Archivo</th><th>Tamaño</th><th></th></tr>
+  {% for name, size, mtime in backups %}
+  <tr><td><code>{{ name }}</code></td><td>{{ '{:,}'.format(size) }} B</td>
+  <td><a class="btn sm sec" href="/system/backups/{{ name }}">Descargar</a>
+  <form class="inline" method="post" action="/system/backups/{{ name }}/delete" onsubmit="return confirm('¿Eliminar copia?')"><button class="sm danger">×</button></form></td></tr>
+  {% else %}<tr><td colspan="3" class="muted">Sin copias todavía.</td></tr>{% endfor %}
+  </table>
+  <h2>Restaurar</h2>
+  <pre>sudo systemctl stop opennccm
+sudo opennccm-cli restore /var/lib/opennccm/system-backups/opennccm-AAAAMMDD-HHMMSS.tar.gz
+sudo systemctl start opennccm</pre>
+</div>
+{% endblock %}

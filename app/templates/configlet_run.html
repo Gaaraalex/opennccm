@@ -1,0 +1,35 @@
+{% extends "base.html" %}{% block title %}Ejecutar {{ c.name }}{% endblock %}
+{% block content %}
+<h1>Ejecutar: {{ c.name }} <span class="badge b-{{ 'major' if c.kind == 'config' else 'info' }}">{{ c.kind }}</span></h1>
+<form method="post">
+<div class="row" style="align-items:start">
+<div class="card" style="flex:1 1 420px">
+  <label>Comandos</label><pre>{{ c.body }}</pre>
+  {% if c.kind == 'config' %}<label>Título de la solicitud de cambio</label><input name="title" style="width:100%" value="Configlet: {{ c.name }}">{% endif %}
+  <label>Variables (una por línea: nombre=valor)</label>
+  <textarea name="variables" rows="5">{% for v in found_vars %}{{ v }}=
+{% endfor %}</textarea>
+  <p>
+  {% if c.kind == 'config' %}<button>Crear solicitud de cambio</button>
+  <span class="small muted">Un administrador debe aprobarla antes de aplicarse (configurable en Ajustes).</span>
+  {% else %}<button>Ejecutar ahora</button>{% endif %}
+  </p>
+</div>
+<div class="card" style="flex:1 1 420px">
+  <label>Dispositivos ({{ devices|length }} compatibles)</label>
+  <div class="toolbar">
+    <button type="button" class="sm sec" onclick="document.querySelectorAll('.dv').forEach(x=>x.checked=true)">Todos</button>
+    <button type="button" class="sm sec" onclick="document.querySelectorAll('.dv').forEach(x=>x.checked=false)">Ninguno</button>
+    <select onchange="document.querySelectorAll('.dv').forEach(x=>x.checked=(this.value!=='' && x.dataset.g===this.value))">
+      <option value="">Seleccionar grupo…</option>{% for g in groups %}<option>{{ g.name }}</option>{% endfor %}</select>
+  </div>
+  <div style="max-height:420px;overflow:auto">
+  {% for d in devices %}
+  <label class="chk" style="display:flex"><input type="checkbox" class="dv" name="device_ids" value="{{ d.id }}" data-g="{{ d.group.name if d.group else '' }}">
+    {{ d.name }} <span class="muted small">{{ d.host }} · {{ d.device_type }}</span></label>
+  {% else %}<p class="muted">No hay equipos compatibles con el filtro <code>{{ c.device_type_filter }}</code>.</p>{% endfor %}
+  </div>
+</div>
+</div>
+</form>
+{% endblock %}

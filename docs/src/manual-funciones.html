@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light">
+<title>OpenNCCM — Manual de funciones</title>
+<link rel="stylesheet" href="doc.css">
+</head>
+<body>
+
+<div class="cover">
+  <div class="brand">Open<span>NCCM</span></div>
+  <div>
+    <h1>Manual de funciones</h1>
+    <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
+    reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
+  </div>
+  <div class="meta">Versión del software: 1.1.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+</div>
+
+<section class="chapter">
+<h1>Contenido</h1>
+<div class="toc"><ol>
+  <li>Conceptos y recorrido general</li>
+  <li>Roles y permisos</li>
+  <li>Panel</li>
+  <li>Dispositivos</li>
+  <li>Respaldos y versiones</li>
+  <li>Comparación de configuraciones</li>
+  <li>Línea base</li>
+  <li>Detección de cambios en tiempo real</li>
+  <li>Búsqueda en configuraciones</li>
+  <li>Configlets: automatización</li>
+  <li>Solicitudes de cambio y aprobación</li>
+  <li>Reversión (rollback)</li>
+  <li>Cumplimiento</li>
+  <li>Vulnerabilidades de firmware (CVE)</li>
+  <li>Actualización de firmware</li>
+  <li>Fin de vida (EOL/EOS)</li>
+  <li>Tareas programadas</li>
+  <li>Alarmas y notificaciones</li>
+  <li>Análisis</li>
+  <li>Informes</li>
+  <li>Credenciales y grupos</li>
+  <li>Usuarios</li>
+  <li>Auditoría</li>
+  <li>Sistema y recuperación</li>
+  <li>Ajustes</li>
+  <li>Plataformas soportadas</li>
+  <li>Uso desde el teléfono y API</li>
+  <li>Glosario</li>
+</ol></div>
+</section>
+
+<section class="chapter">
+<h1>1. Conceptos y recorrido general</h1>
+<p>OpenNCCM mantiene un historial completo y cifrado de la configuración de cada equipo de red, detecta cuándo y cómo
+cambia, controla quién puede cambiarla y verifica que cumpla con sus políticas.</p>
+<div class="diagram">
+<svg viewBox="0 0 720 210" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, sans-serif" font-size="11.5">
+  <defs><marker id="m1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5b6675"/></marker></defs>
+  <g font-weight="600">
+  <rect x="10" y="20" width="120" height="56" rx="8" fill="#eef4fd" stroke="#1f6feb"/><text x="70" y="44" text-anchor="middle">Respaldar</text>
+  <rect x="155" y="20" width="120" height="56" rx="8" fill="#eef4fd" stroke="#1f6feb"/><text x="215" y="44" text-anchor="middle">Versionar</text>
+  <rect x="300" y="20" width="120" height="56" rx="8" fill="#eef4fd" stroke="#1f6feb"/><text x="360" y="44" text-anchor="middle">Comparar</text>
+  <rect x="445" y="20" width="120" height="56" rx="8" fill="#fff6e5" stroke="#d29922"/><text x="505" y="44" text-anchor="middle">Auditar</text>
+  <rect x="590" y="20" width="120" height="56" rx="8" fill="#fdecea" stroke="#c62828"/><text x="650" y="44" text-anchor="middle">Alertar</text>
+  <rect x="155" y="130" width="120" height="56" rx="8" fill="#eefaf1" stroke="#1a7f37"/><text x="215" y="154" text-anchor="middle">Aplicar cambios</text>
+  <rect x="300" y="130" width="120" height="56" rx="8" fill="#eefaf1" stroke="#1a7f37"/><text x="360" y="154" text-anchor="middle">Aprobar</text>
+  <rect x="445" y="130" width="120" height="56" rx="8" fill="#eefaf1" stroke="#1a7f37"/><text x="505" y="154" text-anchor="middle">Revertir</text>
+  </g>
+  <g fill="#5b6675" font-size="10.5" text-anchor="middle">
+  <text x="70" y="62">SSH / Telnet</text><text x="215" y="62">cifrado AES-256</text><text x="360" y="62">lado a lado</text>
+  <text x="505" y="62">PCI, HIPAA, SOX…</text><text x="650" y="62">correo, Teams…</text>
+  <text x="215" y="172">configlets, firmware</text><text x="360" y="172">flujo de revisión</text><text x="505" y="172">manual o automática</text>
+  </g>
+  <g stroke="#5b6675" marker-end="url(#m1)"><line x1="130" y1="48" x2="153" y2="48"/><line x1="275" y1="48" x2="298" y2="48"/>
+  <line x1="420" y1="48" x2="443" y2="48"/><line x1="565" y1="48" x2="588" y2="48"/>
+  <line x1="275" y1="158" x2="298" y2="158"/><line x1="420" y1="158" x2="443" y2="158"/>
+  <path d="M505,186 V200 H70 V80" fill="none"/></g>
+</svg>
+</div>
+<h2>Recorrido típico</h2>
+<ol class="steps">
+  <li>Un administrador carga credenciales, grupos y dispositivos.</li>
+  <li>OpenNCCM respalda cada equipo (manual, programado o al recibir syslog) y guarda una versión nueva solo si hubo cambios.</li>
+  <li>Cada respaldo dispara la auditoría de cumplimiento y la comparación con la línea base.</li>
+  <li>Los cambios, infracciones y fallos generan alarmas y notificaciones.</li>
+  <li>Los operadores proponen cambios (configlets, correcciones, reversiones, firmware); un administrador los aprueba.</li>
+  <li>Los informes y la página de Análisis muestran el estado de toda la red.</li>
+</ol>
+<h2>Menú principal</h2>
+<figure><img src="img/02-panel.png" class="tall"><figcaption>Panel principal con la barra de menú superior.</figcaption></figure>
+</section>
+
+<section class="chapter">
+<h1>2. Roles y permisos</h1>
+<p>Cada usuario tiene un rol. Además, a los operadores y lectores se les puede restringir a uno o más <b>grupos de
+dispositivos</b>: solo verán y podrán actuar sobre esos equipos.</p>
+<table>
+  <tr><th>Acción</th><th>viewer</th><th>operator</th><th>admin</th></tr>
+  <tr><td>Ver panel, dispositivos, versiones, comparaciones, búsqueda, alarmas, informes, análisis</td><td>✓</td><td>✓</td><td>✓</td></tr>
+  <tr><td>Respaldar, auditar cumplimiento, buscar CVE, reconocer alarmas</td><td></td><td>✓</td><td>✓</td></tr>
+  <tr><td>Ejecutar configlets de diagnóstico (exec)</td><td></td><td>✓</td><td>✓</td></tr>
+  <tr><td>Solicitar cambios, reversiones, correcciones y actualizaciones de firmware</td><td></td><td>✓</td><td>✓</td></tr>
+  <tr><td>Etiquetar versiones y marcar línea base; ejecutar tareas ya creadas</td><td></td><td>✓</td><td>✓</td></tr>
+  <tr><td>Aprobar o rechazar solicitudes de cambio</td><td></td><td></td><td>✓</td></tr>
+  <tr><td>Alta/baja de dispositivos, credenciales, grupos, configlets, políticas, tareas</td><td></td><td></td><td>✓</td></tr>
+  <tr><td>Usuarios, auditoría, ajustes, sistema, imágenes de firmware, base EOL</td><td></td><td></td><td>✓</td></tr>
+</table>
+<div class="note"><b>Restricción por grupos</b>Un administrador siempre ve todo. Un usuario sin grupos asignados también ve todo.
+Si se le asignan grupos, la restricción se aplica en todas las páginas, la búsqueda, los informes, la API y las acciones
+(un intento sobre un equipo ajeno responde «403 — No tiene permisos»).</div>
+</section>
+
+<section class="chapter">
+<h1>3. Panel</h1>
+<p><b>Para qué sirve:</b> ver de un vistazo el estado de la red. Cada recuadro es un enlace al detalle.</p>
+<table>
+  <tr><th>Indicador</th><th>Qué cuenta</th></tr>
+  <tr><td>Respaldo OK / Con error</td><td>Equipos cuyo último respaldo funcionó o falló.</td></tr>
+  <tr><td>Cambios 24 h</td><td>Versiones nuevas de configuración en las últimas 24 horas.</td></tr>
+  <tr><td>Reglas cumplidas</td><td>Porcentaje de comprobaciones de cumplimiento (equipo × regla) que pasan.</td></tr>
+  <tr><td>Startup ≠ running</td><td>Equipos con cambios en ejecución que no se guardaron en la memoria de arranque.</td></tr>
+  <tr><td>Fuera de línea base</td><td>Equipos cuya configuración ya no coincide con su línea base.</td></tr>
+  <tr><td>Equipos sin soporte</td><td>Equipos cuyo modelo ya no tiene soporte o parches del fabricante.</td></tr>
+  <tr><td>Alarmas abiertas</td><td>Eventos de severidad warning o superior sin reconocer.</td></tr>
+  <tr><td>Equipos con CVE altos</td><td>Equipos con vulnerabilidades de severidad alta o crítica.</td></tr>
+  <tr><td>Cambios por aprobar</td><td>Solicitudes de cambio pendientes.</td></tr>
+</table>
+<p>Debajo se muestran la gráfica de cambios por día, los últimos cambios y los eventos recientes.</p>
+</section>
+
+<section class="chapter">
+<h1>4. Dispositivos</h1>
+<p><b>Para qué sirve:</b> inventario de todos los equipos gestionados, con su estado de respaldo, modelo, versión de firmware y
+grupo.</p>
+<figure><img src="img/03-dispositivos.png"><figcaption>Lista de dispositivos. Las etiquetas «sin guardar» y «≠ baseline» señalan conflictos.</figcaption></figure>
+<h2>Cómo usarlo</h2>
+<ul>
+  <li><b>Buscar y filtrar:</b> por nombre, IP, modelo, serie, versión o ubicación; por grupo; y por estado (ok, error, pendiente,
+  startup ≠ running, fuera de línea base).</li>
+  <li><b>Respaldar todos:</b> lanza en segundo plano el respaldo de todos los equipos (o del grupo filtrado).</li>
+  <li><b>+ Agregar</b> (admin): alta individual. <b>Importación CSV</b> (admin): alta masiva al pie de la página.</li>
+</ul>
+<h2>Alta de un dispositivo</h2>
+<table>
+  <tr><th>Campo</th><th>Descripción</th></tr>
+  <tr><td>Nombre</td><td>Identificador único (por ejemplo el hostname).</td></tr>
+  <tr><td>IP / hostname</td><td>Dirección de gestión. Debe ser la misma desde la que el equipo envía syslog.</td></tr>
+  <tr><td>Fabricante / sistema operativo</td><td>Perfil de la plataforma (122 opciones agrupadas por fabricante). Define los comandos que se usan.</td></tr>
+  <tr><td>Protocolo y puerto</td><td>SSH (22) o Telnet (23). Telnet solo en plataformas que lo admiten.</td></tr>
+  <tr><td>Credencial y grupo</td><td>Perfil de usuario/contraseña y grupo del equipo.</td></tr>
+  <tr><td>Comando de respaldo personalizado</td><td>Opcional: sustituye al comando del perfil (útil con el perfil «Genérico SSH» o versiones con otra sintaxis).</td></tr>
+  <tr><td>Habilitado</td><td>Si se desmarca, el equipo no entra en tareas programadas ni respaldos masivos.</td></tr>
+  <tr><td>Revertir automáticamente</td><td>Deshace los cambios no autorizados que se detecten (sección 12).</td></tr>
+</table>
+<figure><img src="img/04-dispositivo-nuevo.png" style="max-height:150mm"><figcaption>Formulario de alta.</figcaption></figure>
+<h2>Ficha del dispositivo</h2>
+<p>Reúne todo sobre un equipo: inventario, línea base, ciclo de vida, historial de versiones, cumplimiento, actualización de
+firmware, vulnerabilidades y eventos. Los botones superiores permiten respaldar, auditar, buscar CVE, editar o eliminar.</p>
+<figure><img src="img/05-dispositivo.png"><figcaption>Ficha del dispositivo R1 (parte superior: inventario, línea base, ciclo de vida, versiones y
+firmware). Más abajo siguen cumplimiento, vulnerabilidades y eventos.</figcaption></figure>
+</section>
+
+<section class="chapter">
+<h1>5. Respaldos y versiones</h1>
+<h2>Cómo funciona</h2>
+<ol class="steps">
+  <li>OpenNCCM se conecta al equipo con su credencial y ejecuta el comando de respaldo del perfil
+  (p. ej. <code>show running-config</code>, <code>display current-configuration</code>, <code>show configuration | display set</code>).</li>
+  <li>Quita las líneas volátiles (marcas de tiempo, checksums) para no registrar cambios falsos.</li>
+  <li>Si el contenido cambió respecto a la última versión, guarda una versión nueva cifrada, con su huella SHA-256 y las
+  líneas agregadas y quitadas.</li>
+  <li>Si el perfil lo admite, respalda también la configuración de arranque y compara ambas (conflicto startup/running).</li>
+  <li>Actualiza el inventario (modelo, serie, versión), compara con la línea base y ejecuta la auditoría de cumplimiento.</li>
+</ol>
+<p>Cada versión registra su <b>origen</b>: <code>manual</code> (botón), <code>scheduled</code> (tarea), <code>syslog</code>
+(detectado en tiempo real) o <code>push</code> (aplicado por OpenNCCM).</p>
+<h2>Ver una versión</h2>
+<p>En la ficha del equipo, columna «ver». Desde allí puede <b>descargar</b>, <b>comparar con la anterior</b>,
+<b>etiquetar</b> (por ejemplo «antes de migración»), <b>marcar como línea base</b> o <b>revertir el equipo a esa versión</b>.</p>
+<figure><img src="img/06-version.png" class="tall"><figcaption>Vista de una versión con sus acciones.</figcaption></figure>
+<div class="tip"><b>Retención</b>En Ajustes puede limitar cuántas versiones guardar por equipo. Las versiones etiquetadas (incluida la
+línea base) nunca se borran.</div>
+</section>
+
+<section class="chapter">
+<h1>6. Comparación de configuraciones</h1>
+<p><b>Para qué sirve:</b> ver exactamente qué cambió entre dos versiones, del mismo equipo o de equipos distintos (por ejemplo,
+para comparar dos switches que deberían ser iguales).</p>
+<h2>Cómo usarlo</h2>
+<ol class="steps">
+  <li>En la ficha del equipo, marque una versión en la columna <b>A</b> y otra en la <b>B</b> y pulse <b>Comparar A ↔ B</b>.</li>
+  <li>En la página de comparación puede cambiar las versiones, el contexto (0, 3, 10 líneas o archivo completo) y la vista.</li>
+</ol>
+<p>La vista <b>lado a lado</b> muestra la versión A a la izquierda y la B a la derecha, con números de línea: en rojo lo
+eliminado o modificado, en verde lo agregado o modificado. La vista <b>unificada</b> muestra el formato clásico de diff.</p>
+<figure><img src="img/07-diff-lado-a-lado.png"><figcaption>Comparación lado a lado.</figcaption></figure>
+<figure><img src="img/08-diff-unificada.png" style="max-height:110mm"><figcaption>Comparación unificada.</figcaption></figure>
+</section>
+
+<section class="chapter">
+<h1>7. Línea base</h1>
+<p><b>Para qué sirve:</b> fijar la configuración aprobada de cada equipo como referencia, detectar cualquier desviación y
+poder volver a ella en un paso (por ejemplo, tras un incidente).</p>
+<h2>Cómo funciona</h2>
+<ul>
+  <li>Cada equipo puede tener una versión marcada como línea base (solo configuraciones en ejecución).</li>
+  <li>En cada respaldo, OpenNCCM compara la huella de la configuración actual con la de la línea base.</li>
+  <li>Si dejan de coincidir, el equipo muestra «≠ baseline», aparece en el panel y se genera la alarma
+  <b>«Desviación de línea base»</b>. Cuando vuelven a coincidir, la marca desaparece sola.</li>
+</ul>
+<h2>Cómo usarlo</h2>
+<ol class="steps">
+  <li>Abra la versión aprobada y pulse <b>Marcar como línea base</b>.</li>
+  <li>Si el equipo se desvía, su ficha mostrará un aviso con <b>Ver diferencias</b> (comparación lado a lado línea base ↔ actual)
+  y <b>Volver a la línea base…</b>, que genera una solicitud de reversión para aprobar.</li>
+  <li>Use <b>Dispositivos → estado «fuera de línea base»</b> o <b>Informes → Desviación de línea base</b> para ver todos los afectados.</li>
+</ol>
+</section>
+
+<section class="chapter">
+<h1>8. Detección de cambios en tiempo real</h1>
+<p><b>Para qué sirve:</b> enterarse en segundos de que alguien cambió un equipo, quedarse con la versión exacta y, si se desea,
+deshacer el cambio automáticamente.</p>
+<div class="diagram">
+<svg viewBox="0 0 720 200" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, sans-serif" font-size="11">
+  <defs><marker id="m2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5b6675"/></marker></defs>
+  <rect x="5" y="20" width="110" height="62" rx="8" fill="#eefaf1" stroke="#1a7f37"/><text x="60" y="44" text-anchor="middle" font-weight="600">Alguien cambia</text><text x="60" y="61" text-anchor="middle" fill="#5b6675">el equipo</text>
+  <rect x="135" y="20" width="110" height="62" rx="8" fill="#eef4fd" stroke="#1f6feb"/><text x="190" y="44" text-anchor="middle" font-weight="600">Syslog</text><text x="190" y="61" text-anchor="middle" fill="#5b6675">%SYS-5-CONFIG_I…</text>
+  <rect x="265" y="20" width="110" height="62" rx="8" fill="#eef4fd" stroke="#1f6feb"/><text x="320" y="44" text-anchor="middle" font-weight="600">Espera 20 s</text><text x="320" y="61" text-anchor="middle" fill="#5b6675">fin de edición</text>
+  <rect x="395" y="20" width="110" height="62" rx="8" fill="#eef4fd" stroke="#1f6feb"/><text x="450" y="44" text-anchor="middle" font-weight="600">Respaldo</text><text x="450" y="61" text-anchor="middle" fill="#5b6675">versión nueva + diff</text>
+  <rect x="525" y="20" width="190" height="62" rx="8" fill="#fdecea" stroke="#c62828"/><text x="620" y="44" text-anchor="middle" font-weight="600">Alarma + notificación</text><text x="620" y="61" text-anchor="middle" fill="#5b6675">con las líneas cambiadas</text>
+  <rect x="395" y="118" width="320" height="62" rx="8" fill="#fff6e5" stroke="#d29922"/><text x="555" y="142" text-anchor="middle" font-weight="600">¿Reversión automática activada y cambio no autorizado?</text><text x="555" y="160" text-anchor="middle" fill="#5b6675">sí → se aplican los comandos inversos y se respalda de nuevo</text>
+  <rect x="135" y="118" width="240" height="62" rx="8" fill="#f7f9fb" stroke="#9fb0c2"/><text x="255" y="142" text-anchor="middle" font-weight="600">Ventana de mantenimiento</text><text x="255" y="160" text-anchor="middle" fill="#5b6675">si OpenNCCM está aplicando un cambio</text><text x="255" y="174" text-anchor="middle" fill="#5b6675">aprobado, el aviso se difiere, no se pierde</text>
+  <g stroke="#5b6675" marker-end="url(#m2)"><line x1="115" y1="51" x2="133" y2="51"/><line x1="245" y1="51" x2="263" y2="51"/>
+  <line x1="375" y1="51" x2="393" y2="51"/><line x1="505" y1="51" x2="523" y2="51"/><line x1="450" y1="82" x2="450" y2="116"/></g>
+  <line x1="320" y1="82" x2="300" y2="116" stroke="#9fb0c2" stroke-dasharray="3 3"/>
+</svg>
+</div>
+<ul>
+  <li>Reconoce los mensajes de cambio de Cisco IOS/IOS-XE/NX-OS/ASA, Juniper, Huawei, H3C, FortiGate, Palo Alto, MikroTik,
+  Aruba/HPE y mensajes genéricos «configuration changed».</li>
+  <li>Varios avisos del mismo equipo en menos de 60 segundos generan un solo respaldo.</li>
+  <li>Los cambios aplicados por OpenNCCM (solicitudes aprobadas) abren una <b>ventana de mantenimiento</b>: no se consideran
+  intrusiones. La ventana se cierra en cuanto termina el respaldo posterior; cualquier aviso recibido mientras tanto se
+  revisa en cuanto se cierra.</li>
+  <li>Configure el envío de syslog en los equipos según la Guía de instalación (sección 8).</li>
+</ul>
+</section>
+
+<section class="chapter">
+<h1>9. Búsqueda en configuraciones</h1>
+<p><b>Para qué sirve:</b> encontrar en segundos en qué equipos aparece algo: una IP, una VLAN, una comunidad SNMP, un usuario.</p>
+<p>Escriba el texto (o una expresión regular marcando la casilla) y pulse <b>Buscar</b>. Se busca en la última configuración en
+ejecución de cada equipo y se muestran las líneas con su número.</p>
+<figure><img src="img/09-busqueda.png"><figcaption>Búsqueda de «snmp» en todas las configuraciones.</figcaption></figure>
+</section>
+
+<section class="chapter">
+<h1>10. Configlets: automatización</h1>
+<p><b>Para qué sirven:</b> plantillas de comandos reutilizables para hacer cambios masivos o diagnósticos en muchos equipos a la vez.</p>
+<table>
+  <tr><th>Tipo</th><th>Qué hace</th><th>Aprobación</th></tr>
+  <tr><td><span class="badge b-warn">config</span></td><td>Entra en modo configuración, aplica los comandos y guarda la configuración (o hace <i>commit</i> en Junos, IOS-XR, PAN-OS, VyOS…).</td><td>Sí: crea una solicitud de cambio.</td></tr>
+  <tr><td><span class="badge b-info">exec</span></td><td>Ejecuta comandos de consulta (<code>show</code>, <code>display</code>…) y muestra la salida de cada equipo.</td><td>No: es inmediato.</td></tr>
+</table>
+<figure><img src="img/10-configlets.png"><figcaption>Lista de configlets (se incluyen ejemplos para cambiar contraseñas, VLAN, NTP, syslog y diagnósticos).</figcaption></figure>
+<h2>Variables</h2>
+<p>Los comandos son plantillas Jinja2. Puede usar datos del equipo y variables propias que se piden al ejecutar:</p>
+<pre>vlan {{ vlan_id }}
+ name {{ vlan_nombre }}
+{% if device.group == "Core" %}
+spanning-tree vlan {{ vlan_id }} priority 4096
+{% endif %}
+! aplicado en {{ device.name }} ({{ device.host }})</pre>
+<p>Variables del equipo: <code>device.name</code>, <code>device.host</code>, <code>device.model</code>, <code>device.os_version</code>,
+<code>device.serial</code>, <code>device.location</code>, <code>device.device_type</code>, <code>device.group</code>.</p>
+<figure><img src="img/32-configlet-form.png" style="max-height:120mm"><figcaption>Edición de un configlet. «Aplica a» limita los equipos compatibles (expresión sobre el device_type).</figcaption></figure>
+<h2>Ejecutar</h2>
+<ol class="steps">
+  <li>Pulse <b>Ejecutar</b> en el configlet.</li>
+  <li>Complete las variables detectadas (una por línea, <code>nombre=valor</code>).</li>
+  <li>Elija los equipos: uno a uno, todos, o un grupo completo.</li>
+  <li>Para <b>config</b>: pulse <b>Crear solicitud de cambio</b> y espere la aprobación. Para <b>exec</b>: verá la salida al instante.</li>
+</ol>
+<figure><img src="img/11-configlet-ejecutar.png"><figcaption>Ejecución: variables y selección de equipos.</figcaption></figure>
+<figure><img src="img/12-configlet-exec-resultado.png" style="max-height:80mm"><figcaption>Resultado de un configlet de diagnóstico.</figcaption></figure>
+</section>
+
+<section class="chapter">
+<h1>11. Solicitudes de cambio y aprobación</h1>
+<p><b>Para qué sirven:</b> garantizar que ningún cambio llegue a la red sin revisión, y dejar constancia de quién lo pidió, quién
+lo aprobó, qué se aplicó y con qué resultado.</p>
+<div class="diagram">
+<svg viewBox="0 0 720 150" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, sans-serif" font-size="11">
+  <defs><marker id="m3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5b6675"/></marker></defs>
+  <g font-weight="600" text-anchor="middle">
+  <rect x="5" y="45" width="105" height="44" rx="22" fill="#fff6e5" stroke="#b7791f"/><text x="57" y="72">pending</text>
+  <rect x="150" y="10" width="105" height="44" rx="22" fill="#eefaf1" stroke="#1a7f37"/><text x="202" y="37">approved</text>
+  <rect x="150" y="90" width="105" height="44" rx="22" fill="#fdecea" stroke="#c62828"/><text x="202" y="117">rejected</text>
+  <rect x="295" y="10" width="105" height="44" rx="22" fill="#eef4fd" stroke="#4a6fa5"/><text x="347" y="37">running</text>
+  <rect x="440" y="0" width="85" height="34" rx="17" fill="#eefaf1" stroke="#1a7f37"/><text x="482" y="22">done</text>
+  <rect x="440" y="44" width="85" height="34" rx="17" fill="#fff1e6" stroke="#d9480f"/><text x="482" y="66">partial</text>
+  <rect x="440" y="88" width="85" height="34" rx="17" fill="#fdecea" stroke="#c62828"/><text x="482" y="110">failed</text>
+  </g>
+  <g stroke="#5b6675" marker-end="url(#m3)"><line x1="110" y1="60" x2="148" y2="36"/><line x1="110" y1="75" x2="148" y2="108"/>
+  <line x1="255" y1="32" x2="293" y2="32"/><line x1="400" y1="26" x2="438" y2="17"/><line x1="400" y1="36" x2="438" y2="58"/><line x1="400" y1="44" x2="438" y2="100"/></g>
+  <g fill="#5b6675" font-size="10.5"><text x="545" y="21">todos los equipos OK</text><text x="545" y="65">algunos fallaron</text><text x="545" y="109">todos fallaron</text>
+  <text x="5" y="140">Al terminar se respalda cada equipo (origen «push») y se registra la salida completa.</text></g>
+</svg>
+</div>
+<h2>Cómo usarlo</h2>
+<ol class="steps">
+  <li>Las solicitudes se crean desde configlets, correcciones de cumplimiento, reversiones y actualizaciones de firmware.</li>
+  <li>El administrador abre la solicitud (menú <b>Cambios</b>), revisa la <b>vista previa de los comandos por equipo</b>, escribe un
+  comentario y pulsa <b>Aprobar y ejecutar</b> o <b>Rechazar</b>.</li>
+  <li>Al ejecutarse, la sección <b>Resultado</b> muestra la salida de cada equipo. Si un equipo rechaza un comando
+  («% Invalid input»), la solicitud queda como fallida para ese equipo.</li>
+</ol>
+<figure><img src="img/14-solicitud-pendiente.png"><figcaption>Solicitud pendiente con vista previa y formulario de revisión.</figcaption></figure>
+<figure><img src="img/13-solicitudes.png" style="max-height:95mm"><figcaption>Historial de solicitudes con su estado.</figcaption></figure>
+<div class="note"><b>Opciones en Ajustes</b>«Exigir aprobación» (activado por defecto) y «Permitir que un administrador apruebe sus
+propias solicitudes» (desactivado por defecto). Las actualizaciones de firmware siempre requieren aprobación.</div>
+</section>
+
+<section class="chapter">
+<h1>12. Reversión (rollback)</h1>
+<p><b>Para qué sirve:</b> devolver un equipo a una configuración anterior que funcionaba.</p>
+<h2>Cómo funciona</h2>
+<p>OpenNCCM compara la configuración actual con la versión destino y genera los comandos necesarios según la sintaxis del
+fabricante:</p>
+<table>
+  <tr><th>Familia</th><th>Ejemplos</th><th>Comandos generados</th></tr>
+  <tr><td>IOS</td><td>Cisco, Arista, Dell, Ruckus, Allied…</td><td>Antepone <code>no</code> a lo que sobra y agrega lo que falta, respetando bloques (interfaces, líneas…).</td></tr>
+  <tr><td>Huawei</td><td>Huawei VRP, H3C/Comware</td><td>Igual, con <code>undo</code>.</td></tr>
+  <tr><td>Set</td><td>Junos, VyOS, EdgeRouter</td><td><code>delete …</code> para lo que sobra y <code>set …</code> para lo que falta.</td></tr>
+  <tr><td>Merge</td><td>FortiGate, PAN-OS, MikroTik, Check Point…</td><td>Re-aplica la configuración destino completa (no elimina líneas agregadas).</td></tr>
+</table>
+<h2>Reversión manual</h2>
+<ol class="steps">
+  <li>Abra la versión a la que quiere volver y pulse <b>Revertir el equipo a esta versión…</b></li>
+  <li>Se crea una solicitud de cambio marcada «reversión» con los comandos generados. <b>Revíselos</b> antes de aprobar.</li>
+</ol>
+<h2>Reversión automática</h2>
+<p>Si el dispositivo tiene activada <b>«Revertir automáticamente cambios no autorizados»</b>, cuando un cambio se detecta por syslog o
+por un respaldo programado, y no proviene de una solicitud aprobada, OpenNCCM aplica de inmediato los comandos inversos, vuelve a
+respaldar y genera una alarma <span class="badge b-crit">critical</span> «Reversión automática».</p>
+<div class="warn"><b>Use la reversión automática con criterio</b>Actívela en equipos donde todo cambio deba pasar por OpenNCCM. Un técnico
+que cambie el equipo directamente verá su cambio deshecho.</div>
+</section>
+
+<section class="chapter">
+<h1>13. Cumplimiento</h1>
+<p><b>Para qué sirve:</b> verificar continuamente que las configuraciones cumplan sus estándares de seguridad y normativas, y
+corregir las infracciones.</p>
+<h2>Cómo funciona</h2>
+<ul>
+  <li>Una <b>política</b> agrupa <b>reglas</b> y se aplica a los equipos cuyo device_type coincide con su filtro (y opcionalmente a un grupo).</li>
+  <li>Cada regla es una expresión regular que la configuración <b>debe contener</b> o <b>no debe contener</b>, con una severidad
+  (critical, major, minor) y, opcionalmente, comandos de <b>corrección</b>.</li>
+  <li>La auditoría se ejecuta sola tras cada respaldo, y también a pedido o programada.</li>
+</ul>
+<h2>Paquetes incluidos</h2>
+<table>
+  <tr><th>Política</th><th>Reglas</th><th>Ejemplos de controles</th></tr>
+  <tr><td>PCI DSS 4.0 (IOS)</td><td>15</td><td>Sin Telnet (Req 2.2.7), sin HTTP, sin comunidades SNMP por defecto, contraseñas ≥ 12, bloqueo por intentos, sesión ≤ 15 min, AAA, ACL de gestión, syslog, NTP, banner</td></tr>
+  <tr><td>HIPAA §164.312 (IOS)</td><td>9</td><td>Control de acceso, cierre automático de sesión, auditoría de comandos, transmisión cifrada, SNMPv3</td></tr>
+  <tr><td>SOX ITGC (IOS)</td><td>8</td><td>Archivo de configuración, registro y <i>accounting</i> de comandos, autenticación centralizada</td></tr>
+  <tr><td>Cisco IOS · Buenas prácticas</td><td>10</td><td>Source routing, PAD, keepalives, BOOTP, timeouts de SSH</td></tr>
+  <tr><td>PCI DSS 4.0 (Junos)</td><td>7</td><td>Telnet, web HTTP, root por SSH, reintentos, idle-timeout, syslog, NTP</td></tr>
+  <tr><td>Hardening básico (Cisco, Huawei, Juniper, FortiGate)</td><td>3 – 9</td><td>Controles esenciales por fabricante</td></tr>
+</table>
+<p class="small">Las reglas son controles técnicos de referencia. El cumplimiento normativo completo requiere además procesos y evidencias
+que no dependen del equipo.</p>
+<figure><img src="img/15-cumplimiento.png"><figcaption>Cumplimiento: indicadores, gráfica por política y políticas. Más abajo, la lista de infracciones con su botón «Corregir».</figcaption></figure>
+<h2>Cómo usarlo</h2>
+<ol class="steps">
+  <li>Revise las <b>infracciones</b>. Las que tienen corrección muestran <b>Corregir</b>: crea una solicitud de cambio con los comandos.</li>
+  <li>Para crear su propia política: escriba nombre y filtro y pulse <b>Crear</b>; luego agregue reglas en la página de la política.</li>
+  <li>Use <b>Auditar todos ahora</b> después de cambiar reglas.</li>
+</ol>
+<figure><img src="img/16-politica-pci.png" class="tall"><figcaption>Reglas de la política PCI DSS 4.0 con su requisito, patrón, severidad y corrección.</figcaption></figure>
+</section>
+
+<section class="chapter">
+<h1>14. Vulnerabilidades de firmware (CVE)</h1>
+<p><b>Para qué sirve:</b> saber qué equipos tienen versiones de firmware con vulnerabilidades publicadas.</p>
+<h2>Cómo funciona</h2>
+<p>Con la versión de firmware leída del inventario, OpenNCCM consulta la base pública <b>NVD</b> del NIST. Usa el identificador CPE
+del fabricante cuando existe (Cisco IOS/IOS-XE/NX-OS/IOS-XR/ASA, Junos, EOS, AOS-CX, FortiOS, PAN-OS, RouterOS) y búsqueda por
+palabras en el resto. Guarda el ID CVE, la puntuación CVSS, la severidad y el enlace, y genera una alarma crítica si hay CVE críticos.</p>
+<h2>Cómo usarlo</h2>
+<ul>
+  <li>En un equipo: botón <b>Buscar CVE de firmware</b>. Para todos: <b>CVE → Escanear todos</b> o una tarea programada.</li>
+  <li>Sin clave de API, NVD permite unas 5 consultas cada 30 segundos (el escaneo masivo espera entre equipos). Una clave gratuita
+  (<code>NCM_NVD_API_KEY</code>) lo acelera.</li>
+</ul>
+<figure><img src="img/19-vulnerabilidades.png" class="tall"><figcaption>Vulnerabilidades ordenadas por puntuación CVSS.</figcaption></figure>
+<p class="small">Los resultados dependen de cómo NVD registre cada versión: confirme siempre con el boletín del fabricante.</p>
+</section>
+
+<section class="chapter">
+<h1>15. Actualización de firmware</h1>
+<p><b>Para qué sirve:</b> actualizar el sistema operativo de los equipos de forma remota, controlada y verificada.</p>
+<div class="diagram">
+<svg viewBox="0 0 720 110" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, sans-serif" font-size="11">
+  <defs><marker id="m4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5b6675"/></marker></defs>
+  <g text-anchor="middle">
+  <rect x="5" y="20" width="105" height="60" rx="8" fill="#eef4fd" stroke="#1f6feb"/><text x="57" y="44" font-weight="600">Cargar imagen</text><text x="57" y="62" fill="#5b6675">MD5 calculado</text>
+  <rect x="125" y="20" width="105" height="60" rx="8" fill="#fff6e5" stroke="#d29922"/><text x="177" y="44" font-weight="600">Solicitud</text><text x="177" y="62" fill="#5b6675">aprobación</text>
+  <rect x="245" y="20" width="105" height="60" rx="8" fill="#eef4fd" stroke="#1f6feb"/><text x="297" y="44" font-weight="600">SCP</text><text x="297" y="62" fill="#5b6675">si no existe ya</text>
+  <rect x="365" y="20" width="105" height="60" rx="8" fill="#eef4fd" stroke="#1f6feb"/><text x="417" y="44" font-weight="600">Verificar MD5</text><text x="417" y="62" fill="#5b6675">en el equipo</text>
+  <rect x="485" y="20" width="105" height="60" rx="8" fill="#eef4fd" stroke="#1f6feb"/><text x="537" y="44" font-weight="600">Arranque</text><text x="537" y="62" fill="#5b6675">boot system + save</text>
+  <rect x="605" y="20" width="110" height="60" rx="8" fill="#eefaf1" stroke="#1a7f37"/><text x="660" y="44" font-weight="600">Reinicio</text><text x="660" y="62" fill="#5b6675">opcional</text>
+  </g>
+  <g stroke="#5b6675" marker-end="url(#m4)"><line x1="110" y1="50" x2="123" y2="50"/><line x1="230" y1="50" x2="243" y2="50"/><line x1="350" y1="50" x2="363" y2="50"/><line x1="470" y1="50" x2="483" y2="50"/><line x1="590" y1="50" x2="603" y2="50"/></g>
+  <text x="417" y="100" text-anchor="middle" fill="#c62828" font-size="10.5">si el MD5 no coincide, se detiene sin tocar el arranque</text>
+</svg>
+</div>
+<table>
+  <tr><th>Plataforma</th><th>Destino</th><th>Configuración de arranque</th></tr>
+  <tr><td>Cisco IOS</td><td><code>flash:</code></td><td><code>no boot system</code> + <code>boot system flash:IMAGEN</code></td></tr>
+  <tr><td>Cisco IOS-XE (modo bundle)</td><td><code>bootflash:</code></td><td><code>boot system bootflash:IMAGEN</code></td></tr>
+  <tr><td>Cisco NX-OS</td><td><code>bootflash:</code></td><td><code>boot nxos bootflash:IMAGEN</code></td></tr>
+  <tr><td>Cisco ASA</td><td><code>disk0:</code></td><td><code>boot system disk0:/IMAGEN</code></td></tr>
+  <tr><td>Arista EOS</td><td><code>flash:</code></td><td><code>boot system flash:IMAGEN</code></td></tr>
+  <tr><td>Juniper Junos</td><td><code>/var/tmp</code></td><td><code>request system software add … no-validate</code></td></tr>
+</table>
+<h2>Cómo usarlo</h2>
+<ol class="steps">
+  <li>(admin) <b>Firmware → Cargar</b>: elija el archivo, indique la versión y, opcionalmente, para qué device_type es.</li>
+  <li>Elija la imagen, marque los equipos y, si corresponde, <b>Reiniciar los equipos al terminar</b>. Pulse <b>Crear solicitud</b>.
+  También puede hacerlo desde la ficha de cada equipo.</li>
+  <li>Un administrador revisa los pasos previstos y aprueba. El resultado muestra si el archivo ya existía, si se transfirió y si el MD5
+  coincidió.</li>
+  <li>Tras el reinicio, OpenNCCM vuelve a respaldar el equipo a los 15 minutos para actualizar la versión en el inventario.</li>
+</ol>
+<figure><img src="img/17-firmware.png"><figcaption>Repositorio de imágenes y selección de equipos.</figcaption></figure>
+<div class="warn"><b>Antes de actualizar en producción</b>Lea las notas del fabricante (espacio libre, rutas de actualización, modo
+<i>install</i> en IOS-XE) y pruebe en un equipo de laboratorio. En Cisco, habilite <code>ip scp server enable</code>.</div>
+</section>
+
+<section class="chapter">
+<h1>16. Fin de vida (EOL/EOS)</h1>
+<p><b>Para qué sirve:</b> saber qué equipos ya no se venden, ya no reciben parches o están por quedarse sin soporte, para planificar
+su reemplazo.</p>
+<h2>Cómo funciona</h2>
+<p>La <b>base de ciclo de vida</b> asocia un patrón del modelo (expresión regular sobre el modelo del inventario) con sus fechas. Cada
+equipo toma la primera entrada que coincide y recibe un estado:</p>
+<table>
+  <tr><th>Estado</th><th>Condición</th></tr>
+  <tr><td><span class="badge b-crit">Sin soporte</span></td><td>Pasó la fecha de fin de soporte.</td></tr>
+  <tr><td><span class="badge" style="background:#d9480f">Sin parches de software</span></td><td>Pasó el fin de mantenimiento de software.</td></tr>
+  <tr><td><span class="badge b-warn">Fin de soporte &lt; 12 meses</span></td><td>El soporte termina dentro de un año.</td></tr>
+  <tr><td><span class="badge b-warn">Fin de venta</span></td><td>Ya no se vende, pero tiene soporte.</td></tr>
+  <tr><td><span class="badge b-ok">Vigente</span></td><td>Ninguna de las anteriores.</td></tr>
+  <tr><td><span class="badge b-info">Sin datos</span></td><td>No hay entrada para su modelo.</td></tr>
+</table>
+<h2>Cómo cargar las fechas</h2>
+<ul>
+  <li><b>A mano:</b> formulario al pie de la página EOL/EOS.</li>
+  <li><b>CSV:</b> columnas <code>vendor,model_pattern,end_of_sale,end_of_sw_maintenance,end_of_support,replacement,url</code>.</li>
+  <li><b>API Cisco EoX:</b> con credenciales de apiconsole.cisco.com en Ajustes, el botón <b>Sincronizar con Cisco EoX</b> completa las
+  fechas de todos los modelos Cisco del inventario.</li>
+</ul>
+<figure><img src="img/18-eol.png"><figcaption>Estado de ciclo de vida por equipo y base de modelos.</figcaption></figure>
+</section>
+
+<section class="chapter">
+<h1>17. Tareas programadas</h1>
+<p><b>Para qué sirven:</b> automatizar operaciones periódicas, para todos los equipos o para un grupo.</p>
+<table>
+  <tr><th>Acción</th><th>Qué hace</th></tr>
+  <tr><td>Respaldo de configuración</td><td>Respalda los equipos habilitados (en paralelo).</td></tr>
+  <tr><td>Auditoría de cumplimiento</td><td>Re-evalúa todas las políticas.</td></tr>
+  <tr><td>Escaneo de vulnerabilidades</td><td>Consulta NVD para cada equipo.</td></tr>
+  <tr><td>Ejecutar configlet</td><td>Aplica un configlet (se considera aprobado por el administrador que crea la tarea).</td></tr>
+  <tr><td>Enviar informes por correo</td><td>Envía inventario, cambios, cumplimiento, conflictos, línea base y EOL en CSV.</td></tr>
+  <tr><td>Copia de recuperación</td><td>Crea una copia de la base de OpenNCCM (y la envía por SFTP si está configurado).</td></tr>
+</table>
+<p>La frecuencia se escribe en formato cron: <code>0 2 * * *</code> (diario 02:00), <code>*/30 * * * *</code> (cada 30 minutos),
+<code>0 6 * * 1</code> (lunes 06:00). Cada tarea puede pausarse, ejecutarse ya o eliminarse.</p>
+<figure><img src="img/20-tareas.png"><figcaption>Tareas programadas.</figcaption></figure>
+</section>
+
+<section class="chapter">
+<h1>18. Alarmas y notificaciones</h1>
+<p>Todo lo relevante genera un <b>evento</b> con severidad por color:</p>
+<table>
+  <tr><th>Severidad</th><th>Ejemplos</th></tr>
+  <tr><td><span class="badge b-crit">critical</span></td><td>Reversión automática, vulnerabilidad crítica, fallo de copia de recuperación</td></tr>
+  <tr><td><span class="badge" style="background:#d9480f">major</span></td><td>Respaldo fallido, infracción de cumplimiento crítica, solicitud fallida</td></tr>
+  <tr><td><span class="badge b-warn">warning</span></td><td>Cambio de configuración, conflicto startup/running, desviación de línea base, infracciones</td></tr>
+  <tr><td><span class="badge b-info">info</span></td><td>Syslog recibido, solicitud pendiente o ejecutada, copias creadas</td></tr>
+</table>
+<p>En <b>Alarmas</b> se filtran por severidad, se ve el detalle (por ejemplo, las líneas cambiadas) y se <b>reconocen</b> una a una o todas.
+Las de severidad igual o mayor a la configurada en Ajustes se envían por correo, webhook (Teams, Slack…) y/o Telegram.</p>
+<figure><img src="img/21-alarmas.png" class="tall"><figcaption>Alarmas y eventos con su detalle desplegable.</figcaption></figure>
+</section>
+
+<section class="chapter">
+<h1>19. Análisis</h1>
+<p><b>Para qué sirve:</b> identificar patrones: qué equipos cambian más, quién cambia, por qué vía, qué versiones de firmware predominan
+y cómo está el cumplimiento y el ciclo de vida.</p>
+<p>Elija el período (7, 30, 90 o 365 días). Las gráficas muestran el valor exacto al pasar el cursor sobre cada barra; varias tienen
+enlace a su tabla.</p>
+<figure><img src="img/22-analisis.png" class="tall"><figcaption>Página de Análisis.</figcaption></figure>
+</section>
+
+<section class="chapter">
+<h1>20. Informes</h1>
+<p>Cada informe se puede <b>ver en pantalla</b> o <b>descargar en CSV</b> (UTF-8, se abre directamente en Excel). Los administradores
+pueden enviarlos por correo al momento o programarlos.</p>
+<table>
+  <tr><th>Informe</th><th>Contenido</th></tr>
+  <tr><td>Inventario</td><td>Nombre, IP, fabricante, modelo, serie, versión, grupo, estado, conflictos y línea base</td></tr>
+  <tr><td>Cambios de configuración</td><td>Cada versión nueva con fecha, origen, usuario y líneas</td></tr>
+  <tr><td>Cumplimiento</td><td>Resultado por equipo, política y regla</td></tr>
+  <tr><td>Conflictos startup/running</td><td>Equipos con cambios sin guardar</td></tr>
+  <tr><td>Desviación de línea base</td><td>Equipos con línea base y si se desviaron</td></tr>
+  <tr><td>Fin de vida (EOL/EOS)</td><td>Fechas y estado de cada equipo</td></tr>
+  <tr><td>Vulnerabilidades</td><td>CVE por equipo</td></tr>
+  <tr><td>Solicitudes de cambio</td><td>Quién pidió, quién aprobó y el resultado</td></tr>
+  <tr><td>Actividad de usuarios</td><td>Auditoría (solo administradores)</td></tr>
+</table>
+<div class="two">
+<figure><img src="img/23-informes.png"><figcaption>Lista de informes.</figcaption></figure>
+<figure><img src="img/24-informe-inventario.png"><figcaption>Informe de inventario en pantalla.</figcaption></figure>
+</div>
+</section>
+
+<section class="chapter">
+<h1>21. Credenciales y grupos</h1>
+<p><b>Credenciales:</b> perfiles de usuario, contraseña y contraseña privilegiada (<i>enable</i>) para conectarse a los equipos. Se guardan
+cifradas con AES-256-GCM y nunca se muestran. Al actualizar una credencial, deje en blanco lo que no quiera cambiar.</p>
+<p><b>Grupos:</b> agrupan equipos (sede, rol, cliente) para filtrar, programar tareas, aplicar políticas y restringir usuarios. Al
+eliminar un grupo, sus equipos quedan sin grupo.</p>
+<figure><img src="img/25-credenciales.png"><figcaption>Credenciales y grupos.</figcaption></figure>
+</section>
+
+<section class="chapter">
+<h1>22. Usuarios</h1>
+<ol class="steps">
+  <li>Para crear: deje «(nuevo)», escriba usuario, rol, correo y contraseña (mínimo 8 caracteres).</li>
+  <li>Para restringir a ciertos equipos, marque sus grupos. Sin grupos marcados, el usuario ve todos los equipos.</li>
+  <li>Para modificar: elija el usuario en «Modificar existente»; deje la contraseña vacía para no cambiarla. «Bloqueado» impide el ingreso
+  sin borrar el usuario.</li>
+</ol>
+<figure><img src="img/26-usuarios.png"><figcaption>Usuarios, roles y grupos permitidos.</figcaption></figure>
+</section>
+
+<section class="chapter">
+<h1>23. Auditoría</h1>
+<p>Registro de <b>quién hizo qué, cuándo y desde qué IP</b>: ingresos (y fallidos), respaldos, descargas de configuración, cambios de
+dispositivos y credenciales, solicitudes y aprobaciones, reversiones, firmware, informes y ajustes. Se puede buscar por usuario,
+acción o detalle y exportar.</p>
+<figure><img src="img/27-auditoria.png" class="tall"><figcaption>Registro de auditoría.</figcaption></figure>
+</section>
+
+<section class="chapter">
+<h1>24. Sistema y recuperación</h1>
+<p>Muestra la base de datos y la clave en uso, las plataformas soportadas y las <b>copias de recuperación</b>: crear (con o sin la clave de
+cifrado), descargar y eliminar. Incluye el comando para restaurar.</p>
+<figure><img src="img/28-sistema.png"><figcaption>Sistema.</figcaption></figure>
+<p>El procedimiento completo de copia, restauración en otro servidor, actualización y vuelta atrás está en la <b>Guía de instalación</b>
+(secciones 13 y 14).</p>
+</section>
+
+<section class="chapter">
+<h1>25. Ajustes</h1>
+<table>
+  <tr><th>Sección</th><th>Opciones</th></tr>
+  <tr><td>Flujo de cambios</td><td>Exigir aprobación · permitir auto-aprobación · notificar infracciones · retención de versiones</td></tr>
+  <tr><td>Notificaciones</td><td>Severidad mínima · SMTP · destinatarios · webhook · Telegram · botón de prueba</td></tr>
+  <tr><td>API Cisco EoX</td><td>Client ID y Secret para fechas de ciclo de vida</td></tr>
+  <tr><td>Recuperación ante desastres</td><td>Copias a conservar · servidor SFTP remoto (servidor, puerto, usuario, contraseña, carpeta)</td></tr>
+</table>
+<p>Las contraseñas de SMTP, de la API de Cisco y del SFTP se guardan cifradas y no se muestran: el formulario indica «(guardada)».</p>
+</section>
+
+<section class="chapter">
+<h1>26. Plataformas soportadas</h1>
+<p>La página <b>Plataformas</b> (enlace en Sistema, o <code>/vendors</code>) lista las 122 plataformas con su <code>device_type</code>,
+el comando de respaldo, si se compara con la configuración de arranque, el tipo de reversión y si admiten actualización de
+firmware.</p>
+<p>Las marcadas <span class="badge b-warn">verificar</span> usan el comando documentado por el fabricante sin prueba en hardware. Si el
+respaldo de un equipo así falla, defina un <b>comando de respaldo personalizado</b> en el dispositivo. Para equipos sin perfil propio
+(pfSense, SonicWall, Riverbed, Infoblox…) use <b>Genérico SSH</b> con un comando personalizado.</p>
+<figure><img src="img/30-plataformas.png" class="tall"><figcaption>Plataformas soportadas (extracto).</figcaption></figure>
+</section>
+
+<section class="chapter">
+<h1>27. Uso desde el teléfono y API</h1>
+<div class="two">
+<div>
+<p>La interfaz se adapta a pantallas pequeñas: el menú se convierte en una fila deslizable y los indicadores se muestran en dos
+columnas. Si el teléfono usa tema oscuro, la aplicación también.</p>
+<p>No requiere instalar ninguna app: basta con abrir la dirección del servidor en el navegador del teléfono (dentro de la VPN o la red
+de gestión).</p>
+<h2>API JSON</h2>
+<p><code>GET /api/devices</code> devuelve el inventario (nombre, IP, tipo, modelo, serie, versión, estado y último respaldo) para la
+sesión iniciada, respetando la restricción por grupos.</p>
+<p><code>GET /healthz</code> devuelve <code>{"status":"ok"}</code> para sistemas de monitoreo.</p>
+</div>
+<figure><img src="img/33-movil-panel.jpg" class="phone"><figcaption>Panel en un teléfono (tema oscuro).</figcaption></figure>
+</div>
+</section>
+
+<section class="chapter">
+<h1>28. Glosario</h1>
+<table>
+  <tr><th style="width:28%">Término</th><th>Significado</th></tr>
+  <tr><td>Running / startup</td><td>Configuración en ejecución (activa) / guardada para el próximo arranque.</td></tr>
+  <tr><td>Versión</td><td>Copia de la configuración guardada cuando cambia.</td></tr>
+  <tr><td>Línea base</td><td>Versión aprobada que sirve de referencia.</td></tr>
+  <tr><td>Configlet</td><td>Plantilla de comandos reutilizable.</td></tr>
+  <tr><td>Solicitud de cambio</td><td>Propuesta de aplicar comandos que debe aprobarse.</td></tr>
+  <tr><td>Reversión</td><td>Volver a una configuración anterior.</td></tr>
+  <tr><td>Ventana de mantenimiento</td><td>Periodo en que OpenNCCM aplica un cambio aprobado; sus avisos syslog no se tratan como intrusión.</td></tr>
+  <tr><td>Política / regla</td><td>Conjunto de controles / control individual de cumplimiento.</td></tr>
+  <tr><td>device_type</td><td>Identificador de la plataforma (driver de Netmiko), p. ej. <code>cisco_ios</code>.</td></tr>
+  <tr><td>CVE / CVSS</td><td>Identificador público de una vulnerabilidad / su puntuación de gravedad (0–10).</td></tr>
+  <tr><td>EOL / EOS</td><td>Fin de vida / fin de venta o soporte de un modelo.</td></tr>
+  <tr><td>SCP / MD5</td><td>Copia segura de archivos sobre SSH / huella para verificar que el archivo llegó íntegro.</td></tr>
+  <tr><td>Syslog</td><td>Protocolo con el que los equipos envían sus mensajes de registro.</td></tr>
+</table>
+</section>
+</body>
+</html>

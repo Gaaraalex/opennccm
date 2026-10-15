@@ -1,0 +1,48 @@
+{% extends "base.html" %}{% block title %}Cumplimiento{% endblock %}
+{% block content %}
+<h1>Cumplimiento de configuración</h1>
+<div class="grid">
+  <div class="stat"><small>Equipos auditados</small><b>{{ devices_checked }}</b></div>
+  <div class="stat"><small>Equipos que cumplen</small><b style="color:var(--ok)">{{ devices_ok }}</b></div>
+  <div class="stat"><small>Infracciones abiertas</small><b style="color:var(--crit)">{{ fails|length }}</b></div>
+</div>
+<div class="toolbar" style="margin-top:14px">
+  {% if ROLES[user.role] >= 1 %}<form class="inline" method="post" action="/compliance/run"><button>Auditar todos ahora</button></form>{% endif %}
+  <a class="btn sec" href="/reports/compliance.csv">Exportar CSV</a>
+</div>
+
+<div class="card">
+<h2 style="margin-top:0">Reglas cumplidas por política</h2>
+{{ chart|safe }}
+<p class="small muted" style="margin-bottom:0">Porcentaje de comprobaciones (equipo × regla) que cumplen. <a href="/reports/view/compliance">Ver como tabla</a>.</p>
+</div>
+
+<div class="card">
+<h2 style="margin-top:0">Políticas</h2>
+<table><tr><th>Nombre</th><th>Aplica a</th><th>Reglas</th><th>Estado</th></tr>
+{% for p in policies %}
+<tr><td><a href="/compliance/policies/{{ p.id }}">{{ p.name }}</a></td><td class="small"><code>{{ p.device_type_filter or 'todos' }}</code></td>
+<td>{{ p.rules|length }}</td><td>{{ 'activa' if p.enabled else 'inactiva' }}</td></tr>
+{% else %}<tr><td colspan="4" class="muted">Sin políticas. Ejecute <code>opennccm-cli seed</code> para cargar ejemplos (hardening Cisco, Huawei, Juniper, FortiGate).</td></tr>{% endfor %}
+</table>
+{% if user.role == 'admin' %}
+<form method="post" action="/compliance/policies" class="row" style="margin-top:12px">
+  <div><label>Nueva política</label><input name="name" required placeholder="p. ej. PCI-DSS switches"></div>
+  <div><label>Regex de device_type</label><input name="device_type_filter" placeholder="cisco|arista"></div>
+  <div><label>Grupo</label><select name="group_id"><option value="">Todos</option>{% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}</select></div>
+  <input type="hidden" name="enabled" value="on"><button>Crear</button>
+</form>
+{% endif %}
+</div>
+
+<div class="card">
+<h2 style="margin-top:0">Infracciones</h2>
+<table><tr><th>Equipo</th><th>Política</th><th>Regla</th><th>Severidad</th><th></th></tr>
+{% for f in fails %}
+<tr><td><a href="/devices/{{ f.device_id }}">{{ f.device.name }}</a></td><td>{{ f.policy.name }}</td><td>{{ f.rule.name }}</td>
+<td><span class="badge b-{{ f.rule.severity }}">{{ f.rule.severity }}</span></td>
+<td>{% if f.rule.remediation and ROLES[user.role] >= 1 %}<form class="inline" method="post" action="/compliance/remediate/{{ f.id }}"><button class="sm">Corregir</button></form>{% endif %}</td></tr>
+{% else %}<tr><td colspan="5" class="muted">Sin infracciones.</td></tr>{% endfor %}
+</table>
+</div>
+{% endblock %}

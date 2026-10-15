@@ -1,0 +1,25 @@
+DEMO DE OPENNCCM EN WINDOWS
+===========================
+
+1. Doble clic en iniciar-demo.bat
+2. Se abre el navegador en http://127.0.0.1:8000
+3. Para detenerla, cierre las dos ventanas negras ("OpenNCCM" y "equipo simulado").
+
+Usuarios de prueba (creados por las pruebas automaticas, solo para esta demo):
+  admin       / Admin12345      administrador (ve todo)
+  op_acceso   / Operador12345   operador restringido al grupo "Acceso"
+  lector      / Lector12345     solo lectura
+
+Equipos de la demo:
+  R1  - router Cisco IOS simulado en 127.0.0.1:2222 (usuario admin / cisco). Responde de verdad:
+        respaldos, configlets, reversion, firmware por SCP, etc.
+  SW2 - Huawei ficticio (10.9.9.9). No existe: sus respaldos fallan a proposito.
+
+Notas:
+- El equipo simulado guarda su configuracion en memoria: al reiniciar la demo vuelve a la
+  configuracion inicial, asi que el primer respaldo mostrara cambios respecto al historial.
+- Para simular un cambio detectado en tiempo real, envie un syslog a UDP 127.0.0.1:5514 con
+  el texto %SYS-5-CONFIG_I (la demo usa el puerto 5514 en lugar del 514).
+- Los datos de la demo estan en %TEMP%\ncmtest y Python en %TEMP%\ncmpy. Si Windows limpia la
+  carpeta temporal, la demo deja de funcionar y hay que prepararla de nuevo.
+- Esta carpeta (demo-windows) es solo para probar en Windows; no se instala en Ubuntu.

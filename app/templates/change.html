@@ -1,0 +1,29 @@
+{% extends "base.html" %}{% block title %}Cambio #{{ cr.id }}{% endblock %}
+{% block content %}
+<h1>Solicitud #{{ cr.id }}: {{ cr.title }} <span class="badge b-{{ cr.status }}">{{ cr.status }}</span></h1>
+<div class="card">
+  <dl class="kv">
+    <dt>Solicitada por</dt><dd>{{ cr.requested_by }} · {{ cr.created_at|dt }}</dd>
+    <dt>Revisada por</dt><dd>{{ cr.reviewed_by or '—' }}{% if cr.review_comment %} — “{{ cr.review_comment }}”{% endif %}</dd>
+    <dt>Ejecutada</dt><dd>{{ cr.executed_at|dt }}</dd>
+    <dt>Dispositivos ({{ devices|length }})</dt><dd>{% for d in devices %}<a href="/devices/{{ d.id }}">{{ d.name }}</a>{{ ', ' if not loop.last }}{% endfor %}</dd>
+  </dl>
+  {% if cr.status in ('pending', 'approved', 'running') %}<p class="small muted">Actualice la página para ver el avance.</p>{% endif %}
+</div>
+{% if cr.is_rollback %}<div class="flash error">Comandos generados automáticamente a partir de la diferencia entre la configuración actual y la versión destino. Revíselos con cuidado antes de aprobar.</div>{% endif %}
+<div class="card">
+  <h2 style="margin-top:0">Comandos a aplicar (vista previa{{ ', primeros 5 equipos' if devices|length > 5 }})</h2>
+  {% for name, text in previews %}<p><b>{{ name }}</b></p><pre>{{ text }}</pre>{% endfor %}
+</div>
+{% if cr.status == 'pending' and can_review %}
+<div class="card" style="max-width:640px">
+  <h2 style="margin-top:0">Revisión</h2>
+  <form method="post" action="/changes/{{ cr.id }}/review">
+    <label>Comentario</label><input name="comment" style="width:100%">
+    <p><button name="decision" value="approve" onclick="return confirm('¿Aprobar y aplicar ahora en {{ devices|length }} equipos?')">Aprobar y ejecutar</button>
+    <button name="decision" value="reject" class="danger">Rechazar</button></p>
+  </form>
+</div>
+{% elif cr.status == 'pending' %}<p class="muted">Pendiente de aprobación por un administrador distinto del solicitante.</p>{% endif %}
+{% if cr.result %}<div class="card"><h2 style="margin-top:0">Resultado</h2><pre>{{ cr.result }}</pre></div>{% endif %}
+{% endblock %}
