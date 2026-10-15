@@ -158,7 +158,7 @@ say()  { echo -e "${c_b}==>${c_0} $*"; }
 warn() { echo -e "${c_warn}AVISO:${c_0} $*"; }
 
 # Diálogos: la interfaz se dibuja en /dev/tty y la respuesta sale por stderr -> capturada
-ui() { whiptail --backtitle "$BACKTITLE" "$@" 2>&1 >/dev/tty </dev/tty; }
+ui() { whiptail --backtitle "$BACKTITLE" --ok-button "Aceptar" --cancel-button "Cancelar" "$@" 2>&1 >/dev/tty </dev/tty; }
 msg() { ui --title "${2:-$TITLE}" --msgbox "$1" "${3:-14}" 74 || true; }
 yesno() { whiptail --backtitle "$BACKTITLE" --title "${2:-$TITLE}" --yes-button "Sí" --no-button "No" \
   --yesno "$1" "${3:-12}" 74 >/dev/tty </dev/tty 2>&1; }
@@ -239,10 +239,11 @@ fi
 
 check_preflight() {
   local problems=() notes=()
-  # Conectividad
-  if ! getent hosts github.com >/dev/null 2>&1; then problems+=("No se resuelve github.com (DNS)."); fi
+  # Conectividad (con --source el código ya está en el servidor: GitHub solo hará falta para actualizar)
   if ! timeout 10 bash -c 'exec 3<>/dev/tcp/github.com/443' 2>/dev/null; then
-    [[ -n $SOURCE_DIR ]] || problems+=("Sin conexión a github.com:443 (internet o proxy).")
+    if [[ -n $SOURCE_DIR ]]; then notes+=("Sin conexión a GitHub: se instala desde $SOURCE_DIR.")
+    else problems+=("Sin conexión a github.com:443 (internet, DNS o proxy).")
+    fi
   fi
   # Recursos
   local disk ram
@@ -415,6 +416,23 @@ install_packages() {
 
 fetch_code() {
   progress 30 "Descargando OpenNCCM…"
+  if [[ -n $SOURCE_DIR && ! -d $SOURCE_DIR/.git ]]; then
+    # paquete .tar.gz de una versión publicada (sin historial git): se copia y se crea un repositorio
+    # local apuntando a GitHub, para que "opennccm update" funcione cuando haya conexión
+    if [[ ! -d $APP_DIR/.git && -d $APP_DIR/app ]]; then
+      mv "$APP_DIR" "${APP_DIR}.pre-git-$(date +%Y%m%d%H%M%S)"
+    fi
+    mkdir -p "$APP_DIR"
+    run rsync -a --delete --exclude .venv --exclude .git "$SOURCE_DIR/" "$APP_DIR/"
+    local ver; ver=$(grep -oP '__version__ = "\K[^"]+' "$APP_DIR/app/__init__.py")
+    if [[ ! -d $APP_DIR/.git ]]; then run git -C "$APP_DIR" init -q -b main; fi
+    run git -C "$APP_DIR" -c user.name=opennccm -c user.email=opennccm@localhost add -A
+    run git -C "$APP_DIR" -c user.name=opennccm -c user.email=opennccm@localhost commit -q -m "OpenNCCM $ver (paquete local)" --allow-empty
+    git -C "$APP_DIR" remote get-url origin >/dev/null 2>&1 || run git -C "$APP_DIR" remote add origin "$REPO_URL"
+    run git -C "$APP_DIR" remote set-url origin "$REPO_URL"
+    SOURCE_DIR=""   # en install.conf queda el repositorio oficial
+    return 0
+  fi
   if [[ ! -d $APP_DIR/.git ]]; then
     if [[ -d $APP_DIR/app ]]; then   # instalación antigua sin git: se conserva una copia
       mv "$APP_DIR" "${APP_DIR}.pre-git-$(date +%Y%m%d%H%M%S)"

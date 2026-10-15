@@ -26,8 +26,7 @@
   {% else %}<tr><td colspan="3" class="muted">Sin copias todavía.</td></tr>{% endfor %}
   </table>
   <h2>Restaurar</h2>
-  <pre>sudo systemctl stop opennccm
-sudo opennccm-cli restore /var/lib/opennccm/system-backups/opennccm-AAAAMMDD-HHMMSS.tar.gz
-sudo systemctl start opennccm</pre>
+  <pre>sudo opennccm restore /var/lib/opennccm/system-backups/opennccm-AAAAMMDD-HHMMSS.tar.gz</pre>
+  <p class="small muted">Actualizar a la última versión: <code>sudo opennccm update</code> · volver a la anterior: <code>sudo opennccm rollback</code>.</p>
 </div>
 {% endblock %}

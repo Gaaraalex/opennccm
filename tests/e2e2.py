@@ -55,7 +55,8 @@ check("Netmiko conoce todas las plataformas", "no conoce" not in sysp)
 # ---------------------------------------------------------------- línea base
 html = s.get(B + "/devices/1").text
 latest = re.findall(r'<td>(\d+)</td><td class="small">[^<]*</td><td>running</td>', html)[0]
-r = s.post(f"{B}/versions/{re.findall(r'<td>(\d+)</td><td class=\"small\">[^<]*</td><td>startup</td>', html)[0]}/baseline")
+startup_id = re.findall(r'<td>(\d+)</td><td class="small">[^<]*</td><td>startup</td>', html)[0]
+r = s.post(f"{B}/versions/{startup_id}/baseline")
 check("startup no puede ser línea base", "Solo una configuración en ejecución" in r.text)
 r = s.post(f"{B}/versions/{latest}/baseline")
 check("marcar línea base", "marcada como línea base" in r.text)

@@ -19,7 +19,8 @@ def tmux(*args, check=True):
 
 
 def screen(ansi=False):
-    args = ["capture-pane", "-p", "-t", S] + (["-e"] if ansi else [])
+    # -N conserva los espacios finales (fondo azul completo y bordes alineados en las capturas)
+    args = ["capture-pane", "-p", "-N", "-t", S] + (["-e"] if ansi else [])
     return tmux(*args, check=False).stdout
 
 

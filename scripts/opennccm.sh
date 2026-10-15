@@ -204,7 +204,8 @@ cmd_rollback() {
     if interactive && [[ $yes -eq 0 ]]; then
       local items=() d
       for d in "${list[@]}"; do items+=("$(basename "$d")" ""); done
-      dir=$(whiptail --backtitle "OpenNCCM" --title "Volver a una versión anterior" --menu \
+      dir=$(whiptail --backtitle "OpenNCCM" --title "Volver a una versión anterior" \
+        --ok-button "Restaurar" --cancel-button "Cancelar" --menu \
         "\nElija la copia previa a restaurar (la más reciente arriba).\nSe restauran el código y la base de datos de ese momento." \
         20 74 8 "${items[@]}" 3>&1 1>&2 2>&3) || { echo "Cancelado."; return 1; }
       dir=$PRE_DIR/$dir
@@ -217,7 +218,7 @@ cmd_rollback() {
   echo "${c_warn}Se perderán los cambios registrados en OpenNCCM después de esa copia (la base actual se conserva aparte).${c_0}"
   if [[ $yes -eq 0 ]]; then
     if interactive; then
-      whiptail --title "Confirmar" --yesno "\n¿Volver a $(basename "$dir")?\n\nLa base de datos actual se conservará como .descartada-…" 12 70 || return 1
+      whiptail --title "Confirmar" --yes-button "Sí" --no-button "No" --yesno "\n¿Volver a $(basename "$dir")?\n\nLa base de datos actual se conservará como .descartada-…" 12 70 || return 1
     elif [[ -t 0 ]]; then
       local a; read -r -p "¿Continuar? [s/N] " a; [[ $a =~ ^[sSyY] ]] || return 1
     else
