@@ -100,10 +100,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Instalar como una persona (tmux + whiptail)
+      - name: Instalar como una persona (tmux + whiptail, usuario normal con sudo)
         run: |
           sudo apt-get install -y -qq tmux
-          sudo python3 tests/tui_drive.py "$GITHUB_WORKSPACE" "$RUNNER_TEMP/capturas"
+          python3 tests/tui_drive.py "$GITHUB_WORKSPACE" "$RUNNER_TEMP/capturas"
       - name: Verificar
         run: |
           curl -fsk https://127.0.0.1/healthz
@@ -136,7 +136,7 @@ jobs:
         run: |
           VER=${TAG#v}
           awk -v v="## $VER" '$0==v{f=1;next} /^## /{if(f)exit} f' CHANGELOG.md > notas.md
-          printf '\n### Instalar\n```bash\ncurl -fsSL https://raw.githubusercontent.com/%s/main/install.sh | sudo bash\n```\n### Actualizar una instalación existente\n```bash\nsudo opennccm update\n```\n' "$GITHUB_REPOSITORY" >> notas.md
+          printf '\n### Instalar\n```bash\ncurl -fsSL https://raw.githubusercontent.com/%s/main/install.sh -o install.sh && sudo bash install.sh\n```\n### Actualizar una instalación existente\n```bash\nsudo opennccm update\n```\n' "$GITHUB_REPOSITORY" >> notas.md
           git archive --format=tar.gz --prefix=opennccm/ -o "opennccm-$VER.tar.gz" "$TAG"
           gh release create "$TAG" --title "OpenNCCM $VER" --notes-file notas.md \
             "opennccm-$VER.tar.gz" docs/*.pdf

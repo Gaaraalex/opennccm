@@ -15,7 +15,7 @@ Respalda, versiona, compara y audita la configuración de switches, routers y fi
 En un Ubuntu Server **22.04 o 24.04** recién instalado:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Gaaraalex/opennccm/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/Gaaraalex/opennccm/main/install.sh -o install.sh && sudo bash install.sh
 ```
 
 Un asistente con menús comprueba el servidor, actualiza Ubuntu, instala lo que falte y le pregunta

@@ -1,5 +1,13 @@
 # Historial de versiones
 
+## 1.2.1
+- Corrección: con `curl … | sudo bash` el asistente con menús no recibía el teclado (Enter no respondía).
+  Ahora el instalador lo detecta, no modifica nada y muestra el comando correcto.
+- La instalación guiada se hace descargando primero el instalador:
+  `curl -fsSL …/install.sh -o install.sh && sudo bash install.sh`.
+  La forma `curl … | sudo bash -s -- --unattended` sigue siendo válida para instalar sin preguntas.
+- La prueba automática del asistente se ejecuta ahora como un usuario normal con sudo, igual que un administrador.
+
 ## 1.2.0
 - Instalación con un solo comando desde GitHub (`curl … | sudo bash`), con asistente de menús o desatendida.
 - El instalador comprueba el servidor (versión de Ubuntu, internet, disco, memoria, puertos) y actualiza

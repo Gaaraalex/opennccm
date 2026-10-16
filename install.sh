@@ -3,15 +3,16 @@
 #  OpenNCCM - instalador para Ubuntu Server 22.04 / 24.04
 #
 #  Instalación guiada (menús):
-#    curl -fsSL https://raw.githubusercontent.com/Gaaraalex/opennccm/main/install.sh | sudo bash
+#    curl -fsSL https://raw.githubusercontent.com/Gaaraalex/opennccm/main/install.sh -o install.sh && sudo bash install.sh
 #
 #  Instalación desatendida (ejemplo):
 #    curl -fsSL .../install.sh | sudo bash -s -- --unattended --host 10.0.0.5 --admin-pass 'Clave12345'
 #
 #  Ayuda:  sudo bash install.sh --help
 # =============================================================================
-# Todo el script está dentro de main(): bash lo lee completo antes de ejecutarlo,
-# lo que permite usar el teclado (/dev/tty) aunque llegue por "curl | bash".
+# Todo el script está dentro de main(): bash lo lee completo antes de ejecutarlo.
+# Nota: con "curl | sudo bash" sudo no pasa el teclado al instalador (lee la tubería de curl),
+# por eso el asistente con menús se ejecuta descargando primero el archivo.
 
 main() {
 set -Eeuo pipefail
@@ -147,6 +148,29 @@ BACKTITLE="OpenNCCM · Gestión de configuración, cambios y cumplimiento de red
 TITLE="Instalación de OpenNCCM"
 GAUGE_ON=0
 CUR_STEP="inicio"
+
+# "curl ... | sudo bash": sudo lee la tubería y NO pasa el teclado al instalador (los menús no responderían).
+# Se detecta y se explica cómo ejecutarlo, en lugar de mostrar menús que no reciben teclas.
+if [[ $UNATTENDED -eq 0 && ! -t 0 && "$(ps -o comm= -p "$PPID" 2>/dev/null | tr -d ' ')" == "sudo" ]]; then
+  RAW="https://raw.githubusercontent.com/Gaaraalex/opennccm/main/install.sh"
+  cat <<EOF
+
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │  El asistente con menús necesita el teclado, pero con "curl | sudo bash"  │
+  │  sudo no se lo pasa al instalador. No se ha modificado nada.               │
+  └──────────────────────────────────────────────────────────────────────────┘
+
+  Para la instalación guiada (con menús), descargue primero el instalador:
+
+     curl -fsSL $RAW -o install.sh && sudo bash install.sh
+
+  Para instalar sin preguntas (valores recomendados), agregue --unattended:
+
+     curl -fsSL $RAW | sudo bash -s -- --unattended
+
+EOF
+  exit 1
+fi
 
 INTERACTIVE=0
 if [[ $UNATTENDED -eq 0 ]] && { : </dev/tty; } 2>/dev/null && [[ -t 1 || -w /dev/tty ]]; then

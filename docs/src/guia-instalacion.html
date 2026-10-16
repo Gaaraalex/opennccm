@@ -15,7 +15,7 @@
     <p class="sub">Paso a paso para instalar, configurar, asegurar, respaldar y actualizar OpenNCCM, el sistema de gestión
     de configuración, cambios y cumplimiento de red.</p>
   </div>
-  <div class="meta">Versión del software: 1.2.0<br>Sistemas soportados: Ubuntu Server 22.04 LTS y 24.04 LTS (64 bits)<br>
+  <div class="meta">Versión del software: 1.2.1<br>Sistemas soportados: Ubuntu Server 22.04 LTS y 24.04 LTS (64 bits)<br>
   Octubre de 2026</div>
 </div>
 
@@ -158,7 +158,9 @@ este punto si algo sale mal durante la instalación.</div>
 <section class="chapter">
 <h1>4. Instalar con un solo comando</h1>
 <p>OpenNCCM se instala directamente desde su repositorio de GitHub. En la consola del servidor ejecute:</p>
-<div class="term" data-title="Servidor Ubuntu"><span class="p">$</span> curl -fsSL https://raw.githubusercontent.com/Gaaraalex/opennccm/main/install.sh | sudo bash</div>
+<div class="term" data-title="Servidor Ubuntu"><span class="p">$</span> curl -fsSL https://raw.githubusercontent.com/Gaaraalex/opennccm/main/install.sh -o install.sh
+<span class="p">$</span> sudo bash install.sh</div>
+<div class="warn"><b>Use estos dos pasos para el asistente</b>Si ejecuta <code>curl … | sudo bash</code>, <code>sudo</code> no pasa el teclado al instalador y los menús no responderían. El instalador lo detecta, no modifica nada y le muestra el comando correcto. La forma con tubería sirve solo para la instalación desatendida (sección 5).</div>
 <p>Se abre un <b>asistente con menús</b>. Muévase con las <span class="kbd">flechas</span> y <span class="kbd">Tab</span>, marque
 opciones con la <span class="kbd">barra espaciadora</span> y confirme con <span class="kbd">Enter</span>. Si pulsa Enter en todas
 las pantallas obtiene una instalación segura con los valores recomendados.</p>
