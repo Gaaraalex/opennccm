@@ -93,7 +93,7 @@ def logout(request: Request):
 
 @app.get("/account")
 def account(request: Request):
-    return render(request, "account.html", require(request))
+    return render(request, "account.html", require(request), themes=THEMES)
 
 
 @app.post("/account")
@@ -103,16 +103,35 @@ async def account_save(request: Request):
     with SessionLocal() as db:
         u = db.get(User, user.id)
         if not verify_password(form.get("current", ""), u.password_hash):
-            flash(request, "La contraseña actual no es correcta", "error")
+            flash(request, "La contraseña actual no es correcta.", "error")
             return go("/account")
         if len(form.get("new", "")) < 8:
-            flash(request, "La nueva contraseña debe tener al menos 8 caracteres", "error")
+            flash(request, "La nueva contraseña debe tener al menos 8 caracteres.", "error")
+            return go("/account")
+        if form.get("new") != form.get("new2", form.get("new")):
+            flash(request, "La nueva contraseña y su confirmación no coinciden.", "error")
             return go("/account")
         u.password_hash = hash_password(form["new"])
         db.commit()
     log_action(request, user, "password_change")
-    flash(request, "Contraseña actualizada")
+    flash(request, "Contraseña actualizada. Úsela la próxima vez que ingrese.")
     return go("/account")
+
+
+THEMES = {"auto": "Automático (según el sistema)", "claro": "Claro", "oscuro": "Oscuro",
+          "noche": "Azul noche", "bosque": "Bosque", "contraste": "Alto contraste"}
+
+
+@app.post("/account/theme")
+async def account_theme(request: Request):
+    user = require(request)
+    form = await request.form()
+    theme = form.get("theme") if form.get("theme") in THEMES else "auto"
+    with SessionLocal() as db:
+        db.get(User, user.id).theme = theme
+        db.commit()
+    flash(request, f"Tema «{THEMES[theme]}» aplicado.")
+    return go(form.get("next") or "/account")
 
 
 # --------------------------------------------------------------------------- panel
@@ -1044,38 +1063,106 @@ def users(request: Request):
     return render(request, "users.html", user, items=items, groups=groups, user_groups=user_groups)
 
 
+USERNAME_RE = re.compile(r"^[A-Za-z0-9._@-]{2,64}$")
+ROLE_NAMES = {"admin": "administrador", "operator": "operador", "viewer": "lector"}
+
+
+def _active_admins(db, exclude_id: int | None = None) -> int:
+    q = select(func.count(User.id)).where(User.role == "admin", User.active.is_(True))
+    if exclude_id:
+        q = q.where(User.id != exclude_id)
+    return db.scalar(q) or 0
+
+
+def _set_groups(db, uid: int, form):
+    db.execute(delete(UserGroup).where(UserGroup.user_id == uid))
+    for gid in form.getlist("group_ids"):
+        db.add(UserGroup(user_id=uid, group_id=int(gid)))
+
+
 @app.post("/users")
-async def user_save(request: Request):
+async def user_create(request: Request):
+    """Crear un usuario nuevo (la edición de existentes está en /users/{id}/edit)."""
+    user = require(request, "admin")
+    form = await request.form()
+    username = (form.get("username") or "").strip()
+    role = form.get("role") if form.get("role") in ROLES else "viewer"
+    password = form.get("password") or ""
+    if not USERNAME_RE.match(username):
+        flash(request, "Nombre de usuario no válido: 2 a 64 caracteres (letras, números, punto, guion, @).", "error")
+        return go("/users")
+    if len(password) < 8:
+        flash(request, "La contraseña debe tener al menos 8 caracteres.", "error")
+        return go("/users")
+    if password != form.get("password2", password):
+        flash(request, "Las contraseñas no coinciden.", "error")
+        return go("/users")
+    with SessionLocal() as db:
+        if db.scalars(select(User).where(func.lower(User.username) == username.lower())).first():
+            flash(request, f"Ya existe un usuario llamado «{username}». Para cambiarlo use «Editar» en su fila.", "error")
+            return go("/users")
+        u = User(username=username, role=role, email=form.get("email") or None, active=True,
+                 password_hash=hash_password(password))
+        db.add(u)
+        db.flush()
+        _set_groups(db, u.id, form)
+        db.commit()
+    log_action(request, user, "user_create", f"{username} rol={role} grupos={form.getlist('group_ids')}")
+    flash(request, f"Usuario «{username}» creado con rol {ROLE_NAMES[role]}. Ya puede ingresar con su contraseña.")
+    return go("/users")
+
+
+@app.get("/users/{uid}/edit")
+def user_edit_form(request: Request, uid: int):
+    user = require(request, "admin")
+    with SessionLocal() as db:
+        u = db.get(User, uid)
+        if not u:
+            return go("/users")
+        groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
+    return render(request, "user_edit.html", user, u=u, groups=groups, selected=set(user_group_ids(uid)))
+
+
+@app.post("/users/{uid}/edit")
+async def user_edit(request: Request, uid: int):
     user = require(request, "admin")
     form = await request.form()
     with SessionLocal() as db:
-        uid = int(form.get("id") or 0)
-        u = db.get(User, uid) if uid else User(username=form["username"].strip())
-        u.role = form.get("role", "viewer") if form.get("role") in ROLES else "viewer"
-        u.email = form.get("email") or None
-        u.active = form.get("active", "on") == "on"
-        if form.get("password"):
-            if len(form["password"]) < 8:
-                flash(request, "La contraseña debe tener al menos 8 caracteres", "error")
-                return go("/users")
-            u.password_hash = hash_password(form["password"])
-        elif not uid:
-            flash(request, "Indique una contraseña", "error")
+        u = db.get(User, uid)
+        if not u:
             return go("/users")
-        if uid == user.id and (u.role != "admin" or not u.active):
-            flash(request, "No puede quitarse a sí mismo el rol de administrador", "error")
-            return go("/users")
-        if not uid:
-            db.add(u)
-        db.flush()
-        if form.get("set_groups") == "1":  # grupos permitidos (vacío = todos los equipos)
-            db.execute(delete(UserGroup).where(UserGroup.user_id == u.id))
-            for gid in form.getlist("group_ids"):
-                db.add(UserGroup(user_id=u.id, group_id=int(gid)))
+        role = form.get("role") if form.get("role") in ROLES else u.role
+        active = form.get("active") == "on"
+        was_admin = u.role == "admin" and u.active
+        if was_admin and (role != "admin" or not active):
+            if uid == user.id:
+                flash(request, "No puede quitarse a sí mismo el rol de administrador ni bloquearse.", "error")
+                return go(f"/users/{uid}/edit")
+            if _active_admins(db, exclude_id=uid) == 0:
+                flash(request, "Debe quedar al menos un administrador activo.", "error")
+                return go(f"/users/{uid}/edit")
+        changes = []
+        password = form.get("password") or ""
+        if password:
+            if len(password) < 8:
+                flash(request, "La contraseña debe tener al menos 8 caracteres.", "error")
+                return go(f"/users/{uid}/edit")
+            if password != form.get("password2", password):
+                flash(request, "Las contraseñas no coinciden.", "error")
+                return go(f"/users/{uid}/edit")
+            u.password_hash = hash_password(password)
+            changes.append("contraseña cambiada")
+        if role != u.role:
+            changes.append(f"rol {ROLE_NAMES[role]}")
+        if active != u.active:
+            changes.append("activado" if active else "bloqueado")
+        u.role, u.active, u.email = role, active, form.get("email") or None
+        _set_groups(db, uid, form)
         db.commit()
-    log_action(request, user, "user_save", f"{form.get('username') or uid} role={form.get('role')} "
+        name = u.username
+    log_action(request, user, "user_edit", f"{name}: {', '.join(changes) or 'sin cambios de rol/clave'} "
                                            f"grupos={form.getlist('group_ids')}")
-    flash(request, "Usuario guardado")
+    flash(request, f"Usuario «{name}» actualizado" + (f" ({', '.join(changes)})." if changes else "."))
     return go("/users")
 
 
@@ -1083,14 +1170,19 @@ async def user_save(request: Request):
 def user_delete(request: Request, uid: int):
     user = require(request, "admin")
     if uid == user.id:
-        flash(request, "No puede eliminarse a sí mismo", "error")
+        flash(request, "No puede eliminarse a sí mismo.", "error")
         return go("/users")
     with SessionLocal() as db:
         u = db.get(User, uid)
         if u:
+            if u.role == "admin" and u.active and _active_admins(db, exclude_id=uid) == 0:
+                flash(request, "No se puede eliminar al último administrador activo.", "error")
+                return go("/users")
+            name = u.username
             db.delete(u)
             db.commit()
-            log_action(request, user, "user_delete", u.username)
+            log_action(request, user, "user_delete", name)
+            flash(request, f"Usuario «{name}» eliminado.")
     return go("/users")
 
 
@@ -1194,6 +1286,13 @@ def api_devices(request: Request):
 from . import routes_ops  # noqa: E402  (rutas de firmware, EOL, análisis y sistema)
 
 app.include_router(routes_ops.router)
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    from fastapi.responses import FileResponse
+    return FileResponse(BASE_DIR / "static" / "favicon.ico", media_type="image/x-icon",
+                        headers={"Cache-Control": "public, max-age=604800"})
 
 
 @app.get("/healthz")

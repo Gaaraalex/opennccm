@@ -1,5 +1,19 @@
 # Historial de versiones
 
+## 1.3.0
+- **Usuarios**: crear y editar ahora son acciones separadas (botón «Editar» en cada fila). Antes, si el desplegable
+  «Modificar existente» tenía un usuario elegido, se modificaba ese usuario en lugar de crear uno nuevo.
+  Mensajes claros de lo que se hizo, confirmación de contraseña, nombres duplicados rechazados y protección
+  para no quitarse a sí mismo el rol de administrador.
+- **Cambiar mi contraseña**: botón 🔑 junto al nombre de usuario en la barra superior.
+- **Temas**: Automático, Claro, Oscuro, Azul noche, Bosque y Alto contraste; cada usuario elige el suyo en «Mi cuenta».
+- **Icono** de OpenNCCM en la pestaña del navegador y en la barra superior (también al guardar como acceso directo en el teléfono).
+- **Fecha y hora** del servidor desde Sistema: zona horaria, sincronización NTP y fecha/hora manual. El servicio sigue
+  sin privilegios de root: el instalador agrega una regla de polkit que permite solo esas tres acciones.
+- **Plataformas**: enlace en el menú, buscador y filtro por fabricante, comandos de arranque e inventario, y columna
+  «Comprobado en su red» que se marca sola cuando un equipo de esa plataforma hace su primer respaldo correcto.
+- Nuevo comando `sudo opennccm users` para listar usuarios desde la consola.
+
 ## 1.2.1
 - Corrección: con `curl … | sudo bash` el asistente con menús no recibía el teclado (Enter no respondía).
   Ahora el instalador lo detecta, no modifica nada y muestra el comando correcto.

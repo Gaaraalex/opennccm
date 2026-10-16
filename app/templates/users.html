@@ -4,31 +4,34 @@
 <div class="card">
 <table><tr><th>Usuario</th><th>Rol</th><th>Equipos permitidos</th><th>Email</th><th>Estado</th><th>Creado</th><th></th></tr>
 {% for u in items %}
-<tr><td>{{ u.username }}</td><td><span class="badge b-{{ 'critical' if u.role == 'admin' else ('major' if u.role == 'operator' else 'info') }}">{{ u.role }}</span></td>
+<tr><td><b>{{ u.username }}</b>{% if u.id == user.id %} <span class="small muted">(usted)</span>{% endif %}</td>
+<td><span class="badge b-{{ 'critical' if u.role == 'admin' else ('major' if u.role == 'operator' else 'info') }}">{{ {'admin': 'administrador', 'operator': 'operador', 'viewer': 'lector'}[u.role] }}</span></td>
 <td>{% if u.role == 'admin' or not user_groups[u.id] %}<span class="muted">todos</span>{% else %}{{ user_groups[u.id]|join(', ') }}{% endif %}</td>
 <td>{{ u.email or '' }}</td><td>{{ 'activo' if u.active else 'bloqueado' }}</td><td class="small">{{ u.created_at|dt }}</td>
-<td>{% if u.id != user.id %}<form class="inline" method="post" action="/users/{{ u.id }}/delete" onsubmit="return confirm('¿Eliminar usuario?')"><button class="sm danger">×</button></form>{% endif %}</td></tr>
+<td style="white-space:nowrap"><a class="btn sm sec" href="/users/{{ u.id }}/edit">Editar</a>
+{% if u.id != user.id %}<form class="inline" method="post" action="/users/{{ u.id }}/delete" onsubmit="return confirm('¿Eliminar al usuario «{{ u.username }}»?')"><button class="sm danger">Eliminar</button></form>{% endif %}</td></tr>
 {% endfor %}
 </table>
+<p class="small muted" style="margin-bottom:0">Para cambiar la contraseña, el rol o los grupos de un usuario use <b>Editar</b> en su fila.
+Cada usuario puede cambiar su propia contraseña con el botón 🔑 de la barra superior.</p>
 </div>
+
 <div class="card" style="max-width:860px">
-<h2 style="margin-top:0">Crear / modificar usuario</h2>
-<form method="post" action="/users">
-  <input type="hidden" name="set_groups" value="1">
+<h2 style="margin-top:0">Crear usuario nuevo</h2>
+<form method="post" action="/users" autocomplete="off">
   <div class="row">
-    <div><label>Modificar existente</label><select name="id"><option value="">(nuevo)</option>{% for u in items %}<option value="{{ u.id }}">{{ u.username }}</option>{% endfor %}</select></div>
-    <div><label>Usuario (solo nuevos)</label><input name="username"></div>
-    <div><label>Rol</label><select name="role"><option value="viewer">viewer — solo lectura</option><option value="operator">operator — respaldos, ejecutar y solicitar cambios</option><option value="admin">admin — todo, aprueba cambios</option></select></div>
+    <div><label>Nombre de usuario</label><input name="username" required minlength="2" maxlength="64" pattern="[A-Za-z0-9._@\-]+" autocomplete="off"></div>
+    <div><label>Rol</label><select name="role"><option value="viewer">lector — solo consulta</option><option value="operator">operador — respaldos, ejecutar y solicitar cambios</option><option value="admin">administrador — todo, aprueba cambios</option></select></div>
+    <div><label>Email (opcional)</label><input name="email" type="email"></div>
   </div>
   <div class="row">
-    <div><label>Email</label><input name="email" type="email"></div>
-    <div><label>Contraseña (mín. 8; vacío = no cambiar)</label><input name="password" type="password" autocomplete="new-password"></div>
-    <div><label>Estado</label><select name="active"><option value="on">activo</option><option value="off">bloqueado</option></select></div>
+    <div><label>Contraseña (mínimo 8)</label><input name="password" type="password" required minlength="8" autocomplete="new-password"></div>
+    <div><label>Repita la contraseña</label><input name="password2" type="password" required minlength="8" autocomplete="new-password"></div>
   </div>
   <label>Restringir a grupos de dispositivos (ninguno marcado = todos los equipos)</label>
   <div>{% for g in groups %}<label class="chk"><input type="checkbox" name="group_ids" value="{{ g.id }}"> {{ g.name }}</label>{% else %}<span class="muted small">No hay grupos. Créelos en Credenciales.</span>{% endfor %}</div>
-  <p class="small muted">Los operadores y lectores restringidos solo ven, respaldan, comparan y modifican los equipos de sus grupos. No aplica a administradores.</p>
-  <p><button>Guardar</button></p>
+  <p class="small muted">Los operadores y lectores restringidos solo ven y modifican los equipos de sus grupos. No aplica a administradores.</p>
+  <p><button>Crear usuario</button></p>
 </form>
 </div>
 {% endblock %}

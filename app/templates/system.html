@@ -9,6 +9,44 @@
       {% if unknown %}<span class="badge b-warning">la versión de Netmiko instalada no conoce: {{ unknown|join(', ') }}</span>{% endif %}</dd>
   </dl>
 </div>
+<div class="card" id="hora">
+  <h2 style="margin-top:0">Fecha, hora y zona horaria del servidor</h2>
+  {% if not clock.available %}
+  <p class="muted">No disponible en este sistema (requiere Ubuntu con systemd).</p>
+  {% else %}
+  <dl class="kv">
+    <dt>Hora actual</dt><dd><b>{{ clock.now.strftime('%Y-%m-%d %H:%M:%S') }}</b></dd>
+    <dt>Zona horaria</dt><dd>{{ clock.timezone }}</dd>
+    <dt>Sincronización NTP</dt><dd>{% if clock.ntp %}<span class="badge b-ok">activa</span>{% if clock.synced %} sincronizada{% else %} <span class="small muted">(aún sin sincronizar)</span>{% endif %}{% else %}<span class="badge b-warning">desactivada</span>{% endif %}</dd>
+  </dl>
+  <div class="row" style="align-items:start;margin-top:10px">
+    <form method="post" action="/system/time" class="row" style="flex:1 1 380px">
+      <input type="hidden" name="action" value="timezone">
+      <div style="flex:1"><label>Zona horaria</label>
+        <select name="timezone" style="width:100%">
+          {% for region, items in zones.items() %}<optgroup label="{{ region }}">
+          {% for z in items %}<option {{ 'selected' if z == clock.timezone }}>{{ z }}</option>{% endfor %}</optgroup>{% endfor %}
+        </select></div>
+      <button onclick="return confirm('¿Cambiar la zona horaria? OpenNCCM se reiniciará unos segundos.')">Cambiar zona</button>
+    </form>
+    <form method="post" action="/system/time" class="row" style="flex:0 1 auto">
+      <input type="hidden" name="action" value="ntp">
+      <label class="chk"><input type="checkbox" name="ntp" {{ 'checked' if clock.ntp }}> Sincronizar la hora automáticamente (NTP)</label>
+      <button class="sec">Aplicar</button>
+    </form>
+  </div>
+  <details style="margin-top:10px"><summary class="small">Fijar fecha y hora a mano (desactiva NTP)</summary>
+    <form method="post" action="/system/time" class="row" style="margin-top:8px">
+      <input type="hidden" name="action" value="manual">
+      <div><label>Fecha</label><input type="date" name="date" required value="{{ clock.now.strftime('%Y-%m-%d') }}"></div>
+      <div><label>Hora</label><input type="time" name="time" required step="1" value="{{ clock.now.strftime('%H:%M:%S') }}"></div>
+      <button class="sec" onclick="return confirm('¿Fijar la hora a mano? Se desactivará la sincronización NTP.')">Fijar</button>
+    </form>
+    <p class="small muted">Recomendado: mantener NTP activo. La hora exacta es importante para el historial de cambios, las tareas programadas y la verificación de certificados.</p>
+  </details>
+  {% endif %}
+</div>
+
 <div class="card">
   <h2 style="margin-top:0">Copias de recuperación</h2>
   <p class="small muted">Copia consistente de la base de datos (configuraciones, historial, usuarios, políticas). Las configuraciones y contraseñas

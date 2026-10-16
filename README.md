@@ -51,6 +51,7 @@ Para volver atrás manualmente: `sudo opennccm rollback`.
 | `sudo opennccm rollback` | Volver a la versión anterior |
 | `sudo opennccm backup [--with-key]` | Copia de recuperación |
 | `sudo opennccm restore ARCHIVO` | Restaurar una copia |
+| `sudo opennccm users` | Listar usuarios |
 | `sudo opennccm reset-password USUARIO CLAVE` | Cambiar contraseña / crear administrador |
 | `opennccm logs [-f]` | Registro del servicio |
 | `sudo opennccm uninstall [--purge]` | Desinstalar |
@@ -68,6 +69,7 @@ Para volver atrás manualmente: `sudo opennccm rollback`.
 | **Operación** | Tareas programadas, alarmas por severidad, correo / Teams / Slack / Telegram |
 | **Análisis e informes** | Gráficas, informes en pantalla, CSV y envío programado por correo |
 | **Acceso** | Roles admin / operador / lector, restricción por grupos de equipos, auditoría completa |
+| **Interfaz** | 6 temas (claro, oscuro, azul noche, bosque, alto contraste, automático), adaptable al teléfono, fecha y zona horaria del servidor desde la web |
 | **Recuperación** | Copias de la base de datos, SFTP remoto, restauración y actualización con vuelta atrás |
 
 <p>

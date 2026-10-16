@@ -28,6 +28,8 @@ s.post(B + "/login", data={"username": "admin", "password": "Admin12345"})
 
 def save(name: str, html: str, width=1280, height=2400):
     html = re.sub(r'href="/static/style\.css[^"]*"', f'href="{CSS}"', html)
+    static = (HERE.parent.parent / "app" / "static").as_uri()
+    html = re.sub(r'(src|href)="/static/([^"?]+)(\?[^"]*)?"', lambda m: f'{m.group(1)}="{static}/{m.group(2)}"', html)
     # que el navegador headless use el tema claro aunque el sistema esté en oscuro
     html = html.replace("<head>", '<head><meta name="color-scheme" content="light">', 1)
     page = PAGES / f"{name}.html"
@@ -106,6 +108,15 @@ save("29-ajustes", get("/settings"), height=3000)
 save("30-plataformas", get("/vendors"), height=1500)
 save("31-cuenta", get("/account"), 1280, 700)
 save("32-configlet-form", get(f"/configlets/{vlan}/edit"))
+users = get("/users")
+uid = re.search(r"<b>lector</b>[\s\S]*?/users/(\d+)/edit", users)
+if uid:
+    save("33-usuario-editar", get(f"/users/{uid.group(1)}/edit"))
+# temas: el panel con cada tema (luego se vuelve a «automático»)
+for theme in ["noche", "bosque", "contraste", "oscuro"]:
+    s.post(B + "/account/theme", data={"theme": theme})
+    save(f"34-tema-{theme}", get("/"), 1280, 900)
+s.post(B + "/account/theme", data={"theme": "auto"})
 # vista móvil del panel
 json.dump({"pending_cr": pending_cr}, open(HERE / "_estado.json", "w"))
 sys.exit(0)

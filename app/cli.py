@@ -1,6 +1,7 @@
 """Utilidades de línea de comandos.
 
     python -m app.cli version
+    python -m app.cli list-users
     python -m app.cli create-admin <usuario> [contraseña]
     python -m app.cli reset-password <usuario> <contraseña>
     python -m app.cli seed          # políticas y configlets de ejemplo
@@ -94,6 +95,23 @@ def create_admin(username: str, password: str | None):
     print(f"Administrador '{username}' listo.")
 
 
+def list_users():
+    from .db import DeviceGroup, UserGroup
+    roles = {"admin": "administrador", "operator": "operador", "viewer": "lector"}
+    with SessionLocal() as db:
+        groups = {g.id: g.name for g in db.scalars(select(DeviceGroup))}
+        rows = []
+        for u in db.scalars(select(User).order_by(User.username)):
+            gids = list(db.scalars(select(UserGroup.group_id).where(UserGroup.user_id == u.id)))
+            scope = "todos" if u.role == "admin" or not gids else ", ".join(groups.get(g, "?") for g in gids)
+            rows.append((u.username, roles.get(u.role, u.role), "activo" if u.active else "BLOQUEADO", scope))
+    head = ("USUARIO", "ROL", "ESTADO", "EQUIPOS")
+    widths = [max(len(str(r[i])) for r in rows + [head]) for i in range(4)]
+    for r in [head] + rows:
+        print("  ".join(str(c).ljust(w) for c, w in zip(r, widths)).rstrip())
+    print(f"\n{len(rows)} usuario(s). Cambiar una contraseña:  sudo opennccm reset-password USUARIO 'CLAVE'")
+
+
 def seed():
     with SessionLocal() as db:
         for name, (flt, rules) in SEED_POLICIES.items():
@@ -128,6 +146,8 @@ def main():
         create_admin(args[1], args[2] if len(args) > 2 else None)
     elif cmd == "seed":
         seed()
+    elif cmd == "list-users":
+        list_users()
     elif cmd == "system-backup":
         from .sysbackup import create_backup
         print(create_backup(include_key="--with-key" in args))

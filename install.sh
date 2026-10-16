@@ -422,6 +422,7 @@ install_packages() {
     run apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold full-upgrade
   fi
   local pkgs=(git curl ca-certificates openssl rsync python3 python3-venv python3-pip whiptail sqlite3 psmisc)
+  if [[ ${VERSION_ID:-} == 22.04 ]]; then pkgs+=(policykit-1); else pkgs+=(polkitd); fi
   [[ $TLS_MODE != none ]] && pkgs+=(nginx)
   [[ $TLS_MODE == letsencrypt ]] && pkgs+=(certbot python3-certbot-nginx)
   [[ $DB_MODE == postgresql ]] && pkgs+=(postgresql postgresql-client)
@@ -596,6 +597,40 @@ EOF
   run systemctl enable opennccm
 }
 
+setup_polkit() {
+  # Permite al usuario del servicio SOLO cambiar zona horaria, hora y NTP (página Sistema → Fecha y hora)
+  progress 70 "Permisos para fecha y hora…"
+  local pkg=polkitd
+  [[ ${VERSION_ID:-} == 22.04 ]] && pkg=policykit-1
+  if ! dpkg -s "$pkg" >/dev/null 2>&1; then
+    apt_wait
+    run env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" || \
+      { run apt-get update -qq; run env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg"; }
+  fi
+  mkdir -p /etc/polkit-1/rules.d /etc/polkit-1/localauthority/50-local.d
+  cat > /etc/polkit-1/rules.d/49-opennccm-timedate.rules <<'EOF'
+// OpenNCCM: el servicio puede cambiar zona horaria, hora y NTP (y nada más)
+polkit.addRule(function (action, subject) {
+  if (subject.user == "opennccm" &&
+      (action.id == "org.freedesktop.timedate1.set-timezone" ||
+       action.id == "org.freedesktop.timedate1.set-time" ||
+       action.id == "org.freedesktop.timedate1.set-ntp")) {
+    return polkit.Result.YES;
+  }
+});
+EOF
+  cat > /etc/polkit-1/localauthority/50-local.d/opennccm-timedate.pkla <<'EOF'
+[OpenNCCM fecha y hora]
+Identity=unix-user:opennccm
+Action=org.freedesktop.timedate1.set-timezone;org.freedesktop.timedate1.set-time;org.freedesktop.timedate1.set-ntp
+ResultAny=yes
+ResultInactive=yes
+ResultActive=yes
+EOF
+  chmod 644 /etc/polkit-1/rules.d/49-opennccm-timedate.rules /etc/polkit-1/localauthority/50-local.d/opennccm-timedate.pkla
+  systemctl try-restart polkit >>"$LOG" 2>&1 || true
+}
+
 setup_nginx() {
   [[ $TLS_MODE == none ]] && return 0
   progress 72 "Configurando nginx y HTTPS…"
@@ -749,7 +784,7 @@ case $TLS_MODE in none) URL="http://$NCM_HOST:8000/";; letsencrypt) URL="https:/
 gauge_start
 if [[ $APPLY_ONLY -eq 1 ]]; then
   # usado por "opennccm update": el código ya está en su versión; reaplicar sistema
-  setup_python; setup_user_and_dirs; write_env; setup_service; setup_nginx
+  setup_python; setup_user_and_dirs; write_env; setup_service; setup_polkit; setup_nginx
   progress 100 "Configuración del sistema reaplicada."
   gauge_stop
   exit 0
@@ -761,6 +796,7 @@ setup_user_and_dirs
 setup_database
 write_env
 setup_service
+setup_polkit
 setup_nginx
 setup_firewall
 start_and_check

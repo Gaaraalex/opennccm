@@ -62,6 +62,8 @@ jobs:
           sudo opennccm status
           systemctl is-active opennccm nginx
           sudo ss -lunp | grep -q ':514 '
+      - name: Cambiar zona horaria y NTP desde la interfaz (servicio sin root + polkit)
+        run: bash tests/time-test.sh
       - name: Repetir el instalador detecta la instalación existente
         run: sudo bash install.sh --unattended | tee /tmp/out.txt && grep -q "ya está instalado" /tmp/out.txt
       - name: Actualización, vuelta atrás y recuperación automática

@@ -281,6 +281,7 @@ ${c_b}opennccm${c_0} - administración de OpenNCCM $(current_version)
   ${c_b}rollback${c_0} [CARPETA] [--yes]  Volver a la versión anterior (código + base de datos)
   ${c_b}backup${c_0} [--with-key]         Copia de recuperación de la base de datos
   ${c_b}restore${c_0} ARCHIVO             Restaurar una copia de recuperación
+  ${c_b}users${c_0}                       Listar usuarios, rol, estado y equipos permitidos
   ${c_b}reset-password${c_0} USUARIO CLAVE Cambiar la contraseña (o crear un administrador)
   ${c_b}backup-all${c_0}                  Respaldar ahora la configuración de todos los equipos
   ${c_b}seed${c_0}                        Cargar políticas y configlets de ejemplo
@@ -302,6 +303,7 @@ case $cmd in
     need_root restore; [[ -n ${1:-} ]] || die "Uso: opennccm restore ARCHIVO"
     systemctl stop $SVC; pycli restore "$(readlink -f "$1")"; systemctl start $SVC; health && ok "Restaurado." ;;
   reset-password|create-admin) need_root "$cmd"; pycli create-admin "$@" ;;
+  users|list-users) need_root users; pycli list-users ;;
   backup-all|seed) need_root "$cmd"; pycli "$cmd" "$@" ;;
   logs) journalctl -u $SVC --no-pager -n 200 "$@" ;;
   start|stop|restart) need_root "$cmd"; systemctl "$cmd" $SVC; [[ $cmd == stop ]] || { health && ok "OpenNCCM responde."; } ;;

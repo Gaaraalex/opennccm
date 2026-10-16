@@ -1,11 +1,36 @@
 {% extends "base.html" %}{% block title %}Mi cuenta{% endblock %}
 {% block content %}
-<h1>Mi cuenta</h1>
-<div class="card" style="max-width:420px">
-  <form method="post">
-    <label>Contraseña actual</label><input type="password" name="current" required>
-    <label>Nueva contraseña (mín. 8)</label><input type="password" name="new" required minlength="8">
+<h1>Mi cuenta · {{ user.username }}</h1>
+<div class="row" style="align-items:start">
+<div class="card" id="clave" style="flex:1 1 360px;max-width:460px">
+  <h2 style="margin-top:0">Cambiar mi contraseña</h2>
+  <form method="post" action="/account">
+    <label>Contraseña actual</label><input type="password" name="current" required autocomplete="current-password" style="width:100%">
+    <label>Nueva contraseña (mínimo 8 caracteres)</label><input type="password" name="new" required minlength="8" autocomplete="new-password" style="width:100%">
+    <label>Repita la nueva contraseña</label><input type="password" name="new2" required minlength="8" autocomplete="new-password" style="width:100%">
     <p><button>Cambiar contraseña</button></p>
   </form>
+  <p class="small muted">Las mayúsculas y minúsculas cuentan. Si olvida su contraseña, un administrador puede cambiarla en
+  <b>Usuarios → Editar</b>, o desde la consola del servidor con <code>sudo opennccm reset-password USUARIO 'CLAVE'</code>.</p>
+</div>
+<div class="card" style="flex:2 1 420px">
+  <h2 style="margin-top:0">Tema de la interfaz</h2>
+  <form method="post" action="/account/theme">
+    <div class="themes">
+      {% set swatches = {
+        'auto': ['#f4f6f9', '#14202e', '#1f6feb', '#0f141a'],
+        'claro': ['#f4f6f9', '#ffffff', '#14202e', '#1f6feb'],
+        'oscuro': ['#0f141a', '#171e27', '#0a0f14', '#1f6feb'],
+        'noche': ['#0b1730', '#12224a', '#08112a', '#4c9bff'],
+        'bosque': ['#f1f6f2', '#ffffff', '#143424', '#1f7a4d'],
+        'contraste': ['#000000', '#000000', '#ffffff', '#ffd400']} %}
+      {% for key, name in themes.items() %}
+      <label><input type="radio" name="theme" value="{{ key }}" {{ 'checked' if (user.theme or 'auto') == key }} style="display:none">
+        <span class="sw">{% for c in swatches[key] %}<i style="background:{{ c }}"></i>{% endfor %}</span>{{ name }}</label>
+      {% endfor %}
+    </div>
+    <p><button>Aplicar tema</button> <span class="small muted">Se guarda en su usuario y se usa en cualquier equipo desde el que ingrese.</span></p>
+  </form>
+</div>
 </div>
 {% endblock %}

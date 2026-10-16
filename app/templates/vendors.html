@@ -1,18 +1,50 @@
 {% extends "base.html" %}{% block title %}Plataformas soportadas{% endblock %}
 {% block content %}
 <h1>Plataformas soportadas ({{ rows|length }})</h1>
-<p class="muted">Use el valor de <b>device_type</b> en la importación CSV. Las marcadas «verificar» usan el comando de la documentación del
-fabricante sin prueba en hardware: si el respaldo falla, defina un comando personalizado en el dispositivo. Cualquier otro equipo con
-CLI por SSH puede gestionarse con el perfil <code>generic</code>.</p>
+<p class="muted">Comandos que OpenNCCM ejecuta en cada plataforma. La configuración se obtiene mostrando el resultado del comando
+dentro de la misma sesión SSH (no se crean archivos en el equipo). Use el <b>device_type</b> en la importación CSV.
+Si un comando no sirve para su versión, defina un <b>comando de respaldo personalizado</b> en el dispositivo.</p>
+<div class="toolbar">
+  <input id="q" type="search" placeholder="Buscar fabricante, modelo, comando…" style="flex:1 1 280px" autofocus>
+  <select id="v"><option value="">Todos los fabricantes</option>{% for v in vendors %}<option>{{ v }}</option>{% endfor %}</select>
+  <label class="chk"><input type="checkbox" id="mine"> Solo las de mi red</label>
+  <span class="small muted" id="count"></span>
+</div>
 <div class="card">
-<table><tr><th>Fabricante</th><th>Plataforma</th><th>device_type</th><th>Comando de respaldo</th><th>Startup</th><th>Reversión</th><th>Firmware</th><th></th></tr>
-{% for p in rows %}
-<tr><td>{{ p.vendor }}</td><td>{{ p.label }}</td><td><code>{{ p.key }}</code></td><td class="small"><code>{{ p.backup }}</code></td>
-<td>{{ '✓' if p.startup else '' }}</td>
+<table id="t"><tr><th>Fabricante</th><th>Plataforma</th><th>device_type</th><th>Respaldo</th><th>Arranque (startup)</th>
+<th>Inventario</th><th>Reversión</th><th>Firmware</th><th>Comprobado en su red</th></tr>
+{% for p in rows %}{% set ver = verified.get(p.key) %}
+<tr data-v="{{ p.vendor }}" data-mine="{{ 1 if ver else 0 }}">
+<td>{{ p.vendor }}</td><td>{{ p.label }}</td><td><code>{{ p.key }}</code></td>
+<td class="small"><code>{{ p.backup }}</code></td>
+<td class="small">{% if p.startup %}<code>{{ p.startup }}</code>{% else %}<span class="muted">—</span>{% endif %}</td>
+<td class="small">{% if p.inventory %}<code>{{ p.inventory }}</code>{% else %}<span class="muted">—</span>{% endif %}</td>
 <td class="small">{{ {'ios': 'no …', 'huawei': 'undo …', 'set': 'delete …', 'merge': 'reaplicar'}[p.family] }}</td>
 <td>{{ '✓' if upgrade(p.key) else '' }}</td>
-<td>{% if p.note %}<span class="badge b-warning" title="{{ p.note }}">verificar</span>{% endif %}</td></tr>
+<td class="small">{% if ver %}<span class="badge b-ok">✓ {{ ver.devices }} equipo{{ 's' if ver.devices != 1 }}</span>
+  <div class="muted">desde {{ ver.first|ymd }}{% if ver.custom %} · con comando personalizado{% endif %}</div>
+{% elif p.note %}<span class="badge b-warning" title="{{ p.note }}">por verificar</span>
+{% else %}<span class="muted">aún sin equipos</span>{% endif %}</td></tr>
 {% endfor %}
 </table>
 </div>
+<p class="small muted"><b>Comprobado en su red</b> se marca solo cuando un equipo de esa plataforma hace su primer respaldo correcto.
+<b>Por verificar</b>: comando tomado de la documentación del fabricante, todavía sin probar en un equipo real.</p>
+<script>
+(function () {
+  var q = document.getElementById('q'), v = document.getElementById('v'), mine = document.getElementById('mine'),
+      rows = Array.prototype.slice.call(document.querySelectorAll('#t tr[data-v]')), out = document.getElementById('count');
+  function norm(s) { return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+  rows.forEach(function (r) { r._t = norm(r.textContent); });
+  function apply() {
+    var t = norm(q.value.trim()), n = 0;
+    rows.forEach(function (r) {
+      var ok = (!t || r._t.indexOf(t) >= 0) && (!v.value || r.dataset.v === v.value) && (!mine.checked || r.dataset.mine === '1');
+      r.style.display = ok ? '' : 'none'; if (ok) n++;
+    });
+    out.textContent = n + ' de ' + rows.length + ' plataformas';
+  }
+  q.addEventListener('input', apply); v.addEventListener('change', apply); mine.addEventListener('change', apply); apply();
+})();
+</script>
 {% endblock %}

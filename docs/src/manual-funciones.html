@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 1.2.1<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 1.3.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -42,7 +42,7 @@
   <li>Análisis</li>
   <li>Informes</li>
   <li>Credenciales y grupos</li>
-  <li>Usuarios</li>
+  <li>Usuarios, mi cuenta y temas</li>
   <li>Auditoría</li>
   <li>Sistema y recuperación</li>
   <li>Ajustes</li>
@@ -541,14 +541,39 @@ eliminar un grupo, sus equipos quedan sin grupo.</p>
 </section>
 
 <section class="chapter">
-<h1>22. Usuarios</h1>
+<h1>22. Usuarios, mi cuenta y temas</h1>
+<h2>Crear un usuario (administradores)</h2>
 <ol class="steps">
-  <li>Para crear: deje «(nuevo)», escriba usuario, rol, correo y contraseña (mínimo 8 caracteres).</li>
-  <li>Para restringir a ciertos equipos, marque sus grupos. Sin grupos marcados, el usuario ve todos los equipos.</li>
-  <li>Para modificar: elija el usuario en «Modificar existente»; deje la contraseña vacía para no cambiarla. «Bloqueado» impide el ingreso
-  sin borrar el usuario.</li>
+  <li>Menú <b>Usuarios</b>, sección <b>Crear usuario nuevo</b>.</li>
+  <li>Escriba el nombre (letras, números, punto, guion o @; sin espacios), elija el rol y escriba la contraseña dos veces
+  (mínimo 8 caracteres). El correo es opcional.</li>
+  <li>Para limitarlo a ciertos equipos, marque sus grupos. Sin grupos marcados verá todos los equipos.</li>
+  <li>Pulse <b>Crear usuario</b>. El mensaje confirma el nombre y el rol; ya puede ingresar.</li>
 </ol>
-<figure><img src="img/26-usuarios.png"><figcaption>Usuarios, roles y grupos permitidos.</figcaption></figure>
+<p>No se permiten dos usuarios con el mismo nombre (sin distinguir mayúsculas). Crear un usuario <b>nunca</b> modifica a otro.</p>
+<figure><img src="img/26-usuarios.png"><figcaption>Lista de usuarios con «Editar» y «Eliminar» en cada fila, y el formulario de creación.</figcaption></figure>
+<h2>Editar un usuario</h2>
+<p>Pulse <b>Editar</b> en su fila para cambiar el rol, el correo, si está activo, sus grupos o su contraseña (deje la contraseña vacía
+para no cambiarla). Al guardar, el mensaje indica exactamente qué cambió (por ejemplo «contraseña cambiada, rol lector»).
+«Activo» desmarcado impide el ingreso sin borrar el usuario ni su historial.</p>
+<figure><img src="img/33-usuario-editar.png" style="max-height:110mm"><figcaption>Edición de un usuario.</figcaption></figure>
+<div class="note"><b>Protecciones</b>Un administrador no puede quitarse a sí mismo el rol, bloquearse ni eliminarse, y siempre debe quedar al
+menos un administrador activo. Si se pierde el acceso, en la consola del servidor: <code>sudo opennccm users</code> lista los usuarios y
+<code>sudo opennccm reset-password USUARIO 'CLAVE'</code> fija una contraseña (y lo deja como administrador).</div>
+<h2>Mi cuenta: cambiar mi contraseña</h2>
+<p>Cualquier usuario puede cambiar su propia contraseña con el botón <b>🔑 Cambiar contraseña</b> de la barra superior: escriba la
+actual y la nueva dos veces. Las mayúsculas y minúsculas cuentan.</p>
+<figure><img src="img/31-cuenta.png"><figcaption>Mi cuenta: contraseña y tema.</figcaption></figure>
+<h2>Temas</h2>
+<p>En <b>Mi cuenta → Tema de la interfaz</b> cada usuario elige: <b>Automático</b> (claro u oscuro según el sistema del equipo),
+<b>Claro</b>, <b>Oscuro</b>, <b>Azul noche</b>, <b>Bosque</b> o <b>Alto contraste</b> (para pantallas con mucho reflejo o baja
+visión). El tema se guarda en el usuario y se aplica en cualquier equipo desde el que ingrese.</p>
+<div class="two">
+<figure><img src="img/34-tema-noche.png"><figcaption>Azul noche.</figcaption></figure>
+<figure><img src="img/34-tema-bosque.png"><figcaption>Bosque.</figcaption></figure>
+<figure><img src="img/34-tema-oscuro.png"><figcaption>Oscuro.</figcaption></figure>
+<figure><img src="img/34-tema-contraste.png"><figcaption>Alto contraste.</figcaption></figure>
+</div>
 </section>
 
 <section class="chapter">
@@ -561,8 +586,17 @@ acción o detalle y exportar.</p>
 
 <section class="chapter">
 <h1>24. Sistema y recuperación</h1>
-<p>Muestra la base de datos y la clave en uso, las plataformas soportadas y las <b>copias de recuperación</b>: crear (con o sin la clave de
-cifrado), descargar y eliminar. Incluye el comando para restaurar.</p>
+<p>Muestra la base de datos y la clave en uso, las plataformas soportadas, la <b>fecha y hora del servidor</b> y las
+<b>copias de recuperación</b>: crear (con o sin la clave de cifrado), descargar y eliminar.</p>
+<h2>Fecha, hora y zona horaria</h2>
+<ul>
+  <li><b>Zona horaria:</b> elíjala de la lista (agrupada por región) y pulse <b>Cambiar zona</b>. OpenNCCM se reinicia unos segundos
+  para que el historial y las tareas programadas usen la nueva hora.</li>
+  <li><b>Sincronización NTP:</b> mantiene la hora exacta automáticamente (recomendado).</li>
+  <li><b>Fijar fecha y hora a mano:</b> en «Fijar fecha y hora a mano»; desactiva NTP.</li>
+</ul>
+<p class="small">El servicio no tiene privilegios de administrador: el instalador le concede, mediante una regla de polkit, permiso
+<b>solo</b> para estas tres acciones. Cada cambio queda en Auditoría.</p>
 <figure><img src="img/28-sistema.png"><figcaption>Sistema.</figcaption></figure>
 <p>El procedimiento completo de copia, restauración en otro servidor, actualización y vuelta atrás está en la <b>Guía de instalación</b>
 (secciones 13 y 14).</p>
@@ -582,13 +616,19 @@ cifrado), descargar y eliminar. Incluye el comando para restaurar.</p>
 
 <section class="chapter">
 <h1>26. Plataformas soportadas</h1>
-<p>La página <b>Plataformas</b> (enlace en Sistema, o <code>/vendors</code>) lista las 122 plataformas con su <code>device_type</code>,
-el comando de respaldo, si se compara con la configuración de arranque, el tipo de reversión y si admiten actualización de
-firmware.</p>
-<p>Las marcadas <span class="badge b-warn">verificar</span> usan el comando documentado por el fabricante sin prueba en hardware. Si el
-respaldo de un equipo así falla, defina un <b>comando de respaldo personalizado</b> en el dispositivo. Para equipos sin perfil propio
-(pfSense, SonicWall, Riverbed, Infoblox…) use <b>Genérico SSH</b> con un comando personalizado.</p>
-<figure><img src="img/30-plataformas.png" class="tall"><figcaption>Plataformas soportadas (extracto).</figcaption></figure>
+<p>Menú <b>Plataformas</b>. Lista las 122 plataformas con su <code>device_type</code> y los comandos que se ejecutan en
+cada una: <b>respaldo</b>, <b>arranque</b> (startup, para detectar cambios sin guardar) e <b>inventario</b> (modelo, serie y versión);
+además el tipo de reversión y si admite actualización de firmware.</p>
+<ul>
+  <li><b>Buscador</b> y <b>filtro por fabricante</b>; la casilla <b>Solo las de mi red</b> muestra únicamente las plataformas que usted usa.</li>
+  <li><b>Comprobado en su red</b>: se marca solo cuando un equipo de esa plataforma hace su primer respaldo correcto, con la cantidad de
+  equipos y la fecha (y si usa un comando personalizado).</li>
+  <li><span class="badge b-warn">por verificar</span>: comando tomado de la documentación del fabricante, aún sin probar en un equipo real.</li>
+</ul>
+<p>La configuración se obtiene mostrando el resultado del comando dentro de la misma sesión SSH: no se crean archivos en el equipo ni se
+necesita FTP/TFTP. Si un comando no sirve para su versión, defina un <b>comando de respaldo personalizado</b> en el dispositivo. Para
+equipos sin perfil propio (pfSense, SonicWall, Riverbed, Infoblox…) use <b>Genérico SSH</b> con un comando personalizado.</p>
+<figure><img src="img/30-plataformas.png" class="tall"><figcaption>Plataformas soportadas con buscador y la columna «Comprobado en su red».</figcaption></figure>
 </section>
 
 <section class="chapter">
