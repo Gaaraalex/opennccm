@@ -27,11 +27,18 @@ from .drivers import PROFILE_MAP, get_profile
 from .web import csv_response, flash, go, ip, log_action, render
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+log = logging.getLogger("opennccm")
 
 
 @asynccontextmanager
 async def lifespan(_app):
     init_db()
+    try:
+        n = services.refresh_inventory_from_raw()
+        if n:
+            log.info("Inventario actualizado desde la última salida guardada en %d equipos", n)
+    except Exception:  # noqa: BLE001
+        log.exception("No se pudo releer el inventario guardado")
     scheduler.start()
     yield
     scheduler.scheduler.shutdown(wait=False)
