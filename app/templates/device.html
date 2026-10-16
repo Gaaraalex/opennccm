@@ -28,8 +28,9 @@
     <dt>Fabricante</dt><dd>{{ profile.vendor }} — {{ profile.label }}</dd>
     <dt>Modelo</dt><dd>{{ device.model or '—' }}</dd>
     <dt>Nº de serie</dt><dd>{{ device.serial or '—' }}</dd>
-    <dt>Versión firmware</dt><dd>{{ device.os_version or '—' }}</dd>
-    <dt>Grupo</dt><dd>{{ device.group.name if device.group else '—' }}</dd>
+    <dt>Versión firmware</dt><dd>{{ device.os_version or '—' }}{% if not (device.model or device.serial or device.os_version) %} <span class="small muted">(se completan solos en cada respaldo con «{{ profile.inventory or 'sin comando de inventario' }}»)</span>{% endif %}</dd>
+    <dt>Grupo</dt><dd>{% if device.group %}<a href="/devices?group={{ device.group_id }}">{{ device.group.name }}</a>{% else %}—{% endif %}
+      {% if user.role == 'admin' %} <a class="small" href="/devices/{{ device.id }}/edit">{{ 'cambiar' if device.group else 'asignar grupo' }}</a>{% endif %}</dd>
     <dt>Ubicación</dt><dd>{{ device.location or '—' }}</dd>
     <dt>Credencial</dt><dd>{{ device.credential.name if device.credential else '—' }}</dd>
     <dt>Último respaldo</dt><dd>{{ device.last_backup_at|dt }}</dd>

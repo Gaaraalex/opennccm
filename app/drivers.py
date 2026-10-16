@@ -15,6 +15,7 @@ IOS = "ios"        # jerárquico con indentación, negación con "no "
 HUAWEI = "huawei"  # jerárquico, negación con "undo "
 SET = "set"        # líneas "set ..." / "delete ..." (Junos set, VyOS)
 MERGE = "merge"    # sin reversión inteligente: se re-aplica la configuración completa
+FASTPATH = "fastpath"  # Broadcom FastPath (Ubiquiti EdgeSwitch): bloques cerrados con «exit», sin sangría
 
 
 @dataclass
@@ -47,6 +48,13 @@ CISCO_IGNORE = [
     r"^!Running configuration last done at",
     r"^Cryptochecksum:",
 ]
+
+# Broadcom FastPath (EdgeSwitch, UniFi Switch): líneas del encabezado que cambian en cada lectura
+FASTPATH_IGNORE = [r"^!System Up Time", r"^!Current SNTP Synchronized Time", r"^!Current Configuration:"]
+# «show version» de FastPath usa relleno con puntos («Serial Number....... X»); parse_inventory lo convierte a «:»
+FASTPATH_VERSION = [r"Software Version\s*:\s*(\S+)"]
+FASTPATH_MODEL = [r"Machine Model\s*:\s*(.+)", r"Machine Type\s*:\s*(.+)"]
+FASTPATH_SERIAL = [r"Serial Number\s*:\s*(\S+)"]
 
 PROFILES: list[Profile] = [
     # ---------------- Cisco ----------------
@@ -164,7 +172,8 @@ PROFILES: list[Profile] = [
     Profile("ubiquiti_edgerouter", "Ubiquiti EdgeRouter", "Ubiquiti", "show configuration commands", None,
             family=SET, commit=True, version_re=[r"Version:\s+v(\S+)"]),
     Profile("ubiquiti_edgeswitch", "Ubiquiti EdgeSwitch", "Ubiquiti", "show running-config", None,
-            ignore=CISCO_IGNORE),
+            family=FASTPATH, ignore=CISCO_IGNORE + FASTPATH_IGNORE, version_re=FASTPATH_VERSION,
+            model_re=FASTPATH_MODEL, serial_re=FASTPATH_SERIAL),
     Profile("tplink_jetstream", "TP-Link JetStream", "TP-Link", "show running-config", "show startup-config",
             inventory="show system-info", ignore=CISCO_IGNORE),
     Profile("zte_zxros", "ZTE ZXROS", "ZTE", "show running-config", None, telnet=True, ignore=CISCO_IGNORE),
@@ -307,7 +316,8 @@ PROFILES += [
     Profile("quanta_mesh", "Quanta", "Quanta", "show running-config", None, ignore=CISCO_IGNORE),
     Profile("supermicro_smis", "Supermicro", "Supermicro", "show running-config", None, ignore=CISCO_IGNORE),
     Profile("ubiquiti_unifiswitch", "Ubiquiti UniFi Switch", "Ubiquiti", "show running-config", None,
-            ignore=CISCO_IGNORE),
+            ignore=CISCO_IGNORE + FASTPATH_IGNORE, version_re=FASTPATH_VERSION, model_re=FASTPATH_MODEL,
+            serial_re=FASTPATH_SERIAL),
     Profile("eltex", "Eltex MES", "Eltex", "show running-config", "show startup-config", ignore=CISCO_IGNORE),
     Profile("eltex_esr", "Eltex ESR", "Eltex", "show running-config", None, commit=True, ignore=CISCO_IGNORE),
     Profile("ekinops_ek360", "Ekinops 360", "Ekinops", "show running-config", None, family=MERGE, note=VERIFY),
@@ -394,13 +404,16 @@ def clean_config(text: str, profile: Profile) -> str:
 
 def _first(patterns: list[str], text: str) -> str | None:
     for p in patterns:
-        m = re.search(p, text, re.MULTILINE)
-        if m:
-            return next((g for g in m.groups() if g), m.group(0)).strip()[:120]
+        for m in re.finditer(p, text, re.MULTILINE):
+            value = next((g for g in m.groups() if g), m.group(0)).strip()[:120]
+            if re.search(r"[A-Za-z0-9]", value):  # descarta «.......» u otros rellenos
+                return value
     return None
 
 
 def parse_inventory(text: str, profile: Profile) -> dict:
+    # «Serial Number.................. ABC» (FastPath, Dell, Netgear...) -> «Serial Number: ABC»
+    text = re.sub(r"(?m)^(\s*[A-Za-z][\w /()-]*?)\s*\.{3,}\s*", r"\1: ", text)
     return {
         "os_version": _first(profile.version_re + GENERIC_VERSION, text),
         "model": _first(profile.model_re + GENERIC_MODEL, text),

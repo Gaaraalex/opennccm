@@ -21,7 +21,7 @@ from .config import NVD_API_KEY, WORKERS
 from .crypto import decrypt, encrypt
 from .db import (ChangeRequest, ComplianceResult, ConfigVersion, Device, Event, Policy, SessionLocal,
                  Vulnerability, get_setting, now)
-from .drivers import clean_config, get_profile, parse_inventory, telnet_supported
+from .drivers import FASTPATH, clean_config, get_profile, parse_inventory, telnet_supported
 from .rollback import build_rollback
 
 log = logging.getLogger("opennccm")
@@ -265,6 +265,16 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
             dev.last_status, dev.last_error = "error", "Salida de configuración vacía o inválida"
             db.commit()
             add_event("major", "Respaldo fallido", f"{dev.name}: salida inválida:\n{running[:300]}", dev.id)
+            return "error"
+        # salida cortada: paginación activa («--More--») o configuración FastPath sin el «exit» final
+        incomplete = re.search(r"(?i)--\s*more\s*--|\(q\)uit", running) or (
+            prof.family == FASTPATH and "configure" in running and running.rstrip().splitlines()[-1].strip() != "exit")
+        if incomplete:
+            dev.last_status = "error"
+            dev.last_error = "La configuración llegó incompleta (cortada o paginada); no se guardó esta versión"
+            db.commit()
+            add_event("major", "Respaldo fallido", f"{dev.name}: configuración incompleta, no se guardó:\n"
+                      f"{running[-300:]}", dev.id)
             return "error"
 
         sha = hashlib.sha256(running.encode()).hexdigest()

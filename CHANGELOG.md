@@ -1,5 +1,24 @@
 # Historial de versiones
 
+## 1.4.0
+- **Tareas programadas sin cron**: se elige la frecuencia (todos los días, algunos días de la semana, una vez al mes,
+  cada hora, cada pocos minutos) con hora y días en desplegables, y se ve en palabras («Cada lunes y jueves a las
+  02:30») antes de crearla y en la tabla. El cron sigue disponible en «Avanzado».
+- **Corrección**: en cron, el día de la semana `1` se ejecutaba el martes en lugar del lunes (y `0` el lunes en lugar
+  del domingo). Ahora se usa el estándar de cron: 0 o 7 = domingo, 1 = lunes. Revise sus tareas con días numéricos.
+- **Aprobación propia**: por defecto un administrador puede aprobar sus propias solicitudes (se puede desactivar en Ajustes).
+- **Ubiquiti EdgeSwitch**:
+  - inventario: modelo, número de serie y firmware se leen bien (antes el número de serie aparecía como «......»);
+    lo mismo para otros equipos con formato «Campo....... valor»;
+  - los respaldos ya no marcan «+2 −2» en cada lectura (se ignoran el tiempo encendido y la hora SNTP);
+  - reversión nueva para su sintaxis FastPath: `vlan database` y modo privilegiado fuera de `configure`, bloques con
+    `exit`, ajustes de un solo valor reescritos en lugar de borrados, `vlan participation auto` y sin tocar la IP de
+    gestión. Antes la reversión fallaba en estos switches.
+- **Respaldos incompletos**: una configuración cortada o paginada («--More--») ya no se guarda como versión; y al
+  pedir una reversión a una versión mucho más pequeña que la actual se muestra una advertencia.
+- **Grupos más fáciles de encontrar**: botón «Grupos» en Dispositivos, enlace «asignar grupo» en cada equipo y campo
+  «…o crear un grupo nuevo» al editar un equipo.
+
 ## 1.3.2
 - **Modo privilegiado (enable)**: corrige «Failed to enter enable mode. Please ensure you pass the 'secret'
   argument to ConnectHandler» en equipos cuyo driver entra a enable al conectar (p. ej. Ubiquiti EdgeSwitch).

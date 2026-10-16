@@ -5,6 +5,7 @@ from fastapi.templating import Jinja2Templates
 
 from . import __version__
 from .auth import ROLES
+from . import cronutil
 from .config import BASE_DIR
 from .db import audit
 from .drivers import PROFILE_MAP, PROFILES
@@ -16,6 +17,7 @@ templates.env.globals["VERSION"] = __version__
 templates.env.globals["CSS_HASH"] = __import__("hashlib").md5(
     (BASE_DIR / "static" / "style.css").read_bytes()).hexdigest()[:8]
 templates.env.filters["dt"] = lambda d: d.strftime("%Y-%m-%d %H:%M") if d else "—"
+templates.env.filters["cron_text"] = cronutil.describe
 templates.env.filters["ymd"] = lambda d: d.strftime("%Y-%m-%d") if d else "—"
 
 

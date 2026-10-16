@@ -1,6 +1,7 @@
 """Equipo Cisco IOS simulado (SSH) para pruebas de OpenNCCM.
 Uso: fakedev.py [puerto] [--legacy]   (--legacy: solo ofrece ssh-rsa y kex SHA-1, como un EdgeSwitch antiguo)"""
 import os
+import re
 import socket
 import sys
 import threading
@@ -13,6 +14,9 @@ PORT = int(ARGS[0]) if ARGS else 2222
 LEGACY = "--legacy" in sys.argv
 # --enable-pass=X: arranca en modo usuario (R1>) y «enable» pide esa contraseña, como un EdgeSwitch
 ENABLE_PASS = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--enable-pass=")), None)
+EDGE = "--edgeswitch" in sys.argv  # simula un Ubiquiti EdgeSwitch (FastPath) en lugar de un Cisco IOS
+if EDGE:
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 DISABLED = None
 if LEGACY:
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
@@ -168,6 +172,10 @@ def session(client):
     ctx = [None]
 
     def prompt():
+        if EDGE:
+            return {"user": "(SW-Prueba) >", "enpw": "Password:", "exec": "(SW-Prueba) #",
+                    "config": "(SW-Prueba) (Config)#", "sub": "(SW-Prueba) (Interface)#",
+                    "vlandb": "(SW-Prueba) (Vlan)#"}[mode[0]]
         return {"user": "R1>", "enpw": "Password:", "exec": "R1#", "config": "R1(config)#",
                 "sub": "R1(config-if)#"}[mode[0]]
 
@@ -210,6 +218,8 @@ def handle(line, mode, ctx):
         return "" if ok else "% Access denied"
     if not s:
         return ""
+    if EDGE:
+        return edge_handle(s, mode, ctx)
     if mode[0] == "user":
         if s == "enable":
             mode[0] = "enpw"
@@ -274,6 +284,139 @@ def handle(line, mode, ctx):
     if ctx[0]:
         mode[0] = "sub"
     return ""
+
+
+# --------------------------------------------------------------------------- Ubiquiti EdgeSwitch (FastPath)
+# Configuración sin sangría con tres ámbitos: modo privilegiado, «vlan database» y «configure» (bloques con «exit»).
+# Como el equipo real, rechaza los comandos escritos en el modo equivocado.
+EDGE_VERSION = """
+Switch: 1
+
+System Description............................. EdgeSwitch 16-Port 150W, 1.9.3.5263085, Linux 3.6.5-03de2dbe
+Machine Type................................... EdgeSwitch 16-Port 150W
+Machine Model.................................. ES-16-150W
+Serial Number.................................. 7483C2ABCDEF
+Burned In MAC Address.......................... 74:83:C2:AB:CD:EF
+Software Version............................... 1.9.3.5263085
+"""
+EDGE_STATE = {
+    "exec": ["network protocol none", "network parms 10.0.0.223 255.255.255.0 10.0.0.1"],
+    "vlans": {1, 10},
+    "vlan": ['vlan name 10 "Datos"'],
+    "top": ['username "admin" password 0123456789abcdef level 15 encrypted', 'snmp-server sysname "SW-Prueba"'],
+    "blocks": {"line console": [], "interface 0/1": ["description 'Uplink'", "vlan participation include 10",
+                                                     "vlan tagging 10"], "interface 0/2": ["description 'PC'"]},
+    "uptime": 0,
+}
+INVALID = "% Invalid input detected at '^' marker."
+
+
+def edge_render():
+    from app.rollback import _vlan_spec
+    st = EDGE_STATE
+    st["uptime"] += 1
+    out = ["!Current Configuration:", "!",
+           '!System Description "EdgeSwitch 16-Port 150W, 1.9.3.5263085, Linux 3.6.5-03de2dbe, 1.0.0.4857129"',
+           '!System Software Version "1.9.3.5263085"',
+           f'!System Up Time          "0 days 1 hrs {st["uptime"]} mins 0 secs"',
+           "!Additional Packages     QOS,IPv6 Management,Routing",
+           f"!Current SNTP Synchronized Time: Oct 16 12:{st['uptime'] % 60:02d}:00 2026 UTC", "!"]
+    out += st["exec"] + ["vlan database", f"vlan {_vlan_spec(st['vlans'] - {1})}"] + st["vlan"] + ["exit", "",
+                                                                                                   "configure"]
+    out += st["top"]
+    for header, children in st["blocks"].items():
+        if header.startswith("interface ") and not children:
+            continue  # un puerto con valores por omisión no aparece
+        out += [header] + children + ["exit", ""]
+    out.append("exit")
+    return "\n".join(out)
+
+
+def edge_apply(items, line):
+    from app.rollback import _fp_key
+    if line.startswith("no "):
+        rest = line[3:]
+        items[:] = [x for x in items if x != rest and not x.startswith(rest + " ")]
+        return
+    t = line.split()
+    if t[:2] == ["vlan", "participation"] and len(t) > 3 and t[2] == "auto":
+        items[:] = [x for x in items if not re.fullmatch(rf"vlan participation (include|exclude) {t[3]}", x)]
+        return
+    key = _fp_key(line) or (tuple(t[:2]) if t[:1] == ["network"] else None)
+    if key:
+        items[:] = [x for x in items if (_fp_key(x) or (tuple(x.split()[:2]) if x.startswith("network") else None))
+                    != key]
+    if line not in items:
+        items.append(line)
+
+
+def edge_handle(s, mode, ctx):
+    from app.rollback import FP_OPENER, _vlan_ids
+    st, m = EDGE_STATE, mode[0]
+    if m == "user":
+        if s == "enable":
+            mode[0] = "enpw"
+            return ""
+        return EDGE_VERSION if s == "show version" else ("" if s.startswith("terminal") else INVALID)
+    if m == "exec":
+        if s.startswith("terminal") or s == "enable" or s == "exit":
+            return ""
+        if s == "show running-config":
+            return edge_render()
+        if s == "show version":
+            return EDGE_VERSION
+        if s == "configure":
+            mode[0] = "config"
+            return ""
+        if s == "vlan database":
+            mode[0] = "vlandb"
+            return ""
+        if s == "write memory":
+            return "Configuration Saved!"
+        if s.startswith("network ") or s.startswith("no network "):
+            edge_apply(st["exec"], s)
+            return ""
+        return INVALID
+    if m == "vlandb":
+        if s == "exit":
+            mode[0] = "exec"
+            return ""
+        if v := re.fullmatch(r"(no )?vlan ([\d,\-]+)", s):
+            ids = _vlan_ids(v.group(2))
+            if v.group(1):
+                st["vlans"] -= ids
+                st["vlan"] = [x for x in st["vlan"] if int(x.split()[2]) not in ids]
+            else:
+                st["vlans"] |= ids
+            return ""
+        if re.match(r"(no )?vlan name \d+", s):
+            edge_apply(st["vlan"], s)
+            return ""
+        return INVALID
+    if m == "config":
+        if s == "exit":
+            mode[0] = "exec"
+            return ""
+        if s.startswith(("vlan database", "network ", "configure", "show running")):
+            return INVALID  # comandos de modo privilegiado: el equipo real los rechaza aquí
+        if s.startswith("no ") and s[3:] in st["blocks"]:
+            del st["blocks"][s[3:]]
+            return ""
+        if FP_OPENER.match(s):
+            st["blocks"].setdefault(s, [])
+            mode[0], ctx[0] = "sub", s
+            return ""
+        edge_apply(st["top"], s)
+        return ""
+    if m == "sub":
+        if s == "exit":
+            mode[0], ctx[0] = "config", None
+            return ""
+        if s.startswith(("vlan database", "network ", "interface ")):
+            return INVALID
+        edge_apply(st["blocks"][ctx[0]], s)
+        return ""
+    return INVALID
 
 
 def main():

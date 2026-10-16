@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 1.3.2<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 1.4.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -150,7 +150,8 @@ grupo.</p>
   <tr><td>IP / hostname</td><td>Dirección de gestión. Debe ser la misma desde la que el equipo envía syslog.</td></tr>
   <tr><td>Fabricante / sistema operativo</td><td>Perfil de la plataforma (122 opciones agrupadas por fabricante). Define los comandos que se usan.</td></tr>
   <tr><td>Protocolo y puerto</td><td>SSH (22) o Telnet (23). Telnet solo en plataformas que lo admiten.</td></tr>
-  <tr><td>Credencial y grupo</td><td>Perfil de usuario/contraseña y grupo del equipo.</td></tr>
+  <tr><td>Credencial y grupo</td><td>Perfil de usuario/contraseña y grupo del equipo. Puede crear un grupo nuevo desde aquí mismo
+  con «…o crear un grupo nuevo». También se administran en <b>Dispositivos → Grupos</b>.</td></tr>
   <tr><td>Comando de respaldo personalizado</td><td>Opcional: sustituye al comando del perfil (útil con el perfil «Genérico SSH» o versiones con otra sintaxis).</td></tr>
   <tr><td>Habilitado</td><td>Si se desmarca, el equipo no entra en tareas programadas ni respaldos masivos.</td></tr>
   <tr><td>Revertir automáticamente</td><td>Deshace los cambios no autorizados que se detecten (sección 12).</td></tr>
@@ -322,7 +323,7 @@ lo aprobó, qué se aplicó y con qué resultado.</p>
 <figure><img src="img/14-solicitud-pendiente.png"><figcaption>Solicitud pendiente con vista previa y formulario de revisión.</figcaption></figure>
 <figure><img src="img/13-solicitudes.png" style="max-height:95mm"><figcaption>Historial de solicitudes con su estado.</figcaption></figure>
 <div class="note"><b>Opciones en Ajustes</b>«Exigir aprobación» (activado por defecto) y «Permitir que un administrador apruebe sus
-propias solicitudes» (desactivado por defecto). Las actualizaciones de firmware siempre requieren aprobación.</div>
+propias solicitudes» (activado por defecto desde la versión 1.4.0; desactívelo si quiere que siempre revise otro administrador). Las actualizaciones de firmware siempre requieren aprobación.</div>
 </section>
 
 <section class="chapter">
@@ -335,6 +336,10 @@ fabricante:</p>
   <tr><th>Familia</th><th>Ejemplos</th><th>Comandos generados</th></tr>
   <tr><td>IOS</td><td>Cisco, Arista, Dell, Ruckus, Allied…</td><td>Antepone <code>no</code> a lo que sobra y agrega lo que falta, respetando bloques (interfaces, líneas…).</td></tr>
   <tr><td>Huawei</td><td>Huawei VRP, H3C/Comware</td><td>Igual, con <code>undo</code>.</td></tr>
+  <tr><td>FastPath</td><td>Ubiquiti EdgeSwitch</td><td>Respeta sus tres ámbitos: modo privilegiado, <code>vlan database</code> y
+  <code>configure</code> (bloques cerrados con <code>exit</code>). Reescribe los ajustes de un solo valor (descripción, nombre, usuario)
+  en lugar de borrarlos, usa <code>vlan participation auto</code> para quitar un puerto de una VLAN y <b>nunca cambia la IP de gestión</b>
+  (<code>network parms</code>) para no cortar la conexión.</td></tr>
   <tr><td>Set</td><td>Junos, VyOS, EdgeRouter</td><td><code>delete …</code> para lo que sobra y <code>set …</code> para lo que falta.</td></tr>
   <tr><td>Merge</td><td>FortiGate, PAN-OS, MikroTik, Check Point…</td><td>Re-aplica la configuración destino completa (no elimina líneas agregadas).</td></tr>
 </table>
@@ -343,6 +348,9 @@ fabricante:</p>
   <li>Abra la versión a la que quiere volver y pulse <b>Revertir el equipo a esta versión…</b></li>
   <li>Se crea una solicitud de cambio marcada «reversión» con los comandos generados. <b>Revíselos</b> antes de aprobar.</li>
 </ol>
+<div class="warn"><b>Versiones incompletas</b>Si la versión destino es mucho más pequeña que la actual, OpenNCCM avisa: puede ser un
+respaldo cortado y revertir a ella borraría lo que falta. Desde la versión 1.4.0 los respaldos cortados o paginados
+(«--More--») se rechazan y no se guardan.</div>
 <h2>Reversión automática</h2>
 <p>Si el dispositivo tiene activada <b>«Revertir automáticamente cambios no autorizados»</b>, cuando un cambio se detecta por syslog o
 por un respaldo programado, y no proviene de una solicitud aprobada, OpenNCCM aplica de inmediato los comandos inversos, vuelve a
@@ -480,8 +488,19 @@ equipo toma la primera entrada que coincide y recibe un estado:</p>
   <tr><td>Enviar informes por correo</td><td>Envía inventario, cambios, cumplimiento, conflictos, línea base y EOL en CSV.</td></tr>
   <tr><td>Copia de recuperación</td><td>Crea una copia de la base de OpenNCCM (y la envía por SFTP si está configurado).</td></tr>
 </table>
-<p>La frecuencia se escribe en formato cron: <code>0 2 * * *</code> (diario 02:00), <code>*/30 * * * *</code> (cada 30 minutos),
-<code>0 6 * * 1</code> (lunes 06:00). Cada tarea puede pausarse, ejecutarse ya o eliminarse.</p>
+<p><b>¿Cuándo se ejecuta?</b> Elija la frecuencia y complete solo lo que pide; debajo se muestra en palabras, por ejemplo
+«Se ejecutará: Cada lunes y jueves a las 02:30».</p>
+<table>
+  <tr><th>Frecuencia</th><th>Qué se elige</th></tr>
+  <tr><td>Todos los días</td><td>La hora.</td></tr>
+  <tr><td>Algunos días de la semana</td><td>Los días (atajos «lunes a viernes» y «fin de semana») y la hora.</td></tr>
+  <tr><td>Una vez al mes</td><td>El día del mes (1 a 28) y la hora.</td></tr>
+  <tr><td>Cada hora</td><td>El minuto.</td></tr>
+  <tr><td>Cada pocos minutos</td><td>5, 10, 15, 20 o 30 minutos.</td></tr>
+  <tr><td>Avanzado (expresión cron)</td><td>Para casos especiales: <code>minuto hora día mes día-semana</code>; 0 o 7 es domingo y 1 es lunes.</td></tr>
+</table>
+<p>La hora es la del servidor (Sistema → Fecha, hora y zona horaria). La tabla muestra cada tarea en palabras y su próxima
+ejecución. Cada tarea puede pausarse, ejecutarse ya o eliminarse.</p>
 <figure><img src="img/20-tareas.png"><figcaption>Tareas programadas.</figcaption></figure>
 </section>
 
@@ -535,8 +554,9 @@ pueden enviarlos por correo al momento o programarlos.</p>
 <h1>21. Credenciales y grupos</h1>
 <p><b>Credenciales:</b> perfiles de usuario, contraseña y contraseña privilegiada (<i>enable</i>) para conectarse a los equipos. Se guardan
 cifradas con AES-256-GCM y nunca se muestran. Al actualizar una credencial, deje en blanco lo que no quiera cambiar.</p>
-<p><b>Grupos:</b> agrupan equipos (sede, rol, cliente) para filtrar, programar tareas, aplicar políticas y restringir usuarios. Al
-eliminar un grupo, sus equipos quedan sin grupo.</p>
+<p><b>Grupos:</b> agrupan equipos (sede, rol, cliente) para filtrar, programar tareas, aplicar políticas y restringir usuarios. Se
+llega aquí también con el botón <b>Grupos</b> de la página Dispositivos, y un grupo se puede crear al editar un equipo. Para asignar
+un equipo a un grupo: ábralo y pulse <b>asignar grupo</b> (o <b>Editar</b>). Al eliminar un grupo, sus equipos quedan sin grupo.</p>
 <figure><img src="img/25-credenciales.png"><figcaption>Credenciales y grupos.</figcaption></figure>
 </section>
 
