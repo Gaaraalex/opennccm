@@ -32,32 +32,99 @@ def _negate(line: str, neg: str) -> str:
     return indent + neg + stripped
 
 
+# Ajustes de un solo valor (Cisco y clones, Huawei/H3C): la línea nueva reemplaza a la anterior. Negarla primero
+# dejaría el equipo un instante sin ese valor; con «no ip address» en la interfaz de gestión se corta la conexión.
+H_SINGLE = sorted((tuple(s.split()) for s in (
+    "description", "hostname", "sysname", "ip address", "switchport access vlan", "switchport trunk allowed vlan",
+    "switchport trunk native vlan", "switchport mode", "switchport voice vlan", "speed", "duplex", "mtu", "ip mtu",
+    "bandwidth", "ip default-gateway", "snmp-server location", "snmp-server contact", "clock timezone",
+    "ip domain-name", "ip domain name", "spanning-tree mode", "enable secret", "enable password", "name",
+    "port link-type", "port default vlan", "port trunk pvid vlan", "encapsulation dot1q", "router-id",
+    "snmp-agent sys-info location", "snmp-agent sys-info contact")), key=len, reverse=True)
+VLAN_HEADER = re.compile(r"^vlan \d")
+
+
+def _h_key(line: str):
+    t = line.split()
+    if not t or t[-1] == "secondary":  # direcciones secundarias: puede haber varias
+        return None
+    for pref in H_SINGLE:
+        if tuple(t[:len(pref)]) == pref:
+            return pref
+    if t[0] in ("username", "local-user") and len(t) > 1:
+        return (t[0], t[1])
+    return None
+
+
+def _hw_ids(spec: list[str]) -> set[int]:
+    """«10 20 30 to 40» (Huawei/H3C) -> {10, 20, 30, ..., 40}."""
+    ids, i = set(), 0
+    while i < len(spec):
+        if i + 2 < len(spec) and spec[i + 1] == "to":
+            ids.update(range(int(spec[i]), int(spec[i + 2]) + 1))
+            i += 3
+        else:
+            if spec[i].isdigit():
+                ids.add(int(spec[i]))
+            i += 1
+    return ids
+
+
+def _hw_spec(ids: set[int]) -> str:
+    out, s, i = [], sorted(ids), 0
+    while i < len(s):
+        j = i
+        while j + 1 < len(s) and s[j + 1] == s[j] + 1:
+            j += 1
+        out.append(str(s[i]) if i == j else f"{s[i]} to {s[j]}")
+        i = j + 1
+    return " ".join(out)
+
+
 def _hierarchical(current: str, target: str, neg: str, exit_cmd: str) -> list[str]:
-    cur = dict(_blocks(current))
-    tgt = _blocks(target)
+    cur_list, tgt = _blocks(current), _blocks(target)
+    pre: list[str] = []   # antes de todo: VLAN que hacen falta
+    post: list[str] = []  # al final: VLAN que sobran (antes de eso los puertos todavía las usan)
+    # Huawei/H3C: «vlan batch 10 20 30 to 40» se compara como conjunto
+    batch = [(h, _hw_ids(h.split()[2:])) for h, _ in cur_list if h.startswith("vlan batch ")]
+    tbatch = [(h, _hw_ids(h.split()[2:])) for h, _ in tgt if h.startswith("vlan batch ")]
+    if batch or tbatch:
+        cur_ids = set().union(*(i for _, i in batch)) if batch else set()
+        tgt_ids = set().union(*(i for _, i in tbatch)) if tbatch else set()
+        if tgt_ids - cur_ids:
+            pre.append("vlan batch " + _hw_spec(tgt_ids - cur_ids))
+        if cur_ids - tgt_ids:
+            post.append(f"{neg}vlan batch " + _hw_spec(cur_ids - tgt_ids))
+        cur_list = [b for b in cur_list if not b[0].startswith("vlan batch ")]
+        tgt = [b for b in tgt if not b[0].startswith("vlan batch ")]
+    cur = dict(cur_list)
     tgt_map = dict(tgt)
     out: list[str] = []
-    # 1) eliminar lo que sobra
-    for header, children in cur.items():
-        if header not in tgt_map:
-            out.append(_negate(header, neg))
+    # 1) eliminar lo que sobra (salvo lo que se reemplaza y las VLAN, que van al final)
+    new_keys = {_h_key(h) for h in tgt_map if h not in cur} - {None}
+    for header in cur:
+        if header in tgt_map or _h_key(header) in new_keys:
+            continue
+        (post if VLAN_HEADER.match(header) else out).append(_negate(header, neg))
     # 2) agregar / ajustar lo que falta
     for header, children in tgt:
         if header not in cur:
-            out.append(header)
-            out.extend(children)
+            target_list = pre if VLAN_HEADER.match(header) else out  # las VLAN nuevas se crean primero
+            target_list.append(header)
+            target_list.extend(children)
             if children:
-                out.append(exit_cmd)
+                target_list.append(exit_cmd)
             continue
         cur_children = cur[header]
         removed = [c for c in cur_children if c not in children]
         added = [c for c in children if c not in cur_children]
         if removed or added:
+            akeys = {_h_key(a) for a in added} - {None}
             out.append(header)
-            out.extend(_negate(c, neg) for c in removed)
+            out.extend(_negate(c, neg) for c in removed if _h_key(c) not in akeys)
             out.extend(added)
             out.append(exit_cmd)
-    return out
+    return pre + out + post
 
 
 def _set_style(current: str, target: str) -> list[str]:
@@ -71,11 +138,13 @@ def _set_style(current: str, target: str) -> list[str]:
 
 # ------------------------------------------------------------------ Broadcom FastPath (Ubiquiti EdgeSwitch)
 # La configuración no usa sangría: los submodos se abren con una línea conocida y se cierran con «exit».
-# Tiene tres ámbitos: modo privilegiado (network parms...), «vlan database» y «configure».
+# EdgeSwitch tiene tres ámbitos: modo privilegiado (network parms...), «vlan database» y «configure». Otros equipos
+# con la misma base (Dell N-series/OS6, Netgear, Broadcom ICOS, Quanta) no tienen «vlan database»: las VLAN son
+# bloques «vlan 10 ... exit» dentro de la configuración. Se detecta por el estilo, sea cual sea el perfil.
 FP_OPENER = re.compile(
     r"^(interface |line |router |ipv6 router |class-map |policy-map |class |ip dhcp pool |ipv6 dhcp pool |"
     r"spanning-tree mst configuration|ip access-list |ipv6 access-list |mac access-list |"
-    r"management access-list |ip vrf |vrf |aaa |radius server |tacacs-server host |monitor session )")
+    r"management access-list |ip vrf |vrf |aaa |radius server |tacacs-server host |monitor session |vlan \d)")
 # administración del propio switch: cambiarla en una reversión cortaría la conexión
 FP_MGMT = re.compile(r"^(network (parms|protocol|mgmt_vlan|ipv6)|serviceport )")
 # ajustes de un solo valor: la línea nueva reemplaza a la anterior sin borrarla primero
@@ -94,7 +163,7 @@ def _fp_key(line: str):
         return ("vlan", "name", t[2])
     if t[:2] == ["vlan", "participation"] and len(t) > 3:  # include/exclude/auto de una misma VLAN
         return ("vlan", "participation", t[3])
-    return None
+    return _h_key(line)  # switchport access vlan, ip address... (Dell N-series, Netgear)
 
 
 def _fp_negate(line: str) -> str:
@@ -110,15 +179,22 @@ def _fp_negate(line: str) -> str:
     for pref in FP_SINGLE:
         if tuple(t[:len(pref)]) == pref:
             return "no " + " ".join(pref)
+    key = _h_key(line)
+    if key and key[0] not in ("username", "local-user"):
+        return "no " + " ".join(key)
     return "no " + line
 
 
 def _fp_parse(text: str) -> dict:
     lines = [l.strip() for l in text.splitlines()]
-    cfg_start = next((i for i, l in enumerate(lines) if l == "configure"), len(lines))
-    last_exit = max((i for i, l in enumerate(lines) if l == "exit" and i > cfg_start), default=len(lines))
+    cfg_start = next((i for i, l in enumerate(lines) if l == "configure"), None)
+    if cfg_start is None:  # sin «configure» (Dell N-series, Netgear...): todo es configuración
+        section, last_exit = "config", len(lines) + 1
+    else:
+        section = "exec"
+        last_exit = max((i for i, l in enumerate(lines) if l == "exit" and i > cfg_start), default=len(lines))
     res: dict = {"exec": [], "vlan": [], "top": [], "blocks": []}
-    section, stack, run = "exec", [], []
+    stack, run = [], []
     for i, s in enumerate(lines):
         if not s or s.startswith("!"):
             run = []
@@ -227,6 +303,11 @@ def _fastpath(current: str, target: str) -> list[str]:
     vlan_before, vlan_after, gone = _fp_vlans(cur["vlan"], tgt["vlan"])
     cfg = _fp_flat(cur["top"], tgt["top"])
     cur_b, tgt_b = dict(cur["blocks"]), dict(tgt["blocks"])
+    cfg_pre: list[str] = []   # bloques «vlan N» nuevos: antes que los puertos que las usan
+    cfg_post: list[str] = []  # bloques «vlan N» que sobran: al final
+    for header in cur_b:
+        if header not in tgt_b and VLAN_HEADER.match(header):
+            gone |= _vlan_ids(header.split(None, 1)[1].replace(" ", ""))
 
     def port_diff(old, new):
         return _fp_flat([l for l in old if not _refs_only(l, gone)], new)
@@ -238,12 +319,14 @@ def _fastpath(current: str, target: str) -> list[str]:
             body = port_diff([c for c in children if c != "exit"], [])
             if body:
                 cfg += [header] + body + ["exit"]
+        elif VLAN_HEADER.match(header):
+            cfg_post.append("no " + header)
         else:
             cfg.append("no " + header)
     for header, children in tgt["blocks"]:
         old = cur_b.get(header)
         if old is None:
-            cfg += [header] + children + ["exit"]
+            (cfg_pre if VLAN_HEADER.match(header) else cfg).extend([header] + children + ["exit"])
         elif old != children:
             if any(FP_OPENER.match(c) for c in old + children):  # submodos anidados: se recrea el bloque
                 cfg += ["no " + header, header] + children + ["exit"]
@@ -260,13 +343,28 @@ def _fastpath(current: str, target: str) -> list[str]:
         if vlan_before:
             out += ["vlan database"] + vlan_before + ["exit"]
         out.append("configure")
-    out += cfg
+    out += cfg_pre + cfg + cfg_post
     if vlan_after:
         out += ["exit", "vlan database"] + vlan_after + ["exit", "configure"]
     return out
 
 
+def fastpath_style(text: str) -> bool:
+    """¿Configuración estilo FastPath? (la primera interfaz se cierra con «exit» sin sangría)."""
+    lines = [l.rstrip() for l in text.splitlines()]
+    for i, l in enumerate(lines):
+        if re.match(r"interface \S", l):
+            j = i + 1
+            while (j < len(lines) and lines[j] and not lines[j][0].isspace() and lines[j] != "exit"
+                   and not lines[j].startswith(("interface ", "!"))):
+                j += 1
+            return j < len(lines) and lines[j] == "exit"
+    return False
+
+
 def build_rollback(current: str, target: str, family: str) -> list[str]:
+    if family in (IOS, FASTPATH) and (fastpath_style(current) or fastpath_style(target)):
+        return _fastpath(current, target)
     if family == IOS:
         return _hierarchical(current, target, "no ", " exit")
     if family == HUAWEI:

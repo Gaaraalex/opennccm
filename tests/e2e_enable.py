@@ -26,8 +26,8 @@ def cred(name, secret=""):
     return re.search(rf'<option value="(\d+)">{name}</option>', s.get(B + "/credentials").text).group(1)
 
 
-def device(name, port, cred_id):
-    r = s.post(B + "/devices/new", data={"name": name, "host": "127.0.0.1", "device_type": "ubiquiti_edgeswitch",
+def device(name, port, cred_id, dtype="ubiquiti_edgeswitch"):
+    r = s.post(B + "/devices/new", data={"name": name, "host": "127.0.0.1", "device_type": dtype,
                                          "protocol": "ssh", "port": str(port), "credential_id": cred_id,
                                          "enabled": "on"})
     return re.search(r"/devices/(\d+)", r.url).group(1)
@@ -44,6 +44,10 @@ procs = [subprocess.Popen([sys.executable, os.path.join(HERE, "fakedev.py"), por
                            f"--enable-pass={pw}"],
                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
          for port, pw in (("2224", "cisco"), ("2225", "Enable123"))]
+# routers Cisco que entran en modo usuario («R1>») y piden enable
+procs += [subprocess.Popen([sys.executable, os.path.join(HERE, "fakedev.py"), port, f"--enable-pass={pw}"],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+          for port, pw in (("2227", "cisco"), ("2228", "Enable123"))]
 try:
     time.sleep(3)
     s.post(B + "/login", data={"username": "admin", "password": "Admin12345"})
@@ -79,7 +83,21 @@ try:
     ok, page = backup(d2)
     check("enable con la contraseña correcta", ok, page[page.find("Último error"):][:300])
 
-    for d in (d1, d2):
+    # 5) Cisco en modo usuario («>»): mismo comportamiento que el EdgeSwitch
+    c1 = device("Cisco-misma-clave", 2227, sin, "cisco_ios")
+    ok, page = backup(c1)
+    check("Cisco en modo usuario: enable con la contraseña de ingreso", ok, page[page.find("Último error"):][:300])
+    c2 = device("Cisco-otra-clave", 2228, sin, "cisco_ios")
+    ok, page = backup(c2)
+    check("Cisco en modo usuario sin enable: mensaje claro",
+          not ok and "entró en modo usuario" in page and "«edge-sin-enable»" in page,
+          page[page.find("Último error"):][:300])
+    s.post(f"{B}/devices/{c2}/edit", data={"name": "Cisco-otra-clave", "host": "127.0.0.1", "device_type": "cisco_ios",
+                                           "protocol": "ssh", "port": "2228", "credential_id": buena, "enabled": "on"})
+    ok, page = backup(c2)
+    check("Cisco en modo usuario con la contraseña de enable correcta", ok, page[page.find("Último error"):][:300])
+
+    for d in (d1, d2, c1, c2):
         s.post(f"{B}/devices/{d}/delete")
 finally:
     for p in procs:

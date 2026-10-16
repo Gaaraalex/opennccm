@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 1.4.2<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 1.5.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -317,9 +317,17 @@ lo aprobó, qué se aplicó y con qué resultado.</p>
   <li>Las solicitudes se crean desde configlets, correcciones de cumplimiento, reversiones y actualizaciones de firmware.</li>
   <li>El administrador abre la solicitud (menú <b>Cambios</b>), revisa la <b>vista previa de los comandos por equipo</b>, escribe un
   comentario y pulsa <b>Aprobar y ejecutar</b> o <b>Rechazar</b>.</li>
-  <li>Al ejecutarse, la sección <b>Resultado</b> muestra la salida de cada equipo. Si un equipo rechaza un comando
-  («% Invalid input»), la solicitud queda como fallida para ese equipo.</li>
+  <li>Al ejecutarse, la sección <b>Resultado</b> muestra la salida de cada equipo. Los comandos se envían <b>de uno en uno</b>:
+  si el equipo rechaza uno, OpenNCCM se detiene ahí, <b>no guarda</b> la configuración (ni hace commit; en Junos, IOS-XR, VyOS y
+  similares descarta los cambios pendientes), indica qué comando falló y cuáles ya se aplicaron, y respalda el equipo para
+  registrar su estado real. La solicitud queda como fallida para ese equipo.</li>
 </ol>
+<div class="note"><b>Mensajes de error que se reconocen</b>«% Invalid input» y similares (Cisco, Arista, Dell, Allied, Extreme),
+«% Unrecognized command» (HP Comware, Mellanox, A10), «Error:» (Huawei), «syntax error» y «unknown command» (Juniper),
+«bad command name», «expected end of command» y «failure:» (MikroTik), «Command fail» y «Unknown action» (FortiGate),
+«Invalid syntax» (Palo Alto), «MINOR:/MAJOR:» (Nokia), «!!%» (IOS-XR), «Set failed» (VyOS), «CLINFR» (Check Point) y
+«Failed to…» (EdgeSwitch, Netgear, Dell N-series). Si un comando pide confirmación («[confirm]», «(y/n)»), OpenNCCM no la
+responde: se detiene y lo informa.</div>
 <figure><img src="img/14-solicitud-pendiente.png"><figcaption>Solicitud pendiente con vista previa y formulario de revisión.</figcaption></figure>
 <figure><img src="img/13-solicitudes.png" style="max-height:95mm"><figcaption>Historial de solicitudes con su estado.</figcaption></figure>
 <div class="note"><b>Opciones en Ajustes</b>«Exigir aprobación» (activado por defecto) y «Permitir que un administrador apruebe sus
@@ -334,9 +342,12 @@ propias solicitudes» (activado por defecto desde la versión 1.4.0; desactível
 fabricante:</p>
 <table>
   <tr><th>Familia</th><th>Ejemplos</th><th>Comandos generados</th></tr>
-  <tr><td>IOS</td><td>Cisco, Arista, Dell, Ruckus, Allied…</td><td>Antepone <code>no</code> a lo que sobra y agrega lo que falta, respetando bloques (interfaces, líneas…).</td></tr>
-  <tr><td>Huawei</td><td>Huawei VRP, H3C/Comware</td><td>Igual, con <code>undo</code>.</td></tr>
-  <tr><td>FastPath</td><td>Ubiquiti EdgeSwitch</td><td>Respeta sus tres ámbitos: modo privilegiado, <code>vlan database</code> y
+  <tr><td>IOS</td><td>Cisco, Arista, Dell, Ruckus, Allied…</td><td>Antepone <code>no</code> a lo que sobra y agrega lo que falta, respetando bloques (interfaces, líneas…).
+  Los ajustes de un solo valor (descripción, IP, VLAN de acceso o permitidas, hostname, usuario) se <b>reescriben</b> sin negarlos
+  antes, así una IP de gestión no queda un instante sin configurar. Las VLAN nuevas se crean primero y las que sobran se borran al final.</td></tr>
+  <tr><td>Huawei</td><td>Huawei VRP, H3C/Comware</td><td>Igual, con <code>undo</code>. <code>vlan batch</code> se compara como conjunto:
+  solo se crean o borran las VLAN que cambian.</td></tr>
+  <tr><td>FastPath</td><td>Ubiquiti EdgeSwitch, y cualquier equipo con ese estilo (Dell N-series, Netgear, Broadcom ICOS, UniFi Switch), que se detecta automáticamente</td><td>Respeta sus tres ámbitos: modo privilegiado, <code>vlan database</code> y
   <code>configure</code> (bloques cerrados con <code>exit</code>). Reescribe los ajustes de un solo valor (descripción, nombre, usuario)
   en lugar de borrarlos, usa <code>vlan participation auto</code> para quitar un puerto de una VLAN y <b>nunca cambia la IP de gestión</b>
   (<code>network parms</code>) para no cortar la conexión. Orden: primero crea las VLAN que faltan, luego ajusta los puertos y al
@@ -555,7 +566,9 @@ pueden enviarlos por correo al momento o programarlos.</p>
 
 <section class="chapter">
 <h1>21. Credenciales y grupos</h1>
-<p><b>Credenciales:</b> perfiles de usuario, contraseña y contraseña privilegiada (<i>enable</i>) para conectarse a los equipos. Se guardan
+<p><b>Credenciales:</b> perfiles de usuario, contraseña y contraseña privilegiada (<i>enable</i>) para conectarse a los equipos. Si el
+equipo entra en modo usuario («&gt;») y la credencial no tiene <i>enable</i>, OpenNCCM prueba la contraseña de ingreso; si no sirve,
+el error indica en qué credencial escribirla. Se guardan
 cifradas con AES-256-GCM y nunca se muestran. Al actualizar una credencial, deje en blanco lo que no quiera cambiar.</p>
 <p><b>Grupos:</b> agrupan equipos (sede, rol, cliente) para filtrar, programar tareas, aplicar políticas y restringir usuarios. Se
 llega aquí también con el botón <b>Grupos</b> de la página Dispositivos, y un grupo se puede crear al editar un equipo. Para asignar
