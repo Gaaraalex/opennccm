@@ -196,9 +196,14 @@ def _normalize_for_compare(text: str) -> list[str]:
 def backup_device(device_id: int, trigger="manual", username: str | None = None) -> str:
     lock = device_lock(device_id)
     if not lock.acquire(timeout=300):
+        log.warning("Respaldo del equipo %s [%s]: ocupado, se omite", device_id, trigger)
+        if trigger == "push":
+            end_maintenance(device_id)  # no dejar la ventana de mantenimiento abierta
         return "busy"
     try:
-        return _backup_device(device_id, trigger, username)
+        result = _backup_device(device_id, trigger, username)
+        log.info("Respaldo del equipo %s [%s]: %s", device_id, trigger, result)
+        return result
     finally:
         if trigger == "push":
             end_maintenance(device_id)
@@ -292,6 +297,8 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
             # releer las opciones: pueden haber cambiado mientras se conectaba al equipo
             db.refresh(dev, ["auto_rollback", "maintenance_until"])
             in_maintenance = dev.maintenance_until and dev.maintenance_until > now()
+            log.info("Cambio en %s [%s]: +%s/-%s; reversión automática=%s, mantenimiento=%s",
+                     dev.name, trigger, added, removed, dev.auto_rollback, bool(in_maintenance))
             sev = "info" if trigger == "push" else "warning"
             add_event(sev, "Cambio de configuración",
                       f"{dev.name} ({dev.host}) cambió [{trigger}]. +{added}/-{removed} líneas\n\n{diff}", dev.id)
@@ -305,6 +312,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
 
 def _auto_rollback(dev_id: int, dev_name: str, family: str, current: str, target: str):
     cmds = build_rollback(current, target, family)
+    log.info("Reversión automática de %s: %d comandos", dev_name, len(cmds))
     if not cmds:
         return
     try:

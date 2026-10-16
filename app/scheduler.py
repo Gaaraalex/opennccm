@@ -127,6 +127,7 @@ def _delayed_backup(device_id: int):
     with SessionLocal() as db:
         d = db.get(Device, device_id)
         if d and d.maintenance_until and d.maintenance_until > now():
+            log.info("Syslog de %s durante mantenimiento (hasta %s): se revisa más tarde", d.name, d.maintenance_until)
             # OpenNCCM está aplicando un cambio aprobado: no se descarta el aviso, se reintenta
             # cuando termine (el respaldo post-cambio ya habrá guardado la parte autorizada)
             # se revisa cada minuto: la ventana se cierra antes si termina el respaldo post-cambio
