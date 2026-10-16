@@ -1,7 +1,8 @@
 """Prueba el asistente de instalación (menús whiptail) como lo haría una persona.
 
 Ejecuta install.sh dentro de tmux, espera cada pantalla, guarda una captura (texto con colores ANSI)
-y pulsa las teclas. Uso (como root):  python3 tests/tui_drive.py RUTA_REPO CARPETA_CAPTURAS
+y pulsa las teclas. Se ejecuta como usuario normal con sudo sin contraseña, igual que un administrador real.
+Uso:  python3 tests/tui_drive.py RUTA_REPO CARPETA_CAPTURAS
 """
 import subprocess
 import sys
@@ -51,9 +52,28 @@ def keys(*k):
         time.sleep(0.25)
 
 
-cmd = (f"cat {REPO}/install.sh | bash -s -- --source {REPO}; "
-       "echo; echo FIN-INSTALADOR $?; sleep 600")
-tmux("new-session", "-d", "-s", S, "-x", "100", "-y", "32", "-e", "LANG=C.UTF-8", "-e", "TERM=xterm-256color", cmd)
+def start(cmd):
+    tmux("kill-session", "-t", S, check=False)
+    tmux("new-session", "-d", "-s", S, "-x", "100", "-y", "32", "-e", "LANG=C.UTF-8", "-e", "TERM=xterm-256color",
+         cmd + "; rc=$?; echo; echo FIN-INSTALADOR $rc; sleep 600")  # rc: código del instalador
+
+
+def exit_code():
+    wait_for("FIN-INSTALADOR", timeout=120)
+    return screen().split("FIN-INSTALADOR")[-1].split()[0]
+
+
+# --- 1) "curl | sudo bash" (como lo ejecuta un usuario): sudo no pasa el teclado -> debe explicarlo y salir
+start(f"cat {REPO}/install.sh | sudo bash -s -- --source {REPO}")
+wait_for("sudo no se lo pasa al instalador")
+snap("00-tuberia-sudo")
+code = exit_code()
+print("ok: con 'curl | sudo bash' explica cómo instalar y sale con código", code)
+if code != "1" or "Bienvenido" in screen():
+    raise SystemExit("Con 'curl | sudo bash' no debía abrir el asistente")
+
+# --- 2) forma recomendada: descargar y ejecutar con sudo -> asistente con teclado
+start(f"sudo bash {REPO}/install.sh --source {REPO}")
 
 PASOS = [
     ("Bienvenido al instalador", "01-bienvenida", ["Enter"]),
@@ -88,9 +108,7 @@ wait_for("Instalación completada", timeout=1200)
 snap("15-completada")
 print("ok: Instalación completada")
 keys("Enter")
-wait_for("FIN-INSTALADOR", timeout=60)
-final = screen()
-(OUT / "salida-final.txt").write_text(final, encoding="utf-8")
-code = final.split("FIN-INSTALADOR")[-1].split()[0]
+code = exit_code()
+(OUT / "salida-final.txt").write_text(screen(), encoding="utf-8")
 print("Código de salida del instalador:", code)
 sys.exit(0 if code == "0" else 1)

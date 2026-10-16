@@ -6,6 +6,7 @@ PY=${1:-python3}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 WORK=$(mktemp -d)
 export NCM_DATA_DIR=$WORK/data NCM_KEY_FILE=$WORK/data/secret.key NCM_SYSLOG_PORT=5514
+export PYTHONUNBUFFERED=1   # que el registro de la aplicación quede completo si algo falla
 mkdir -p "$NCM_DATA_DIR"
 cd "$ROOT"
 cleanup() { kill "${APP_PID:-}" "${DEV_PID:-}" 2>/dev/null || true; }
@@ -21,5 +22,16 @@ for t in e2e e2e_syslog e2e2 e2e_window; do
   echo "=================== $t ==================="
   if ! "$PY" "tests/$t.py"; then status=1; fi
 done
-if [[ $status -ne 0 ]]; then echo "--- app.log ---"; tail -n 80 "$WORK/app.log"; fi
+if [[ $status -ne 0 ]]; then
+  echo "--- app.log (respaldos, cambios, reversiones, errores) ---"
+  grep -E "opennccm|ERROR|Traceback|Error" "$WORK/app.log" | tail -n 150 || true
+  echo "--- eventos ---"
+  "$PY" - <<'PY'
+import sys; sys.path.insert(0, ".")
+from app.db import Event, SessionLocal, select
+with SessionLocal() as db:
+    for e in db.scalars(select(Event).order_by(Event.id)):
+        print(e.created_at, e.severity, e.category, "|", e.message.splitlines()[0][:150])
+PY
+fi
 exit $status
