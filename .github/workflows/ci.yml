@@ -41,6 +41,8 @@ jobs:
           .venv/bin/pip install -q -r requirements.txt
       - name: Pruebas de extremo a extremo (router Cisco simulado)
         run: bash tests/run-tests.sh .venv/bin/python
+      - name: Equipos antiguos (OpenSSH real con solo ssh-rsa y kex SHA-1)
+        run: bash tests/legacy-openssh-test.sh .venv/bin/python
 
   install:
     name: Instalación y actualización (${{ matrix.os }})

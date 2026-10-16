@@ -66,6 +66,9 @@ def _copy_remote(path: Path) -> str | None:
     if not host:
         return None
     import paramiko
+
+    from app import legacy_ssh
+    legacy_ssh.enable()
     t = paramiko.Transport((host, int(get_setting("dr_remote_port", "22") or 22)))
     try:
         t.connect(username=get_setting("dr_remote_user"), password=get_setting("dr_remote_password"))

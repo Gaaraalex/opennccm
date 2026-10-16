@@ -1,4 +1,6 @@
-"""Equipo Cisco IOS simulado (SSH) para pruebas de OpenNCCM."""
+"""Equipo Cisco IOS simulado (SSH) para pruebas de OpenNCCM.
+Uso: fakedev.py [puerto] [--legacy]   (--legacy: solo ofrece ssh-rsa y kex SHA-1, como un EdgeSwitch antiguo)"""
+import os
 import socket
 import sys
 import threading
@@ -6,7 +8,19 @@ import threading
 import paramiko
 
 HOST_KEY = paramiko.RSAKey.generate(2048)
-PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 2222
+ARGS = [a for a in sys.argv[1:] if not a.startswith("--")]
+PORT = int(ARGS[0]) if ARGS else 2222
+LEGACY = "--legacy" in sys.argv
+DISABLED = None
+if LEGACY:
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+    from app import legacy_ssh
+
+    legacy_ssh.enable()
+    T = paramiko.Transport
+    DISABLED = {"keys": [k for k in T._preferred_keys if k != "ssh-rsa"],
+                # group-exchange se excluye: el servidor de Paramiko lo anuncia aunque no tenga primos (moduli)
+                "kex": [k for k in T._preferred_kex if not k.endswith("-sha1") or "exchange" in k]}
 
 RUNNING = """Building configuration...
 
@@ -136,7 +150,7 @@ def apply(cmd, ctx):
 
 
 def session(client):
-    t = paramiko.Transport(client)
+    t = paramiko.Transport(client, disabled_algorithms=DISABLED)
     t.add_server_key(HOST_KEY)
     srv = Server()
     t.start_server(server=srv)
