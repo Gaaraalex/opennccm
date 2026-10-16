@@ -207,9 +207,10 @@ async def system_time(request: Request):
             tz = form.get("timezone", "")
             systime.set_timezone(tz)
             log_action(request, user, "system_timezone", tz)
-            flash(request, f"Zona horaria cambiada a {tz}. OpenNCCM se reinicia unos segundos para aplicarla; "
-                           "las tareas programadas usarán la nueva hora.")
+            flash(request, f"Zona horaria cambiada a {tz}. Las tareas programadas ya usan la nueva hora.")
             systime.restart_soon()
+            # página de espera: el servicio se reinicia unos segundos para aplicar la zona
+            return render(request, "restarting.html", user, tz=tz)
         elif action == "ntp":
             on = form.get("ntp") == "on"
             systime.set_ntp(on)

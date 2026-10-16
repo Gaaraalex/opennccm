@@ -10,10 +10,13 @@ NEW=America/Bogota; [[ $ORIG == "$NEW" ]] && NEW=Europe/Madrid
 
 login() { curl -s -c "$JAR" -b "$JAR" -o /dev/null --data-urlencode "username=admin" --data-urlencode "password=$PASS" $B/login; }
 set_tz() {
+  local pid; pid=$(systemctl show opennccm -p MainPID --value)
   login
-  curl -s -c "$JAR" -b "$JAR" -o /dev/null -d "action=timezone" --data-urlencode "timezone=$1" $B/system/time
-  for _ in $(seq 1 30); do  # el servicio se reinicia solo para aplicar la zona
+  curl -s -c "$JAR" -b "$JAR" -o /tmp/tz.html -d "action=timezone" --data-urlencode "timezone=$1" $B/system/time
+  grep -q "Aplicando la zona horaria" /tmp/tz.html || { echo "No se mostró la página de espera"; return 1; }
+  for _ in $(seq 1 40); do  # esperar a que el servicio se reinicie (otro PID) y vuelva a responder
     sleep 1
+    [[ $(systemctl show opennccm -p MainPID --value) != "$pid" ]] || continue
     [[ $(timedatectl show -p Timezone --value) == "$1" ]] && curl -fsS $B/healthz >/dev/null 2>&1 && return 0
   done
   return 1

@@ -45,7 +45,7 @@ s.post(B + "/login", data={"username": "admin", "password": "Admin12345"})
 
 # ---------------------------------------------------------------- fabricantes
 v = s.get(B + "/vendors").text
-n = len(re.findall(r"<tr><td>", v))
+n = len(re.findall(r"<tr data-v=", v))
 check(f"página de fabricantes lista ≥120 plataformas ({n})", n >= 120)
 for k in ["huawei_olt", "dlink_ds", "watchguard_fireware", "netscaler", "ciena_saos", "generic"]:
     check(f"plataforma {k} disponible", f"<code>{k}</code>" in v)
