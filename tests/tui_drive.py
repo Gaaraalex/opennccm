@@ -55,7 +55,7 @@ def keys(*k):
 def start(cmd):
     tmux("kill-session", "-t", S, check=False)
     tmux("new-session", "-d", "-s", S, "-x", "100", "-y", "32", "-e", "LANG=C.UTF-8", "-e", "TERM=xterm-256color",
-         cmd + "; echo; echo FIN-INSTALADOR $?; sleep 600")
+         cmd + "; rc=$?; echo; echo FIN-INSTALADOR $rc; sleep 600")  # rc: código del instalador
 
 
 def exit_code():
