@@ -11,6 +11,8 @@ HOST_KEY = paramiko.RSAKey.generate(2048)
 ARGS = [a for a in sys.argv[1:] if not a.startswith("--")]
 PORT = int(ARGS[0]) if ARGS else 2222
 LEGACY = "--legacy" in sys.argv
+# --enable-pass=X: arranca en modo usuario (R1>) y «enable» pide esa contraseña, como un EdgeSwitch
+ENABLE_PASS = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--enable-pass=")), None)
 DISABLED = None
 if LEGACY:
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
@@ -162,13 +164,14 @@ def session(client):
         while t.is_active():
             threading.Event().wait(1)
         return
-    mode = ["exec"]
+    mode = ["user" if ENABLE_PASS is not None else "exec"]
     ctx = [None]
 
     def prompt():
-        return {"exec": "R1#", "config": "R1(config)#", "sub": "R1(config-if)#"}[mode[0]]
+        return {"user": "R1>", "enpw": "Password:", "exec": "R1#", "config": "R1(config)#",
+                "sub": "R1(config-if)#"}[mode[0]]
 
-    ch.send("\r\nR1#")
+    ch.send("\r\n" + prompt())
     buf = ""
     prev = ""
     while True:
@@ -181,7 +184,7 @@ def session(client):
                 if c == "\n" and last == "\r":
                     continue
                 line, buf = buf, ""
-                ch.send(line + "\r\n")
+                ch.send(("" if mode[0] == "enpw" else line) + "\r\n")  # la contraseña no se muestra
                 if mode[0] == "reload":  # confirmación de reinicio: se corta la sesión
                     ch.send("\r\n%SYS-5-RELOAD: Reload requested\r\n")
                     t.close()
@@ -201,8 +204,19 @@ def session(client):
 def handle(line, mode, ctx):
     global STARTUP
     s = line.strip()
+    if mode[0] == "enpw":
+        ok = s == ENABLE_PASS
+        mode[0] = "exec" if ok else "user"
+        return "" if ok else "% Access denied"
     if not s:
         return ""
+    if mode[0] == "user":
+        if s == "enable":
+            mode[0] = "enpw"
+            return ""
+        if s.startswith("terminal") or s == "show version":
+            return "" if s.startswith("terminal") else VERSION
+        return "% Invalid input detected at '^' marker."
     if mode[0] == "exec":
         if s.startswith("terminal") or s == "enable":
             return ""

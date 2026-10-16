@@ -1,5 +1,12 @@
 # Historial de versiones
 
+## 1.3.2
+- **Modo privilegiado (enable)**: corrige «Failed to enter enable mode. Please ensure you pass the 'secret'
+  argument to ConnectHandler» en equipos cuyo driver entra a enable al conectar (p. ej. Ubiquiti EdgeSwitch).
+  Si la credencial no tiene contraseña de enable, OpenNCCM prueba automáticamente con la contraseña de ingreso
+  (muy habitual en estos equipos). Si tampoco sirve, el error ahora explica en español qué falta y en qué
+  credencial escribirlo; también avisa cuando la contraseña de enable configurada es incorrecta.
+
 ## 1.3.1
 - **Equipos antiguos por SSH**: corrige el error «no matching host key type found. Their offer: ssh-rsa» /
   «Incompatible ssh peer» al respaldar equipos como Ubiquiti EdgeSwitch, Cisco IOS 12.x o HP ProCurve antiguos.

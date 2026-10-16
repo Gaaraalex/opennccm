@@ -56,11 +56,31 @@ def connect(dev: Device):
             raise RuntimeError(f"Telnet no soportado para {prof.label}; use SSH")
         device_type = f"{dev.device_type}_telnet"
     secret = decrypt(cred.secret_enc)
-    conn = ConnectHandler(
-        device_type=device_type, host=dev.host, port=dev.port, username=cred.username,
-        password=decrypt(cred.password_enc), secret=secret, conn_timeout=20, timeout=60,
-        auth_timeout=30, banner_timeout=30, fast_cli=False,
-    )
+    password = decrypt(cred.password_enc)
+    params = dict(device_type=device_type, host=dev.host, port=dev.port, username=cred.username,
+                  password=password, conn_timeout=20, timeout=60, auth_timeout=30, banner_timeout=30,
+                  fast_cli=False)
+    try:
+        conn = ConnectHandler(secret=secret, **params)
+    except ValueError as e:
+        # Algunos drivers (p. ej. Ubiquiti EdgeSwitch) entran a «enable» al conectar y fallan si el equipo
+        # pide una contraseña que la credencial no tiene.
+        if "enable mode" not in str(e):
+            raise
+        if secret:
+            raise RuntimeError(f"El equipo no aceptó la contraseña de enable de la credencial «{cred.name}». "
+                               "Corríjala en Credenciales → Enable / secret.") from e
+        try:  # muchos equipos usan la misma contraseña para ingresar y para enable
+            conn = ConnectHandler(secret=password, **params)
+        except ValueError as e2:
+            if "enable mode" not in str(e2):
+                raise
+            raise RuntimeError(
+                "El equipo pide contraseña para el modo privilegiado (enable) y no se pudo entrar ni sin "
+                f"contraseña ni con la de ingreso. Escriba la contraseña de enable en la credencial «{cred.name}» "
+                "(Credenciales → Enable / secret).") from e2
+        log.info("%s: enable aceptó la contraseña de ingreso (la credencial no tiene contraseña de enable)",
+                 dev.name)
     if secret:
         try:
             if not conn.check_enable_mode():
