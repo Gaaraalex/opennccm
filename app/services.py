@@ -234,6 +234,32 @@ def backup_device(device_id: int, trigger="manual", username: str | None = None)
         lock.release()
 
 
+def refresh_inventory_from_raw() -> int:
+    """Relee la última salida de inventario guardada con el lector actual.
+
+    Se ejecuta al iniciar: tras una actualización que mejora el lector, el modelo, la serie y el firmware se
+    corrigen sin esperar al próximo respaldo. Devuelve cuántos equipos cambiaron."""
+    changed = 0
+    with SessionLocal() as db:
+        for dev in db.scalars(select(Device).where(Device.inventory_raw_enc.is_not(None))):
+            try:
+                inv = parse_inventory(decrypt(dev.inventory_raw_enc), get_profile(dev.device_type))
+            except Exception:  # noqa: BLE001 - un inventario ilegible no debe impedir el arranque
+                continue
+            new = {}
+            for field, key in (("os_version", "os_version"), ("model", "model"), ("serial", "serial")):
+                old = getattr(dev, field)
+                if old and not re.search(r"[A-Za-z0-9]", old):  # valores basura previos («.......»)
+                    old = None
+                new[field] = inv[key] or old
+            if any(getattr(dev, f) != v for f, v in new.items()):
+                for f, v in new.items():
+                    setattr(dev, f, v)
+                changed += 1
+        db.commit()
+    return changed
+
+
 def end_maintenance(device_id: int):
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
