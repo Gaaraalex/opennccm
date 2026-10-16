@@ -106,6 +106,45 @@ try:
     check("tras la reversión la configuración vuelve a la versión anterior (salvo la IP de gestión)",
           raw_now == expected, "\n".join(sorted(set(raw_now.splitlines()) ^ set(expected.splitlines()))))
 
+    # cambio que el switch rechaza (VLAN inexistente): debe marcarse como fallido y detenerse en ese comando
+    s.post(B + "/configlets/new", data={"name": "VLAN 99 en 0/6", "kind": "config",
+                                         "body": "interface 0/6\nvlan participation include 99\nvlan tagging 99\n"
+                                                 "exit\ninterface 0/7\ndescription 'NO-DEBE-APLICARSE'\nexit"})
+    cl = s.get(B + "/configlets").text
+    cid = re.search(r"<b>VLAN 99 en 0/6</b>[\s\S]*?/configlets/(\d+)/run", cl).group(1)
+    r = s.post(f"{B}/configlets/{cid}/run", data={"device_ids": dev, "variables": ""})
+    crf = re.search(r"/changes/(\d+)", r.url).group(1)
+    s.post(f"{B}/changes/{crf}/review", data={"decision": "approve"})
+    t = htmlmod.unescape(wait_cr(crf))
+    check("«Failed to set VLAN participation» marca la solicitud como fallida", "badge b-failed" in t)
+    check("se detiene en el comando rechazado y dice que no se guardó",
+          "vlan participation include 99" in t and "NO se guardó" in t, t[t.find("<pre>"):][:600])
+    time.sleep(4)
+    raw_now = s.get(f"{B}/versions/{versions(dev)[0]}?raw=1").text
+    check("los comandos posteriores al error no se aplicaron", "NO-DEBE-APLICARSE" not in raw_now)
+
+    # versión incompleta (24 líneas, como un respaldo cortado): no se puede revertir sin confirmar
+    from app.crypto import encrypt
+    from app.db import ConfigVersion, SessionLocal
+    tiny = "\n".join(l for l in raw_now.splitlines() if not l.startswith("!"))[:150] + "\n"
+    with SessionLocal() as db:
+        cv = ConfigVersion(device_id=int(dev), kind="running", content_enc=encrypt(tiny), sha256="0" * 64,
+                           size=len(tiny), added=0, removed=0, trigger="manual", username="prueba")
+        db.add(cv)
+        db.commit()
+        tiny_id = cv.id
+    backup(dev)  # la versión actual vuelve a ser la completa
+    page = htmlmod.unescape(s.get(f"{B}/versions/{tiny_id}").text)
+    check("la versión incompleta muestra el aviso", "Esta versión parece incompleta" in page)
+    r = s.post(f"{B}/versions/{tiny_id}/rollback")
+    check("sin confirmar no se crea la reversión", "/changes/" not in r.url and "No se creó la reversión" in
+          htmlmod.unescape(r.text), r.url)
+    r = s.post(f"{B}/versions/{tiny_id}/rollback", data={"confirm": "1"})
+    crt = re.search(r"/changes/(\d+)", r.url)
+    check("confirmando sí se crea (para revisarla)", crt is not None, r.url)
+    if crt:
+        s.post(f"{B}/changes/{crt.group(1)}/review", data={"decision": "reject"})
+
     s.post(f"{B}/devices/{dev}/delete")
 finally:
     proc.terminate()

@@ -438,7 +438,15 @@ def version_view(request: Request, ver_id: int, raw: int = 0):
         prev = db.scalars(select(ConfigVersion).where(ConfigVersion.device_id == v.device_id,
                                                       ConfigVersion.kind == v.kind, ConfigVersion.id < v.id)
                           .order_by(ConfigVersion.id.desc()).limit(1)).first()
-    return render(request, "version.html", user, v=v, text=text, prev=prev, is_baseline=is_baseline)
+        current = services.latest_version(db, v.device_id, v.kind)
+        small = _suspiciously_small(v, current)
+    return render(request, "version.html", user, v=v, text=text, prev=prev, is_baseline=is_baseline,
+                  small=small, current=current)
+
+
+def _suspiciously_small(v, current) -> bool:
+    """Una versión mucho más pequeña que la actual suele ser un respaldo cortado: revertir a ella borraría lo que falta."""
+    return bool(current and current.id != v.id and current.size and v.size < current.size * 0.5)
 
 
 @app.post("/versions/{ver_id}/label")
@@ -516,15 +524,18 @@ def diff_view(request: Request, a: int = 0, b: int = 0, ctx: int = 3, view: str 
 
 
 @app.post("/versions/{ver_id}/rollback")
-def version_rollback(request: Request, ver_id: int):
+async def version_rollback(request: Request, ver_id: int):
     user = require(request, "operator")
+    form = await request.form()
     with SessionLocal() as db:
         v = db.get(ConfigVersion, ver_id)
         check_device(user, v.device_id)
         dev_id, name = v.device_id, v.device.name
-        current = services.latest_version(db, dev_id, v.kind)
-        small = current is not None and current.size and v.size < current.size * 0.5
-        sizes = (v.size, current.size if current else 0)
+        small = _suspiciously_small(v, services.latest_version(db, dev_id, v.kind))
+    if small and form.get("confirm") != "1":
+        flash(request, f"No se creó la reversión: la versión #{ver_id} es mucho más pequeña que la actual y "
+                       "probablemente es un respaldo incompleto. Revise el aviso de esta página.", "error")
+        return go(f"/versions/{ver_id}")
     cmds = services.rollback_commands(dev_id, ver_id)
     if not cmds:
         flash(request, "La versión seleccionada es igual a la actual: nada que revertir")
@@ -532,10 +543,6 @@ def version_rollback(request: Request, ver_id: int):
     cr_id = _create_cr(user, f"Reversión de {name} a la versión #{ver_id}", "\n".join(cmds), {}, [dev_id],
                        is_rollback=True)
     log_action(request, user, "rollback_request", f"{name} -> v{ver_id}")
-    if small:
-        flash(request, f"Atención: la versión #{ver_id} es mucho más pequeña que la actual ({sizes[0]} frente a "
-                       f"{sizes[1]} bytes); puede ser un respaldo incompleto y la reversión borraría lo que falta. "
-                       "Revise los comandos con cuidado o rechace la solicitud.", "error")
     flash(request, "Se generó la solicitud de reversión. Revise los comandos antes de aprobar.")
     return go(f"/changes/{cr_id}")
 
