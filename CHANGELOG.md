@@ -7,6 +7,9 @@
   `curl -fsSL …/install.sh -o install.sh && sudo bash install.sh`.
   La forma `curl … | sudo bash -s -- --unattended` sigue siendo válida para instalar sin preguntas.
 - La prueba automática del asistente se ejecuta ahora como un usuario normal con sudo, igual que un administrador.
+- Corrección: si el respaldo posterior a un cambio aprobado no podía ejecutarse (equipo ocupado), la ventana de
+  mantenimiento quedaba abierta y los avisos syslog se retrasaban hasta que expiraba.
+- El registro del servicio (`opennccm logs`) anota cada respaldo y cada decisión de reversión automática.
 
 ## 1.2.0
 - Instalación con un solo comando desde GitHub (`curl … | sudo bash`), con asistente de menús o desatendida.
