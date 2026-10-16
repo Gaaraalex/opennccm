@@ -42,6 +42,10 @@ def device_lock(device_id: int) -> threading.Lock:
 def connect(dev: Device):
     from netmiko import ConnectHandler
 
+    from app import legacy_ssh
+
+    legacy_ssh.enable()  # equipos antiguos que solo ofrecen ssh-rsa / kex SHA-1 (p. ej. Ubiquiti EdgeSwitch)
+
     prof = get_profile(dev.device_type)
     cred = dev.credential
     if cred is None:

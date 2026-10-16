@@ -1,5 +1,14 @@
 # Historial de versiones
 
+## 1.3.1
+- **Equipos antiguos por SSH**: corrige el error «no matching host key type found. Their offer: ssh-rsa» /
+  «Incompatible ssh peer» al respaldar equipos como Ubiquiti EdgeSwitch, Cisco IOS 12.x o HP ProCurve antiguos.
+  La librería SSH (Paramiko 5) dejó de incluir los algoritmos con SHA-1; OpenNCCM vuelve a aceptar `ssh-rsa`,
+  `diffie-hellman-group14-sha1`, `diffie-hellman-group-exchange-sha1` y `diffie-hellman-group1-sha1`, siempre
+  como **última opción**: los equipos modernos siguen negociando algoritmos modernos.
+- Pruebas automáticas nuevas: respaldo de un equipo simulado que solo ofrece esos algoritmos y conexión a un
+  OpenSSH real configurado igual.
+
 ## 1.3.0
 - **Usuarios**: crear y editar ahora son acciones separadas (botón «Editar» en cada fila). Antes, si el desplegable
   «Modificar existente» tenía un usuario elegido, se modificaba ese usuario en lugar de crear uno nuevo.
