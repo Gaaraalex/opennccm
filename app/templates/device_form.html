@@ -25,7 +25,9 @@
       {% for c in credentials %}<option value="{{ c.id }}" {{ 'selected' if device and device.credential_id == c.id }}>{{ c.name }} ({{ c.username }})</option>{% endfor %}</select></div>
     <div><label>Grupo</label><select name="group_id"><option value="">—</option>
       {% for g in groups %}<option value="{{ g.id }}" {{ 'selected' if device and device.group_id == g.id }}>{{ g.name }}</option>{% endfor %}</select></div>
+    <div><label>…o crear un grupo nuevo</label><input name="new_group" placeholder="Ej.: Oficina principal" maxlength="100"></div>
   </div>
+  <p class="small muted">Los grupos ordenan los equipos por sede, rol o cliente: sirven para filtrar, respaldar o programar tareas por grupo y para limitar qué equipos ve cada usuario. Se administran en <a href="/credentials#groups">Credenciales → Grupos de dispositivos</a>.</p>
   <label>Ubicación</label><input name="location" style="width:100%" value="{{ device.location or '' if device }}">
   <label>Notas</label><textarea name="notes" rows="3">{{ device.notes or '' if device }}</textarea>
   <label>Comando de respaldo personalizado (opcional)</label>

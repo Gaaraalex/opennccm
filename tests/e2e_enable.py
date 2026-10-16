@@ -40,7 +40,8 @@ def backup(dev_id):
     return ok, htmlmod.unescape(s.get(f"{B}/devices/{dev_id}").text)
 
 
-procs = [subprocess.Popen([sys.executable, os.path.join(HERE, "fakedev.py"), port, "--legacy", f"--enable-pass={pw}"],
+procs = [subprocess.Popen([sys.executable, os.path.join(HERE, "fakedev.py"), port, "--legacy", "--edgeswitch",
+                           f"--enable-pass={pw}"],
                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
          for port, pw in (("2224", "cisco"), ("2225", "Enable123"))]
 try:

@@ -247,6 +247,14 @@ async def device_save(request: Request, dev_id: int | None = None):
     with SessionLocal() as db:
         dev = db.get(Device, dev_id) if dev_id else Device()
         _apply_device_form(dev, form)
+        new_group = (form.get("new_group") or "").strip()[:100]
+        if new_group:  # crear el grupo desde el propio formulario (o reutilizar uno con ese nombre)
+            g = next((x for x in db.scalars(select(DeviceGroup)) if x.name.lower() == new_group.lower()), None)
+            if g is None:
+                g = DeviceGroup(name=new_group)
+                db.add(g)
+                db.flush()
+            dev.group_id = g.id
         if not dev_id:
             db.add(dev)
         try:
@@ -507,6 +515,9 @@ def version_rollback(request: Request, ver_id: int):
         v = db.get(ConfigVersion, ver_id)
         check_device(user, v.device_id)
         dev_id, name = v.device_id, v.device.name
+        current = services.latest_version(db, dev_id, v.kind)
+        small = current is not None and current.size and v.size < current.size * 0.5
+        sizes = (v.size, current.size if current else 0)
     cmds = services.rollback_commands(dev_id, ver_id)
     if not cmds:
         flash(request, "La versión seleccionada es igual a la actual: nada que revertir")
@@ -514,6 +525,10 @@ def version_rollback(request: Request, ver_id: int):
     cr_id = _create_cr(user, f"Reversión de {name} a la versión #{ver_id}", "\n".join(cmds), {}, [dev_id],
                        is_rollback=True)
     log_action(request, user, "rollback_request", f"{name} -> v{ver_id}")
+    if small:
+        flash(request, f"Atención: la versión #{ver_id} es mucho más pequeña que la actual ({sizes[0]} frente a "
+                       f"{sizes[1]} bytes); puede ser un respaldo incompleto y la reversión borraría lo que falta. "
+                       "Revise los comandos con cuidado o rechace la solicitud.", "error")
     flash(request, "Se generó la solicitud de reversión. Revise los comandos antes de aprobar.")
     return go(f"/changes/{cr_id}")
 
@@ -783,7 +798,7 @@ def change_detail(request: Request, cr_id: int):
             except Exception as e:  # noqa: BLE001
                 previews.append((d.name, f"ERROR de plantilla: {e}"))
     can_review = ROLES[user.role] >= ROLES["admin"] and (
-        cr.requested_by != user.username or get_setting("allow_self_approval", "0") == "1")
+        cr.requested_by != user.username or get_setting("allow_self_approval", "1") == "1")
     return render(request, "change.html", user, cr=cr, devices=devs, previews=previews, can_review=can_review)
 
 
@@ -797,7 +812,7 @@ async def change_review(request: Request, cr_id: int):
         if cr.status != "pending":
             flash(request, "La solicitud ya fue revisada", "error")
             return go(f"/changes/{cr_id}")
-        if cr.requested_by == user.username and get_setting("allow_self_approval", "0") != "1":
+        if cr.requested_by == user.username and get_setting("allow_self_approval", "1") != "1":
             flash(request, "No puede aprobar sus propias solicitudes (ver Ajustes)", "error")
             return go(f"/changes/{cr_id}")
         cr.status = "approved" if decision == "approve" else "rejected"
@@ -949,26 +964,29 @@ def schedules(request: Request):
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
         configlets = db.scalars(select(Configlet).order_by(Configlet.name)).all()
     jobs = {j.id: j.next_run_time for j in scheduler.scheduler.get_jobs()}
-    return render(request, "schedules.html", user, items=items, groups=groups, configlets=configlets, jobs=jobs)
+    from . import cronutil
+    return render(request, "schedules.html", user, items=items, groups=groups, configlets=configlets, jobs=jobs,
+                  DAYS=cronutil.DAYS, FREQS=cronutil.FREQS)
 
 
 @app.post("/schedules")
 async def schedule_save(request: Request):
     user = require(request, "admin")
     form = await request.form()
-    from apscheduler.triggers.cron import CronTrigger
+    from . import cronutil
     try:
-        CronTrigger.from_crontab(form["cron"])
+        cron = cronutil.from_form(form)
     except ValueError as e:
-        flash(request, f"Expresión cron inválida: {e}", "error")
+        flash(request, f"Programación inválida: {e}", "error")
         return go("/schedules")
     with SessionLocal() as db:
-        db.add(Schedule(name=form["name"], action=form["action"], cron=form["cron"].strip(),
+        db.add(Schedule(name=form["name"], action=form["action"], cron=cron,
                         group_id=int(form["group_id"]) if form.get("group_id") else None,
                         configlet_id=int(form["configlet_id"]) if form.get("configlet_id") else None))
         db.commit()
     scheduler.reload_jobs()
-    log_action(request, user, "schedule_create", f"{form['name']} {form['cron']}")
+    log_action(request, user, "schedule_create", f"{form['name']} {cron}")
+    flash(request, f"Tarea «{form['name']}» creada: {cronutil.describe(cron)}")
     return go("/schedules")
 
 
@@ -1191,13 +1209,15 @@ SETTING_KEYS = ["smtp_host", "smtp_port", "smtp_security", "smtp_user", "smtp_fr
                 "webhook_url", "telegram_token", "telegram_chat_id", "alert_min_severity", "require_approval",
                 "allow_self_approval", "notify_compliance", "retention_versions", "cisco_api_client_id",
                 "dr_keep", "dr_remote_host", "dr_remote_port", "dr_remote_user", "dr_remote_path"]
+# valores por defecto cuando el ajuste nunca se guardó
+SETTING_DEFAULTS = {"allow_self_approval": "1"}
 SECRET_FORM_KEYS = ["smtp_password", "cisco_api_secret", "dr_remote_password"]
 
 
 @app.get("/settings")
 def settings(request: Request):
     user = require(request, "admin")
-    values = {k: get_setting(k) for k in SETTING_KEYS}
+    values = {k: get_setting(k, SETTING_DEFAULTS.get(k, "")) for k in SETTING_KEYS}
     for k in SECRET_FORM_KEYS:
         values[f"{k}_set"] = bool(get_setting(k))
     return render(request, "settings.html", user, s=values)

@@ -11,6 +11,8 @@ import time
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+
+from . import cronutil
 from sqlalchemy import select
 
 from . import services
@@ -76,7 +78,7 @@ def reload_jobs():
     with SessionLocal() as db:
         for s in db.scalars(select(Schedule).where(Schedule.enabled.is_(True))):
             try:
-                scheduler.add_job(run_schedule, CronTrigger.from_crontab(s.cron), args=[s.id], id=f"sched-{s.id}",
+                scheduler.add_job(run_schedule, cronutil.trigger(s.cron), args=[s.id], id=f"sched-{s.id}",
                                   replace_existing=True)
             except ValueError as e:
                 log.error("Cron inválido en tarea %s: %s", s.name, e)
