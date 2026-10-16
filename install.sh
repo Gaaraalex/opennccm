@@ -155,10 +155,10 @@ if [[ $UNATTENDED -eq 0 && ! -t 0 && "$(ps -o comm= -p "$PPID" 2>/dev/null | tr 
   RAW="https://raw.githubusercontent.com/Gaaraalex/opennccm/main/install.sh"
   cat <<EOF
 
-  ┌──────────────────────────────────────────────────────────────────────────┐
-  │  El asistente con menús necesita el teclado, pero con "curl | sudo bash"  │
-  │  sudo no se lo pasa al instalador. No se ha modificado nada.               │
-  └──────────────────────────────────────────────────────────────────────────┘
+  ── OpenNCCM ─────────────────────────────────────────────────────────────
+
+  El asistente con menús necesita el teclado, pero con "curl | sudo bash"
+  sudo no se lo pasa al instalador. No se ha modificado nada.
 
   Para la instalación guiada (con menús), descargue primero el instalador:
 
