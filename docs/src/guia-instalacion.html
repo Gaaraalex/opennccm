@@ -15,7 +15,7 @@
     <p class="sub">Paso a paso para instalar, configurar, asegurar, respaldar y actualizar OpenNCCM, el sistema de gestión
     de configuración, cambios y cumplimiento de red.</p>
   </div>
-  <div class="meta">Versión del software: 1.3.1<br>Sistemas soportados: Ubuntu Server 22.04 LTS y 24.04 LTS (64 bits)<br>
+  <div class="meta">Versión del software: 1.3.2<br>Sistemas soportados: Ubuntu Server 22.04 LTS y 24.04 LTS (64 bits)<br>
   Octubre de 2026</div>
 </div>
 
@@ -528,6 +528,7 @@ registrados después de actualizar (la base descartada se conserva con el sufijo
   <tr><td>«No se pudo abrir syslog UDP/514» en el log</td><td>Otro servicio usa el puerto (p. ej. rsyslog con recepción UDP activada). Desactive esa recepción o cambie <code>NCM_SYSLOG_PORT</code> en <code>/etc/opennccm/opennccm.env</code>.</td></tr>
   <tr><td>Respaldo: «TCP connection to device failed» o timeout</td><td>Sin conectividad o SSH cerrado. Pruebe <code>ssh</code> desde el servidor; revise ACL de VTY en el equipo.</td></tr>
   <tr><td>Equipo antiguo: «no matching host key type found. Their offer: ssh-rsa» o «Incompatible ssh peer»</td><td>El equipo (p. ej. Ubiquiti EdgeSwitch, Cisco IOS 12.x, HP ProCurve antiguos) solo admite algoritmos SHA-1. Desde la versión 1.3.1 OpenNCCM los acepta automáticamente <b>solo como última opción</b>, así que actualice con <code>sudo opennccm update</code>. Los equipos modernos siguen usando algoritmos modernos. Lo recomendable a largo plazo es actualizar el firmware del equipo.</td></tr>
+  <tr><td>«El equipo pide contraseña para el modo privilegiado (enable)…» o «Failed to enter enable mode»</td><td>El equipo exige una contraseña de <i>enable</i> distinta de la de ingreso (OpenNCCM ya prueba sin contraseña y con la de ingreso). Escríbala en <b>Credenciales → Enable / secret</b> de la credencial asignada al equipo y vuelva a respaldar.</td></tr>
   <tr><td>Respaldo: «Authentication failed»</td><td>Usuario/contraseña incorrectos en la credencial asignada.</td></tr>
   <tr><td>Respaldo: «Pattern not detected»</td><td>El prompt o el modo privilegiado no son los esperados: falta la contraseña de <i>enable</i>, o el <code>device_type</code> no corresponde al equipo.</td></tr>
   <tr><td>Respaldo: «salida inválida»</td><td>El comando de respaldo no existe en esa versión. Defina un <b>comando de respaldo personalizado</b> en el dispositivo.</td></tr>
