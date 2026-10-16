@@ -386,6 +386,10 @@ def edge_handle(s, mode, ctx):
             if v.group(1):
                 st["vlans"] -= ids
                 st["vlan"] = [x for x in st["vlan"] if int(x.split()[2]) not in ids]
+                for children in st["blocks"].values():  # al borrar una VLAN, los puertos dejan de usarla
+                    children[:] = [c for c in children if not (
+                        (m := re.fullmatch(r"vlan (?:participation (?:include|exclude)|tagging) ([\d,\-]+)", c))
+                        and _vlan_ids(m.group(1)) <= ids)]
             else:
                 st["vlans"] |= ids
             return ""
@@ -414,6 +418,10 @@ def edge_handle(s, mode, ctx):
             return ""
         if s.startswith(("vlan database", "network ", "interface ")):
             return INVALID
+        if v := re.fullmatch(r"vlan (participation (?:include|exclude|auto)|tagging) ([\d,\-]+)", s):
+            if not _vlan_ids(v.group(2)) <= st["vlans"]:  # como el equipo real: la VLAN debe existir
+                what = "participation" if v.group(1).startswith("participation") else "tagging"
+                return f"Failed to set VLAN {what}. Please refer system log for more information."
         edge_apply(st["blocks"][ctx[0]], s)
         return ""
     return INVALID

@@ -413,6 +413,33 @@ def push_commands(device_id: int, commands: list[str], exec_mode=False) -> str:
         raise
 
 
+# respuestas de rechazo de los equipos (Cisco y similares, Juniper, Broadcom FastPath/EdgeSwitch...)
+DEVICE_ERROR = re.compile(r"(?im)^\s*(% ?Invalid input|% ?Incomplete command|% ?Ambiguous command|syntax error|"
+                          r"Error:|ERROR:|Failed to |An invalid |Invalid input|Command not found)")
+
+
+def _push_stepwise(conn, commands: list[str]) -> str:
+    """Envía los comandos de uno en uno y se detiene en el primero que el equipo rechace.
+
+    En FastPath (EdgeSwitch) todos los modos terminan su prompt en «#»; así se lee la respuesta exacta de cada
+    comando y no se sigue (ni se guarda) después de un error."""
+    out = conn.config_mode()
+    for i, cmd in enumerate(commands):
+        resp = conn.send_command(cmd, expect_string=r"#\s*$", read_timeout=60, strip_prompt=False,
+                                 strip_command=False, cmd_verify=False)
+        out += f"\n{resp}"
+        if DEVICE_ERROR.search(resp):
+            done = "\n".join(commands[:i]) or "(ninguno)"
+            raise RuntimeError(
+                f"El equipo rechazó el comando «{cmd}» (n.º {i + 1} de {len(commands)}):\n{resp.strip()}\n\n"
+                f"Se detuvo ahí y NO se guardó la configuración (write memory). Comandos ya aplicados:\n{done}")
+    try:
+        out += conn.exit_config_mode()
+    except Exception:  # noqa: BLE001 - algunos comandos dejan el equipo fuera de «configure»
+        pass
+    return out
+
+
 def _push(device_id: int, commands: list[str], exec_mode: bool) -> str:
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
@@ -427,10 +454,13 @@ def _push(device_id: int, commands: list[str], exec_mode: bool) -> str:
                 for c in commands:
                     out.append(f"### {c}\n" + conn.send_command(c, read_timeout=180))
                 return "\n".join(out)
-            out = conn.send_config_set(commands, read_timeout=180, exit_config_mode=not prof.commit,
-                                       cmd_verify=False)
-            if re.search(r"(?im)^\s*(% ?Invalid input|% ?Incomplete command|syntax error|Error:)", out):
-                raise RuntimeError("El equipo rechazó comandos:\n" + out[-3000:])
+            if prof.family == FASTPATH:
+                out = _push_stepwise(conn, commands)
+            else:
+                out = conn.send_config_set(commands, read_timeout=180, exit_config_mode=not prof.commit,
+                                           cmd_verify=False)
+                if DEVICE_ERROR.search(out):
+                    raise RuntimeError("El equipo rechazó comandos:\n" + out[-3000:])
             if prof.commit:
                 out += "\n" + conn.commit()
                 try:
@@ -493,6 +523,8 @@ def execute_change_request(cr_id: int):
             except Exception as e:  # noqa: BLE001
                 fail += 1
                 report.append(f"===== {name}: ERROR\n{e}")
+                # parte de los comandos pudo aplicarse: respaldar para que la versión refleje el estado real
+                pool.submit(backup_device, dev_id, "push", cr.requested_by)
         cr.status = "done" if fail == 0 else ("failed" if ok == 0 else "partial")
         cr.result = "\n\n".join(report)
         cr.executed_at = now()

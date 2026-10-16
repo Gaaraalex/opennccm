@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 1.4.1<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 1.4.2<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -339,7 +339,9 @@ fabricante:</p>
   <tr><td>FastPath</td><td>Ubiquiti EdgeSwitch</td><td>Respeta sus tres ámbitos: modo privilegiado, <code>vlan database</code> y
   <code>configure</code> (bloques cerrados con <code>exit</code>). Reescribe los ajustes de un solo valor (descripción, nombre, usuario)
   en lugar de borrarlos, usa <code>vlan participation auto</code> para quitar un puerto de una VLAN y <b>nunca cambia la IP de gestión</b>
-  (<code>network parms</code>) para no cortar la conexión.</td></tr>
+  (<code>network parms</code>) para no cortar la conexión. Orden: primero crea las VLAN que faltan, luego ajusta los puertos y al
+  final borra las VLAN que sobran. Los comandos se envían de uno en uno: si el switch rechaza uno («Failed to…»), se detiene ahí,
+  no guarda la configuración y respalda el equipo para registrar su estado real.</td></tr>
   <tr><td>Set</td><td>Junos, VyOS, EdgeRouter</td><td><code>delete …</code> para lo que sobra y <code>set …</code> para lo que falta.</td></tr>
   <tr><td>Merge</td><td>FortiGate, PAN-OS, MikroTik, Check Point…</td><td>Re-aplica la configuración destino completa (no elimina líneas agregadas).</td></tr>
 </table>
@@ -348,9 +350,10 @@ fabricante:</p>
   <li>Abra la versión a la que quiere volver y pulse <b>Revertir el equipo a esta versión…</b></li>
   <li>Se crea una solicitud de cambio marcada «reversión» con los comandos generados. <b>Revíselos</b> antes de aprobar.</li>
 </ol>
-<div class="warn"><b>Versiones incompletas</b>Si la versión destino es mucho más pequeña que la actual, OpenNCCM avisa: puede ser un
-respaldo cortado y revertir a ella borraría lo que falta. Desde la versión 1.4.0 los respaldos cortados o paginados
-(«--More--») se rechazan y no se guardan.</div>
+<div class="warn"><b>Versiones incompletas</b>Si la versión destino es menos de la mitad de la actual, casi siempre es un respaldo
+cortado: revertir a ella borraría del equipo todo lo que falta. La página de esa versión lo advierte y el botón normal de reversión
+desaparece; solo se puede crear con «Entiendo el riesgo: revertir de todas formas…». Desde la versión 1.4.0 los respaldos cortados o
+paginados («--More--») se rechazan y no se guardan.</div>
 <h2>Reversión automática</h2>
 <p>Si el dispositivo tiene activada <b>«Revertir automáticamente cambios no autorizados»</b>, cuando un cambio se detecta por syslog o
 por un respaldo programado, y no proviene de una solicitud aprobada, OpenNCCM aplica de inmediato los comandos inversos, vuelve a

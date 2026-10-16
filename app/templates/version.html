@@ -11,8 +11,21 @@
   {% if v.kind == 'running' %}
   {% if is_baseline %}<span class="badge b-ok">Línea base del equipo</span>
   {% else %}<form class="inline" method="post" action="/versions/{{ v.id }}/baseline"><button class="sec">Marcar como línea base</button></form>{% endif %}
-  <form class="inline" method="post" action="/versions/{{ v.id }}/rollback"><button class="danger">Revertir el equipo a esta versión…</button></form>
+  {% if not small %}<form class="inline" method="post" action="/versions/{{ v.id }}/rollback"><button class="danger">Revertir el equipo a esta versión…</button></form>{% endif %}
   {% endif %}{% endif %}
 </div>
+{% if small and v.kind == 'running' %}
+<div class="card" style="border-color:var(--crit)">
+  <h2 style="margin-top:0">⚠ Esta versión parece incompleta</h2>
+  <p>Tiene <b>{{ v.size }} bytes</b> y la configuración actual (<a href="/versions/{{ current.id }}">versión #{{ current.id }}</a>)
+  tiene <b>{{ current.size }} bytes</b>. Casi siempre es un respaldo cortado. Si revierte el equipo a esta versión,
+  OpenNCCM <b>borrará del equipo todo lo que falta aquí</b> (VLAN, usuarios, puertos…).</p>
+  <p>Para volver a un estado anterior, elija una versión completa en el historial del equipo.</p>
+  {% if ROLES[user.role] >= 1 %}
+  <form method="post" action="/versions/{{ v.id }}/rollback" onsubmit="return confirm('Se borrará del equipo todo lo que no esté en esta versión. ¿Continuar?')">
+    <input type="hidden" name="confirm" value="1"><button class="danger">Entiendo el riesgo: revertir de todas formas…</button></form>
+  {% endif %}
+</div>
+{% endif %}
 <pre>{{ text }}</pre>
 {% endblock %}

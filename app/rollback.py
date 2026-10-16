@@ -192,7 +192,8 @@ def _vlan_spec(ids: set[int]) -> str:
     return ",".join(out)
 
 
-def _fp_vlans(cur: list[str], tgt: list[str]) -> list[str]:
+def _fp_vlans(cur: list[str], tgt: list[str]) -> tuple[list[str], list[str], set[int]]:
+    """Devuelve (comandos previos: crear VLAN y nombres, comandos finales: borrar VLAN, VLAN borradas)."""
     def split(lines):
         ids, rest = set(), []
         for l in lines:
@@ -204,25 +205,39 @@ def _fp_vlans(cur: list[str], tgt: list[str]) -> list[str]:
         return ids, rest
     cur_ids, cur_rest = split(cur)
     tgt_ids, tgt_rest = split(tgt)
-    out = [f"vlan {_vlan_spec(tgt_ids - cur_ids)}"] if tgt_ids - cur_ids else []
-    out += _fp_flat(cur_rest, tgt_rest)
-    if cur_ids - tgt_ids:
-        out.append(f"no vlan {_vlan_spec(cur_ids - tgt_ids)}")
-    return out
+    gone = cur_ids - tgt_ids
+    # el nombre de una VLAN que se borra desaparece con ella
+    cur_rest = [l for l in cur_rest if not (re.match(r"vlan name (\d+) ", l) and int(l.split()[2]) in gone)]
+    before = [f"vlan {_vlan_spec(tgt_ids - cur_ids)}"] if tgt_ids - cur_ids else []
+    before += _fp_flat(cur_rest, tgt_rest)
+    after = [f"no vlan {_vlan_spec(gone)}"] if gone else []
+    return before, after, gone
+
+
+def _refs_only(line: str, vlans: set[int]) -> bool:
+    """¿La línea de un puerto solo menciona VLAN que se van a borrar? (al borrar la VLAN se va con ella)."""
+    m = re.fullmatch(r"vlan (?:participation (?:include|exclude)|tagging) ([\d,\-]+)", line)
+    return bool(m and vlans and _vlan_ids(m.group(1)) <= vlans)
 
 
 def _fastpath(current: str, target: str) -> list[str]:
     cur, tgt = _fp_parse(current), _fp_parse(target)
     exec_cmds = _fp_flat([l for l in cur["exec"] if not FP_MGMT.match(l)],
                          [l for l in tgt["exec"] if not FP_MGMT.match(l)])
-    vlan_cmds = _fp_vlans(cur["vlan"], tgt["vlan"])
+    vlan_before, vlan_after, gone = _fp_vlans(cur["vlan"], tgt["vlan"])
     cfg = _fp_flat(cur["top"], tgt["top"])
     cur_b, tgt_b = dict(cur["blocks"]), dict(tgt["blocks"])
+
+    def port_diff(old, new):
+        return _fp_flat([l for l in old if not _refs_only(l, gone)], new)
+
     for header, children in cur["blocks"]:
         if header in tgt_b:
             continue
         if re.match(r"(interface|line) ", header):  # los puertos no se borran: vuelven a su valor por omisión
-            cfg += [header] + [_fp_negate(c) for c in children if c != "exit"] + ["exit"]
+            body = port_diff([c for c in children if c != "exit"], [])
+            if body:
+                cfg += [header] + body + ["exit"]
         else:
             cfg.append("no " + header)
     for header, children in tgt["blocks"]:
@@ -233,15 +248,22 @@ def _fastpath(current: str, target: str) -> list[str]:
             if any(FP_OPENER.match(c) for c in old + children):  # submodos anidados: se recrea el bloque
                 cfg += ["no " + header, header] + children + ["exit"]
             else:
-                cfg += [header] + _fp_flat(old, children) + ["exit"]
+                body = port_diff(old, children)
+                if body:
+                    cfg += [header] + body + ["exit"]
+    # Orden: 1) modo privilegiado y VLAN nuevas (los puertos las necesitan), 2) configuración,
+    # 3) borrar VLAN al final (antes de eso los puertos todavía las usan).
     out: list[str] = []
-    if exec_cmds or vlan_cmds:
+    if exec_cmds or vlan_before:
         out.append("exit")  # al aplicar se entra en «configure»; estos comandos son del modo privilegiado
         out += exec_cmds
-        if vlan_cmds:
-            out += ["vlan database"] + vlan_cmds + ["exit"]
+        if vlan_before:
+            out += ["vlan database"] + vlan_before + ["exit"]
         out.append("configure")
-    return out + cfg
+    out += cfg
+    if vlan_after:
+        out += ["exit", "vlan database"] + vlan_after + ["exit", "configure"]
+    return out
 
 
 def build_rollback(current: str, target: str, family: str) -> list[str]:

@@ -99,9 +99,10 @@ def before_configure(c):
 
 check("VLAN y modo privilegiado van antes de volver a «configure»", cmds[0] == "exit" and cfg_at > 0)
 check("vlan database fuera de configure", before_configure("vlan database"))
-check("borra las VLAN añadidas (no vlan 20,30)", before_configure("no vlan 20,30"))
+check("borra las VLAN añadidas AL FINAL, después de ajustar los puertos",
+      "no vlan 20,30" in cmds and cmds.index("no vlan 20,30") > cmds.index("interface 0/2"))
 check("restaura el nombre de la VLAN 10 sin borrarla", 'vlan name 10 "Datos"' in cmds and "no vlan name 10" not in cmds)
-check("borra el nombre de la VLAN 20", "no vlan name 20" in cmds)
+check("no borra por separado el nombre de una VLAN que se elimina", "no vlan name 20" not in cmds)
 check("NO toca la IP de gestión (network parms)", not any(c.startswith("network ") for c in cmds))
 check("usuario admin: se reescribe, no se borra", 'no username "admin"' not in cmds and
       'username "admin" password 0123456789abcdef level 15 encrypted' in cmds)
@@ -113,13 +114,29 @@ check("interface 0/1: vuelve a include 10 y tagging 10", "vlan participation inc
       "vlan tagging 10" in blk1 and not any("auto" in c or c.startswith("no ") for c in blk1), blk1)
 i2 = cmds.index("interface 0/2")
 blk2 = cmds[i2:cmds.index("exit", i2) + 1]
-check("interface 0/2: participación auto, sin tagging/pvid y descripción original",
-      "vlan participation auto 20" in blk2 and "no vlan tagging 20" in blk2 and "no vlan pvid" in blk2 and
+check("interface 0/2: no toca la VLAN 20 (se borra después), quita pvid y vuelve a su descripción",
+      not any(" 20" in c for c in blk2) and "no vlan pvid" in blk2 and
       "description 'PC'" in blk2 and "no description" not in blk2, blk2)
 i3 = cmds.index("interface 0/3")
 blk3 = cmds[i3:cmds.index("exit", i3) + 1]
 check("interface 0/3 nueva: se devuelve a valores por omisión (no se borra el puerto)",
       "no interface 0/3" not in cmds and "no description" in blk3 and "no shutdown" in blk3, blk3)
+# caso real: revertir a una versión sin la VLAN 10 que usan todos los puertos
+WITH10 = BASE.replace("interface 0/2\ndescription 'PC'\nexit",
+                      "interface 0/2\ndescription 'PC'\nvlan participation include 10\nexit")
+NO10 = (BASE.replace("vlan 10\n", "").replace('vlan name 10 "Datos"\n', "")
+        .replace("vlan participation include 10\nvlan tagging 10\n", ""))
+c2 = build_rollback(clean_config(WITH10, prof), clean_config(NO10, prof), FASTPATH)
+print("\n".join("    " + c for c in c2))
+check("quitar una VLAN: no intenta sacar los puertos de ella (se van al borrarla)",
+      not any("participation" in c or "tagging" in c for c in c2), c2)
+check("quitar una VLAN: el borrado es lo último y se vuelve a configure",
+      c2[-4:] == ["vlan database", "no vlan 10", "exit", "configure"], c2[-5:])
+c3 = build_rollback(clean_config(NO10, prof), clean_config(WITH10, prof), FASTPATH)
+print("\n".join("    " + c for c in c3))
+check("recuperar una VLAN: se crea antes de asignarla a los puertos",
+      "vlan 10" in c3 and "vlan participation include 10" in c3 and
+      c3.index("vlan 10") < c3.index("vlan participation include 10"), c3)
 check("sin cambios no genera comandos", build_rollback(clean_config(BASE, prof), clean_config(later, prof),
                                                         FASTPATH) == [])
 
