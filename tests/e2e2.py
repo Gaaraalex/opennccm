@@ -53,6 +53,10 @@ sysp = s.get(B + "/system").text
 check("Netmiko conoce todas las plataformas", "no conoce" not in sysp)
 
 # ---------------------------------------------------------------- línea base
+# e2e_syslog dejó la reversión automática activada en R1 (y puede quedar una comprobación de syslog diferida):
+# se desactiva para que el cambio de prueba no se revierta solo antes de medir el desvío
+s.post(B + "/devices/1/edit", data={"name": "R1", "host": "127.0.0.1", "device_type": "cisco_ios", "protocol": "ssh",
+                                    "port": "2222", "credential_id": "1", "group_id": "1", "enabled": "on"})
 html = s.get(B + "/devices/1").text
 latest = re.findall(r'<td>(\d+)</td><td class="small">[^<]*</td><td>running</td>', html)[0]
 startup_id = re.findall(r'<td>(\d+)</td><td class="small">[^<]*</td><td>startup</td>', html)[0]

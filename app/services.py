@@ -21,8 +21,8 @@ from .config import NVD_API_KEY, WORKERS
 from .crypto import decrypt, encrypt
 from .db import (ChangeRequest, ComplianceResult, ConfigVersion, Device, Event, Policy, SessionLocal,
                  Vulnerability, get_setting, now)
-from .drivers import FASTPATH, clean_config, get_profile, parse_inventory, telnet_supported
-from .rollback import build_rollback
+from .drivers import FASTPATH, IOS, clean_config, compare_text, get_profile, parse_inventory, telnet_supported
+from .rollback import build_rollback, fastpath_style
 
 log = logging.getLogger("opennccm")
 pool = ThreadPoolExecutor(max_workers=WORKERS, thread_name_prefix="ncm")  # trabajo por equipo
@@ -81,12 +81,33 @@ def connect(dev: Device):
                 "(Credenciales → Enable / secret).") from e2
         log.info("%s: enable aceptó la contraseña de ingreso (la credencial no tiene contraseña de enable)",
                  dev.name)
-    if secret:
-        try:
-            if not conn.check_enable_mode():
-                conn.enable()
-        except Exception:  # noqa: BLE001 - no todos los drivers tienen modo enable
-            pass
+    if prof.family not in (IOS, FASTPATH):  # Juniper, Huawei, MikroTik, Linux...: no tienen modo «enable»
+        return conn
+    try:
+        privileged = conn.check_enable_mode()
+    except Exception:  # noqa: BLE001 - driver sin modo enable
+        privileged = True
+    if privileged:
+        return conn
+    # Ingresó en modo usuario («>»): sin modo privilegiado no se puede leer la configuración.
+    # Con la credencial sin enable se prueba la contraseña de ingreso (muy habitual).
+    conn.secret = secret or password
+    try:
+        conn.enable()
+        privileged = conn.check_enable_mode()
+    except Exception:  # noqa: BLE001
+        privileged = False
+    if not privileged:
+        conn.disconnect()
+        if secret:
+            raise RuntimeError(f"El equipo no aceptó la contraseña de enable de la credencial «{cred.name}». "
+                               "Corríjala en Credenciales → Enable / secret.")
+        raise RuntimeError(
+            "El equipo entró en modo usuario («>») y pide contraseña para el modo privilegiado (enable); no se pudo "
+            f"entrar con la contraseña de ingreso. Escriba la contraseña de enable en la credencial «{cred.name}» "
+            "(Credenciales → Enable / secret).")
+    if not secret:
+        log.info("%s: enable aceptó la contraseña de ingreso (la credencial no tiene contraseña de enable)", dev.name)
     return conn
 
 
@@ -211,8 +232,12 @@ def latest_version(db, device_id: int, kind="running") -> ConfigVersion | None:
                       .order_by(ConfigVersion.id.desc()).limit(1)).first()
 
 
+# última línea con la que siempre termina «show running-config» en estas plataformas
+END_MARK = {"cisco_ios": "end", "cisco_xe": "end", "arista_eos": "end", "cisco_asa": ": end"}
+
+
 def _normalize_for_compare(text: str) -> list[str]:
-    return [l.rstrip() for l in text.splitlines()
+    return [l.rstrip() for l in compare_text(text).splitlines()
             if l.strip() and not re.match(r"^\s*(!|#|Building|Current configuration|Using \d+ out of)", l)]
 
 
@@ -292,9 +317,12 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
             db.commit()
             add_event("major", "Respaldo fallido", f"{dev.name}: salida inválida:\n{running[:300]}", dev.id)
             return "error"
-        # salida cortada: paginación activa («--More--») o configuración FastPath sin el «exit» final
-        incomplete = re.search(r"(?i)--\s*more\s*--|\(q\)uit", running) or (
-            prof.family == FASTPATH and "configure" in running and running.rstrip().splitlines()[-1].strip() != "exit")
+        # salida cortada: paginación activa («--More--»), configuración estilo FastPath sin el «exit» final o
+        # plataformas que siempre terminan en «end» y esta vez no
+        last = running.rstrip().splitlines()[-1].strip()
+        incomplete = re.search(r"(?i)--\s*more\s*--|\(q\)uit|press any key", running) or (
+            re.search(r"(?m)^configure$", running) and fastpath_style(running) and last != "exit") or (
+            dev.device_type in END_MARK and not dev.custom_backup_cmd and last != END_MARK[dev.device_type])
         if incomplete:
             dev.last_status = "error"
             dev.last_error = "La configuración llegó incompleta (cortada o paginada); no se guardó esta versión"
@@ -303,7 +331,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
                       f"{running[-300:]}", dev.id)
             return "error"
 
-        sha = hashlib.sha256(running.encode()).hexdigest()
+        sha = hashlib.sha256(compare_text(running).encode()).hexdigest()
         prev = latest_version(db, dev.id)
         changed = prev is None or prev.sha256 != sha
         result = "unchanged"
@@ -317,7 +345,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
 
         if startup is not None:
             startup = clean_config(startup, prof)
-            ssha = hashlib.sha256(startup.encode()).hexdigest()
+            ssha = hashlib.sha256(compare_text(startup).encode()).hexdigest()
             sprev = latest_version(db, dev.id, "startup")
             if sprev is None or sprev.sha256 != ssha:
                 db.add(ConfigVersion(device_id=dev.id, kind="startup", content_enc=encrypt(startup),
@@ -413,30 +441,65 @@ def push_commands(device_id: int, commands: list[str], exec_mode=False) -> str:
         raise
 
 
-# respuestas de rechazo de los equipos (Cisco y similares, Juniper, Broadcom FastPath/EdgeSwitch...)
-DEVICE_ERROR = re.compile(r"(?im)^\s*(% ?Invalid input|% ?Incomplete command|% ?Ambiguous command|syntax error|"
-                          r"Error:|ERROR:|Failed to |An invalid |Invalid input|Command not found)")
+# Respuestas con las que los equipos rechazan un comando, por fabricante:
+#   Cisco/Arista/Dell/Allied/Extreme («% Invalid input», «%% Invalid»), HP Comware/Mellanox/A10 («% Unrecognized»),
+#   Huawei («Error: Unrecognized command»), Juniper («syntax error», «unknown command», «error: ...»),
+#   MikroTik («bad command name», «expected end of command», «failure: ...», «input does not match»),
+#   FortiGate («Command fail. Return code», «Unknown action», «entry not found», «value parse error»),
+#   Palo Alto («Invalid syntax», «Server error»), Nokia SR OS («MINOR:/MAJOR:»), Cisco IOS-XR («!!% ...»),
+#   VyOS/EdgeRouter («Set failed», «Invalid command»), Check Point («CLINFR0329 Invalid command»),
+#   Broadcom FastPath/EdgeSwitch/Netgear/Dell N («Failed to ...», «An invalid ...»), HP ProCurve («Invalid input:»).
+DEVICE_ERROR = re.compile(
+    r"(?im)^\s*(%+\s*(Invalid|Incomplete|Ambiguous|Unrecognized|Unknown|Error|Bad|Wrong|Failed|Cannot)|!!%|"
+    r"syntax error|unknown command|error:|Error\b|Failed to |An invalid |Invalid (input|command|syntax|value)|"
+    r"Incomplete command|Unrecognized command|Command not found|Command fail|Unknown action|bad command name|"
+    r"expected end of command|failure:|input does not match|entry not found|value parse error|Server error|"
+    r"(MINOR|MAJOR|CRITICAL): |CLINFR\d+|(Set|Delete|Commit) failed|Cannot |Unable to |Incorrect usage)")
+# fin de la respuesta a un comando: el prompt del equipo (# > $ ]) o una pregunta de confirmación
+PROMPT_END = r"([#>$\]]\s*$|\[confirm\]\s*$|[\[(](y/n|yes/no|Y/N)[\])]\s*[?:]?\s*$)"
+CONFIRM = re.compile(r"(\[confirm\]|[\[(](y/n|yes/no|Y/N)[\])])\s*[?:]?\s*$")
+# cómo descartar cambios sin confirmar en plataformas con «commit» si algo falla a mitad
+DISCARD = {"juniper_junos": "rollback 0", "juniper": "rollback 0", "cisco_xr": "abort", "cisco_viptela": "abort",
+           "vyos": "discard", "ubiquiti_edgerouter": "discard", "huawei_vrpv8": "abort", "nokia_srl": "discard now",
+           "paloalto_panos": "revert config"}
 
 
-def _push_stepwise(conn, commands: list[str]) -> str:
+def _push_stepwise(conn, commands: list[str], prof) -> str:
     """Envía los comandos de uno en uno y se detiene en el primero que el equipo rechace.
 
-    En FastPath (EdgeSwitch) todos los modos terminan su prompt en «#»; así se lee la respuesta exacta de cada
-    comando y no se sigue (ni se guarda) después de un error."""
+    Se lee la respuesta de cada comando hasta el prompt, así se sabe exactamente cuál falló, no se envían los
+    siguientes y no se guarda (write memory / commit). En plataformas con commit se descartan los cambios
+    pendientes para no dejarlos a medias en la configuración candidata."""
     out = conn.config_mode()
     for i, cmd in enumerate(commands):
-        resp = conn.send_command(cmd, expect_string=r"#\s*$", read_timeout=60, strip_prompt=False,
+        resp = conn.send_command(cmd, expect_string=PROMPT_END, read_timeout=60, strip_prompt=False,
                                  strip_command=False, cmd_verify=False)
         out += f"\n{resp}"
+        problem = None
         if DEVICE_ERROR.search(resp):
+            problem = "rechazó"
+        elif CONFIRM.search(resp):
+            problem = "pidió una confirmación para"
+        if problem:
             done = "\n".join(commands[:i]) or "(ninguno)"
+            note = "NO se guardó la configuración (write memory)."
+            if prof.commit:
+                discard = DISCARD.get(prof.key)
+                try:
+                    if discard:
+                        conn.send_command(discard, expect_string=PROMPT_END, read_timeout=60, cmd_verify=False)
+                    note = ("NO se hizo commit" + (f" y se descartaron los cambios pendientes («{discard}»)."
+                                                   if discard else "; revise la configuración candidata del equipo."))
+                except Exception:  # noqa: BLE001
+                    note = "NO se hizo commit; revise la configuración candidata del equipo."
             raise RuntimeError(
-                f"El equipo rechazó el comando «{cmd}» (n.º {i + 1} de {len(commands)}):\n{resp.strip()}\n\n"
-                f"Se detuvo ahí y NO se guardó la configuración (write memory). Comandos ya aplicados:\n{done}")
-    try:
-        out += conn.exit_config_mode()
-    except Exception:  # noqa: BLE001 - algunos comandos dejan el equipo fuera de «configure»
-        pass
+                f"El equipo {problem} el comando «{cmd}» (n.º {i + 1} de {len(commands)}):\n{resp.strip()}\n\n"
+                f"Se detuvo ahí y {note} Comandos ya aplicados:\n{done}")
+    if not prof.commit:
+        try:
+            out += conn.exit_config_mode()
+        except Exception:  # noqa: BLE001 - algunos comandos dejan el equipo fuera del modo configuración
+            pass
     return out
 
 
@@ -454,13 +517,7 @@ def _push(device_id: int, commands: list[str], exec_mode: bool) -> str:
                 for c in commands:
                     out.append(f"### {c}\n" + conn.send_command(c, read_timeout=180))
                 return "\n".join(out)
-            if prof.family == FASTPATH:
-                out = _push_stepwise(conn, commands)
-            else:
-                out = conn.send_config_set(commands, read_timeout=180, exit_config_mode=not prof.commit,
-                                           cmd_verify=False)
-                if DEVICE_ERROR.search(out):
-                    raise RuntimeError("El equipo rechazó comandos:\n" + out[-3000:])
+            out = _push_stepwise(conn, commands, prof)
             if prof.commit:
                 out += "\n" + conn.commit()
                 try:

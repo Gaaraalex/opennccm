@@ -391,9 +391,41 @@ def get_profile(key: str) -> Profile:
     return PROFILE_MAP.get(key) or Profile(key, key, "Genérico", "show running-config", family=MERGE)
 
 
+# Líneas de comentario con fecha/hora o contadores que muchos fabricantes añaden al mostrar la configuración.
+# Se quitan en todas las plataformas: no son configuración y generarían un «cambio» en cada respaldo.
+GLOBAL_IGNORE = [
+    r"^!System Up Time", r"^!Current SNTP Synchronized Time",                     # Broadcom FastPath, Dell, Netgear
+    r"^## Last (commit|changed)", r"^## Generated at ",                           # Junos, Mellanox
+    r"^!Last configuration was (updated|saved)",                                  # Huawei
+    r"^# \w{3}/\d{2}/\d{4} \d{2}:\d{2}:\d{2} by RouterOS",                        # MikroTik 6.x
+    r"^# \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} by RouterOS",                        # MikroTik 7.x
+    r"^#conf_file_ver=",                                                          # FortiGate
+    r"^# Exported by \S+ on ",                                                    # Check Point Gaia
+    r"^#\s*(Generated|Finished|Completed) .*\d{1,2}:\d{2}:\d{2}",                 # Nokia SR OS y otros
+    r"^! Startup-config last modified",                                           # Arista
+    r"^: Written by ",                                                            # Cisco ASA
+    r"^!\s*(Last configuration change|NVRAM config last updated) at ",            # Cisco y clones IOS
+    r"^!\s*Time: ",                                                               # Cisco NX-OS
+]
+# Valores que el equipo vuelve a cifrar con sal aleatoria en cada lectura (no son un cambio real).
+# Solo se enmascaran para decidir si hubo cambios: la versión guardada conserva el texto original.
+GLOBAL_MASK = [
+    r"(\bENC )\S+",                      # FortiGate: «set password ENC <base64>» cambia en cada «show»
+]
+_GLOBAL_IGNORE_RE = [re.compile(p) for p in GLOBAL_IGNORE]
+_GLOBAL_MASK_RE = [re.compile(p) for p in GLOBAL_MASK]
+
+
+def compare_text(text: str) -> str:
+    """Texto normalizado para detectar cambios (sin valores cifrados con sal aleatoria)."""
+    for p in _GLOBAL_MASK_RE:
+        text = p.sub(r"\1***", text)
+    return text
+
+
 def clean_config(text: str, profile: Profile) -> str:
     """Quita líneas volátiles (marcas de tiempo, checksums) para evitar falsos cambios."""
-    pats = [re.compile(p) for p in profile.ignore]
+    pats = [re.compile(p) for p in profile.ignore] + _GLOBAL_IGNORE_RE
     lines = []
     for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
         if any(p.search(line) for p in pats):
