@@ -15,7 +15,7 @@
     <p class="sub">Paso a paso para instalar, configurar, asegurar, respaldar y actualizar OpenNCCM, el sistema de gestión
     de configuración, cambios y cumplimiento de red.</p>
   </div>
-  <div class="meta">Versión del software: 1.2.1<br>Sistemas soportados: Ubuntu Server 22.04 LTS y 24.04 LTS (64 bits)<br>
+  <div class="meta">Versión del software: 1.3.0<br>Sistemas soportados: Ubuntu Server 22.04 LTS y 24.04 LTS (64 bits)<br>
   Octubre de 2026</div>
 </div>
 
@@ -148,7 +148,7 @@ limitar las versiones por equipo en <b>Ajustes → Retención</b>.</p>
 <h1>3. Preparar el servidor Ubuntu</h1>
 <p>Conéctese al servidor por SSH (desde Windows puede usar PowerShell, PuTTY o Windows Terminal):</p>
 <div class="term" data-title="PowerShell en su PC"><span class="p">PS&gt;</span> ssh USUARIO@IP_DEL_SERVIDOR</div>
-<p>No necesita preparar nada más: el instalador actualiza Ubuntu, instala las dependencias y le pregunta la zona horaria. Solo compruebe que el servidor tenga la hora correcta sincronizada (<code>timedatectl</code> debe mostrar «NTP service: active») y, si quiere, cambie el nombre del equipo:</p>
+<p>No necesita preparar nada más: el instalador actualiza Ubuntu, instala las dependencias y le pregunta la zona horaria. La zona horaria y la hora también se pueden cambiar después desde <b>Sistema → Fecha y hora</b>. Solo compruebe que el servidor tenga la hora correcta sincronizada (<code>timedatectl</code> debe mostrar «NTP service: active») y, si quiere, cambie el nombre del equipo:</p>
 <div class="term" data-title="Servidor Ubuntu"><span class="p">$</span> timedatectl
 <span class="p">$</span> sudo hostnamectl set-hostname opennccm     <span class="c"># opcional</span></div>
 <div class="tip"><b>Recomendación</b>Si el servidor es una máquina virtual, tome una instantánea (snapshot) ahora. Permite volver a
@@ -532,7 +532,7 @@ registrados después de actualizar (la base descartada se conserva con el sufijo
   <tr><td>Respaldo: «salida inválida»</td><td>El comando de respaldo no existe en esa versión. Defina un <b>comando de respaldo personalizado</b> en el dispositivo.</td></tr>
   <tr><td>Los cambios no se detectan en tiempo real</td><td>El equipo no envía syslog, lo envía desde otra IP, o un cortafuegos bloquea UDP 514. Verifique con <code>sudo tcpdump -ni any udp port 514</code>.</td></tr>
   <tr><td>Telnet «no soportado»</td><td>Esa plataforma no tiene variante Telnet en Netmiko: use SSH.</td></tr>
-  <tr><td>Olvidó la contraseña de admin</td><td><code>sudo opennccm reset-password admin 'NuevaClave123'</code></td></tr>
+  <tr><td>Olvidó la contraseña o no puede ingresar</td><td><code>sudo opennccm users</code> para ver los usuarios y <code>sudo opennccm reset-password USUARIO 'NuevaClave123'</code>. Tras 10 intentos fallidos el ingreso se bloquea 15 minutos: <code>sudo opennccm restart</code> lo desbloquea.</td></tr>
   <tr><td>Firmware: «MD5 no verificado»</td><td>Imagen dañada o espacio insuficiente; en Cisco habilite <code>ip scp server enable</code>.</td></tr>
 </table>
 </section>
@@ -578,6 +578,7 @@ registrados después de actualizar (la base descartada se conserva con el sufijo
   <tr><td><code>sudo opennccm rollback</code></td><td>Volver a la versión anterior</td></tr>
   <tr><td><code>sudo opennccm backup [--with-key]</code></td><td>Copia de recuperación</td></tr>
   <tr><td><code>sudo opennccm restore ARCHIVO</code></td><td>Restaurar una copia</td></tr>
+  <tr><td><code>sudo opennccm users</code></td><td>Listar usuarios, rol, estado y equipos permitidos</td></tr>
   <tr><td><code>sudo opennccm reset-password USUARIO 'CLAVE'</code></td><td>Cambiar contraseña / crear administrador</td></tr>
   <tr><td><code>sudo opennccm backup-all</code></td><td>Respaldar ahora todos los equipos</td></tr>
   <tr><td><code>sudo opennccm seed</code></td><td>Recargar políticas y configlets de ejemplo</td></tr>

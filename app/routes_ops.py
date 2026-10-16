@@ -184,10 +184,45 @@ def system_page(request: Request):
     user = require(request, "admin")
     from .config import DATABASE_URL, KEY_FILE
     backups = [(p.name, p.stat().st_size, p.stat().st_mtime) for p in sysbackup.list_backups()]
+    from . import systime
     from .drivers import PROFILES, unknown_profiles
+    zones: dict[str, list[str]] = {}
+    for z in systime.timezones():
+        zones.setdefault(z.split("/")[0] if "/" in z else "Otras", []).append(z)
     return render(request, "system.html", user, backups=backups, db_url=DATABASE_URL.split("@")[-1],
                   key_file=str(KEY_FILE), profiles_count=len(PROFILES),
-                  vendors_count=len({p.vendor for p in PROFILES}), unknown=unknown_profiles())
+                  vendors_count=len({p.vendor for p in PROFILES}), unknown=unknown_profiles(),
+                  clock=systime.info(), zones=zones)
+
+
+@router.post("/system/time")
+async def system_time(request: Request):
+    """Zona horaria, sincronización NTP y fecha/hora manual del servidor."""
+    from . import systime
+    user = require(request, "admin")
+    form = await request.form()
+    action = form.get("action")
+    try:
+        if action == "timezone":
+            tz = form.get("timezone", "")
+            systime.set_timezone(tz)
+            log_action(request, user, "system_timezone", tz)
+            flash(request, f"Zona horaria cambiada a {tz}. Las tareas programadas ya usan la nueva hora.")
+            systime.restart_soon()
+            # página de espera: el servicio se reinicia unos segundos para aplicar la zona
+            return render(request, "restarting.html", user, tz=tz)
+        elif action == "ntp":
+            on = form.get("ntp") == "on"
+            systime.set_ntp(on)
+            log_action(request, user, "system_ntp", "activada" if on else "desactivada")
+            flash(request, "Sincronización automática de hora (NTP) " + ("activada." if on else "desactivada."))
+        elif action == "manual":
+            systime.set_time(form.get("date", ""), form.get("time", ""))
+            log_action(request, user, "system_time", f"{form.get('date')} {form.get('time')}")
+            flash(request, f"Fecha y hora fijadas a {form.get('date')} {form.get('time')} (NTP desactivado).")
+    except systime.TimeError as e:
+        flash(request, f"No se pudo cambiar: {e}", "error")
+    return go("/system#hora")
 
 
 @router.post("/system/backup")
@@ -225,7 +260,21 @@ def system_delete(request: Request, name: str):
 @router.get("/vendors")
 def vendors_page(request: Request):
     user = require(request)
+    from sqlalchemy import case, func
+
+    from .db import ConfigVersion
     from .drivers import PROFILES
     rows = sorted(PROFILES, key=lambda p: (p.vendor.lower(), p.label))
+    # "Comprobado en su red": equipos de la plataforma con al menos un respaldo correcto
+    verified: dict[str, dict] = {}
+    with SessionLocal() as db:
+        q = (select(Device.device_type, func.count(func.distinct(Device.id)), func.min(ConfigVersion.created_at),
+                    func.sum(case((Device.custom_backup_cmd.isnot(None), 1), else_=0)))
+             .join(ConfigVersion, ConfigVersion.device_id == Device.id)
+             .where(ConfigVersion.kind == "running")
+             .group_by(Device.device_type))
+        for dtype, n, first, custom in db.execute(q):
+            verified[dtype] = {"devices": n, "first": first, "custom": bool(custom)}
+    vendors = sorted({p.vendor for p in PROFILES}, key=str.lower)
     return render(request, "vendors.html", user, rows=rows, upgrade=firmware.supports_upgrade,
-                  get_profile=get_profile)
+                  get_profile=get_profile, verified=verified, vendors=vendors)

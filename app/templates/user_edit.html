@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% block title %}Editar {{ u.username }}{% endblock %}
+{% block content %}
+<h1><a href="/users">Usuarios</a> / Editar «{{ u.username }}»</h1>
+<div class="card" style="max-width:860px">
+<form method="post" autocomplete="off">
+  <div class="row">
+    <div><label>Nombre de usuario</label><input value="{{ u.username }}" disabled></div>
+    <div><label>Rol</label><select name="role">
+      {% for k, label in [('viewer', 'lector — solo consulta'), ('operator', 'operador — respaldos, ejecutar y solicitar cambios'), ('admin', 'administrador — todo, aprueba cambios')] %}
+      <option value="{{ k }}" {{ 'selected' if u.role == k }}>{{ label }}</option>{% endfor %}</select></div>
+    <div><label>Email</label><input name="email" type="email" value="{{ u.email or '' }}"></div>
+  </div>
+  <label class="chk" style="margin-top:12px"><input type="checkbox" name="active" {{ 'checked' if u.active }}> Activo (si se desmarca, no podrá ingresar)</label>
+  <h2>Cambiar contraseña <span class="small muted">(opcional; deje vacío para no cambiarla)</span></h2>
+  <div class="row">
+    <div><label>Nueva contraseña</label><input name="password" type="password" minlength="8" autocomplete="new-password"></div>
+    <div><label>Repita la nueva contraseña</label><input name="password2" type="password" minlength="8" autocomplete="new-password"></div>
+  </div>
+  <label>Restringir a grupos de dispositivos (ninguno marcado = todos los equipos)</label>
+  <div>{% for g in groups %}<label class="chk"><input type="checkbox" name="group_ids" value="{{ g.id }}" {{ 'checked' if g.id in selected }}> {{ g.name }}</label>{% else %}<span class="muted small">No hay grupos.</span>{% endfor %}</div>
+  <p><button>Guardar cambios</button> <a class="btn sec" href="/users">Cancelar</a></p>
+</form>
+</div>
+{% endblock %}

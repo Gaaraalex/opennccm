@@ -1,15 +1,19 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" data-theme="{{ (user.theme if user and user.theme else 'auto') }}">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{% block title %}OpenNCCM{% endblock %} · OpenNCCM</title>
+<link rel="icon" href="/static/icon.svg?v={{ VERSION }}" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico?v={{ VERSION }}" sizes="any">
+<link rel="apple-touch-icon" href="/static/icon-180.png?v={{ VERSION }}">
+<meta name="theme-color" content="#14202e">
 <link rel="stylesheet" href="/static/style.css?v={{ VERSION }}-{{ CSS_HASH }}">
 </head>
 <body>
 {% if user %}
 {% set p = request.url.path %}
 <header>
-  <div class="brand">Open<span>NCCM</span></div>
+  <a class="brand" href="/"><img src="/static/icon.svg?v={{ VERSION }}" alt=""><b>Open<span>NCCM</span></b></a>
   <nav>
     <a href="/" class="{{ 'on' if p == '/' }}">Panel</a>
     <a href="/devices" class="{{ 'on' if p.startswith('/devices') }}">Dispositivos</a>
@@ -24,6 +28,7 @@
     <a href="/events" class="{{ 'on' if p.startswith('/events') }}">Alarmas</a>
     <a href="/analytics" class="{{ 'on' if p.startswith('/analytics') }}">Análisis</a>
     <a href="/reports" class="{{ 'on' if p.startswith('/reports') }}">Informes</a>
+    <a href="/vendors" class="{{ 'on' if p.startswith('/vendors') }}">Plataformas</a>
     {% if user.role == 'admin' %}
     <a href="/credentials" class="{{ 'on' if p.startswith('/credentials') }}">Credenciales</a>
     <a href="/users" class="{{ 'on' if p.startswith('/users') }}">Usuarios</a>
@@ -32,7 +37,11 @@
     <a href="/settings" class="{{ 'on' if p.startswith('/settings') }}">Ajustes</a>
     {% endif %}
   </nav>
-  <div class="who"><a href="/account">{{ user.username }}</a> ({{ user.role }}) · <a href="/logout">Salir</a></div>
+  <div class="who">
+    <a href="/account" title="Mi cuenta y tema">{{ user.username }}</a> ({{ user.role }})
+    <a class="pw" href="/account#clave" title="Cambiar mi contraseña">🔑 <span>Cambiar contraseña</span></a>
+    <a href="/logout">Salir</a>
+  </div>
 </header>
 {% endif %}
 <main>
