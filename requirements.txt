@@ -9,3 +9,6 @@ apscheduler>=3.10,<4.0
 cryptography>=42
 requests>=2.31
 # Para usar PostgreSQL en lugar de SQLite agregue: psycopg2-binary>=2.9
+pyotp>=2.9        # verificación en dos pasos (TOTP)
+segno>=1.6        # código QR para configurar la app de autenticación
+psutil>=5.9       # rendimiento del servidor (CPU, RAM, disco) en el panel

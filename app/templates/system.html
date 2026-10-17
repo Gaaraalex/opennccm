@@ -9,6 +9,28 @@
       {% if unknown %}<span class="badge b-warning">la versión de Netmiko instalada no conoce: {{ unknown|join(', ') }}</span>{% endif %}</dd>
   </dl>
 </div>
+<div class="card" id="actualizaciones">
+  <h2 style="margin-top:0">Actualizaciones</h2>
+  <dl class="kv">
+    <dt>Versión instalada</dt><dd><b>{{ upd.current }}</b></dd>
+    <dt>Última publicada</dt><dd>{% if upd.latest %}<b>{{ upd.latest }}</b>{% if upd.available %} <span class="badge b-warning">actualización disponible</span>{% else %} <span class="badge b-ok">está al día</span>{% endif %}{% else %}—{% endif %}
+      <span class="small muted">{% if upd.checked_at %}(comprobado {{ upd.checked_at }}){% endif %}</span></dd>
+  </dl>
+  {% if upd.error %}<p class="small" style="color:var(--crit)">{{ upd.error }}</p>{% endif %}
+  {% if upd.available and upd.notes %}<details open><summary>Novedades de la versión {{ upd.latest }}</summary><pre style="max-height:260px;overflow:auto;white-space:pre-wrap">{{ upd.notes }}</pre></details>{% endif %}
+  <div class="row">
+    <form method="post" action="/system/update/check"><button class="sec">Buscar actualizaciones ahora</button></form>
+    {% if upd.running %}
+    <a class="btn" href="/system/updating">Ver la actualización en curso</a>
+    {% elif upd.web_update %}
+    <form method="post" action="/system/update" onsubmit="return confirm('Se hará una copia previa y OpenNCCM se detendrá 1-2 minutos. Si la versión nueva no arranca, se vuelve sola a la anterior. ¿Actualizar ahora?')">
+      <button {{ '' if upd.available else 'class=sec' }}>{{ 'Actualizar a la versión ' ~ upd.latest if upd.available else 'Actualizar (reinstalar la última versión)' }}</button></form>
+    {% endif %}
+  </div>
+  {% if not upd.web_update %}<p class="small muted">Para actualizar desde aquí, actualice una vez desde la consola del servidor:
+  <code>sudo opennccm update</code>. Esa actualización instala el servicio que permite hacerlo con este botón.</p>{% endif %}
+  <p class="small muted">La búsqueda diaria y el aviso a los administradores se activan o desactivan en <a href="/settings#seguridad">Ajustes</a>.</p>
+</div>
 <div class="card" id="hora">
   <h2 style="margin-top:0">Fecha, hora y zona horaria del servidor</h2>
   {% if not clock.available %}
@@ -50,12 +72,24 @@
 <div class="card">
   <h2 style="margin-top:0">Copias de recuperación</h2>
   <p class="small muted">Copia consistente de la base de datos (configuraciones, historial, usuarios, políticas). Las configuraciones y contraseñas
-  van cifradas: para restaurar en otro servidor necesita también <code>secret.key</code>. Guárdela aparte o inclúyala marcando la opción
-  (entonces proteja el archivo como una contraseña). Programe copias diarias en <a href="/schedules">Tareas</a> y configure la copia remota en <a href="/settings">Ajustes</a>.</p>
-  <form method="post" action="/system/backup" class="row">
-    <label class="chk"><input type="checkbox" name="include_key"> Incluir la clave de cifrado</label>
-    <button>Crear copia ahora</button>
+  van cifradas: para restaurar en otro servidor necesita también <code>secret.key</code>. Guárdela aparte, o inclúyala en la copia:
+  en ese caso el archivo completo se cifra con una contraseña que usted elige (sin ella no se puede restaurar). Programe copias
+  diarias en <a href="/schedules">Tareas</a> y configure la copia remota en <a href="/settings">Ajustes</a>.</p>
+  <form method="post" action="/system/backup">
+    <p><label class="chk"><input type="checkbox" name="include_key" id="inc-key"> Incluir la clave de cifrado (copia protegida con contraseña)</label></p>
+    <div class="row" id="key-pass" hidden>
+      <div><label for="bk-pass">Contraseña de la copia (mínimo 12 caracteres)</label><input id="bk-pass" name="passphrase" type="password" minlength="12" autocomplete="new-password"></div>
+      <div><label for="bk-pass2">Repítala</label><input id="bk-pass2" name="passphrase2" type="password" minlength="12" autocomplete="new-password"></div>
+    </div>
+    <p><button>Crear copia ahora</button></p>
   </form>
+  <script>
+  (function () {
+    const c = document.getElementById('inc-key'), box = document.getElementById('key-pass');
+    c.addEventListener('change', () => { box.hidden = !c.checked;
+      box.querySelectorAll('input').forEach(i => i.required = c.checked); });
+  })();
+  </script>
   <table style="margin-top:12px"><tr><th>Archivo</th><th>Tamaño</th><th></th></tr>
   {% for name, size, mtime in backups %}
   <tr><td><code>{{ name }}</code></td><td>{{ '{:,}'.format(size) }} B</td>
@@ -65,6 +99,7 @@
   </table>
   <h2>Restaurar</h2>
   <pre>sudo opennccm restore /var/lib/opennccm/system-backups/opennccm-AAAAMMDD-HHMMSS.tar.gz</pre>
+  <p class="small muted">Las copias terminadas en <code>.enc</code> incluyen la clave de cifrado y piden su contraseña al restaurar.</p>
   <p class="small muted">Actualizar a la última versión: <code>sudo opennccm update</code> · volver a la anterior: <code>sudo opennccm rollback</code>.</p>
 </div>
 {% endblock %}

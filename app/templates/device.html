@@ -8,6 +8,9 @@
   <form class="inline" method="post" action="/devices/{{ device.id }}/compliance"><button class="sec">Auditar cumplimiento</button></form>
   <form class="inline" method="post" action="/devices/{{ device.id }}/cve"><button class="sec">Buscar CVE de firmware</button></form>
   {% endif %}
+  {% if can_console and device.protocol == 'ssh' %}
+  <a class="btn sec" href="/devices/{{ device.id }}/console" target="_blank" rel="noopener" aria-label="Consola SSH (nueva pestaña)">⌨ Consola</a>
+  {% endif %}
   {% if user.role == 'admin' %}
   <a class="btn sec" href="/devices/{{ device.id }}/edit">Editar</a>
   <form class="inline" method="post" action="/devices/{{ device.id }}/delete" onsubmit="return confirm('¿Eliminar el equipo y todo su historial?')"><button class="danger">Eliminar</button></form>

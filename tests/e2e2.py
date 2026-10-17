@@ -176,12 +176,23 @@ r = s.post(B + "/schedules", data={"name": "Informe semanal", "action": "report_
 check("tarea de informe por correo", "Informe semanal" in r.text)
 
 # ---------------------------------------------------------------- recuperación ante desastres
-r = s.post(B + "/system/backup", data={"include_key": "on"})
+r = s.post(B + "/system/backup", data={})
 name = re.search(r"Copia creada: (opennccm-\d{8}-\d{6}\.tar\.gz)", r.text)
 check("crear copia de recuperación", name is not None, flashes(r.text))
 d = s.get(f"{B}/system/backups/{name.group(1)}")
 tf = tarfile.open(fileobj=io.BytesIO(d.content))
-check("copia contiene base, manifiesto y clave", sorted(tf.getnames()) == ["manifest.json", "opennccm.db", "secret.key"])
+check("copia contiene base y manifiesto (sin la clave)", sorted(tf.getnames()) == ["manifest.json", "opennccm.db"])
+r = s.post(B + "/system/backup", data={"include_key": "on", "passphrase": "Clave-de-copia-2026",
+                                       "passphrase2": "Clave-de-copia-2026"})
+enc = re.search(r"Copia creada: (opennccm-\d{8}-\d{6}\.tar\.gz\.enc)", r.text)
+check("copia con la clave: cifrada con contraseña", enc is not None, flashes(r.text))
+if enc:
+    sys.path.insert(0, ".")
+    from app.sysbackup import decrypt_archive
+    tf = tarfile.open(fileobj=io.BytesIO(decrypt_archive(s.get(f"{B}/system/backups/{enc.group(1)}").content,
+                                                         "Clave-de-copia-2026")))
+    check("copia cifrada contiene base, manifiesto y clave",
+          sorted(tf.getnames()) == ["manifest.json", "opennccm.db", "secret.key"])
 bad = s.get(B + "/system/backups/..%2Fsecret.key")
 check("descarga con nombre inválido rechazada", bad.status_code == 404 or bad.url.endswith("/system"), bad.status_code)
 bad = s.get(B + "/system/backups/opennccm.db")
@@ -198,13 +209,14 @@ rest = os.path.join(tempfile.gettempdir(), "ncmrestore")
 os.makedirs(rest, exist_ok=True)
 for f in os.listdir(rest):
     os.remove(os.path.join(rest, f))
-arch = os.path.join(rest, name.group(1))
-open(arch, "wb").write(d.content)
-env = dict(os.environ, NCM_DATA_DIR=rest, NCM_KEY_FILE=os.path.join(rest, "secret.key"))
+arch = os.path.join(rest, enc.group(1))
+open(arch, "wb").write(s.get(f"{B}/system/backups/{enc.group(1)}").content)
+env = dict(os.environ, NCM_DATA_DIR=rest, NCM_KEY_FILE=os.path.join(rest, "secret.key"),
+           NCM_BACKUP_PASSPHRASE="Clave-de-copia-2026")
 code = "import sys; sys.path.insert(0,'.'); from app.cli import main; sys.argv=['x','restore',sys.argv[1]]; main()"
 out = subprocess.run([sys.executable, "-c", code, arch], env=env, capture_output=True, text=True)
-check("restaurar en servidor nuevo (con clave)", "Base restaurada" in out.stdout and "Clave restaurada" in out.stdout,
-      out.stdout + out.stderr)
+check("restaurar en servidor nuevo (copia cifrada con la clave)",
+      "Base restaurada" in out.stdout and "Clave restaurada" in out.stdout, out.stdout + out.stderr)
 code2 = ("import sys; sys.path.insert(0,'.'); from app.db import SessionLocal, ConfigVersion, Device, select; "
          "from app.crypto import decrypt; "
          "db=SessionLocal(); v=db.scalars(select(ConfigVersion)).first(); print(len(db.scalars(select(Device)).all()), "

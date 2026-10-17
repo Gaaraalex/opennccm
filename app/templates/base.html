@@ -10,11 +10,12 @@
 <link rel="stylesheet" href="/static/style.css?v={{ VERSION }}-{{ CSS_HASH }}">
 </head>
 <body>
+<a class="skip" href="#contenido">Saltar al contenido</a>
 {% if user %}
 {% set p = request.url.path %}
 <header>
-  <a class="brand" href="/"><img src="/static/icon.svg?v={{ VERSION }}" alt=""><b>Open<span>NCCM</span></b></a>
-  <nav>
+  <a class="brand" href="/" aria-label="OpenNCCM, ir al panel"><img src="/static/icon.svg?v={{ VERSION }}" alt=""><b>Open<span>NCCM</span></b></a>
+  <nav aria-label="Menú principal">
     <a href="/" class="{{ 'on' if p == '/' }}">Panel</a>
     <a href="/devices" class="{{ 'on' if p.startswith('/devices') }}">Dispositivos</a>
     <a href="/search" class="{{ 'on' if p.startswith('/search') }}">Buscar</a>
@@ -44,10 +45,50 @@
   </div>
 </header>
 {% endif %}
-<main>
-{% for kind, msg in flashes %}<div class="flash {{ kind }}">{{ msg }}</div>{% endfor %}
+<main id="contenido" tabindex="-1">
+<div role="status" aria-live="polite">{% for kind, msg in flashes %}<div class="flash {{ kind }}">{{ msg }}</div>{% endfor %}</div>
 {% block content %}{% endblock %}
-{% if user %}<p class="small muted" style="margin-top:40px;text-align:center">OpenNCCM v{{ VERSION }}</p>{% endif %}
+{% if user %}<p class="small muted" style="margin-top:40px;text-align:center">OpenNCCM v{{ VERSION }} ·
+  <a href="/acerca">Privacidad, cookies y licencias</a></p>{% endif %}
 </main>
+{% if update_popup %}
+<dialog id="upd-popup" aria-labelledby="upd-title">
+  <h2 id="upd-title" style="margin-top:0">Actualización disponible</h2>
+  <p>Hay una versión nueva de OpenNCCM: <b>{{ update_popup.latest }}</b> (instalada: {{ update_popup.current }}).</p>
+  {% if update_popup.notes %}<pre style="max-height:220px;overflow:auto;white-space:pre-wrap">{{ update_popup.notes[:1500] }}</pre>{% endif %}
+  <p class="row"><a class="btn" href="/system#actualizaciones">Ver y actualizar</a>
+    <button type="button" class="sec" id="upd-later">Más tarde</button></p>
+</dialog>
+<script>
+(function () {
+  const d = document.getElementById('upd-popup');
+  if (!d || !d.showModal) return;
+  d.showModal();
+  const later = () => { fetch('/system/update/dismiss', {method: 'POST', credentials: 'same-origin'}); d.close(); };
+  document.getElementById('upd-later').addEventListener('click', later);
+  d.addEventListener('cancel', later);
+})();
+</script>
+{% endif %}
+<script>
+/* Accesibilidad: asocia cada <label> a su campo cuando la plantilla no lo hace explícitamente, y da nombre
+   accesible a los botones que solo muestran un símbolo («×»). */
+(function () {
+  let n = 0;
+  document.querySelectorAll('label:not([for])').forEach(function (l) {
+    if (l.querySelector('input,select,textarea')) return;
+    let el = l.nextElementSibling;
+    while (el && el.tagName === 'BR') el = el.nextElementSibling;
+    if (el && /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) {
+      if (!el.id) el.id = 'campo-' + (++n);
+      l.htmlFor = el.id;
+    }
+  });
+  document.querySelectorAll('button, a.btn').forEach(function (b) {
+    const t = b.textContent.trim();
+    if (!b.getAttribute('aria-label') && (t === '×' || t === '✕')) b.setAttribute('aria-label', b.title || 'Eliminar');
+  });
+})();
+</script>
 </body>
 </html>

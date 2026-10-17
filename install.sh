@@ -543,6 +543,12 @@ EOF
     sed -i '/^NCM_DATABASE_URL=/d' $ETC_DIR/opennccm.env
     echo "NCM_DATABASE_URL=$PG_URL" >> $ETC_DIR/opennccm.env
   fi
+  # con HTTPS la cookie de sesión solo viaja cifrada (también al actualizar instalaciones anteriores)
+  sed -i '/^NCM_SECURE_COOKIE=/d' $ETC_DIR/opennccm.env
+  echo "NCM_SECURE_COOKIE=$([[ $TLS_MODE == none ]] && echo 0 || echo 1)" >> $ETC_DIR/opennccm.env
+  # permisos estrictos para la base (la clave y la configuración se ajustan al final de esta función)
+  [[ -f $DATA_DIR/opennccm.db ]] && chmod 600 $DATA_DIR/opennccm.db
+  [[ -d $DATA_DIR ]] && chmod 750 $DATA_DIR
   # opciones de instalación (las reutilizan las actualizaciones)
   cat > $CONF <<EOF
 # Generado por install.sh - opciones de la instalación de OpenNCCM
@@ -590,11 +596,35 @@ ReadWritePaths=$DATA_DIR $ETC_DIR
 [Install]
 WantedBy=multi-user.target
 EOF
+  # Actualización desde la web: la aplicación (sin privilegios) solo crea update.request; systemd lo detecta y
+  # ejecuta como root el mismo «opennccm update» de la consola (copia previa y vuelta atrás automática).
+  cat > /etc/systemd/system/opennccm-webupdate.path <<EOF
+[Unit]
+Description=OpenNCCM - vigila las solicitudes de actualización hechas desde la web
+
+[Path]
+PathExists=$DATA_DIR/update.request
+Unit=opennccm-webupdate.service
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  cat > /etc/systemd/system/opennccm-webupdate.service <<EOF
+[Unit]
+Description=OpenNCCM - actualizar a la última versión publicada (solicitado desde la web)
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/rm -f $DATA_DIR/update.request
+ExecStart=/bin/sh -c '/usr/local/bin/opennccm update --yes > $DATA_DIR/update.log 2>&1; echo "FIN=\$\$?" >> $DATA_DIR/update.log'
+TimeoutStartSec=1800
+EOF
   ln -sf $APP_DIR/scripts/opennccm.sh /usr/local/bin/opennccm
   ln -sf $APP_DIR/scripts/opennccm.sh /usr/local/bin/opennccm-cli   # compatibilidad con 1.x
   chmod 755 $APP_DIR/scripts/opennccm.sh
   run systemctl daemon-reload
   run systemctl enable opennccm
+  run systemctl enable --now opennccm-webupdate.path
 }
 
 setup_polkit() {
@@ -631,21 +661,53 @@ EOF
   systemctl try-restart polkit >>"$LOG" 2>&1 || true
 }
 
+# Autoridad certificadora propia de OpenNCCM + certificado del servidor firmado por ella.
+# Instalando ca.crt una vez en el PC, el navegador confía en el sitio: sin aviso «No es seguro» y con la opción de
+# guardar la contraseña (Chrome y Edge no la ofrecen en sitios con error de certificado).
+make_local_ca_cert() {
+  local crt=$1 key=$2 d=/etc/ssl/opennccm cfg san nc   # fuera de $ETC_DIR: la clave de la CA es solo de root
+  mkdir -p $d && chmod 755 $d
+  if [[ ! -f $d/ca.key ]]; then
+    # La CA solo puede firmar certificados para ESTE servidor (restricción de nombres): aunque alguien obtuviera
+    # su clave, no serviría para suplantar otros sitios en los equipos que la instalaron.
+    if [[ $NCM_HOST =~ ^[0-9.]+$ ]]; then
+      nc="permitted;IP:$NCM_HOST/255.255.255.255,permitted;DNS:$(hostname)"
+    else
+      nc="permitted;DNS:$NCM_HOST,permitted;DNS:$(hostname),permitted;IP:127.0.0.1/255.255.255.255"
+    fi
+    cfg=$(mktemp)
+    printf '[req]\ndistinguished_name=dn\nprompt=no\nx509_extensions=v3_ca\n[dn]\nCN=OpenNCCM CA (%s)\nO=OpenNCCM\n[v3_ca]\nbasicConstraints=critical,CA:TRUE,pathlen:0\nkeyUsage=critical,keyCertSign,cRLSign\nsubjectKeyIdentifier=hash\nnameConstraints=critical,%s\n' "$NCM_HOST" "$nc" >"$cfg"
+    run openssl req -x509 -new -nodes -newkey rsa:3072 -sha256 -days 3650 -config "$cfg" -keyout $d/ca.key -out $d/ca.crt
+    rm -f "$cfg"
+    chmod 600 $d/ca.key; chmod 644 $d/ca.crt
+  fi
+  san=$( [[ $NCM_HOST =~ ^[0-9.]+$ ]] && echo "IP:$NCM_HOST" || echo "DNS:$NCM_HOST")
+  [[ $(hostname) != "$NCM_HOST" ]] && san+=",DNS:$(hostname)"
+  printf 'basicConstraints=CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\nsubjectAltName=%s\n' "$san" >$d/server.ext
+  run openssl req -new -nodes -newkey rsa:2048 -subj "/CN=$NCM_HOST" -keyout $key -out $d/server.csr
+  run openssl x509 -req -sha256 -days 825 -in $d/server.csr -CA $d/ca.crt -CAkey $d/ca.key -CAcreateserial \
+    -extfile $d/server.ext -out $crt
+  chmod 600 $key; rm -f $d/server.csr
+}
+
 setup_nginx() {
   [[ $TLS_MODE == none ]] && return 0
   progress 72 "Configurando nginx y HTTPS…"
   local crt=/etc/ssl/certs/opennccm.crt key=/etc/ssl/private/opennccm.key
   if [[ $TLS_MODE == custom && $APPLY_ONLY -eq 0 ]]; then
     install -m 644 "$CERT_FILE" $crt; install -m 600 "$KEY_FILE_TLS" $key
-  elif [[ ! -f $key ]]; then
-    run openssl req -x509 -nodes -newkey rsa:2048 -days 3650 -subj "/CN=${NCM_HOST}" \
-      -addext "subjectAltName=$( [[ $NCM_HOST =~ ^[0-9.]+$ ]] && echo "IP:$NCM_HOST" || echo "DNS:$NCM_HOST")" \
-      -keyout $key -out $crt
+  elif [[ $TLS_MODE == letsencrypt && -d /etc/letsencrypt/live/${LE_DOMAIN:-none} ]]; then
+    # al reaplicar (actualización) se conserva el certificado de Let's Encrypt
+    crt=/etc/letsencrypt/live/$LE_DOMAIN/fullchain.pem key=/etc/letsencrypt/live/$LE_DOMAIN/privkey.pem
+  elif [[ $TLS_MODE == self-signed && ! -f /etc/ssl/opennccm/ca.crt ]] || [[ ! -f $key ]]; then
+    # instalación nueva o migración desde el certificado autofirmado anterior a la 1.6.0
+    make_local_ca_cert $crt $key
   fi
   local http2_listen="listen 443 ssl; listen [::]:443 ssl; http2 on;"
   nginx -v 2>&1 | grep -qE 'nginx/1\.(2[5-9]|[3-9][0-9])' || http2_listen="listen 443 ssl http2; listen [::]:443 ssl http2;"
   cat > /etc/nginx/sites-available/opennccm <<EOF
 # Generado por el instalador de OpenNCCM
+map \$http_upgrade \$opennccm_connection { default upgrade; '' close; }   # consola SSH web (WebSocket)
 server { listen 80; listen [::]:80; server_name _; location / { return 301 https://\$host\$request_uri; } }
 server {
   $http2_listen
@@ -653,13 +715,17 @@ server {
   ssl_certificate $crt;
   ssl_certificate_key $key;
   ssl_protocols TLSv1.2 TLSv1.3;
+  ssl_prefer_server_ciphers on;
+  ssl_session_tickets off;
+  server_tokens off;
   client_max_body_size 4g;   # imágenes de firmware
   client_body_timeout 900s;
-  add_header X-Frame-Options DENY;
-  add_header X-Content-Type-Options nosniff;
   add_header Strict-Transport-Security "max-age=31536000" always;
   location / {
     proxy_pass http://127.0.0.1:8000;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade \$http_upgrade;
+    proxy_set_header Connection \$opennccm_connection;
     proxy_set_header Host \$host;
     proxy_set_header X-Real-IP \$remote_addr;
     proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;

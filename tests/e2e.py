@@ -155,9 +155,9 @@ for k in ["inventory", "changes", "compliance", "vulns", "audit", "changes_reque
 check("inventario CSV contiene R1", "R1" in get("/reports/inventory.csv").text)
 
 # usuarios / RBAC
-post("/users", {"username": "lector", "role": "viewer", "password": "Lector12345", "active": "on"})
+post("/users", {"username": "lector", "role": "viewer", "password": "Lectura-2026x", "active": "on"})
 s2 = requests.Session()
-s2.post(B + "/login", data={"username": "lector", "password": "Lector12345"})
+s2.post(B + "/login", data={"username": "lector", "password": "Lectura-2026x"})
 check("viewer puede ver dispositivos", s2.get(B + "/devices").status_code == 200)
 check("viewer NO puede respaldar", s2.post(B + "/devices/1/backup").status_code == 403)
 check("viewer NO ve ajustes", s2.get(B + "/settings").status_code == 403)

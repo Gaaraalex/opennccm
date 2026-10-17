@@ -5,6 +5,7 @@ import csv
 import io
 import json
 import logging
+import os
 import re
 import time
 from contextlib import asynccontextmanager
@@ -17,9 +18,11 @@ from sqlalchemy import case, delete, func, or_, select
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import reports, scheduler, services
-from .auth import ROLES, Forbidden, LoginRequired, check_device, device_scope, filter_ids, require, user_group_ids
-from .config import BASE_DIR
-from .crypto import decrypt, encrypt, hash_password, session_secret, verify_password
+from .auth import (ROLES, Forbidden, LoginRequired, TwoFactorSetupRequired, check_device, clear_settings_cache,
+                   device_scope, filter_ids, require, start_session, user_group_ids)
+from .config import BASE_DIR, TLS_CA
+from .crypto import (decrypt, dummy_verify, encrypt, hash_password, needs_rehash, password_problem, session_secret,
+                     verify_password)
 from .db import (AuditLog, ChangeRequest, ComplianceResult, Configlet, ConfigVersion, Credential, Device,
                  DeviceGroup, Event, Policy, Rule, SessionLocal, Schedule, User, UserGroup, Vulnerability, audit,
                  get_setting, init_db, now, set_setting)
@@ -46,13 +49,41 @@ async def lifespan(_app):
 
 app = FastAPI(title="OpenNCCM", lifespan=lifespan, docs_url=None, redoc_url=None)
 app.add_middleware(SessionMiddleware, secret_key=session_secret(), same_site="strict",
-                   https_only=False, max_age=8 * 3600, session_cookie="opennccm")
+                   https_only=os.environ.get("NCM_SECURE_COOKIE", "0") == "1", max_age=12 * 3600,
+                   session_cookie="opennccm")
+
+# Cabeceras de seguridad en todas las respuestas (también sin nginx)
+CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+       "img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; "
+       "form-action 'self'; frame-ancestors 'none'")
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    resp = await call_next(request)
+    h = resp.headers
+    h.setdefault("Content-Security-Policy", CSP)
+    h.setdefault("X-Frame-Options", "DENY")
+    h.setdefault("X-Content-Type-Options", "nosniff")
+    h.setdefault("Referrer-Policy", "same-origin")
+    h.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
+    h.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+    if not request.url.path.startswith("/static/") and resp.headers.get("content-type", "").startswith("text/html"):
+        h.setdefault("Cache-Control", "no-store")  # páginas con datos: no quedan en caché tras cerrar sesión
+    return resp
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 
 @app.exception_handler(LoginRequired)
 async def _login_required(request, _exc):
     return go("/login")
+
+
+@app.exception_handler(TwoFactorSetupRequired)
+async def _setup_2fa(request, _exc):
+    flash(request, "Por seguridad, los administradores deben activar la verificación en dos pasos antes de continuar.",
+          "error")
+    return go("/account#dospasos")
 
 
 @app.exception_handler(Forbidden)
@@ -64,9 +95,26 @@ async def _forbidden(request, _exc):
 _failed: dict[str, list[float]] = {}
 
 
+ACCOUNT_LOCK_AFTER = 5          # intentos fallidos seguidos de una misma cuenta
+ACCOUNT_LOCK_MINUTES = 15
+
+
 @app.get("/login")
 def login_form(request: Request):
-    return render(request, "login.html", None)
+    if request.session.pop("expired", None):
+        flash(request, "Su sesión se cerró por inactividad. Vuelva a ingresar.", "error")
+    return render(request, "login.html", None, ca_available=TLS_CA.is_file())
+
+
+def _finish_login(request: Request, db, user: User, addr: str):
+    user.failed_logins = 0
+    user.locked_until = None
+    user.last_login_at = now()
+    user.last_login_ip = addr
+    db.commit()
+    start_session(request, user)
+    _failed.pop(addr, None)
+    audit(user.username, "login", "", addr)
 
 
 @app.post("/login")
@@ -75,21 +123,80 @@ async def login(request: Request):
     addr = ip(request)
     attempts = [t for t in _failed.get(addr, []) if time.time() - t < 900]
     if len(attempts) >= 10:
-        flash(request, "Demasiados intentos. Espere 15 minutos.", "error")
+        flash(request, "Demasiados intentos desde su dirección. Espere 15 minutos.", "error")
         return go("/login")
+    username, password = form.get("username", ""), form.get("password", "")
     with SessionLocal() as db:
-        user = db.scalars(select(User).where(User.username == form.get("username", ""))).first()
-        if user and user.active and verify_password(form.get("password", ""), user.password_hash):
-            request.session.clear()
-            request.session["uid"] = user.id
-            _failed.pop(addr, None)
-            audit(user.username, "login", "", addr)
+        user = db.scalars(select(User).where(User.username == username)).first()
+        if user is None:
+            dummy_verify(password)  # mismo tiempo de respuesta: no revela si el usuario existe
+        elif user.locked_until and user.locked_until > now():
+            audit(username, "login_locked", "", addr)
+            flash(request, "La cuenta está bloqueada temporalmente por intentos fallidos. Inténtelo más tarde o pida a "
+                           "un administrador que la desbloquee.", "error")
+            return go("/login")
+        elif user.active and verify_password(password, user.password_hash):
+            if needs_rehash(user.password_hash):  # contraseñas guardadas con un cifrado anterior
+                user.password_hash = hash_password(password)
+                db.commit()
+            if user.totp_enabled:
+                request.session.clear()
+                request.session["pending_uid"] = user.id
+                request.session["pending_at"] = int(time.time())
+                return go("/login/2fa")
+            _finish_login(request, db, user, addr)
             return go("/")
+        elif user is not None:
+            user.failed_logins = (user.failed_logins or 0) + 1
+            if user.failed_logins >= ACCOUNT_LOCK_AFTER:
+                user.locked_until = now() + timedelta(minutes=ACCOUNT_LOCK_MINUTES)
+                user.failed_logins = 0
+                services.add_event("warning", "Cuenta bloqueada",
+                                   f"«{user.username}» bloqueada {ACCOUNT_LOCK_MINUTES} min tras {ACCOUNT_LOCK_AFTER} "
+                                   f"intentos fallidos (último desde {addr}).")
+            db.commit()
     attempts.append(time.time())
     _failed[addr] = attempts
-    audit(form.get("username", "?"), "login_failed", "", addr)
+    audit(username or "?", "login_failed", "", addr)
     flash(request, "Usuario o contraseña incorrectos", "error")
     return go("/login")
+
+
+@app.get("/login/2fa")
+def login_2fa_form(request: Request):
+    if not request.session.get("pending_uid"):
+        return go("/login")
+    return render(request, "login_2fa.html", None)
+
+
+@app.post("/login/2fa")
+async def login_2fa(request: Request):
+    form = await request.form()
+    addr = ip(request)
+    uid, started = request.session.get("pending_uid"), request.session.get("pending_at", 0)
+    if not uid or time.time() - started > 300:
+        request.session.clear()
+        flash(request, "Tiempo agotado. Ingrese de nuevo.", "error")
+        return go("/login")
+    with SessionLocal() as db:
+        user = db.get(User, uid)
+        if user and user.active and services_totp_verify(user, form.get("code", "")):
+            _finish_login(request, db, user, addr)
+            return go("/")
+    tries = request.session.get("pending_tries", 0) + 1
+    request.session["pending_tries"] = tries
+    audit(user.username if user else "?", "login_2fa_failed", "", addr)
+    if tries >= 5:
+        request.session.clear()
+        flash(request, "Demasiados códigos incorrectos. Ingrese de nuevo.", "error")
+        return go("/login")
+    flash(request, "Código incorrecto. Use el código de 6 dígitos que muestra su app de autenticación.", "error")
+    return go("/login/2fa")
+
+
+def services_totp_verify(user: User, code: str) -> bool:
+    from .security import totp_verify
+    return totp_verify(user, code)
 
 
 @app.get("/logout")
@@ -112,14 +219,17 @@ async def account_save(request: Request):
         if not verify_password(form.get("current", ""), u.password_hash):
             flash(request, "La contraseña actual no es correcta.", "error")
             return go("/account")
-        if len(form.get("new", "")) < 8:
-            flash(request, "La nueva contraseña debe tener al menos 8 caracteres.", "error")
+        problem = password_problem(form.get("new", ""), u.username)
+        if problem:
+            flash(request, problem, "error")
             return go("/account")
         if form.get("new") != form.get("new2", form.get("new")):
             flash(request, "La nueva contraseña y su confirmación no coinciden.", "error")
             return go("/account")
         u.password_hash = hash_password(form["new"])
+        u.session_version = (u.session_version or 0) + 1  # cierra sus sesiones abiertas en otros equipos
         db.commit()
+        start_session(request, u)  # esta sesión sigue abierta
     log_action(request, user, "password_change")
     flash(request, "Contraseña actualizada. Úsela la próxima vez que ingrese.")
     return go("/account")
@@ -177,10 +287,45 @@ def dashboard(request: Request):
     data = reports.analytics(scope, 30)
     eol_bad = sum(n for label, n in data["eol"] if label in ("Sin soporte", "Sin parches de software"))
     comp = round(100 * cpass / (cpass + cfail)) if (cpass + cfail) else None
+    server = _server_panel() if user.role == "admin" else None
     return render(request, "dashboard.html", user, total=total, ok=ok, err=err, conflicts=conflicts,
                   changes24=changes24, comp=comp, alarms=alarms, vcrit=vcrit, pending=pending, drift=drift,
-                  eol_bad=eol_bad, events=events, recent=recent,
+                  eol_bad=eol_bad, events=events, recent=recent, server=server,
                   chart_changes=charts.columns(data["per_day"], " cambios"))
+
+
+def _server_panel() -> dict:
+    """Rendimiento del servidor de OpenNCCM para el panel (solo administradores)."""
+    from datetime import datetime
+
+    from . import charts, metrics
+    snap = metrics.snapshot()
+    buckets: dict[int, list] = {}
+    for ts, cpu, mem in snap["history"]:  # promedio cada 5 minutos
+        buckets.setdefault(ts // 300, []).append((cpu, mem))
+    cpu_pts, mem_pts = [], []
+    for key in sorted(buckets):
+        label = datetime.fromtimestamp(key * 300).strftime("%H:%M")
+        vals = buckets[key]
+        cpu_pts.append((label, sum(v[0] for v in vals) / len(vals)))
+        mem_pts.append((label, sum(v[1] for v in vals) / len(vals)))
+    hb = metrics.human_bytes
+    return {
+        "snap": snap, "uptime": metrics.human_uptime(snap["uptime"]),
+        "load": " / ".join(f"{x:.2f}" for x in snap["load"]) if snap["load"] else "—",
+        "cpu_chart": charts.line(cpu_pts, "%", title="Uso de CPU"),
+        "mem_chart": charts.line(mem_pts, "%", title="Uso de memoria RAM"),
+        "mem_meter": charts.meter(snap["mem_used"], snap["mem_total"], "Memoria RAM",
+                                  f"{hb(snap['mem_used'])} usados de {hb(snap['mem_total'])} · "
+                                  f"{hb(snap['mem_total'] - snap['mem_used'])} libres"),
+        "disk_meter": charts.meter(snap["disk_used"], snap["disk_total"], "Disco",
+                                   f"{hb(snap['disk_used'])} usados de {hb(snap['disk_total'])} · "
+                                   f"{hb(snap['disk_free'])} libres ({snap['disk_path']})"),
+        "swap_meter": charts.meter(snap["swap_used"], snap["swap_total"], "Memoria de intercambio (swap)",
+                                   f"{hb(snap['swap_used'])} usados de {hb(snap['swap_total'])}")
+        if snap["swap_total"] else "",
+        "data_size": hb(snap["data_size"]), "app_rss": hb(snap["app_rss"]),
+    }
 
 
 # --------------------------------------------------------------------------- dispositivos
@@ -209,7 +354,9 @@ def devices(request: Request, q: str = "", group: int = 0, status: str = ""):
         for d in devs:
             _ = d.group.name if d.group else None
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
-    return render(request, "devices.html", user, devices=devs, groups=groups, q=q, group=group, status=status)
+    from .console import console_allowed
+    return render(request, "devices.html", user, devices=devs, groups=groups, q=q, group=group, status=status,
+                  can_console=console_allowed(user))
 
 
 def _device_form_ctx(db):
@@ -356,7 +503,9 @@ def device_detail(request: Request, dev_id: int):
     from . import eol
     with SessionLocal() as db:
         entry = eol.match_entry(dev, list(db.scalars(select(eol.EolEntry))))
-    return render(request, "device.html", user, device=dev, versions=versions, comp=comp, vulns=vulns,
+    from .console import console_allowed
+    return render(request, "device.html", user, can_console=console_allowed(user, dev.id), device=dev,
+                  versions=versions, comp=comp, vulns=vulns,
                   events=events, inventory=inventory, profile=get_profile(dev.device_type), images=images,
                   eol_entry=entry, eol_status=eol.status(entry), eol_labels=eol.STATUS_LABEL,
                   eol_sev=eol.STATUS_SEV)
@@ -979,8 +1128,59 @@ def schedules(request: Request):
         configlets = db.scalars(select(Configlet).order_by(Configlet.name)).all()
     jobs = {j.id: j.next_run_time for j in scheduler.scheduler.get_jobs()}
     from . import cronutil
+    sf = {"name": "Respaldo nocturno", "action": "backup", "group_id": None, "configlet_id": None,
+          **cronutil.to_form("0 2 * * *")}
     return render(request, "schedules.html", user, items=items, groups=groups, configlets=configlets, jobs=jobs,
+                  DAYS=cronutil.DAYS, FREQS=cronutil.FREQS, ACTIONS=SCHEDULE_ACTIONS, sf=sf)
+
+
+SCHEDULE_ACTIONS = {"backup": "Respaldo de configuración", "compliance": "Auditoría de cumplimiento",
+                    "cve": "Escaneo de vulnerabilidades", "configlet": "Ejecutar configlet",
+                    "report_email": "Informes por correo", "system_backup": "Copia de recuperación"}
+
+
+@app.get("/schedules/{sid}/edit")
+def schedule_edit_form(request: Request, sid: int):
+    user = require(request, "admin")
+    from . import cronutil
+    with SessionLocal() as db:
+        s = db.get(Schedule, sid)
+        if s is None:
+            return go("/schedules")
+        sf = {"name": s.name, "action": s.action, "group_id": s.group_id, "configlet_id": s.configlet_id,
+              **cronutil.to_form(s.cron)}
+        groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
+        configlets = db.scalars(select(Configlet).order_by(Configlet.name)).all()
+    return render(request, "schedule_edit.html", user, sf=sf, sid=sid, groups=groups, configlets=configlets,
                   DAYS=cronutil.DAYS, FREQS=cronutil.FREQS)
+
+
+@app.post("/schedules/{sid}/edit")
+async def schedule_edit_save(request: Request, sid: int):
+    user = require(request, "admin")
+    form = await request.form()
+    from . import cronutil
+    try:
+        cron = cronutil.from_form(form)
+    except ValueError as e:
+        flash(request, f"Programación inválida: {e}", "error")
+        return go(f"/schedules/{sid}/edit")
+    with SessionLocal() as db:
+        s = db.get(Schedule, sid)
+        if s is None:
+            return go("/schedules")
+        before = f"{s.name} {s.cron}"
+        s.name = (form.get("name") or s.name).strip()
+        s.action = form.get("action") or s.action
+        s.cron = cron
+        s.group_id = int(form["group_id"]) if form.get("group_id") else None
+        s.configlet_id = int(form["configlet_id"]) if form.get("configlet_id") else None
+        name = s.name
+        db.commit()
+    scheduler.reload_jobs()
+    log_action(request, user, "schedule_edit", f"{before} -> {name} {cron}")
+    flash(request, f"Tarea «{name}» actualizada: {cronutil.describe(cron)}")
+    return go("/schedules")
 
 
 @app.post("/schedules")
@@ -1123,8 +1323,9 @@ async def user_create(request: Request):
     if not USERNAME_RE.match(username):
         flash(request, "Nombre de usuario no válido: 2 a 64 caracteres (letras, números, punto, guion, @).", "error")
         return go("/users")
-    if len(password) < 8:
-        flash(request, "La contraseña debe tener al menos 8 caracteres.", "error")
+    problem = password_problem(password, username)
+    if problem:
+        flash(request, problem, "error")
         return go("/users")
     if password != form.get("password2", password):
         flash(request, "Las contraseñas no coinciden.", "error")
@@ -1152,7 +1353,7 @@ def user_edit_form(request: Request, uid: int):
         if not u:
             return go("/users")
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
-    return render(request, "user_edit.html", user, u=u, groups=groups, selected=set(user_group_ids(uid)))
+    return render(request, "user_edit.html", user, u=u, groups=groups, selected=set(user_group_ids(uid)), now=now())
 
 
 @app.post("/users/{uid}/edit")
@@ -1176,14 +1377,17 @@ async def user_edit(request: Request, uid: int):
         changes = []
         password = form.get("password") or ""
         if password:
-            if len(password) < 8:
-                flash(request, "La contraseña debe tener al menos 8 caracteres.", "error")
+            problem = password_problem(password, u.username)
+            if problem:
+                flash(request, problem, "error")
                 return go(f"/users/{uid}/edit")
             if password != form.get("password2", password):
                 flash(request, "Las contraseñas no coinciden.", "error")
                 return go(f"/users/{uid}/edit")
             u.password_hash = hash_password(password)
-            changes.append("contraseña cambiada")
+            u.session_version = (u.session_version or 0) + 1  # cierra las sesiones abiertas de ese usuario
+            u.locked_until, u.failed_logins = None, 0
+            changes.append("contraseña cambiada (sesiones cerradas)")
         if role != u.role:
             changes.append(f"rol {ROLE_NAMES[role]}")
         if active != u.active:
@@ -1222,9 +1426,14 @@ def user_delete(request: Request, uid: int):
 SETTING_KEYS = ["smtp_host", "smtp_port", "smtp_security", "smtp_user", "smtp_from", "alert_emails",
                 "webhook_url", "telegram_token", "telegram_chat_id", "alert_min_severity", "require_approval",
                 "allow_self_approval", "notify_compliance", "retention_versions", "cisco_api_client_id",
-                "dr_keep", "dr_remote_host", "dr_remote_port", "dr_remote_user", "dr_remote_path"]
+                "dr_keep", "dr_remote_host", "dr_remote_port", "dr_remote_user", "dr_remote_path",
+                "session_idle_minutes", "require_2fa_admins", "console_access", "console_autologin", "update_check",
+                "org_name", "org_contact", "org_address"]
+CHECKBOX_KEYS = ("require_approval", "allow_self_approval", "notify_compliance", "require_2fa_admins",
+                 "console_autologin", "update_check")
 # valores por defecto cuando el ajuste nunca se guardó
-SETTING_DEFAULTS = {"allow_self_approval": "1"}
+SETTING_DEFAULTS = {"allow_self_approval": "1", "session_idle_minutes": "30", "require_2fa_admins": "0",
+                    "console_access": "admin", "console_autologin": "0", "update_check": "1"}
 SECRET_FORM_KEYS = ["smtp_password", "cisco_api_secret", "dr_remote_password"]
 
 
@@ -1242,10 +1451,21 @@ async def settings_save(request: Request):
     user = require(request, "admin")
     form = await request.form()
     for k in SETTING_KEYS:
-        if k in ("require_approval", "allow_self_approval", "notify_compliance"):
+        if k == "require_2fa_admins" and form.get(k) == "on" and not user.totp_enabled:
+            # exigirla sin tenerla dejaría a este administrador fuera de todo salvo «Mi cuenta»
+            flash(request, "Para exigir la verificación en dos pasos a los administradores, actívela primero en su "
+                           "propia cuenta (Mi cuenta → Verificación en dos pasos).", "error")
+            continue
+        if k in CHECKBOX_KEYS:
             set_setting(k, "1" if form.get(k) == "on" else "0")
+        elif k == "session_idle_minutes":
+            v = (form.get(k) or "30").strip()
+            set_setting(k, str(min(max(int(v), 5), 720)) if v.isdigit() else "30")
+        elif k == "console_access":
+            set_setting(k, form.get(k) if form.get(k) in ("off", "admin", "operator") else "admin")
         else:
             set_setting(k, (form.get(k) or "").strip())
+    clear_settings_cache()
     for k in SECRET_FORM_KEYS:
         if form.get(k):
             set_setting(k, form[k])
@@ -1320,6 +1540,10 @@ def api_devices(request: Request):
 from . import routes_ops  # noqa: E402  (rutas de firmware, EOL, análisis y sistema)
 
 app.include_router(routes_ops.router)
+from . import console, security  # noqa: E402  (consola SSH web; 2 pasos, certificado, privacidad)
+
+app.include_router(security.router)
+app.include_router(console.router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)

@@ -19,7 +19,7 @@ trap cleanup EXIT
 for _ in $(seq 1 30); do curl -fsS http://127.0.0.1:8000/healthz >/dev/null 2>&1 && break; sleep 1; done
 
 status=0
-for t in e2e e2e_syslog e2e2 e2e_window e2e_users e2e_legacy e2e_enable e2e_edge e2e_sched unit_fastpath unit_inventory unit_vendors; do
+for t in e2e e2e_syslog e2e2 e2e_window e2e_users e2e_legacy e2e_enable e2e_edge e2e_sched e2e_panel e2e_console e2e_security unit_fastpath unit_inventory unit_vendors unit_contrast unit_syslog; do
   echo "=================== $t ==================="
   if ! "$PY" "tests/$t.py"; then status=1; fi
 done

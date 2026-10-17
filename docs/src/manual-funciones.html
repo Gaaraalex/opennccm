@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 1.5.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 1.6.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -129,6 +129,11 @@ Si se le asignan grupos, la restricción se aplica en todas las páginas, la bú
   <tr><td>Cambios por aprobar</td><td>Solicitudes de cambio pendientes.</td></tr>
 </table>
 <p>Debajo se muestran la gráfica de cambios por día, los últimos cambios y los eventos recientes.</p>
+<h2>Rendimiento del servidor (solo administradores)</h2>
+<p>Los administradores ven además el estado del propio servidor de OpenNCCM: uso de CPU ahora (y carga), memoria RAM, disco
+usado y espacio que ocupan los datos de OpenNCCM, y el tiempo encendido. Dos gráficas muestran el uso de CPU y de memoria de
+las últimas 24 horas (promedios cada 5 minutos; pase el ratón para ver cada valor) y unas barras muestran disco, memoria y
+swap usados, libres y totales. Si el disco supera el 90 % aparece «⚠ casi lleno».</p>
 </section>
 
 <section class="chapter">
@@ -162,6 +167,29 @@ grupo.</p>
 firmware, vulnerabilidades y eventos. Los botones superiores permiten respaldar, auditar, buscar CVE, editar o eliminar.</p>
 <figure><img src="img/05-dispositivo.png"><figcaption>Ficha del dispositivo R1 (parte superior: inventario, línea base, ciclo de vida, versiones y
 firmware). Más abajo siguen cumplimiento, vulnerabilidades y eventos.</figcaption></figure>
+</section>
+
+<h2 id="consola">Consola SSH web</h2>
+<p><b>Para qué sirve:</b> entrar a la línea de comandos de un equipo desde el navegador, sin PuTTY ni otro programa.</p>
+<ol class="steps">
+  <li>En <b>Dispositivos</b>, pulse el icono <b>⌨</b> de la fila del equipo (a la derecha de «Estado»), o el botón
+  <b>⌨ Consola</b> en la página del equipo. La consola se abre en una pestaña nueva.</li>
+  <li>Si el administrador no activó el inicio automático, escriba el <b>usuario</b> y la <b>contraseña</b> del equipo cuando
+  se le pidan (la contraseña no se muestra al escribirla).</li>
+  <li>Use la consola como cualquier terminal. Copiar: seleccione el texto. Pegar: Ctrl+Mayús+V o clic derecho.
+  <b>Pantalla completa</b> agranda el terminal; <b>Reconectar</b> abre una sesión nueva.</li>
+</ol>
+<table>
+  <tr><th>Ajuste (Ajustes → Seguridad y acceso)</th><th>Efecto</th></tr>
+  <tr><td>Quién puede abrir la consola</td><td>Solo administradores (por omisión), administradores y operadores (solo los
+  equipos de sus grupos) o nadie.</td></tr>
+  <tr><td>Iniciar sesión automáticamente</td><td>Entra con la credencial asignada al equipo, sin pedir usuario ni contraseña; en
+  Cisco, EdgeSwitch y similares también entra al modo privilegiado si la credencial tiene contraseña de enable. Desactivado por
+  omisión: actívelo solo si quienes pueden abrir la consola deben poder entrar a los equipos sin conocer sus contraseñas.</td></tr>
+</table>
+<div class="note"><b>Seguridad</b>La consola usa la misma sesión que la página (no funciona desde otros sitios web), se cierra tras
+15 minutos sin escribir (máximo 4 horas), y cada apertura, intento fallido y cierre queda en <b>Auditoría</b>, indicando si fue con
+inicio automático. Solo funciona con equipos configurados por SSH.</div>
 </section>
 
 <section class="chapter">
@@ -514,7 +542,9 @@ equipo toma la primera entrada que coincide y recibe un estado:</p>
   <tr><td>Avanzado (expresión cron)</td><td>Para casos especiales: <code>minuto hora día mes día-semana</code>; 0 o 7 es domingo y 1 es lunes.</td></tr>
 </table>
 <p>La hora es la del servidor (Sistema → Fecha, hora y zona horaria). La tabla muestra cada tarea en palabras y su próxima
-ejecución. Cada tarea puede pausarse, ejecutarse ya o eliminarse.</p>
+ejecución. Cada tarea puede <b>editarse</b> (botón «Editar»: abre el mismo asistente con sus valores), pausarse, ejecutarse ya o
+eliminarse.</p>
+<figure><img src="img/36-tarea-editar.png" style="max-height:110mm"><figcaption>Editar una tarea: el mismo asistente con sus valores actuales.</figcaption></figure>
 <figure><img src="img/20-tareas.png"><figcaption>Tareas programadas.</figcaption></figure>
 </section>
 
@@ -582,7 +612,7 @@ un equipo a un grupo: ábralo y pulse <b>asignar grupo</b> (o <b>Editar</b>). Al
 <ol class="steps">
   <li>Menú <b>Usuarios</b>, sección <b>Crear usuario nuevo</b>.</li>
   <li>Escriba el nombre (letras, números, punto, guion o @; sin espacios), elija el rol y escriba la contraseña dos veces
-  (mínimo 8 caracteres). El correo es opcional.</li>
+  (mínimo 10 caracteres, con letras y números, sin incluir el nombre de usuario). El correo es opcional.</li>
   <li>Para limitarlo a ciertos equipos, marque sus grupos. Sin grupos marcados verá todos los equipos.</li>
   <li>Pulse <b>Crear usuario</b>. El mensaje confirma el nombre y el rol; ya puede ingresar.</li>
 </ol>
@@ -596,6 +626,29 @@ para no cambiarla). Al guardar, el mensaje indica exactamente qué cambió (por 
 <div class="note"><b>Protecciones</b>Un administrador no puede quitarse a sí mismo el rol, bloquearse ni eliminarse, y siempre debe quedar al
 menos un administrador activo. Si se pierde el acceso, en la consola del servidor: <code>sudo opennccm users</code> lista los usuarios y
 <code>sudo opennccm reset-password USUARIO 'CLAVE'</code> fija una contraseña (y lo deja como administrador).</div>
+<h2 id="dospasos">Verificación en dos pasos</h2>
+<p>Con la verificación en dos pasos, para ingresar hace falta además de la contraseña un código de 6 dígitos que cambia cada 30
+segundos en el teléfono. Aunque alguien conozca la contraseña, no puede entrar sin el teléfono.</p>
+<ol class="steps">
+  <li>Instale en el teléfono una app de autenticación (Google Authenticator, Microsoft Authenticator, Authy, FreeOTP…).</li>
+  <li>En OpenNCCM: <b>Mi cuenta → Verificación en dos pasos → Activar</b>.</li>
+  <li>En la app, «Agregar cuenta» y escanee el código QR (o escriba la clave que aparece debajo).</li>
+  <li>Escriba el código de 6 dígitos que muestra la app y pulse <b>Confirmar y activar</b>.</li>
+</ol>
+<figure><img src="img/34-dospasos.png" style="max-height:120mm"><figcaption>Activación de la verificación en dos pasos: código QR, clave y confirmación.</figcaption></figure>
+<p>Desde entonces, tras la contraseña se pide el código. Un mismo código no sirve dos veces. Para desactivarla se pide la
+contraseña y un código. Si alguien pierde el teléfono, un administrador la quita en <b>Usuarios → Editar → Quitar la verificación
+en dos pasos</b>, o en la consola del servidor: <code>sudo opennccm reset-2fa USUARIO</code>. En <b>Ajustes</b> se puede exigir a
+todos los administradores (para activarlo, el administrador que lo activa debe tenerla ya).</p>
+<h2>Bloqueos y sesiones</h2>
+<ul>
+  <li>Tras <b>5 contraseñas incorrectas seguidas</b>, la cuenta se bloquea 15 minutos (aunque luego se escriba la correcta) y se
+  genera la alarma «Cuenta bloqueada». Un administrador la desbloquea al fijarle una contraseña nueva. Además, 10 intentos
+  fallidos desde una misma dirección IP bloquean esa dirección 15 minutos.</li>
+  <li>La sesión se cierra sola tras el tiempo sin actividad configurado en Ajustes (30 minutos por omisión) y, como máximo, a las
+  12 horas.</li>
+  <li>Al cambiar la contraseña (uno mismo o un administrador) se cierran las sesiones abiertas de ese usuario en otros equipos.</li>
+</ul>
 <h2>Mi cuenta: cambiar mi contraseña</h2>
 <p>Cualquier usuario puede cambiar su propia contraseña con el botón <b>🔑 Cambiar contraseña</b> de la barra superior: escriba la
 actual y la nueva dos veces. Las mayúsculas y minúsculas cuentan.</p>
@@ -622,6 +675,18 @@ acción o detalle y exportar.</p>
 
 <section class="chapter">
 <h1>24. Sistema y recuperación</h1>
+<h2>Actualizaciones</h2>
+<p>La tarjeta <b>Actualizaciones</b> muestra la versión instalada y la última publicada. <b>Buscar actualizaciones ahora</b>
+consulta GitHub; OpenNCCM también lo hace una vez al día (desactivable en Ajustes) y, si hay una versión nueva, muestra a los
+administradores un aviso con sus novedades (<b>Ver y actualizar</b> o <b>Más tarde</b>, que no lo repite en esa sesión).</p>
+<p><b>Actualizar a la versión X</b> hace lo mismo que <code>sudo opennccm update</code> en la consola: copia previa del código y
+la base, instalación, verificación y vuelta automática a la versión anterior si la nueva no arranca. Una página muestra el
+progreso; OpenNCCM se detiene 1-2 minutos. Por seguridad la aplicación no tiene permisos de administrador del sistema: solo deja
+una solicitud que atiende un servicio de systemd (<code>opennccm-webupdate</code>) instalado a partir de la 1.6.0.</p>
+<h2>Copias de recuperación con la clave</h2>
+<p>Si marca «Incluir la clave de cifrado», el archivo completo se cifra (AES-256-GCM) con una contraseña de al menos 12
+caracteres que usted elige, y termina en <code>.enc</code>. Sin esa contraseña no se puede restaurar: guárdela aparte. Al
+restaurar con <code>sudo opennccm restore ARCHIVO.enc</code> se la pide.</p>
 <p>Muestra la base de datos y la clave en uso, las plataformas soportadas, la <b>fecha y hora del servidor</b> y las
 <b>copias de recuperación</b>: crear (con o sin la clave de cifrado), descargar y eliminar.</p>
 <h2>Fecha, hora y zona horaria</h2>
@@ -640,6 +705,20 @@ acción o detalle y exportar.</p>
 
 <section class="chapter">
 <h1>25. Ajustes</h1>
+<h2>Seguridad y acceso</h2>
+<table>
+  <tr><th>Ajuste</th><th>Qué hace</th></tr>
+  <tr><td>Cerrar la sesión tras N minutos sin actividad</td><td>5 a 720 minutos (30 por omisión).</td></tr>
+  <tr><td>Exigir verificación en dos pasos a los administradores</td><td>Un administrador sin ella solo puede entrar a «Mi cuenta» hasta activarla.</td></tr>
+  <tr><td>Consola SSH web</td><td>Quién puede abrirla y si inicia sesión automáticamente (ver capítulo 4).</td></tr>
+  <tr><td>Buscar versiones nuevas</td><td>Consulta GitHub una vez al día y avisa a los administradores.</td></tr>
+</table>
+<h2>Datos de la organización</h2>
+<p>Nombre, correo de contacto y dirección de quien administra esta instalación. Se muestran en la página
+<b>Privacidad, cookies y licencias</b> (enlace al pie de cada página y en el inicio de sesión), que explica qué datos guarda
+OpenNCCM, sus conexiones externas, la única cookie que usa (técnica, sin necesidad de consentimiento), las condiciones de uso y
+las licencias.</p>
+<figure><img src="img/35-acerca.png" style="max-height:200mm"><figcaption>Página pública «Privacidad, cookies y licencias».</figcaption></figure>
 <table>
   <tr><th>Sección</th><th>Opciones</th></tr>
   <tr><td>Flujo de cambios</td><td>Exigir aprobación · permitir auto-aprobación · notificar infracciones · retención de versiones</td></tr>

@@ -4,6 +4,7 @@
     python -m app.cli list-users
     python -m app.cli create-admin <usuario> [contraseña]
     python -m app.cli reset-password <usuario> <contraseña>
+    python -m app.cli reset-2fa <usuario>   # quitar la verificación en dos pasos (perdió el teléfono)
     python -m app.cli seed          # políticas y configlets de ejemplo
     python -m app.cli backup-all    # respaldo inmediato de todos los equipos
     python -m app.cli system-backup [--with-key]   # copia de recuperación de OpenNCCM
@@ -89,10 +90,24 @@ def create_admin(username: str, password: str | None):
         u = db.scalars(select(User).where(User.username == username)).first()
         if u:
             u.password_hash, u.role, u.active = hash_password(password), "admin", True
+            u.session_version = (u.session_version or 0) + 1   # cierra sus sesiones abiertas
+            u.locked_until, u.failed_logins = None, 0          # y lo desbloquea
         else:
             db.add(User(username=username, password_hash=hash_password(password), role="admin"))
         db.commit()
     print(f"Administrador '{username}' listo.")
+
+
+def reset_2fa(username: str):
+    with SessionLocal() as db:
+        u = db.scalars(select(User).where(User.username == username)).first()
+        if not u:
+            sys.exit(f"No existe el usuario '{username}'")
+        u.totp_enabled, u.totp_secret_enc = False, None
+        u.session_version = (u.session_version or 0) + 1
+        u.locked_until, u.failed_logins = None, 0
+        db.commit()
+    print(f"Verificación en dos pasos quitada a '{username}'. Puede activarla de nuevo en «Mi cuenta».")
 
 
 def list_users():
@@ -144,18 +159,32 @@ def main():
         init_db()
     if cmd in ("create-admin", "reset-password") and len(args) >= 2:
         create_admin(args[1], args[2] if len(args) > 2 else None)
+    elif cmd == "reset-2fa" and len(args) >= 2:
+        reset_2fa(args[1])
     elif cmd == "seed":
         seed()
     elif cmd == "list-users":
         list_users()
     elif cmd == "system-backup":
+        import os
+
         from .sysbackup import create_backup
-        print(create_backup(include_key="--with-key" in args))
+        passphrase = None
+        if "--with-key" in args:  # la copia lleva la clave: se cifra con una contraseña
+            passphrase = os.environ.get("NCM_BACKUP_PASSPHRASE") or getpass.getpass("Contraseña para la copia: ")
+            if not os.environ.get("NCM_BACKUP_PASSPHRASE") and getpass.getpass("Repítala: ") != passphrase:
+                sys.exit("Las contraseñas no coinciden")
+        print(create_backup(include_key="--with-key" in args, passphrase=passphrase))
     elif cmd == "restore" and len(args) >= 2:
         from pathlib import Path
 
+        import os
+
         from .sysbackup import restore_backup
-        print(restore_backup(Path(args[1])))
+        passphrase = None
+        if args[1].endswith(".enc"):
+            passphrase = os.environ.get("NCM_BACKUP_PASSPHRASE") or getpass.getpass("Contraseña de la copia: ")
+        print(restore_backup(Path(args[1]), passphrase))
         print("Reinicie el servicio: sudo systemctl start opennccm")
     elif cmd == "backup-all":
         from . import services

@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% block title %}Activar verificación en dos pasos{% endblock %}
+{% block content %}
+<h1>Activar verificación en dos pasos</h1>
+<div class="card" style="max-width:640px">
+  <ol class="steps">
+    <li>Instale en su teléfono una app de autenticación: Google Authenticator, Microsoft Authenticator, Authy o FreeOTP.</li>
+    <li>En la app, elija «Agregar cuenta» y escanee este código:
+      <div class="qr">{{ qr|safe }}</div>
+      <p class="small muted">¿No puede escanearlo? Escriba esta clave en la app (tipo «basada en tiempo»):<br>
+      <code style="font-size:15px;letter-spacing:1px;user-select:all">{{ secret }}</code></p></li>
+    <li>Escriba el código de 6 dígitos que muestra la app para confirmar:</li>
+  </ol>
+  <form method="post" action="/account/2fa/setup" class="row">
+    <div><label for="code">Código de la app</label>
+      <input id="code" name="code" required inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" autofocus></div>
+    <button>Confirmar y activar</button>
+  </form>
+  <p class="small muted">Si pierde el teléfono, un administrador puede quitarle la verificación en <b>Usuarios → Editar</b>, o
+  desde la consola del servidor con <code>sudo opennccm reset-2fa USUARIO</code>.</p>
+</div>
+{% endblock %}
