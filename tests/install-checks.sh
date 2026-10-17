@@ -12,13 +12,13 @@ login() { curl -sk -c "$JAR" -b "$JAR" -o /dev/null --data-urlencode "username=a
 case ${1:-tls} in
 tls)
   echo "== Certificado emitido por la CA propia de OpenNCCM (con restricción de nombres)"
-  test -f /etc/opennccm/tls/ca.crt || fail "no existe /etc/opennccm/tls/ca.crt"
+  test -f /etc/ssl/opennccm/ca.crt || fail "no existe /etc/ssl/opennccm/ca.crt"
   issuer=$(echo | openssl s_client -connect 127.0.0.1:443 2>/dev/null | openssl x509 -noout -issuer)
   [[ $issuer == *"OpenNCCM CA"* ]] || fail "emisor inesperado: $issuer"
-  sudo openssl x509 -in /etc/opennccm/tls/ca.crt -noout -text | grep -q "Name Constraints" || fail "la CA no tiene restricción de nombres"
-  curl -fsS --cacert /etc/opennccm/tls/ca.crt $B/healthz >/dev/null || fail "el certificado no valida con la CA (como en un PC que la instaló)"
-  curl -fsk $B/ca.crt | cmp - /etc/opennccm/tls/ca.crt || fail "/ca.crt no entrega la CA"
-  test "$(sudo stat -c %a /etc/opennccm/tls/ca.key)" = 600 || fail "permisos de ca.key"
+  sudo openssl x509 -in /etc/ssl/opennccm/ca.crt -noout -text | grep -q "Name Constraints" || fail "la CA no tiene restricción de nombres"
+  curl -fsS --cacert /etc/ssl/opennccm/ca.crt $B/healthz >/dev/null || fail "el certificado no valida con la CA (como en un PC que la instaló)"
+  curl -fsk $B/ca.crt | cmp - /etc/ssl/opennccm/ca.crt || fail "/ca.crt no entrega la CA"
+  test "$(sudo stat -c %a /etc/ssl/opennccm/ca.key)" = 600 || fail "permisos de ca.key"
   echo "OK certificado"
 
   echo "== Cookie de sesión solo por HTTPS y cabeceras de seguridad"
@@ -39,7 +39,7 @@ tls)
 import ssl, sys
 from websockets.sync.client import connect
 dev, cookie = sys.argv[1], sys.argv[2]
-ctx = ssl.create_default_context(cafile="/etc/opennccm/tls/ca.crt")
+ctx = ssl.create_default_context(cafile="/etc/ssl/opennccm/ca.crt")
 with connect(f"wss://127.0.0.1/devices/{dev}/console/ws?cols=80&rows=24", ssl=ctx,
              additional_headers={"Cookie": f"opennccm={cookie}", "Origin": "https://127.0.0.1"}) as ws:
     out = ""

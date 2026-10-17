@@ -546,10 +546,7 @@ EOF
   # con HTTPS la cookie de sesión solo viaja cifrada (también al actualizar instalaciones anteriores)
   sed -i '/^NCM_SECURE_COOKIE=/d' $ETC_DIR/opennccm.env
   echo "NCM_SECURE_COOKIE=$([[ $TLS_MODE == none ]] && echo 0 || echo 1)" >> $ETC_DIR/opennccm.env
-  chmod 640 $ETC_DIR/opennccm.env
-  chown root:$SVC_USER $ETC_DIR/opennccm.env 2>/dev/null || true
-  # permisos estrictos para los secretos y la base (la app solo los necesita para su usuario)
-  [[ -f $ETC_DIR/secret.key ]] && { chown $SVC_USER:$SVC_USER $ETC_DIR/secret.key; chmod 600 $ETC_DIR/secret.key; }
+  # permisos estrictos para la base (la clave y la configuración se ajustan al final de esta función)
   [[ -f $DATA_DIR/opennccm.db ]] && chmod 600 $DATA_DIR/opennccm.db
   [[ -d $DATA_DIR ]] && chmod 750 $DATA_DIR
   # opciones de instalación (las reutilizan las actualizaciones)
@@ -668,7 +665,7 @@ EOF
 # Instalando ca.crt una vez en el PC, el navegador confía en el sitio: sin aviso «No es seguro» y con la opción de
 # guardar la contraseña (Chrome y Edge no la ofrecen en sitios con error de certificado).
 make_local_ca_cert() {
-  local crt=$1 key=$2 d=$ETC_DIR/tls cfg san nc
+  local crt=$1 key=$2 d=/etc/ssl/opennccm cfg san nc   # fuera de $ETC_DIR: la clave de la CA es solo de root
   mkdir -p $d && chmod 755 $d
   if [[ ! -f $d/ca.key ]]; then
     # La CA solo puede firmar certificados para ESTE servidor (restricción de nombres): aunque alguien obtuviera
@@ -702,7 +699,7 @@ setup_nginx() {
   elif [[ $TLS_MODE == letsencrypt && -d /etc/letsencrypt/live/${LE_DOMAIN:-none} ]]; then
     # al reaplicar (actualización) se conserva el certificado de Let's Encrypt
     crt=/etc/letsencrypt/live/$LE_DOMAIN/fullchain.pem key=/etc/letsencrypt/live/$LE_DOMAIN/privkey.pem
-  elif [[ $TLS_MODE == self-signed && ! -f $ETC_DIR/tls/ca.crt ]] || [[ ! -f $key ]]; then
+  elif [[ $TLS_MODE == self-signed && ! -f /etc/ssl/opennccm/ca.crt ]] || [[ ! -f $key ]]; then
     # instalación nueva o migración desde el certificado autofirmado anterior a la 1.6.0
     make_local_ca_cert $crt $key
   fi

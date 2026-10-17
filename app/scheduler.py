@@ -106,6 +106,8 @@ CHANGE_PATTERNS = re.compile("|".join([
 ]), re.IGNORECASE)
 
 _last_trigger: dict[int, float] = {}
+_pending: set[int] = set()          # equipos con un respaldo por syslog ya agendado (avisos agrupados)
+_pending_lock = threading.Lock()
 _ip_cache: dict[str, int] = {}
 _ip_cache_at = 0.0
 
@@ -149,13 +151,27 @@ class SyslogHandler(socketserver.BaseRequestHandler):
         dev_id = _device_for_ip(self.client_address[0])
         if dev_id is None:
             return
-        last = _last_trigger.get(dev_id, 0)
-        if time.time() - last < 60:
-            return
-        _last_trigger[dev_id] = time.time()
+        elapsed = time.time() - _last_trigger.get(dev_id, 0)
+        if elapsed < 60:
+            # Otro aviso poco después del anterior: no se descarta (podría ser un segundo cambio que el respaldo
+            # anterior no alcanzó a ver). Se agrupan en UN respaldo más al terminar el minuto.
+            with _pending_lock:
+                if dev_id in _pending:
+                    return
+                _pending.add(dev_id)
+            delay = max(20.0, 60 - elapsed + 5)
+        else:
+            delay = 20.0  # espera para que el usuario termine de escribir antes de respaldar
+        if elapsed >= 60:
+            _last_trigger[dev_id] = time.time()
         services.add_event("info", "Syslog de cambio", data.strip()[:500], dev_id, notify=False)
-        # espera 20 s para que el usuario termine de escribir antes de respaldar
-        timer = threading.Timer(20, lambda: services.pool.submit(_delayed_backup, dev_id))
+
+        def fire():
+            with _pending_lock:
+                _pending.discard(dev_id)
+            _last_trigger[dev_id] = time.time()
+            services.pool.submit(_delayed_backup, dev_id)
+        timer = threading.Timer(delay, fire)
         timer.daemon = True
         timer.start()
 

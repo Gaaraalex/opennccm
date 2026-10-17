@@ -133,7 +133,7 @@ def line(points: list[tuple[str, float]], unit: str = "%", vmax: float = 100, he
         parts.append(f'<g class="mark"><rect class="hit" x="{x - step / 2:.1f}" y="{top}" width="{max(step, 2):.1f}" '
                      f'height="{h_plot}"/><circle class="dot" cx="{x:.1f}" cy="{y:.1f}" r="4"/>'
                      f"<title>{escape(label)}: {v:.0f}{unit}</title></g>")
-        if (i % label_every == 0 and n - 1 - i > label_every // 3) or i == n - 1:
+        if i in (0, n - 1) or (i % label_every == 0 and n - 1 - i > label_every // 3):
             anchor = "start" if i == 0 else "end" if i == n - 1 else "middle"  # que no se corten en los bordes
             parts.append(f'<text class="tick" x="{x:.1f}" y="{height - 8}" text-anchor="{anchor}">{escape(label)}</text>')
     lx, ly = coords[-1]  # valor actual como etiqueta directa
