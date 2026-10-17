@@ -31,6 +31,8 @@
   foco visible con teclado, gráficas con descripción, y colores corregidos para cumplir el contraste WCAG 2.1 AA en los 6
   temas (prueba automática).
 - **nginx**: soporte de WebSocket (consola) y conservación del certificado de Let's Encrypt al actualizar.
+- **Corrección**: un segundo aviso de cambio por syslog del mismo equipo dentro del mismo minuto se descartaba, y ese segundo
+  cambio podía quedar sin respaldar hasta la siguiente tarea programada. Ahora se agrupa en un respaldo adicional.
 
 ## 1.5.0
 Lo aprendido con el Ubiquiti EdgeSwitch, revisado y aplicado a todas las marcas:
