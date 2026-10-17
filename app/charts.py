@@ -99,3 +99,57 @@ def bars(data: list[tuple[str, float]], unit: str = "", vmax: float | None = Non
                      f"<title>{tip}</title></g>{close_a}")
     parts.append("</svg>")
     return "".join(parts)
+
+
+def line(points: list[tuple[str, float]], unit: str = "%", vmax: float = 100, height: int = 180,
+         label_every: int = 48, title: str = "") -> str:
+    """Serie temporal como línea (2 px) con área tenue; cada punto tiene una zona de hover con su valor."""
+    if len(points) < 2:
+        return '<p class="muted small">Reuniendo datos: la gráfica aparece tras unos minutos de funcionamiento.</p>'
+    w_plot, left, top, bottom = 760, 36, 10, 28
+    h_plot = height - top - bottom
+    n = len(points)
+    step = w_plot / (n - 1)
+
+    def xy(i, v):
+        return left + i * step, top + h_plot - h_plot * min(v, vmax) / vmax
+    vals = [v for _, v in points]
+    summary = (f"{title}: ahora {vals[-1]:.0f}{unit}, máximo {max(vals):.0f}{unit}, "
+               f"promedio {sum(vals) / len(vals):.0f}{unit} ({points[0][0]} a {points[-1][0]})")
+    parts = [f'<svg class="viz" viewBox="0 0 {left + w_plot + 4} {height}" role="img" '
+             f'aria-label="{escape(summary)}" preserveAspectRatio="xMidYMid meet">']
+    for i in range(5):
+        val = vmax * i / 4
+        y = top + h_plot - h_plot * i / 4
+        parts.append(f'<line class="{"axis" if i == 0 else "grid"}" x1="{left}" x2="{left + w_plot}" '
+                     f'y1="{y:.1f}" y2="{y:.1f}"/>')
+        parts.append(f'<text class="tick" x="{left - 6}" y="{y + 4:.1f}" text-anchor="end">{val:g}</text>')
+    coords = [xy(i, v) for i, (_, v) in enumerate(points)]
+    path = " ".join(f"{'M' if i == 0 else 'L'}{x:.1f},{y:.1f}" for i, (x, y) in enumerate(coords))
+    parts.append(f'<path class="area" d="{path} L{coords[-1][0]:.1f},{top + h_plot} L{left},{top + h_plot} Z"/>')
+    parts.append(f'<path class="line" d="{path}"/>')
+    for i, (label, v) in enumerate(points):
+        x, y = coords[i]
+        parts.append(f'<g class="mark"><rect class="hit" x="{x - step / 2:.1f}" y="{top}" width="{max(step, 2):.1f}" '
+                     f'height="{h_plot}"/><circle class="dot" cx="{x:.1f}" cy="{y:.1f}" r="4"/>'
+                     f"<title>{escape(label)}: {v:.0f}{unit}</title></g>")
+        if (i % label_every == 0 and n - 1 - i > label_every // 3) or i == n - 1:
+            anchor = "start" if i == 0 else "end" if i == n - 1 else "middle"  # que no se corten en los bordes
+            parts.append(f'<text class="tick" x="{x:.1f}" y="{height - 8}" text-anchor="{anchor}">{escape(label)}</text>')
+    lx, ly = coords[-1]  # valor actual como etiqueta directa
+    parts.append(f'<text class="value" x="{min(lx, left + w_plot - 2):.1f}" y="{max(ly - 8, 12):.1f}" '
+                 f'text-anchor="end">{points[-1][1]:.0f}{unit}</text>')
+    parts.append("</svg>")
+    return "".join(parts)
+
+
+def meter(used: float, total: float, label: str, detail: str, warn_at: float = 90) -> str:
+    """Barra de uso (usado / total) con texto; el aviso por encima del umbral lleva icono y texto, no solo color."""
+    pct = 100 * used / total if total else 0
+    cls = "warn" if pct >= warn_at else ""
+    note = ' <span class="badge b-warning">⚠ casi lleno</span>' if cls else ""
+    return (f'<div class="meter-row"><div class="meter-head"><b>{escape(label)}</b>{note}'
+            f'<span class="value">{pct:.0f}%</span></div>'
+            f'<div class="meter {cls}" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{pct:.0f}" '
+            f'aria-label="{escape(label)}: {pct:.0f}% usado"><i style="width:{min(pct, 100):.1f}%"></i></div>'
+            f'<div class="small muted">{escape(detail)}</div></div>')

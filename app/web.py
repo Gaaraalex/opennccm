@@ -23,7 +23,13 @@ templates.env.filters["ymd"] = lambda d: d.strftime("%Y-%m-%d") if d else "—"
 
 def render(request: Request, name: str, user, **ctx):
     flashes = request.session.pop("flash", [])
-    return templates.TemplateResponse(request, name, {"user": user, "flashes": flashes,
+    popup = None
+    if user is not None and user.role == "admin" and not request.url.path.startswith("/system/updat"):
+        from . import updates
+        st = updates.status()  # aviso emergente: una vez por sesión y por versión nueva
+        if st["available"] and not st["running"] and request.session.get("upd_dismissed") != st["latest"]:
+            popup = st
+    return templates.TemplateResponse(request, name, {"user": user, "flashes": flashes, "update_popup": popup,
                                                       "profiles": PROFILES, "profile_map": PROFILE_MAP, **ctx})
 
 

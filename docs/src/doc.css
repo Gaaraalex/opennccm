@@ -1,5 +1,5 @@
 @page { size: A4; margin: 18mm 16mm 20mm 16mm;
-  @bottom-left { content: "OpenNCCM 1.5.0"; font: 8pt "Segoe UI", sans-serif; color: #8a94a3; }
+  @bottom-left { content: "OpenNCCM 1.6.0"; font: 8pt "Segoe UI", sans-serif; color: #8a94a3; }
   @bottom-right { content: "Página " counter(page) " de " counter(pages); font: 8pt "Segoe UI", sans-serif; color: #8a94a3; } }
 @page :first { margin: 0; @bottom-left { content: none } @bottom-right { content: none } }
 :root { --ink:#1d2733; --muted:#5b6675; --line:#dfe4ea; --accent:#1f6feb; --accent-d:#174fb0; --soft:#eef4fd;

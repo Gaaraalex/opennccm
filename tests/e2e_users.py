@@ -39,28 +39,28 @@ check("/static/icon.svg", adm.get(B + "/static/icon.svg").status_code == 200)
 check("menú con enlace a Plataformas", 'href="/vendors"' in html)
 
 # --- crear usuario
-r = adm.post(B + "/users", data={"username": "ana", "role": "operator", "password": "AnaClave123", "password2": "AnaClave123"})
+r = adm.post(B + "/users", data={"username": "ana", "role": "operator", "password": "Clave-Inicial-1", "password2": "Clave-Inicial-1"})
 check("crear usuario nuevo", "«ana» creado" in flashes(r.text), flashes(r.text))
 r = adm.post(B + "/users", data={"username": "ANA", "role": "viewer", "password": "OtraClave123", "password2": "OtraClave123"})
 check("no permite duplicados (sin distinguir mayúsculas)", "Ya existe un usuario" in flashes(r.text), flashes(r.text))
 r = adm.post(B + "/users", data={"username": "a b", "role": "viewer", "password": "OtraClave123"})
 check("rechaza nombres con espacios", "no válido" in flashes(r.text), flashes(r.text))
-r = adm.post(B + "/users", data={"username": "beto", "role": "viewer", "password": "BetoClave123", "password2": "Distinta123"})
+r = adm.post(B + "/users", data={"username": "beto", "role": "viewer", "password": "Distinto-Uno-1", "password2": "Distinta-Dos-2"})
 check("rechaza contraseñas que no coinciden", "no coinciden" in flashes(r.text), flashes(r.text))
 users_html = adm.get(B + "/users").text
 check("crear NO modifica a admin (sigue existiendo)", "<b>admin</b>" in users_html and "<b>ana</b>" in users_html)
 _, ok = login("admin", "Admin12345")
 check("la contraseña de admin no cambió", ok)
-_, ok = login("ana", "AnaClave123")
+_, ok = login("ana", "Clave-Inicial-1")
 check("el usuario nuevo puede ingresar", ok)
 
 # --- editar
 ana_id = re.search(r'<b>ana</b>[\s\S]*?/users/(\d+)/edit', users_html).group(1)
 r = adm.get(f"{B}/users/{ana_id}/edit")
 check("formulario de edición con el usuario correcto", "Editar «ana»" in r.text)
-r = adm.post(f"{B}/users/{ana_id}/edit", data={"role": "viewer", "active": "on", "password": "AnaNueva123", "password2": "AnaNueva123"})
+r = adm.post(f"{B}/users/{ana_id}/edit", data={"role": "viewer", "active": "on", "password": "Clave-Nueva-22", "password2": "Clave-Nueva-22"})
 check("editar: mensaje explícito con los cambios", "«ana» actualizado" in flashes(r.text) and "contraseña cambiada" in flashes(r.text), flashes(r.text))
-_, ok = login("ana", "AnaNueva123")
+_, ok = login("ana", "Clave-Nueva-22")
 check("ana ingresa con la contraseña nueva", ok)
 
 admin_id = re.search(r'<b>admin</b>[\s\S]*?/users/(\d+)/edit', adm.get(B + "/users").text).group(1)
@@ -72,14 +72,14 @@ r = adm.post(f"{B}/users/{admin_id}/delete")
 check("no puede eliminarse a sí mismo", "No puede eliminarse" in flashes(r.text), flashes(r.text))
 
 # --- contraseña propia
-ana, _ = login("ana", "AnaNueva123")
-r = ana.post(B + "/account", data={"current": "mala", "new": "AnaFinal123", "new2": "AnaFinal123"})
+ana, _ = login("ana", "Clave-Nueva-22")
+r = ana.post(B + "/account", data={"current": "mala", "new": "Clave-Final-33", "new2": "Clave-Final-33"})
 check("cambio propio: rechaza contraseña actual incorrecta", "no es correcta" in flashes(r.text), flashes(r.text))
-r = ana.post(B + "/account", data={"current": "AnaNueva123", "new": "AnaFinal123", "new2": "Otra"})
+r = ana.post(B + "/account", data={"current": "Clave-Nueva-22", "new": "Clave-Final-33", "new2": "Otra"})
 check("cambio propio: rechaza confirmación distinta", "no coinciden" in flashes(r.text), flashes(r.text))
-r = ana.post(B + "/account", data={"current": "AnaNueva123", "new": "AnaFinal123", "new2": "AnaFinal123"})
+r = ana.post(B + "/account", data={"current": "Clave-Nueva-22", "new": "Clave-Final-33", "new2": "Clave-Final-33"})
 check("cambio propio: correcto", "Contraseña actualizada" in flashes(r.text), flashes(r.text))
-_, ok = login("ana", "AnaFinal123")
+_, ok = login("ana", "Clave-Final-33")
 check("ingresa con su nueva contraseña", ok)
 
 # --- temas

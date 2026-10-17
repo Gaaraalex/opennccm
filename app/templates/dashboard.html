@@ -15,6 +15,33 @@
   <a class="stat" href="/changes?status=pending"><small>Cambios por aprobar</small><b>{{ pending }}</b></a>
 </div>
 
+{% if server %}
+<h2 style="margin-top:24px" id="servidor">Rendimiento del servidor de OpenNCCM</h2>
+<div class="grid">
+  <div class="stat"><small>CPU ahora</small><b>{{ '%.0f' % server.snap.cpu }}%</b><small>{{ server.snap.cpus }} núcleos · carga {{ server.load }}</small></div>
+  <div class="stat"><small>Memoria RAM</small><b>{{ '%.0f' % server.snap.mem_pct }}%</b><small>OpenNCCM usa {{ server.app_rss }}</small></div>
+  <div class="stat"><small>Disco usado</small><b>{{ '%.0f' % server.snap.disk_pct }}%</b><small>datos de OpenNCCM: {{ server.data_size }}</small></div>
+  <div class="stat"><small>Encendido desde hace</small><b style="font-size:20px">{{ server.uptime }}</b></div>
+</div>
+<div class="row" style="align-items:start">
+<div class="card" style="flex:1 1 420px">
+  <h3 style="margin-top:0">Uso de CPU (%), últimas 24 h</h3>
+  {{ server.cpu_chart|safe }}
+</div>
+<div class="card" style="flex:1 1 420px">
+  <h3 style="margin-top:0">Uso de memoria RAM (%), últimas 24 h</h3>
+  {{ server.mem_chart|safe }}
+</div>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">Espacio y memoria</h3>
+  {{ server.disk_meter|safe }}
+  {{ server.mem_meter|safe }}
+  {{ server.swap_meter|safe }}
+  <p class="small muted" style="margin-bottom:0">Se mide cada minuto y se conservan 24 horas (se reinicia al reiniciar el servicio). Pase el ratón sobre la gráfica para ver cada valor.</p>
+</div>
+<h2 style="margin-top:24px">Red</h2>
+{% endif %}
 <div class="card" style="margin-top:16px">
   <h2 style="margin-top:0">Cambios de configuración por día (últimos 30 días)</h2>
   {{ chart_changes|safe }}

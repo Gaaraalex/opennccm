@@ -66,9 +66,11 @@ running = re.findall(r'<td>(\d+)</td><td class="small">[^<]*</td><td>running</td
 cl = get("/configlets")
 vlan = re.search(r'<b>Agregar VLAN \(IOS-like\)</b>[\s\S]*?/configlets/(\d+)/run', cl).group(1)
 exec_id = re.search(r'<b>Estado de interfaces \(IOS\)</b>[\s\S]*?/configlets/(\d+)/run', cl).group(1)
-s.post(B + "/settings", data={"require_approval": "on", "notify_compliance": "on", "alert_min_severity": "warning",
-                              "retention_versions": "0", "dr_keep": "14", "smtp_port": "587",
-                              "smtp_security": "starttls"})
+s.post(B + "/settings", data={"require_approval": "on", "allow_self_approval": "on", "notify_compliance": "on",
+                              "alert_min_severity": "warning", "retention_versions": "0", "dr_keep": "14",
+                              "smtp_port": "587", "smtp_security": "starttls", "session_idle_minutes": "30",
+                              "console_access": "admin", "update_check": "on", "org_name": "Empresa Ejemplo S.A.",
+                              "org_contact": "redes@empresa-ejemplo.com"})
 r = s.post(f"{B}/configlets/{vlan}/run", data={"device_ids": "1", "variables": "vlan_id=30\nvlan_nombre=CAMARAS",
                                                 "title": "Agregar VLAN 30 de cámaras"})
 pending_cr = re.search(r"/changes/(\d+)", r.url).group(1)
@@ -108,6 +110,9 @@ save("29-ajustes", get("/settings"), height=3000)
 save("30-plataformas", get("/vendors"), height=1500)
 save("31-cuenta", get("/account"), 1280, 700)
 save("32-configlet-form", get(f"/configlets/{vlan}/edit"))
+save("34-dospasos", get("/account/2fa/setup"), 1280, 1000)
+save("35-acerca", requests.get(B + "/acerca").text, height=3200)
+save("36-tarea-editar", get("/schedules/" + re.search(r"/schedules/(\d+)/edit", get("/schedules")).group(1) + "/edit"))
 users = get("/users")
 uid = re.search(r"<b>lector</b>[\s\S]*?/users/(\d+)/edit", users)
 if uid:

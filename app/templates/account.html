@@ -5,18 +5,36 @@
 <div class="card" id="clave" style="flex:1 1 360px;max-width:460px">
   <h2 style="margin-top:0">Cambiar mi contraseña</h2>
   <form method="post" action="/account">
-    <label>Contraseña actual</label><input type="password" name="current" required autocomplete="current-password" style="width:100%">
-    <label>Nueva contraseña (mínimo 8 caracteres)</label><input type="password" name="new" required minlength="8" autocomplete="new-password" style="width:100%">
-    <label>Repita la nueva contraseña</label><input type="password" name="new2" required minlength="8" autocomplete="new-password" style="width:100%">
+    <label for="pw-cur">Contraseña actual</label><input id="pw-cur" type="password" name="current" required autocomplete="current-password" style="width:100%">
+    <label for="pw-new">Nueva contraseña (mínimo 10 caracteres, con letras y números)</label><input id="pw-new" type="password" name="new" required minlength="10" autocomplete="new-password" style="width:100%">
+    <label for="pw-new2">Repita la nueva contraseña</label><input id="pw-new2" type="password" name="new2" required minlength="10" autocomplete="new-password" style="width:100%">
     <p><button>Cambiar contraseña</button></p>
   </form>
-  <p class="small muted">Las mayúsculas y minúsculas cuentan. Si olvida su contraseña, un administrador puede cambiarla en
-  <b>Usuarios → Editar</b>, o desde la consola del servidor con <code>sudo opennccm reset-password USUARIO 'CLAVE'</code>.</p>
+  <p class="small muted">Al cambiarla se cierran sus sesiones abiertas en otros equipos. Las mayúsculas y minúsculas cuentan.
+  Si olvida su contraseña, un administrador puede cambiarla en <b>Usuarios → Editar</b>, o desde la consola del servidor con
+  <code>sudo opennccm reset-password USUARIO 'CLAVE'</code>.</p>
+</div>
+<div class="card" id="dospasos" style="flex:1 1 360px;max-width:460px">
+  <h2 style="margin-top:0">Verificación en dos pasos</h2>
+  {% if user.totp_enabled %}
+  <p><span class="badge b-ok">Activada</span> Al ingresar se pide, además de la contraseña, el código de 6 dígitos de su app de
+  autenticación.</p>
+  <details><summary>Desactivar</summary>
+  <form method="post" action="/account/2fa/disable">
+    <label for="d-pw">Contraseña</label><input id="d-pw" type="password" name="password" required autocomplete="current-password" style="width:100%">
+    <label for="d-code">Código de la app</label><input id="d-code" name="code" required inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7">
+    <p><button class="danger">Desactivar la verificación en dos pasos</button></p>
+  </form></details>
+  {% else %}
+  <p><span class="badge b-warning">Desactivada</span> Recomendada: aunque alguien conozca su contraseña, no podrá entrar sin el
+  código que genera su teléfono (Google Authenticator, Microsoft Authenticator, Authy, FreeOTP…).</p>
+  <p><a class="btn" href="/account/2fa/setup">Activar verificación en dos pasos</a></p>
+  {% endif %}
 </div>
 <div class="card" style="flex:2 1 420px">
   <h2 style="margin-top:0">Tema de la interfaz</h2>
   <form method="post" action="/account/theme">
-    <div class="themes">
+    <fieldset class="themes"><legend class="vh">Tema</legend>
       {% set swatches = {
         'auto': ['#f4f6f9', '#14202e', '#1f6feb', '#0f141a'],
         'claro': ['#f4f6f9', '#ffffff', '#14202e', '#1f6feb'],
@@ -25,10 +43,10 @@
         'bosque': ['#f1f6f2', '#ffffff', '#143424', '#1f7a4d'],
         'contraste': ['#000000', '#000000', '#ffffff', '#ffd400']} %}
       {% for key, name in themes.items() %}
-      <label><input type="radio" name="theme" value="{{ key }}" {{ 'checked' if (user.theme or 'auto') == key }} style="display:none">
-        <span class="sw">{% for c in swatches[key] %}<i style="background:{{ c }}"></i>{% endfor %}</span>{{ name }}</label>
+      <label><input class="vh" type="radio" name="theme" value="{{ key }}" {{ 'checked' if (user.theme or 'auto') == key }}>
+        <span class="sw" aria-hidden="true">{% for c in swatches[key] %}<i style="background:{{ c }}"></i>{% endfor %}</span>{{ name }}</label>
       {% endfor %}
-    </div>
+    </fieldset>
     <p><button>Aplicar tema</button> <span class="small muted">Se guarda en su usuario y se usa en cualquier equipo desde el que ingrese.</span></p>
   </form>
 </div>

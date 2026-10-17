@@ -15,7 +15,7 @@
     <p class="sub">Paso a paso para instalar, configurar, asegurar, respaldar y actualizar OpenNCCM, el sistema de gestión
     de configuración, cambios y cumplimiento de red.</p>
   </div>
-  <div class="meta">Versión del software: 1.5.0<br>Sistemas soportados: Ubuntu Server 22.04 LTS y 24.04 LTS (64 bits)<br>
+  <div class="meta">Versión del software: 1.6.0<br>Sistemas soportados: Ubuntu Server 22.04 LTS y 24.04 LTS (64 bits)<br>
   Octubre de 2026</div>
 </div>
 
@@ -284,17 +284,21 @@ actualizar en su lugar (sección 14).</p>
 <h1>6. Primer acceso</h1>
 <ol class="steps">
   <li>En su PC abra el navegador y vaya a <code>https://IP_DEL_SERVIDOR/</code>.</li>
-  <li>El navegador avisará que la conexión «no es privada»: es normal con el certificado autofirmado. Pulse
-  <b>Configuración avanzada → Continuar</b>. Para quitar el aviso instale un certificado propio (sección 11).</li>
+  <li>La primera vez el navegador avisará que la conexión «no es privada»: OpenNCCM usa un certificado de su propia autoridad
+  certificadora, que su PC todavía no conoce. Pulse <b>Configuración avanzada → Continuar</b> y luego instale esa autoridad
+  (sección 11): desaparece el aviso y el navegador ofrece <b>guardar el usuario y la contraseña</b>.</li>
   <li>Ingrese con el usuario y la contraseña que mostró el instalador (también están en <code>/root/opennccm-credenciales.txt</code>).</li>
 </ol>
 <figure><img src="img/01-login.png" style="max-width:70%"><figcaption>Pantalla de ingreso.</figcaption></figure>
 <ol class="steps" start="4" style="counter-reset:s 3">
   <li>Cambie la contraseña de inmediato: clic en su nombre de usuario (arriba a la derecha) → <b>Mi cuenta</b>.</li>
 </ol>
-<figure><img src="img/31-cuenta.png" style="max-width:80%"><figcaption>Mi cuenta: cambio de contraseña (mínimo 8 caracteres).</figcaption></figure>
-<div class="note"><b>Protección contra fuerza bruta</b>Tras 10 intentos fallidos desde la misma IP, el ingreso se bloquea 15 minutos.
-Cada intento queda en <b>Auditoría</b>.</div>
+<figure><img src="img/31-cuenta.png" style="max-width:80%"><figcaption>Mi cuenta: cambio de contraseña y verificación en dos pasos.</figcaption></figure>
+<ol class="steps" start="5" style="counter-reset:s 4">
+  <li>Recomendado: en <b>Mi cuenta</b> active la <b>verificación en dos pasos</b> con una app de autenticación del teléfono.</li>
+</ol>
+<div class="note"><b>Protección contra fuerza bruta</b>Tras 5 contraseñas incorrectas seguidas, la cuenta se bloquea 15 minutos; tras
+10 intentos fallidos desde la misma IP, esa dirección se bloquea 15 minutos. Cada intento queda en <b>Auditoría</b>.</div>
 </section>
 
 <section class="chapter">
@@ -399,8 +403,20 @@ fallos; <code>critical</code> solo reversiones automáticas y vulnerabilidades c
 
 <section class="chapter">
 <h1>11. Certificado HTTPS propio</h1>
-<p>El instalador crea un certificado autofirmado válido por 10 años. Para evitar el aviso del navegador, reemplácelo por uno
-de la CA de su empresa o de Let's Encrypt.</p>
+<p>El instalador crea una <b>autoridad certificadora propia de OpenNCCM</b> («OpenNCCM CA») y, con ella, el certificado HTTPS del
+servidor. La autoridad está <b>restringida a este servidor</b> (su IP y su nombre): aunque alguien obtuviera su clave, no
+serviría para suplantar otros sitios. Instálela una vez en cada PC desde el que use OpenNCCM:</p>
+<ol class="steps">
+  <li>En la pantalla de ingreso pulse <b>«¿El navegador dice «No es seguro» o no ofrece guardar la contraseña?»</b> (o vaya a
+  <code>https://IP_DEL_SERVIDOR/certificado</code>) y descargue <b>OpenNCCM-CA.crt</b>.</li>
+  <li><b>Windows:</b> abra el archivo → Instalar certificado → Equipo local → «Colocar todos los certificados en el siguiente
+  almacén» → <b>Entidades de certificación raíz de confianza</b> → Finalizar. Cierre y abra el navegador.</li>
+  <li>La página explica también macOS, Linux, Firefox, Android e iPhone.</li>
+</ol>
+<p>Después, al entrar con la misma dirección, el candado aparece sin avisos y el navegador ofrece guardar la contraseña (Chrome y
+Edge no lo hacen en sitios con error de certificado). Las instalaciones anteriores a la 1.6.0 pasan a este certificado al
+actualizar (habrá que instalar la autoridad una vez). Si prefiere no instalar nada en los PC, reemplace el certificado por uno de
+la CA de su empresa o de Let's Encrypt:</p>
 <h2>Certificado de su CA interna</h2>
 <div class="term" data-title="Servidor Ubuntu"><span class="p">$</span> sudo cp servidor.crt /etc/ssl/certs/opennccm.crt       <span class="c"># incluya la cadena intermedia</span>
 <span class="p">$</span> sudo cp servidor.key /etc/ssl/private/opennccm.key
@@ -454,7 +470,9 @@ contraseñas del equipo).</div>
 
 <section class="chapter">
 <h1>14. Actualizar a una versión nueva y volver atrás</h1>
-<p>Las versiones nuevas se publican en el repositorio de GitHub. Para actualizar un servidor basta un comando:</p>
+<p>Las versiones nuevas se publican en el repositorio de GitHub. Cuando hay una, OpenNCCM avisa a los administradores con un
+mensaje emergente. Se puede actualizar <b>desde la web</b> (<b>Sistema → Actualizaciones → Actualizar a la versión X</b>, desde
+la 1.6.0) o con un comando en el servidor; ambos hacen exactamente lo mismo:</p>
 <div class="term" data-title="Servidor Ubuntu"><span class="p">$</span> sudo opennccm update
 <span class="o">==&gt; Buscando actualizaciones (stable)…
 
@@ -529,6 +547,14 @@ registrados después de actualizar (la base descartada se conserva con el sufijo
   <tr><td>Respaldo: «TCP connection to device failed» o timeout</td><td>Sin conectividad o SSH cerrado. Pruebe <code>ssh</code> desde el servidor; revise ACL de VTY en el equipo.</td></tr>
   <tr><td>Equipo antiguo: «no matching host key type found. Their offer: ssh-rsa» o «Incompatible ssh peer»</td><td>El equipo (p. ej. Ubiquiti EdgeSwitch, Cisco IOS 12.x, HP ProCurve antiguos) solo admite algoritmos SHA-1. Desde la versión 1.3.1 OpenNCCM los acepta automáticamente <b>solo como última opción</b>, así que actualice con <code>sudo opennccm update</code>. Los equipos modernos siguen usando algoritmos modernos. Lo recomendable a largo plazo es actualizar el firmware del equipo.</td></tr>
   <tr><td>«El equipo pide contraseña para el modo privilegiado (enable)…» o «Failed to enter enable mode»</td><td>El equipo exige una contraseña de <i>enable</i> distinta de la de ingreso (OpenNCCM ya prueba sin contraseña y con la de ingreso). Escríbala en <b>Credenciales → Enable / secret</b> de la credencial asignada al equipo y vuelva a respaldar.</td></tr>
+  <tr><td>El navegador no ofrece guardar el usuario y la contraseña</td><td>El sitio tiene un aviso de certificado. Instale la
+  autoridad «OpenNCCM CA» en el PC (sección 11) y entre siempre con la misma dirección.</td></tr>
+  <tr><td>Perdí el teléfono de la verificación en dos pasos</td><td>Otro administrador la quita en Usuarios → Editar, o en el
+  servidor: <code>sudo opennccm reset-2fa USUARIO</code>.</td></tr>
+  <tr><td>«La cuenta está bloqueada temporalmente»</td><td>5 contraseñas incorrectas seguidas: espere 15 minutos o pida a un
+  administrador que le fije una contraseña nueva (eso la desbloquea).</td></tr>
+  <tr><td>La consola SSH web se desconecta al abrirla</td><td>Solo funciona con equipos por SSH y para quien tenga permiso (Ajustes →
+  Seguridad y acceso). Detrás de otro proxy, éste debe permitir WebSocket.</td></tr>
   <tr><td>Respaldo: «Authentication failed»</td><td>Usuario/contraseña incorrectos en la credencial asignada.</td></tr>
   <tr><td>Respaldo: «Pattern not detected»</td><td>El prompt o el modo privilegiado no son los esperados: falta la contraseña de <i>enable</i>, o el <code>device_type</code> no corresponde al equipo.</td></tr>
   <tr><td>Respaldo: «salida inválida»</td><td>El comando de respaldo no existe en esa versión. Defina un <b>comando de respaldo personalizado</b> en el dispositivo.</td></tr>

@@ -50,6 +50,30 @@ nxt = re.search(r"(\d{4}-\d{2}-\d{2}) 06:00", cells)
 check("cron «0 6 * * 1» se ejecuta el LUNES (antes caía en martes)",
       nxt is not None and datetime.strptime(nxt.group(1), "%Y-%m-%d").weekday() == 0, cells)
 
+# ---- editar una tarea existente
+page = s.get(B + "/schedules").text
+sid = re.search(r"<td>Semanal LJ</td>[\s\S]*?/schedules/(\d+)/edit", page)
+check("botón «Editar» en cada tarea", sid is not None)
+if sid:
+    form = s.get(f"{B}/schedules/{sid.group(1)}/edit").text
+    check("la edición abre el asistente con los valores actuales",
+          'value="weekly" selected' in form and 'value="02:30"' in form
+          and 'value="mon" checked' in form and 'value="thu" checked' in form)
+    r = s.post(f"{B}/schedules/{sid.group(1)}/edit",
+               data=[("name", "Semanal LJ"), ("action", "compliance"), ("freq", "weekly"), ("time", "07:15"),
+                     ("days", "tue"), ("days", "fri")])
+    cells = row(r.text, "Semanal LJ")
+    check("editar cambia días, hora y acción", "Cada martes y viernes a las 07:15" in cells
+          and "Auditoría de cumplimiento" in cells, cells)
+    r = s.post(f"{B}/schedules/{sid.group(1)}/edit", data={"name": "Semanal LJ", "action": "backup",
+                                                            "freq": "weekly", "time": "07:15"})
+    check("editar valida igual que crear (sin días se rechaza)", "elija al menos un día" in htmlmod.unescape(r.text))
+cid = re.search(r"<td>Cron lunes</td>[\s\S]*?/schedules/(\d+)/edit", s.get(B + "/schedules").text)
+if cid:
+    form = s.get(f"{B}/schedules/{cid.group(1)}/edit").text
+    check("una expresión cron numérica se abre como «días de la semana»",
+          'value="weekly" selected' in form and 'value="mon" checked' in form)
+
 for name in ("Semanal LJ", "Mensual", "Frecuente", "Cron lunes"):
     m = re.search(rf"<td>{re.escape(name)}</td>[\s\S]*?/schedules/(\d+)/delete", s.get(B + "/schedules").text)
     if m:

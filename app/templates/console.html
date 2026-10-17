@@ -1,0 +1,54 @@
+{% extends "base.html" %}{% block title %}Consola · {{ dev.name }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/vendor/xterm/xterm.css?v={{ VERSION }}">
+<div class="toolbar" style="margin-bottom:8px">
+  <h1 style="margin:0"><a href="/devices/{{ dev.id }}">{{ dev.name }}</a> · consola SSH <span class="small muted">{{ dev.host }}:{{ dev.port }}</span></h1>
+  <span style="flex:1"></span>
+  <span id="estado" class="badge b-info" role="status" aria-live="polite">conectando…</span>
+  <button type="button" class="sec" id="reconectar" hidden>Reconectar</button>
+  <button type="button" class="sec" id="completa">Pantalla completa</button>
+</div>
+<div id="term" role="application" aria-label="Terminal SSH de {{ dev.name }}" style="height:calc(100vh - 210px);min-height:360px;background:#0c0c0c;padding:6px;border-radius:8px"></div>
+<p class="small muted">{% if autologin %}Inicio de sesión automático con la credencial asignada al equipo.{% else %}Escriba el usuario y la
+contraseña del equipo cuando se le pidan.{% endif %} La sesión se cierra tras 15 minutos sin escribir y queda registrada en Auditoría.
+Copiar: seleccione el texto · Pegar: Ctrl+Mayús+V o clic derecho.</p>
+<script src="/static/vendor/xterm/xterm.js?v={{ VERSION }}"></script>
+<script src="/static/vendor/xterm/addon-fit.js?v={{ VERSION }}"></script>
+<script>
+(function () {
+  const estado = document.getElementById('estado'), again = document.getElementById('reconectar');
+  const term = new Terminal({cursorBlink: true, fontSize: 14, scrollback: 5000, convertEol: false,
+    fontFamily: 'Cascadia Mono, Consolas, "DejaVu Sans Mono", monospace', theme: {background: '#0c0c0c'}});
+  const fit = new FitAddon.FitAddon();
+  term.loadAddon(fit);
+  term.open(document.getElementById('term'));
+  fit.fit();
+  let ws = null;
+  function connect() {
+    term.reset();
+    again.hidden = true;
+    estado.textContent = 'conectando…'; estado.className = 'badge b-info';
+    const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host +
+      '/devices/{{ dev.id }}/console/ws?cols=' + term.cols + '&rows=' + term.rows;
+    ws = new WebSocket(url);
+    ws.onopen = () => { estado.textContent = 'conectado'; estado.className = 'badge b-ok'; term.focus(); };
+    ws.onmessage = e => term.write(e.data);
+    ws.onclose = e => {
+      estado.textContent = 'desconectado'; estado.className = 'badge b-warning';
+      term.write('\r\n\x1b[90m[Desconectado' + (e.code === 1008 ? ': sin permiso para abrir esta consola' : '') + ']\x1b[0m\r\n');
+      again.hidden = false;
+    };
+  }
+  term.onData(d => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({t: 'd', d: d})); });
+  term.onResize(s => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({t: 'r', c: s.cols, r: s.rows})); });
+  window.addEventListener('resize', () => fit.fit());
+  again.addEventListener('click', connect);
+  document.getElementById('completa').addEventListener('click', () => {
+    const el = document.getElementById('term');
+    (el.requestFullscreen ? el.requestFullscreen() : Promise.resolve()).then(() => setTimeout(() => fit.fit(), 200));
+  });
+  document.addEventListener('fullscreenchange', () => setTimeout(() => fit.fit(), 200));
+  connect();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,120 @@
+"""Consola SSH web: permisos, verificación de origen, ingreso manual, inicio automático y auditoría.
+Requiere haber ejecutado antes e2e.py (usuario admin y el equipo R1 = id 1 en el puerto 2222)."""
+import json
+import re
+import sys
+import time
+
+import requests
+from websockets.sync.client import connect
+
+B = "http://127.0.0.1:8000"
+WS = "ws://127.0.0.1:8000/devices/1/console/ws?cols=100&rows=30"
+fails = []
+
+
+def check(name, cond, extra=""):
+    print(("OK   " if cond else "FAIL ") + name + (f"  [{extra}]" if extra and not cond else ""))
+    if not cond:
+        fails.append(name)
+
+
+def login(user, pw):
+    s = requests.Session()
+    s.post(B + "/login", data={"username": user, "password": pw})
+    return s
+
+
+def cookie(s):
+    return "; ".join(f"{k}={v}" for k, v in s.cookies.items())
+
+
+def read_until(ws, pattern, timeout=15):
+    buf, end = "", time.time() + timeout
+    while time.time() < end:
+        try:
+            buf += ws.recv(timeout=max(0.1, end - time.time()))
+        except TimeoutError:
+            break
+        except Exception:  # noqa: BLE001 - conexión cerrada
+            break
+        if re.search(pattern, buf):
+            return buf
+    return buf
+
+
+def send(ws, text):
+    ws.send(json.dumps({"t": "d", "d": text}))
+
+
+adm = login("admin", "Admin12345")
+check("botón de consola en la lista de equipos", "/devices/1/console" in adm.get(B + "/devices").text)
+check("página de consola", "xterm.js" in adm.get(B + "/devices/1/console").text)
+
+# ---- ingreso manual (por defecto no hay inicio automático)
+adm.post(B + "/settings", data={"require_approval": "on", "allow_self_approval": "on", "console_access": "admin",
+                                 "update_check": "on"})
+with connect(WS, additional_headers={"Cookie": cookie(adm), "Origin": "http://127.0.0.1:8000"}) as ws:
+    out = read_until(ws, "Usuario: ")
+    check("pide el usuario del equipo", "Usuario:" in out, out)
+    send(ws, "admin\r")
+    out = read_until(ws, "Contraseña: ")
+    check("pide la contraseña (sin mostrarla)", "Contraseña:" in out, out)
+    send(ws, "cisco\r")
+    out = read_until(ws, r"R1[#>]")
+    check("conecta por SSH y muestra el prompt", re.search(r"R1[#>]", out) is not None, out[-300:])
+    send(ws, "show version\r")
+    out = read_until(ws, "FTX1234ABCD")
+    check("ejecuta comandos en el equipo", "Cisco IOS Software" in out, out[-300:])
+
+with connect(WS, additional_headers={"Cookie": cookie(adm), "Origin": "http://127.0.0.1:8000"}) as ws:
+    read_until(ws, "Usuario: ")
+    send(ws, "admin\r")
+    read_until(ws, "Contraseña: ")
+    send(ws, "equivocada\r")
+    out = read_until(ws, "incorrectos")
+    check("contraseña incorrecta: mensaje claro", "incorrectos" in out, out[-200:])
+
+# ---- inicio automático con la credencial del equipo
+adm.post(B + "/settings", data={"require_approval": "on", "allow_self_approval": "on", "console_access": "admin",
+                                 "console_autologin": "on", "update_check": "on"})
+with connect(WS, additional_headers={"Cookie": cookie(adm), "Origin": "http://127.0.0.1:8000"}) as ws:
+    out = read_until(ws, r"R1[#>]")
+    check("inicio automático: entra sin pedir usuario", "Usuario:" not in out and re.search(r"R1[#>]", out), out[-300:])
+
+# ---- seguridad
+try:
+    with connect(WS, additional_headers={"Cookie": cookie(adm), "Origin": "https://sitio-malicioso.example"}) as ws:
+        ws.recv(timeout=5)
+    blocked = False
+except Exception:  # noqa: BLE001
+    blocked = True
+check("otro origen no puede abrir la consola", blocked)
+try:
+    with connect(WS) as ws:
+        ws.recv(timeout=5)
+    anon = False
+except Exception:  # noqa: BLE001
+    anon = True
+check("sin sesión no se puede abrir la consola", anon)
+
+# operador: por defecto la consola es solo para administradores
+adm.post(B + "/users", data={"username": "opcon", "role": "operator", "password": "Operador2026x",
+                             "password2": "Operador2026x"})
+op = login("opcon", "Operador2026x")
+check("operador no ve el botón de consola (solo administradores)", "/devices/1/console" not in op.get(B + "/devices").text)
+check("operador no puede abrir la página de consola", op.get(B + "/devices/1/console").status_code == 403)
+
+audit = adm.get(B + "/audit").text
+check("auditoría registra apertura y cierre", "console_open" in audit and "console_close" in audit)
+check("auditoría marca el inicio automático", "inicio automático" in audit)
+
+# dejar los ajustes como estaban
+adm.post(B + "/settings", data={"require_approval": "on", "allow_self_approval": "on", "console_access": "admin",
+                                 "update_check": "on"})
+uid = re.search(r"<b>opcon</b>[\s\S]*?/users/(\d+)/edit", adm.get(B + "/users").text)
+if uid:
+    adm.post(f"{B}/users/{uid.group(1)}/delete")
+
+print("\nRESULTADO:", "TODO OK" if not fails else f"{len(fails)} fallos: {fails}")
+sys.exit(1 if fails else 0)

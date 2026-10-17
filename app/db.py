@@ -40,6 +40,15 @@ class User(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     theme: Mapped[str] = mapped_column(String(16), default="auto")  # tema visual elegido por el usuario
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    # seguridad
+    totp_secret_enc: Mapped[str | None] = mapped_column(Text)        # verificación en dos pasos (cifrado)
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    totp_last_step: Mapped[int] = mapped_column(Integer, default=0)   # impide reutilizar un mismo código
+    session_version: Mapped[int] = mapped_column(Integer, default=0)  # cambia al cambiar la clave: cierra sesiones
+    failed_logins: Mapped[int] = mapped_column(Integer, default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_login_ip: Mapped[str | None] = mapped_column(String(64))
 
 
 class Credential(Base):

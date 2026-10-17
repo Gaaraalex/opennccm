@@ -1,5 +1,37 @@
 # Historial de versiones
 
+## 1.6.0
+- **Consola SSH web**: icono ⌨ en la lista de equipos (después de «Estado») y botón «⌨ Consola» en cada equipo; abre un
+  terminal en el navegador (xterm.js, incluido en el proyecto) conectado al equipo. Pide usuario y contraseña, o inicia sesión
+  automáticamente con la credencial del equipo si el administrador lo permite en Ajustes (desactivado por omisión). Por omisión
+  solo para administradores; cierre por inactividad (15 min); cada sesión queda en Auditoría.
+- **Rendimiento del servidor en el Panel** (administradores): CPU, carga, memoria, swap, disco usado/libre/total, espacio de
+  los datos, tiempo encendido y gráficas de CPU y memoria de las últimas 24 h.
+- **Actualizar desde la web**: tarjeta «Actualizaciones» en Sistema (buscar ahora / actualizar con progreso en pantalla) y aviso
+  emergente a los administradores cuando hay una versión nueva. Usa el mismo «opennccm update» (copia previa y vuelta atrás
+  automática) a través de un servicio de systemd; la aplicación sigue sin privilegios de root.
+- **Editar tareas programadas**: botón «Editar» que abre el asistente con los valores de la tarea.
+- **Guardar la contraseña en el navegador**: el instalador crea una autoridad certificadora propia, restringida a este servidor,
+  y firma con ella el certificado HTTPS. Instalándola una vez en el PC (página «Certificado» enlazada desde el login) desaparece
+  el aviso «No es seguro» y el navegador ofrece guardar usuario y contraseña. Las instalaciones existentes migran al actualizar.
+- **Seguridad**:
+  - verificación en dos pasos (TOTP con app de autenticación), opcional por usuario y exigible a los administradores;
+    `sudo opennccm reset-2fa USUARIO` para quien pierda el teléfono;
+  - bloqueo de la cuenta 15 min tras 5 contraseñas incorrectas (además del bloqueo por IP);
+  - cierre de sesión por inactividad (30 min, configurable) y al cambiar la contraseña en las demás sesiones;
+  - contraseñas: mínimo 10 caracteres con letras y números, sin el nombre de usuario; PBKDF2-SHA256 con 600 000
+    iteraciones (las existentes se reprotegen al ingresar);
+  - cookie de sesión solo por HTTPS; cabeceras CSP, X-Frame-Options, nosniff, Referrer-Policy y sin caché en las páginas;
+  - copias de recuperación que incluyen la clave de cifrado: el archivo se cifra con una contraseña (AES-256-GCM);
+  - permisos estrictos de la clave, la base de datos y el archivo de configuración.
+- **Privacidad, cookies y licencias**: página pública con los datos que guarda OpenNCCM, conexiones externas, la única cookie
+  (técnica, sin necesidad de consentimiento), condiciones de uso, licencias de terceros y datos de la organización
+  responsable (nuevos campos en Ajustes).
+- **Accesibilidad**: etiquetas asociadas a los campos, nombres accesibles en botones de icono, enlace «Saltar al contenido»,
+  foco visible con teclado, gráficas con descripción, y colores corregidos para cumplir el contraste WCAG 2.1 AA en los 6
+  temas (prueba automática).
+- **nginx**: soporte de WebSocket (consola) y conservación del certificado de Let's Encrypt al actualizar.
+
 ## 1.5.0
 Lo aprendido con el Ubiquiti EdgeSwitch, revisado y aplicado a todas las marcas:
 - **Errores de todos los fabricantes**: se reconocen los mensajes de rechazo de Cisco/Arista/Dell/Allied/Extreme,

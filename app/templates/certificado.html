@@ -1,0 +1,49 @@
+{% extends "base.html" %}{% block title %}Certificado del sitio{% endblock %}
+{% block content %}
+<h1>Confiar en el certificado de OpenNCCM</h1>
+<div class="card" style="max-width:860px">
+  <p>Este servidor usa un certificado HTTPS emitido por su propia autoridad certificadora («OpenNCCM CA»), creada al
+  instalarlo. Mientras su equipo no la conozca, el navegador muestra <b>«No es seguro»</b> y, por eso mismo, <b>no ofrece
+  guardar el usuario y la contraseña</b>. Instálela una vez en cada equipo desde el que use OpenNCCM:</p>
+  {% if ca_available %}
+  <p><a class="btn" href="/ca.crt" download>Descargar el certificado (OpenNCCM-CA.crt)</a></p>
+  {% else %}
+  <p class="flash error">Este servidor no usa el certificado propio de OpenNCCM (usa uno de Let's Encrypt, uno de su empresa
+  o HTTP).</p>
+  {% endif %}
+  <div class="note"><b>Es seguro</b>Esta autoridad está restringida: solo puede emitir certificados para este servidor
+  ({{ request.url.hostname }}). No sirve para ningún otro sitio web.</div>
+
+  <h2>Windows (Chrome, Edge)</h2>
+  <ol class="steps">
+    <li>Abra el archivo descargado y pulse <b>Instalar certificado…</b></li>
+    <li>Elija <b>Equipo local</b> (o «Usuario actual» si no es administrador del PC) y pulse Siguiente.</li>
+    <li>Marque <b>Colocar todos los certificados en el siguiente almacén</b> → Examinar → <b>Entidades de certificación raíz de confianza</b>.</li>
+    <li>Siguiente → Finalizar → Sí. Cierre y vuelva a abrir el navegador.</li>
+  </ol>
+  <h2>macOS (Safari, Chrome)</h2>
+  <ol class="steps">
+    <li>Abra el archivo: se agrega al llavero. Elija el llavero <b>Sistema</b>.</li>
+    <li>En «Acceso a Llaveros», haga doble clic en «OpenNCCM CA» → Confiar → <b>Confiar siempre</b>.</li>
+  </ol>
+  <h2>Firefox (cualquier sistema)</h2>
+  <ol class="steps">
+    <li>Ajustes → Privacidad y seguridad → Certificados → <b>Ver certificados</b> → Autoridades → <b>Importar</b>.</li>
+    <li>Elija el archivo y marque «Confiar en esta CA para identificar sitios web».</li>
+  </ol>
+  <h2>Linux</h2>
+  <pre>sudo cp OpenNCCM-CA.crt /usr/local/share/ca-certificates/ &amp;&amp; sudo update-ca-certificates</pre>
+  <p class="small muted">Chrome en Linux usa su propio almacén: chrome://certificate-manager → Autoridades → Importar.</p>
+  <h2>Android e iPhone</h2>
+  <ul>
+    <li><b>Android:</b> Ajustes → Seguridad → Más ajustes → Cifrado y credenciales → Instalar certificado → <b>Certificado de CA</b>.</li>
+    <li><b>iPhone/iPad:</b> abra el archivo en Safari → Ajustes → Perfil descargado → Instalar; luego Ajustes → General →
+      Información → Ajustes de confianza de certificados → active «OpenNCCM CA».</li>
+  </ul>
+  <h2>Después</h2>
+  <p>Entre a OpenNCCM con la <b>misma dirección</b> con la que se instaló (por ejemplo <code>https://{{ request.url.hostname }}/</code>).
+  El candado aparecerá sin avisos y, al ingresar, el navegador ofrecerá guardar el usuario y la contraseña.</p>
+  <p class="small muted">Alternativas: con un nombre de dominio público puede usar Let's Encrypt, o instalar el certificado de su
+  empresa (<code>sudo bash /opt/opennccm/install.sh</code> → Acceso web).</p>
+</div>
+{% endblock %}

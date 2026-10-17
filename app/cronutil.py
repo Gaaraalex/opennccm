@@ -91,6 +91,35 @@ def describe(cron: str) -> str:
     return f"Personalizada: {cron}"
 
 
+def to_form(cron: str) -> dict:
+    """Lo contrario de from_form: valores del asistente para editar una tarea existente."""
+    out = {"freq": "cron", "time": "02:00", "days": ["mon"], "dom": 1, "minute": 0, "every": 30, "cron": cron}
+    try:
+        mi, ho, dom, mon, dow = cron.split()
+    except ValueError:
+        return out
+    if (m := re.fullmatch(r"\*/(\d+)", mi)) and (ho, dom, mon, dow) == ("*", "*", "*", "*") \
+            and int(m.group(1)) in (5, 10, 15, 20, 30):
+        return {**out, "freq": "minutes", "every": int(m.group(1))}
+    if mi.isdigit() and (ho, dom, mon, dow) == ("*", "*", "*", "*"):
+        return {**out, "freq": "hourly", "minute": int(mi)}
+    if not (mi.isdigit() and ho.isdigit() and mon == "*"):
+        return out
+    out["time"] = _hhmm(ho, mi)
+    if dom == "*" and dow == "*":
+        return {**out, "freq": "daily"}
+    if dom == "*":
+        days = normalize(f"0 0 * * {dow}").split()[4]
+        if days == "mon-fri":
+            days = "mon,tue,wed,thu,fri"
+        if all(d in DAY_NAMES for d in days.split(",")):
+            return {**out, "freq": "weekly", "days": days.split(",")}
+        return out
+    if dow == "*" and dom.isdigit() and 1 <= int(dom) <= 28:
+        return {**out, "freq": "monthly", "dom": int(dom)}
+    return out
+
+
 def from_form(form) -> str:
     """Construye la expresión cron a partir del asistente de la página Tareas."""
     freq = form.get("freq") or "cron"

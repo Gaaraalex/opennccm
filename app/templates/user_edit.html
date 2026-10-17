@@ -2,6 +2,10 @@
 {% block content %}
 <h1><a href="/users">Usuarios</a> / Editar «{{ u.username }}»</h1>
 <div class="card" style="max-width:860px">
+<p class="small muted">Último ingreso: {{ u.last_login_at|dt }}{% if u.last_login_ip %} desde {{ u.last_login_ip }}{% endif %} ·
+Verificación en dos pasos: {% if u.totp_enabled %}<span class="badge b-ok">activada</span>{% else %}<span class="badge b-warning">desactivada</span>{% endif %}
+{% if u.locked_until and u.locked_until > now %} · <span class="badge b-crit">bloqueado hasta {{ u.locked_until|dt }}</span>
+(se desbloquea al guardar una contraseña nueva o esperando){% endif %}</p>
 <form method="post" autocomplete="off">
   <div class="row">
     <div><label>Nombre de usuario</label><input value="{{ u.username }}" disabled></div>
@@ -13,12 +17,16 @@
   <label class="chk" style="margin-top:12px"><input type="checkbox" name="active" {{ 'checked' if u.active }}> Activo (si se desmarca, no podrá ingresar)</label>
   <h2>Cambiar contraseña <span class="small muted">(opcional; deje vacío para no cambiarla)</span></h2>
   <div class="row">
-    <div><label>Nueva contraseña</label><input name="password" type="password" minlength="8" autocomplete="new-password"></div>
-    <div><label>Repita la nueva contraseña</label><input name="password2" type="password" minlength="8" autocomplete="new-password"></div>
+    <div><label>Nueva contraseña</label><input name="password" type="password" minlength="10" autocomplete="new-password"></div>
+    <div><label>Repita la nueva contraseña</label><input name="password2" type="password" minlength="10" autocomplete="new-password"></div>
   </div>
   <label>Restringir a grupos de dispositivos (ninguno marcado = todos los equipos)</label>
   <div>{% for g in groups %}<label class="chk"><input type="checkbox" name="group_ids" value="{{ g.id }}" {{ 'checked' if g.id in selected }}> {{ g.name }}</label>{% else %}<span class="muted small">No hay grupos.</span>{% endfor %}</div>
   <p><button>Guardar cambios</button> <a class="btn sec" href="/users">Cancelar</a></p>
 </form>
+{% if u.totp_enabled %}
+<form method="post" action="/users/{{ u.id }}/2fa-reset" onsubmit="return confirm('¿Quitar la verificación en dos pasos a {{ u.username }}? Deberá activarla de nuevo.')">
+  <button class="sec">Quitar la verificación en dos pasos (perdió su teléfono)</button></form>
+{% endif %}
 </div>
 {% endblock %}

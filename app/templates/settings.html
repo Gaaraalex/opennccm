@@ -2,6 +2,37 @@
 {% block content %}
 <h1>Ajustes</h1>
 <form method="post" action="/settings">
+<div class="card" style="max-width:900px" id="seguridad">
+  <h2 style="margin-top:0">Seguridad y acceso</h2>
+  <label for="s-idle">Cerrar la sesión tras estos minutos sin actividad (5 a 720)</label>
+  <input id="s-idle" name="session_idle_minutes" type="number" min="5" max="720" value="{{ s.session_idle_minutes or '30' }}">
+  <p><label class="chk"><input type="checkbox" name="require_2fa_admins" {{ 'checked' if s.require_2fa_admins == '1' }}> Exigir verificación en dos pasos (código de una app de autenticación) a todos los administradores</label></p>
+  <p class="small muted">Cada usuario la activa en «Mi cuenta». Si se exige, un administrador sin ella solo podrá entrar a «Mi cuenta» hasta activarla.</p>
+  <h3>Consola SSH web</h3>
+  <label for="s-console">Quién puede abrir la consola de los equipos desde el navegador</label>
+  <select id="s-console" name="console_access">
+    <option value="admin" {{ 'selected' if s.console_access == 'admin' }}>Solo administradores</option>
+    <option value="operator" {{ 'selected' if s.console_access == 'operator' }}>Administradores y operadores (solo sus equipos)</option>
+    <option value="off" {{ 'selected' if s.console_access == 'off' }}>Nadie (consola desactivada)</option>
+  </select>
+  <p><label class="chk"><input type="checkbox" name="console_autologin" {{ 'checked' if s.console_autologin == '1' }}> Iniciar sesión automáticamente con la credencial asignada al equipo</label></p>
+  <p class="small muted">Sin esta opción, la consola pide usuario y contraseña del equipo. Con ella, quien pueda abrir la consola entra
+  al equipo sin conocer la contraseña. Cada sesión de consola queda registrada en Auditoría.</p>
+  <h3>Actualizaciones</h3>
+  <p><label class="chk"><input type="checkbox" name="update_check" {{ 'checked' if s.update_check != '0' }}> Buscar versiones nuevas una vez al día (consulta GitHub) y avisar a los administradores</label></p>
+  <p><button>Guardar ajustes</button></p>
+</div>
+<div class="card" style="max-width:900px" id="organizacion">
+  <h2 style="margin-top:0">Datos de la organización</h2>
+  <p class="small muted">Se muestran en la página <a href="/acerca">Privacidad, cookies y licencias</a> como responsable de los datos
+  de esta instalación.</p>
+  <div class="row">
+    <div><label for="o-name">Nombre de la organización</label><input id="o-name" name="org_name" value="{{ s.org_name }}"></div>
+    <div><label for="o-contact">Correo de contacto para privacidad</label><input id="o-contact" name="org_contact" type="email" value="{{ s.org_contact }}"></div>
+  </div>
+  <label for="o-addr">Dirección (opcional)</label><input id="o-addr" name="org_address" value="{{ s.org_address }}" style="width:100%">
+  <p><button>Guardar ajustes</button></p>
+</div>
 <div class="card" style="max-width:900px">
   <h2 style="margin-top:0">Flujo de cambios</h2>
   <label class="chk"><input type="checkbox" name="require_approval" {{ 'checked' if s.require_approval != '0' }}> Exigir aprobación de un administrador para aplicar cambios</label><br>

@@ -1,0 +1,41 @@
+{% extends "base.html" %}{% block title %}Actualizando{% endblock %}
+{% block content %}
+<h1>Actualizando OpenNCCM</h1>
+<div class="card" style="max-width:900px">
+  <p id="estado" role="status" aria-live="polite">Preparando la actualización (versión instalada {{ upd.current }})…</p>
+  <p class="small muted">Se hace una copia previa del código y la base de datos. OpenNCCM se detiene 1-2 minutos; si la versión
+  nueva no arranca, se vuelve sola a la anterior. No cierre esta página.</p>
+  <pre id="log" style="max-height:420px;overflow:auto">{{ '' }}</pre>
+  <p><a class="btn sec" href="/system#actualizaciones">Volver a Sistema</a></p>
+</div>
+<script>
+(function () {
+  const before = "{{ upd.current }}", estado = document.getElementById('estado'), logEl = document.getElementById('log');
+  let sawRunning = false, fails = 0;
+  async function poll() {
+    try {
+      const r = await fetch('/system/update/status', {cache: 'no-store', credentials: 'same-origin'});
+      if (r.redirected || !r.ok) throw new Error('reiniciando');
+      const s = await r.json();
+      fails = 0;
+      if (s.log) { logEl.textContent = s.log; logEl.scrollTop = logEl.scrollHeight; }
+      if (s.running) { sawRunning = true; estado.textContent = 'Actualizando… (versión instalada ' + s.version + ')'; }
+      if (s.version !== before) {
+        estado.innerHTML = '✔ OpenNCCM se actualizó a la versión <b>' + s.version + '</b>. <a href="/">Ir al panel</a>';
+        return;
+      }
+      if (!s.running && sawRunning && /FIN=/.test(s.log)) {
+        estado.textContent = /FIN=0/.test(s.log) ? 'La actualización terminó.' :
+          'La actualización no se completó: se mantuvo la versión ' + s.version + '. Revise el registro.';
+        return;
+      }
+    } catch (e) {
+      fails++;
+      estado.textContent = 'OpenNCCM se está reiniciando con la versión nueva… (' + fails * 3 + ' s)';
+    }
+    setTimeout(poll, 3000);
+  }
+  setTimeout(poll, 2000);
+})();
+</script>
+{% endblock %}

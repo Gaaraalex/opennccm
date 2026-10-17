@@ -19,7 +19,7 @@
 </div>
 <div class="card">
 <table>
-<tr><th>Nombre</th><th>IP / Host</th><th class="hide-sm">Fabricante / tipo</th><th class="hide-sm">Modelo</th><th class="hide-sm">Versión</th><th>Grupo</th><th>Último respaldo</th><th>Estado</th></tr>
+<tr><th>Nombre</th><th>IP / Host</th><th class="hide-sm">Fabricante / tipo</th><th class="hide-sm">Modelo</th><th class="hide-sm">Versión</th><th>Grupo</th><th>Último respaldo</th><th>Estado</th>{% if can_console %}<th><span class="vh">Consola</span></th>{% endif %}</tr>
 {% for d in devices %}
 <tr>
   <td><a href="/devices/{{ d.id }}"><b>{{ d.name }}</b></a>{% if not d.enabled %} <span class="badge">deshabilitado</span>{% endif %}</td>
@@ -31,8 +31,10 @@
   <td><span class="badge b-{{ d.last_status }}">{{ d.last_status }}</span>
       {% if d.startup_conflict %}<span class="badge b-warning" title="Running ≠ startup">sin guardar</span>{% endif %}
       {% if d.baseline_drift %}<span class="badge b-warning" title="Difiere de la línea base">≠ baseline</span>{% endif %}</td>
+  {% if can_console %}<td>{% if d.protocol == 'ssh' %}<a class="btn sm sec icon-btn" href="/devices/{{ d.id }}/console" target="_blank"
+      rel="noopener" title="Abrir consola SSH de {{ d.name }}" aria-label="Abrir consola SSH de {{ d.name }} (nueva pestaña)">⌨</a>{% endif %}</td>{% endif %}
 </tr>
-{% else %}<tr><td colspan="8" class="muted">No hay dispositivos.</td></tr>{% endfor %}
+{% else %}<tr><td colspan="9" class="muted">No hay dispositivos.</td></tr>{% endfor %}
 </table>
 </div>
 

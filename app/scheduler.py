@@ -192,4 +192,15 @@ def start():
     scheduler.start()
     reload_jobs()
     scheduler.add_job(purge_old_versions, CronTrigger(hour=3, minute=30), id="purge", replace_existing=True)
+    # rendimiento del servidor para el panel (cada minuto) y aviso de versiones nuevas (una vez al día)
+    from datetime import datetime, timedelta
+
+    from apscheduler.triggers.interval import IntervalTrigger
+
+    from . import metrics, updates
+    metrics.sample()
+    scheduler.add_job(metrics.sample, IntervalTrigger(seconds=metrics.SAMPLE_SECONDS), id="metrics",
+                      replace_existing=True)
+    scheduler.add_job(updates.check_latest, IntervalTrigger(hours=24), id="update-check", replace_existing=True,
+                      next_run_time=datetime.now() + timedelta(minutes=2))
     start_syslog()

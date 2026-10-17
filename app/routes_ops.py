@@ -4,10 +4,10 @@ from __future__ import annotations
 import re
 
 from fastapi import APIRouter, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy import select
 
-from . import charts, eol, firmware, reports, sysbackup
+from . import __version__, charts, eol, firmware, reports, sysbackup, updates
 from .auth import Forbidden, device_scope, filter_ids, require
 from .db import Device, DeviceGroup, EolEntry, FirmwareImage, SessionLocal
 from .drivers import get_profile
@@ -192,7 +192,58 @@ def system_page(request: Request):
     return render(request, "system.html", user, backups=backups, db_url=DATABASE_URL.split("@")[-1],
                   key_file=str(KEY_FILE), profiles_count=len(PROFILES),
                   vendors_count=len({p.vendor for p in PROFILES}), unknown=unknown_profiles(),
-                  clock=systime.info(), zones=zones)
+                  clock=systime.info(), zones=zones, upd=updates.status())
+
+
+# --------------------------------------------------------------------------- actualizaciones
+@router.post("/system/update/check")
+def update_check(request: Request):
+    user = require(request, "admin")
+    st = updates.check_latest(force=True)
+    log_action(request, user, "update_check", st.get("latest") or st.get("error"))
+    if st["error"]:
+        flash(request, st["error"], "error")
+    elif st["available"]:
+        flash(request, f"Hay una versión nueva: {st['latest']} (instalada {st['current']}).")
+    else:
+        flash(request, f"OpenNCCM {st['current']} es la versión más reciente.")
+    return go("/system#actualizaciones")
+
+
+@router.post("/system/update")
+def update_start(request: Request):
+    user = require(request, "admin")
+    st = updates.status()
+    if not st["web_update"]:
+        flash(request, "Esta instalación no tiene el servicio de actualización web (se agrega al actualizar una vez "
+                       "desde la consola): ejecute  sudo opennccm update", "error")
+        return go("/system#actualizaciones")
+    if st["running"]:
+        return go("/system/updating")
+    updates.request_update()
+    log_action(request, user, "update_start", f"{st['current']} -> {st['latest'] or '?'}")
+    return go("/system/updating")
+
+
+@router.get("/system/updating")
+def update_progress(request: Request):
+    user = require(request, "admin")
+    return render(request, "updating.html", user, upd=updates.status())
+
+
+@router.get("/system/update/status")
+def update_status_json(request: Request):
+    require(request, "admin")
+    st = updates.status()
+    return JSONResponse({"version": __version__, "running": st["running"], "log": updates.log_tail()},
+                        headers={"Cache-Control": "no-store"})
+
+
+@router.post("/system/update/dismiss")
+def update_dismiss(request: Request):
+    require(request, "admin")
+    request.session["upd_dismissed"] = updates.status()["latest"]
+    return Response(status_code=204)
 
 
 @router.post("/system/time")
@@ -230,7 +281,10 @@ async def system_backup(request: Request):
     user = require(request, "admin")
     form = await request.form()
     try:
-        path = sysbackup.create_backup(include_key=form.get("include_key") == "on")
+        include_key = form.get("include_key") == "on"
+        if include_key and form.get("passphrase") != form.get("passphrase2"):
+            raise ValueError("Las contraseñas de la copia no coinciden.")
+        path = sysbackup.create_backup(include_key=include_key, passphrase=form.get("passphrase") or None)
         flash(request, f"Copia creada: {path.name}")
         log_action(request, user, "system_backup", path.name)
     except Exception as e:  # noqa: BLE001
@@ -242,16 +296,16 @@ async def system_backup(request: Request):
 def system_download(request: Request, name: str):
     user = require(request, "admin")
     path = sysbackup.BACKUP_DIR / name
-    if not re.fullmatch(r"opennccm-\d{8}-\d{6}\.tar\.gz", name) or not path.exists():
+    if not re.fullmatch(sysbackup.NAME_RE, name) or not path.exists():
         return go("/system")
     log_action(request, user, "system_backup_download", name)
-    return FileResponse(path, filename=name, media_type="application/gzip")
+    return FileResponse(path, filename=name, media_type="application/octet-stream")
 
 
 @router.post("/system/backups/{name}/delete")
 def system_delete(request: Request, name: str):
     user = require(request, "admin")
-    if re.fullmatch(r"opennccm-\d{8}-\d{6}\.tar\.gz", name):
+    if re.fullmatch(sysbackup.NAME_RE, name):
         (sysbackup.BACKUP_DIR / name).unlink(missing_ok=True)
         log_action(request, user, "system_backup_delete", name)
     return go("/system")
