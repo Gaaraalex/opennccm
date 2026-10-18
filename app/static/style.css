@@ -139,6 +139,9 @@ table.sbs tr.s td{color:var(--t-info);background:var(--bg);text-align:center}
 header a:focus-visible{outline-color:#fff}
 .themes label:has(input:focus-visible){outline:3px solid var(--accent);outline-offset:2px}
 fieldset.themes{border:0;padding:0;margin:0}
+fieldset.webq{border:1px solid var(--line);border-radius:8px;padding:8px 14px 12px;margin:14px 0 4px}
+fieldset.webq legend{font-weight:600;padding:0 6px}
+fieldset.webq .chk{display:block;margin:6px 0}
 main:focus{outline:none}
 /* ===== Aviso de actualización, código QR y consola ===== */
 dialog{border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--text);max-width:640px;width:92%;padding:22px}

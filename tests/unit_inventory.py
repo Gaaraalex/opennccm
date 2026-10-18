@@ -33,8 +33,19 @@ Software Version............................... 1.9.3\r
 Hardware Revision.............................. 30\r
 """
 
+# Extreme EXOS (máquina virtual de GNS3): «show version» guardado por la 1.6.x, sin «show switch»
+EXOS_RAW = """Switch         : PN:1N2039    SIME6B7-0000 Rev 01 BootROM: 1.2
+PSUCTRL-1      : PN:MEAD      SN:MD1      Rev 01 BootROM: 2.1
+mouse-usb      : PN:MOUSE     SN:4321     Rev 11 BootROM: 4.3
+PSU-1      : Internal PSU-2 PN:1N2039 SN:12345
+
+Image   : ExtremeXOS version 33.6.1.14 by release-manager
+"""
+
 init_db()
 with SessionLocal() as db:
+    db.add(Device(name="EXOS GNS3", host="10.0.0.150", device_type="extreme_exos", port=22,
+                  inventory_raw_enc=encrypt(EXOS_RAW)))
     db.add(Device(name="SW de Prueba", host="10.0.0.223", device_type="ubiquiti_edgeswitch", port=22,
                   serial="..............................", inventory_raw_enc=encrypt(RAW)))
     db.add(Device(name="Sin inventario", host="10.0.0.9", device_type="cisco_ios", port=22, model="C9300"))
@@ -44,7 +55,10 @@ n = refresh_inventory_from_raw()
 with SessionLocal() as db:
     sw = db.query(Device).filter_by(name="SW de Prueba").one()
     other = db.query(Device).filter_by(name="Sin inventario").one()
-    check("se actualizó un equipo", n == 1, n)
+    exos = db.query(Device).filter_by(name="EXOS GNS3").one()
+    check("se actualizaron dos equipos", n == 2, n)
+    check("EXOS: serie SIME6B7-0000 (antes vacía)", exos.serial == "SIME6B7-0000", exos.serial)
+    check("EXOS: firmware 33.6.1.14", exos.os_version == "33.6.1.14", exos.os_version)
     check("modelo ES-16-150W", sw.model == "ES-16-150W", sw.model)
     check("serie 74ACB9ED270A (antes «......»)", sw.serial == "74ACB9ED270A", sw.serial)
     check("firmware 1.9.3", sw.os_version == "1.9.3", sw.os_version)

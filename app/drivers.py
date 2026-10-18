@@ -25,7 +25,7 @@ class Profile:
     vendor: str
     backup: str                   # comando para obtener la configuración en ejecución
     startup: str | None = None    # comando para la configuración de arranque (detección de conflictos)
-    inventory: str | None = "show version"
+    inventory: str | None = "show version"  # varios comandos: uno por línea (se juntan las salidas)
     family: str = IOS
     commit: bool = False          # requiere commit tras cambios (Junos, PAN-OS, VyOS...)
     save: bool = True             # ejecutar save_config() tras aplicar cambios
@@ -37,6 +37,11 @@ class Profile:
     version_re: list[str] = field(default_factory=list)
     model_re: list[str] = field(default_factory=list)
     serial_re: list[str] = field(default_factory=list)
+
+    @property
+    def inventory_label(self) -> str:
+        """Comandos de inventario en una línea («show version + show switch»)."""
+        return (self.inventory or "").replace("\n", " + ")
 
 
 CISCO_IGNORE = [
@@ -157,7 +162,12 @@ PROFILES: list[Profile] = [
     Profile("extreme_exos", "Extreme EXOS", "Extreme", "show configuration", None,
             telnet=True, family=MERGE,
             ignore=[r"^# Module devmgr configuration", r"^#\s*$", r"^# .*Configuration generated"],
-            version_re=[r"Image\s*:\s*ExtremeXOS version (\S+)"], serial_re=[r"Switch\s*:\s*\S+ (\S+)"]),
+            # «show version» trae la serie («Switch : <n.º de parte> <serie> Rev ...») pero no el modelo,
+            # que sale de «System Type» en «show switch»
+            inventory="show version\nshow switch",
+            version_re=[r"Image\s*:\s*ExtremeXOS version (\S+)"],
+            model_re=[r"System Type:\s*(\S.*?)\s*$"],
+            serial_re=[r"^Switch\s*:\s*\S+\s+(\S+)\s+Rev"]),
     # VOSS no tiene «show version»: el modelo, la serie y la versión salen de «show sys-info»
     Profile("extreme_vsp", "Extreme VSP (VOSS)", "Extreme", "show running-config", None,
             inventory="show sys-info", ignore=CISCO_IGNORE,
@@ -187,6 +197,34 @@ PROFILES: list[Profile] = [
     Profile("zyxel_os", "Zyxel", "Zyxel", "show running-config", None, family=MERGE),
     Profile("linux", "Linux (iptables/servidor)", "Linux", "cat /etc/network/interfaces; iptables-save",
             None, inventory="uname -a", family=MERGE, save=False, ignore=[r"^# (Generated|Completed) .* on "]),
+    # Cortafuegos FreeBSD: toda la configuración está en un XML (el mismo que exporta la web en Diagnóstico →
+    # Copia de seguridad). Driver propio en app/shell_drivers.py: atraviesa el menú de consola («8) Shell»).
+    Profile("pfsense", "pfSense", "Netgate", "cat /cf/conf/config.xml", None,
+            inventory='echo "Version: $(cat /etc/version)"; echo "Model: $(kenv -q smbios.system.product)"; '
+                      'echo "Serial: $(kenv -q smbios.system.serial)"',
+            family=MERGE, save=False, cpe="cpe:2.3:a:netgate:pfsense",
+            version_re=[r"^Version: (\S+)"], model_re=[r"^Model: (\S.*?)\s*$"], serial_re=[r"^Serial: (\S+)"],
+            note="Use el usuario admin (o uno con acceso al shell): el archivo de configuración solo lo lee root. "
+                 "Los cambios y la reversión se hacen desde la web de pfSense; OpenNCCM respalda y compara."),
+    Profile("opnsense", "OPNsense", "Deciso", "cat /conf/config.xml", None,
+            inventory='echo "Version: $(opnsense-version -v)"; echo "Model: $(kenv -q smbios.system.product)"; '
+                      'echo "Serial: $(kenv -q smbios.system.serial)"',
+            family=MERGE, save=False, cpe="cpe:2.3:a:opnsense:opnsense",
+            version_re=[r"^Version: (\S+)"], model_re=[r"^Model: (\S.*?)\s*$"], serial_re=[r"^Serial: (\S+)"],
+            note="Use root (o un usuario con shell y permiso de lectura de /conf/config.xml). Los cambios y la "
+                 "reversión se hacen desde la web de OPNsense; OpenNCCM respalda y compara."),
+    Profile("alpine_linux", "Alpine Linux", "Linux",
+            "for f in /etc/hostname /etc/hosts /etc/resolv.conf /etc/network/interfaces /etc/apk/world "
+            "/etc/apk/repositories /etc/ssh/sshd_config; do [ -f $f ] && echo \"### $f\" && cat $f; done; "
+            "rc-update show 2>/dev/null | sed 's/^/### servicio: /'; iptables-save 2>/dev/null; "
+            "nft list ruleset 2>/dev/null",
+            None, inventory='echo "Version: $(cat /etc/alpine-release)"; '
+                            'echo "Model: $(cat /sys/class/dmi/id/product_name 2>/dev/null)"; '
+                            'echo "Serial: $(cat /sys/class/dmi/id/product_serial 2>/dev/null)"',
+            family=MERGE, save=False, ignore=[r"^# (Generated|Completed) .* on "],
+            version_re=[r"^Version: (\S+)"], model_re=[r"^Model: (\S.*?)\s*$"], serial_re=[r"^Serial: (\S+)"],
+            note="Respalda red, DNS, paquetes (apk world), servicios, SSH y cortafuegos. Con un usuario sin root "
+                 "el número de serie y las reglas del cortafuegos pueden quedar vacíos."),
 ]
 
 VERIFY = ("Comando tomado de la documentación del fabricante, sin verificar en hardware. Si el respaldo "
@@ -348,11 +386,11 @@ PROFILES += [
             family=MERGE, save=False),
     Profile("cloudgenix_ion", "Prisma SD-WAN (CloudGenix ION)", "Palo Alto", "dump config", None,
             family=MERGE, save=False, note=VERIFY),
-    # Genérico: para cualquier equipo con CLI por SSH (pfSense, SonicWall, etc.)
+    # Genérico: para cualquier equipo con CLI por SSH (SonicWall, Riverbed, etc.)
     Profile("generic", "Genérico SSH (defina el comando de respaldo)", "Genérico", "show running-config",
             None, inventory=None, family=MERGE, save=False,
-            note="Defina en el dispositivo el 'comando de respaldo personalizado' (p. ej. 'cat /conf/config.xml' "
-                 "en pfSense)."),
+            note="Defina en el dispositivo el 'comando de respaldo personalizado' (el que muestra la "
+                 "configuración completa en ese equipo)."),
 ]
 
 # Firmware: transferencia por SCP (netmiko.file_transfer) + comandos de arranque
@@ -372,8 +410,9 @@ for _k, _fw in _FW.items():
     PROFILE_MAP[_k].firmware = _fw
 
 GENERIC_VERSION = [r"[Vv]ersion[:\s]+([\w.()\-]+)"]
-GENERIC_MODEL = [r"[Mm]odel(?: [Nn]umber)?\s*[:=]\s*(\S+)", r"Hardware\s*:\s*(\S+)"]
-GENERIC_SERIAL = [r"[Ss]erial[ _-]?(?:[Nn]umber|[Nn]o\.?|#)\s*[:=]?\s*(\S+)", r"Processor board ID (\S+)"]
+# [ \t]* y no \s*: un valor vacío («Model: ») no debe tomar la línea siguiente como valor
+GENERIC_MODEL = [r"[Mm]odel(?: [Nn]umber)?[ \t]*[:=][ \t]*(\S+)", r"Hardware[ \t]*:[ \t]*(\S+)"]
+GENERIC_SERIAL = [r"[Ss]erial[ _-]?(?:[Nn]umber|[Nn]o\.?|#)[ \t]*[:=]?[ \t]*(\S+)", r"Processor board ID (\S+)"]
 
 
 def telnet_supported(key: str) -> bool:
@@ -459,3 +498,9 @@ def parse_inventory(text: str, profile: Profile) -> dict:
         "model": _first(profile.model_re + GENERIC_MODEL, text),
         "serial": _first(profile.serial_re + GENERIC_SERIAL, text),
     }
+
+
+# drivers propios (pfSense, OPNsense, Alpine) que Netmiko no trae
+from . import shell_drivers  # noqa: E402
+
+shell_drivers.register()

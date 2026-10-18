@@ -18,7 +18,7 @@ Si un comando no sirve para su versión, defina un <b>comando de respaldo person
 <td>{{ p.vendor }}</td><td>{{ p.label }}</td><td><code>{{ p.key }}</code></td>
 <td class="small"><code>{{ p.backup }}</code></td>
 <td class="small">{% if p.startup %}<code>{{ p.startup }}</code>{% else %}<span class="muted">—</span>{% endif %}</td>
-<td class="small">{% if p.inventory %}<code>{{ p.inventory }}</code>{% else %}<span class="muted">—</span>{% endif %}</td>
+<td class="small">{% if p.inventory %}<code>{{ p.inventory_label }}</code>{% else %}<span class="muted">—</span>{% endif %}</td>
 <td class="small">{{ {'ios': 'no …', 'huawei': 'undo …', 'set': 'delete …', 'merge': 'reaplicar'}[p.family] }}</td>
 <td>{{ '✓' if upgrade(p.key) else '' }}</td>
 <td class="small">{% if ver %}<span class="badge b-ok">✓ {{ ver.devices }} equipo{{ 's' if ver.devices != 1 }}</span>

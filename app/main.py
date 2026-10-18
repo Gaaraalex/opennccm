@@ -396,6 +396,7 @@ def _apply_device_form(dev: Device, form):
     if web and not web.lower().startswith(("http://", "https://")):
         web = "https://" + web
     dev.web_url = web[:255] or None
+    dev.web_enabled = form.get("web_enabled", "1") != "0"  # sin el campo (API, versiones anteriores): sí
 
 
 @app.post("/devices/new")
