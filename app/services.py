@@ -303,7 +303,8 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
             with connect(dev) as conn:
                 running = conn.send_command(dev.custom_backup_cmd or prof.backup, read_timeout=180)
                 startup = conn.send_command(prof.startup, read_timeout=180) if prof.startup else None
-                inventory = conn.send_command(prof.inventory, read_timeout=60) if prof.inventory else None
+                inventory = "\n\n".join(conn.send_command(c, read_timeout=60) for c in prof.inventory.split("\n")
+                                        if c.strip()) if prof.inventory else None
         except Exception as e:  # noqa: BLE001
             dev.last_status, dev.last_error = "error", str(e)[:2000]
             db.commit()

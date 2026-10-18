@@ -92,6 +92,7 @@ class Device(Base):
     startup_conflict: Mapped[bool] = mapped_column(Boolean, default=False)
     maintenance_until: Mapped[datetime | None] = mapped_column(DateTime)
     web_url: Mapped[str | None] = mapped_column(String(255))   # interfaz web del equipo (por omisión https://host)
+    web_enabled: Mapped[bool] = mapped_column(Boolean, default=True)  # mostrar el botón 🌐 (hay equipos sin web)
     custom_backup_cmd: Mapped[str | None] = mapped_column(Text)   # sustituye al comando del perfil
     baseline_version_id: Mapped[int | None] = mapped_column(Integer)  # versión "línea base"
     baseline_drift: Mapped[bool] = mapped_column(Boolean, default=False)

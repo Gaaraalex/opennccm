@@ -12,8 +12,10 @@
   <a class="btn sec" href="/devices/{{ device.id }}/console" target="_blank" rel="noopener"
      onclick="return abrirVentana(this.href, 'consola-{{ device.id }}', 1000, 640)" aria-label="Consola SSH (ventana nueva)">⌨ Consola</a>
   {% endif %}
+  {% if device.web_enabled != false %}
   <a class="btn sec" href="{{ device.web_url or 'https://' ~ device.host ~ '/' }}" target="_blank" rel="noopener noreferrer"
      onclick="return abrirVentana(this.href, 'web-{{ device.id }}', 1280, 820)" aria-label="Interfaz web del equipo (ventana nueva)">🌐 Interfaz web</a>
+  {% endif %}
   {% if user.role == 'admin' %}
   <a class="btn sec" href="/devices/{{ device.id }}/edit">Editar</a>
   <form class="inline" method="post" action="/devices/{{ device.id }}/delete" onsubmit="return confirm('¿Eliminar el equipo y todo su historial?')"><button class="danger">Eliminar</button></form>
@@ -34,7 +36,7 @@
     <dt>Fabricante</dt><dd>{{ profile.vendor }} — {{ profile.label }}</dd>
     <dt>Modelo</dt><dd>{{ device.model or '—' }}</dd>
     <dt>Nº de serie</dt><dd>{{ device.serial or '—' }}</dd>
-    <dt>Versión firmware</dt><dd>{{ device.os_version or '—' }}{% if not (device.model or device.serial or device.os_version) %} <span class="small muted">(se completan solos en cada respaldo con «{{ profile.inventory or 'sin comando de inventario' }}»)</span>{% endif %}</dd>
+    <dt>Versión firmware</dt><dd>{{ device.os_version or '—' }}{% if not (device.model or device.serial or device.os_version) %} <span class="small muted">(se completan solos en cada respaldo con «{{ profile.inventory_label or 'sin comando de inventario' }}»)</span>{% endif %}</dd>
     <dt>Grupo</dt><dd>{% if device.group %}<a href="/devices?group={{ device.group_id }}">{{ device.group.name }}</a>{% else %}—{% endif %}
       {% if user.role == 'admin' %} <a class="small" href="/devices/{{ device.id }}/edit">{{ 'cambiar' if device.group else 'asignar grupo' }}</a>{% endif %}</dd>
     <dt>Ubicación</dt><dd>{{ device.location or '—' }}</dd>
@@ -49,7 +51,7 @@
     {% if device.custom_backup_cmd %}<dt>Comando de respaldo</dt><dd><code>{{ device.custom_backup_cmd }}</code></dd>{% endif %}
   </dl>
   {% if device.notes %}<p class="small">{{ device.notes }}</p>{% endif %}
-  {% if inventory %}<details><summary class="small">Salida de inventario ({{ profile.inventory }})</summary><pre>{{ inventory }}</pre></details>{% endif %}
+  {% if inventory %}<details><summary class="small">Salida de inventario ({{ profile.inventory_label }})</summary><pre>{{ inventory }}</pre></details>{% endif %}
 </div>
 
 <div class="card" style="flex:2 1 560px">

@@ -28,13 +28,26 @@
     <div><label>…o crear un grupo nuevo</label><input name="new_group" placeholder="Ej.: Oficina principal" maxlength="100"></div>
   </div>
   <p class="small muted">Los grupos ordenan los equipos por sede, rol o cliente: sirven para filtrar, respaldar o programar tareas por grupo y para limitar qué equipos ve cada usuario. Se administran en <a href="/credentials#groups">Credenciales → Grupos de dispositivos</a>.</p>
-  <label for="web-url">Interfaz web del equipo (opcional)</label>
-  <input id="web-url" name="web_url" style="width:100%" value="{{ device.web_url or '' if device }}" placeholder="https://IP-del-equipo/ (por omisión)">
+  {% set web_on = not device or device.web_enabled %}
+  <fieldset class="webq">
+    <legend>¿El equipo tiene interfaz web?</legend>
+    <label class="chk"><input type="radio" name="web_enabled" value="1" {{ 'checked' if web_on }}> Sí, mostrar el botón 🌐 Interfaz web</label>
+    <label class="chk"><input type="radio" name="web_enabled" value="0" {{ 'checked' if not web_on }}> No (el equipo no tiene web o no se quiere usar)</label>
+    <div id="web-url-box" {{ 'hidden' if not web_on }}>
+      <label for="web-url">Dirección de la interfaz web (opcional)</label>
+      <input id="web-url" name="web_url" style="width:100%" value="{{ device.web_url or '' if device }}" placeholder="https://IP-del-equipo/ (por omisión)">
+    </div>
+  </fieldset>
+  <script>
+  document.querySelectorAll('input[name=web_enabled]').forEach(function (r) {
+    r.addEventListener('change', function () { document.getElementById('web-url-box').hidden = this.value !== '1'; });
+  });
+  </script>
   <label>Ubicación</label><input name="location" style="width:100%" value="{{ device.location or '' if device }}">
   <label>Notas</label><textarea name="notes" rows="3">{{ device.notes or '' if device }}</textarea>
   <label>Comando de respaldo personalizado (opcional)</label>
   <input name="custom_backup_cmd" style="width:100%" value="{{ device.custom_backup_cmd or '' if device }}"
-         placeholder="Vacío = comando del perfil. Ej.: cat /conf/config.xml (pfSense con perfil Genérico/Linux)">
+         placeholder="Vacío = comando del perfil. Ej.: cat /etc/archivo.conf (equipos con perfil Genérico SSH o Linux)">
   <p class="small muted">Úselo para equipos con perfil «Genérico SSH» o cuando el comando del fabricante difiera en su versión.
   <a href="/vendors" target="_blank">Ver comandos por fabricante</a>.</p>
   <p>

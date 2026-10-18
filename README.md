@@ -7,7 +7,7 @@
   <a href="https://github.com/Gaaraalex/opennccm/releases"><img src="https://img.shields.io/github/v/release/Gaaraalex/opennccm?label=versi%C3%B3n&color=2563eb" alt="Versión"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licencia-GPL--3.0-7c3aed" alt="Licencia: GPL-3.0"></a>
   <img src="https://img.shields.io/badge/Ubuntu-22.04%20%7C%2024.04-E95420?logo=ubuntu&logoColor=white" alt="Ubuntu 22.04 y 24.04">
-  <img src="https://img.shields.io/badge/plataformas-122-16a34a" alt="122 plataformas">
+  <img src="https://img.shields.io/badge/plataformas-125-16a34a" alt="125 plataformas">
 </p>
 
 <p align="center">
@@ -135,7 +135,7 @@ Antes de actualizar guarda una copia (código + base de datos) y después verifi
 Cisco (IOS, IOS-XE, NX-OS, IOS-XR, ASA, FTD, WLC, C9800, Small Business, vEdge), Juniper, Arista, HPE/Aruba, H3C,
 Huawei, Fortinet, Palo Alto, Check Point, Sophos, F5, Citrix, A10, WatchGuard, Hillstone, MikroTik, Dell, Extreme,
 Avaya/Nortel, Brocade, Ruckus, Nokia, Alcatel-Lucent, Ciena, ADVA, Adtran, Calix, Ericsson, NVIDIA (Cumulus/Mellanox),
-D-Link, Netgear, FS, Hirschmann, Moxa, Ubiquiti, TP-Link, ZTE, Ruijie, VyOS y muchos más, sobre
+D-Link, Netgear, FS, Hirschmann, Moxa, Ubiquiti, TP-Link, ZTE, Ruijie, VyOS, pfSense, OPNsense, Alpine Linux y muchos más, sobre
 [Netmiko](https://github.com/ktbyers/netmiko). Cualquier otro equipo con SSH se gestiona con el perfil genérico.
 Lista completa en la página **Plataformas** de la aplicación.
 

@@ -155,10 +155,13 @@ grupo.</p>
   <tr><th>Campo</th><th>Descripción</th></tr>
   <tr><td>Nombre</td><td>Identificador único (por ejemplo el hostname).</td></tr>
   <tr><td>IP / hostname</td><td>Dirección de gestión. Debe ser la misma desde la que el equipo envía syslog.</td></tr>
-  <tr><td>Fabricante / sistema operativo</td><td>Perfil de la plataforma (122 opciones agrupadas por fabricante). Define los comandos que se usan.</td></tr>
+  <tr><td>Fabricante / sistema operativo</td><td>Perfil de la plataforma (125 opciones agrupadas por fabricante). Define los comandos que se usan.</td></tr>
   <tr><td>Protocolo y puerto</td><td>SSH (22) o Telnet (23). Telnet solo en plataformas que lo admiten.</td></tr>
   <tr><td>Credencial y grupo</td><td>Perfil de usuario/contraseña y grupo del equipo. Puede crear un grupo nuevo desde aquí mismo
   con «…o crear un grupo nuevo». También se administran en <b>Dispositivos → Grupos</b>.</td></tr>
+  <tr><td>¿Tiene interfaz web?</td><td><b>Sí</b> (por omisión) muestra el botón <b>🌐 Interfaz web</b> del equipo; se puede
+  indicar su dirección si no es <code>https://IP/</code>. <b>No</b> oculta el botón para los equipos sin página de administración
+  (muchos switches de acceso, servidores Linux…). Se puede cambiar después en <b>Editar</b>.</td></tr>
   <tr><td>Comando de respaldo personalizado</td><td>Opcional: sustituye al comando del perfil (útil con el perfil «Genérico SSH» o versiones con otra sintaxis).</td></tr>
   <tr><td>Habilitado</td><td>Si se desmarca, el equipo no entra en tareas programadas ni respaldos masivos.</td></tr>
   <tr><td>Revertir automáticamente</td><td>Deshace los cambios no autorizados que se detecten (sección 12).</td></tr>
@@ -194,8 +197,9 @@ firmware). Más abajo siguen cumplimiento, vulnerabilidades y eventos.</figcapti
 <h2 id="web">Interfaz web del equipo</h2>
 <p>El icono <b>🌐</b> (junto al de la consola) y el botón <b>🌐 Interfaz web</b> de la página del equipo abren su página de
 administración en una ventana aparte. Por omisión se usa <code>https://IP-del-equipo/</code>; si el equipo usa otra dirección o
-puerto (por ejemplo <code>http://10.0.0.1:8080</code>), escríbala en <b>Editar → Interfaz web del equipo</b>. OpenNCCM no
-interviene en esa conexión: el navegador se conecta directamente al equipo.</p>
+puerto (por ejemplo <code>http://10.0.0.1:8080</code>), escríbala en <b>Editar → ¿El equipo tiene interfaz web? → Dirección</b>.
+Si el equipo no tiene web, marque <b>No</b> en esa misma pregunta y el botón deja de mostrarse. OpenNCCM no interviene en esa
+conexión: el navegador se conecta directamente al equipo.</p>
 <div class="note"><b>Seguridad</b>La consola usa la misma sesión que la página (no funciona desde otros sitios web), se cierra tras
 15 minutos sin escribir (máximo 4 horas), y cada apertura, intento fallido y cierre queda en <b>Auditoría</b>, indicando si fue con
 inicio automático. Solo funciona con equipos configurados por SSH.</div>
@@ -749,7 +753,7 @@ las licencias.</p>
 
 <section class="chapter">
 <h1>26. Plataformas soportadas</h1>
-<p>Menú <b>Plataformas</b>. Lista las 122 plataformas con su <code>device_type</code> y los comandos que se ejecutan en
+<p>Menú <b>Plataformas</b>. Lista las 125 plataformas con su <code>device_type</code> y los comandos que se ejecutan en
 cada una: <b>respaldo</b>, <b>arranque</b> (startup, para detectar cambios sin guardar) e <b>inventario</b> (modelo, serie y versión);
 además el tipo de reversión y si admite actualización de firmware.</p>
 <ul>
@@ -760,7 +764,11 @@ además el tipo de reversión y si admite actualización de firmware.</p>
 </ul>
 <p>La configuración se obtiene mostrando el resultado del comando dentro de la misma sesión SSH: no se crean archivos en el equipo ni se
 necesita FTP/TFTP. Si un comando no sirve para su versión, defina un <b>comando de respaldo personalizado</b> en el dispositivo. Para
-equipos sin perfil propio (pfSense, SonicWall, Riverbed, Infoblox…) use <b>Genérico SSH</b> con un comando personalizado.</p>
+equipos sin perfil propio (SonicWall, Riverbed, Infoblox…) use <b>Genérico SSH</b> con un comando personalizado.</p>
+<p><b>pfSense y OPNsense</b> tienen perfil propio: OpenNCCM atraviesa el menú de consola (opción «8) Shell») y respalda el archivo
+<code>config.xml</code> completo, el mismo que exporta la web. Use el usuario <code>admin</code>/<code>root</code> (el archivo solo lo lee
+root); el inventario trae versión, modelo y número de serie. Los cambios se siguen haciendo desde la web del cortafuegos.
+<b>Alpine Linux</b> respalda red, DNS, paquetes instalados (<code>apk world</code>), servicios, SSH y reglas del cortafuegos.</p>
 <figure><img src="img/30-plataformas.png" class="tall"><figcaption>Plataformas soportadas con buscador y la columna «Comprobado en su red».</figcaption></figure>
 </section>
 

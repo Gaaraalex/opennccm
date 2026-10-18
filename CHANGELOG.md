@@ -1,5 +1,20 @@
 # Historial de versiones
 
+## 1.7.0
+- **Extreme Networks EXOS: modelo y número de serie**. El número de serie no se leía cuando la línea «Switch : …» de
+  `show version` trae varios espacios (como en la máquina virtual de GNS3), y el modelo no aparece en `show version`: ahora el
+  inventario ejecuta también `show switch` y toma el modelo de «System Type». La serie de los equipos ya respaldados se corrige
+  sola al reiniciar; el modelo aparece en el próximo respaldo.
+- **pfSense y OPNsense**: perfiles propios. OpenNCCM entra por SSH, atraviesa el menú de consola (opción «8) Shell») y respalda
+  el `config.xml` completo, con historial, comparación, alertas y cumplimiento como cualquier otro equipo. El inventario trae
+  versión, modelo y número de serie. Use el usuario `admin`/`root`.
+- **Alpine Linux**: perfil propio que respalda red, DNS, paquetes instalados (`apk world`), servicios, SSH y cortafuegos
+  (iptables / nftables), con versión, modelo y serie en el inventario.
+- **¿El equipo tiene interfaz web?**: al crear o editar un equipo se elige si tiene página de administración. Con «No» se oculta
+  el botón 🌐 (en la lista y en la ficha); con «Sí» se puede indicar su dirección si no es `https://IP/`. Los equipos existentes
+  siguen mostrando el botón.
+- Los comandos de inventario de un perfil pueden ser varios (se muestran como «show version + show switch»).
+
 ## 1.6.2
 - **Corrección: actualizar desde la web**. El botón «Actualizar» fallaba con «fatal: $HOME not set» (el servicio de
   systemd que ejecuta la actualización no tenía definida la variable HOME que necesita git). Ahora el servicio define HOME y

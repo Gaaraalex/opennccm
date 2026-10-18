@@ -35,9 +35,9 @@
     {% if can_console and d.protocol == 'ssh' %}<a class="btn sm sec icon-btn" href="/devices/{{ d.id }}/console" target="_blank" rel="noopener"
       onclick="return abrirVentana(this.href, 'consola-{{ d.id }}', 1000, 640)"
       title="Consola SSH de {{ d.name }}" aria-label="Abrir consola SSH de {{ d.name }} (ventana nueva)">⌨</a>{% endif %}
-    <a class="btn sm sec icon-btn" href="{{ d.web_url or 'https://' ~ d.host ~ '/' }}" target="_blank" rel="noopener noreferrer"
+    {% if d.web_enabled != false %}<a class="btn sm sec icon-btn" href="{{ d.web_url or 'https://' ~ d.host ~ '/' }}" target="_blank" rel="noopener noreferrer"
       onclick="return abrirVentana(this.href, 'web-{{ d.id }}', 1280, 820)"
-      title="Interfaz web de {{ d.name }}" aria-label="Abrir la interfaz web de {{ d.name }} (ventana nueva)">🌐</a></td>
+      title="Interfaz web de {{ d.name }}" aria-label="Abrir la interfaz web de {{ d.name }} (ventana nueva)">🌐</a>{% endif %}</td>
 </tr>
 {% else %}<tr><td colspan="9" class="muted">No hay dispositivos.</td></tr>{% endfor %}
 </table>
