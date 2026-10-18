@@ -4,6 +4,8 @@
 #  (instalado como /usr/local/bin/opennccm; se actualiza junto con el código)
 # =============================================================================
 set -Eeuo pipefail
+# también al ejecutarse desde systemd (botón «Actualizar» de la web), donde HOME no está definido y git lo necesita
+export HOME=${HOME:-/root}
 
 APP_DIR=/opt/opennccm
 ETC_DIR=/etc/opennccm

@@ -63,7 +63,7 @@
       <td><input type="radio" name="b" value="{{ v.id }}" {{ 'checked' if loop.index == 1 }}></td>
       <td>{{ v.id }}</td><td class="small">{{ v.created_at|dt }}</td><td>{{ v.kind }}</td>
       <td class="small">{{ v.trigger }}{% if v.username %} · {{ v.username }}{% endif %}</td>
-      <td class="small"><span style="color:var(--ok)">+{{ v.added }}</span> <span style="color:var(--crit)">-{{ v.removed }}</span></td>
+      <td class="small"><span style="color:var(--t-ok)">+{{ v.added }}</span> <span style="color:var(--t-crit)">-{{ v.removed }}</span></td>
       <td>{% if v.id == device.baseline_version_id %}<span class="badge b-ok">línea base</span>{% elif v.label %}<span class="badge b-info">{{ v.label }}</span>{% endif %}</td>
       <td><a href="/versions/{{ v.id }}">ver</a> · <a href="/versions/{{ v.id }}?raw=1">descargar</a></td>
     </tr>

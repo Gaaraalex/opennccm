@@ -236,7 +236,8 @@ async def account_save(request: Request):
 
 
 THEMES = {"auto": "Automático (según el sistema)", "claro": "Claro", "oscuro": "Oscuro",
-          "noche": "Azul noche", "bosque": "Bosque", "contraste": "Alto contraste"}
+          "noche": "Azul noche", "bosque": "Bosque", "arena": "Arena", "oceano": "Océano", "atardecer": "Atardecer",
+          "lavanda": "Lavanda", "grafito": "Grafito", "contraste": "Alto contraste"}
 
 
 @app.post("/account/theme")

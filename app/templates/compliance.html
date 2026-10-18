@@ -3,8 +3,8 @@
 <h1>Cumplimiento de configuración</h1>
 <div class="grid">
   <div class="stat"><small>Equipos auditados</small><b>{{ devices_checked }}</b></div>
-  <div class="stat"><small>Equipos que cumplen</small><b style="color:var(--ok)">{{ devices_ok }}</b></div>
-  <div class="stat"><small>Infracciones abiertas</small><b style="color:var(--crit)">{{ fails|length }}</b></div>
+  <div class="stat"><small>Equipos que cumplen</small><b style="color:var(--t-ok)">{{ devices_ok }}</b></div>
+  <div class="stat"><small>Infracciones abiertas</small><b style="color:var(--t-crit)">{{ fails|length }}</b></div>
 </div>
 <div class="toolbar" style="margin-top:14px">
   {% if ROLES[user.role] >= 1 %}<form class="inline" method="post" action="/compliance/run"><button>Auditar todos ahora</button></form>{% endif %}

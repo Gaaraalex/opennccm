@@ -16,7 +16,7 @@
     <dt>Última publicada</dt><dd>{% if upd.latest %}<b>{{ upd.latest }}</b>{% if upd.available %} <span class="badge b-warning">actualización disponible</span>{% else %} <span class="badge b-ok">está al día</span>{% endif %}{% else %}—{% endif %}
       <span class="small muted">{% if upd.checked_at %}(comprobado {{ upd.checked_at }}){% endif %}</span></dd>
   </dl>
-  {% if upd.error %}<p class="small" style="color:var(--crit)">{{ upd.error }}</p>{% endif %}
+  {% if upd.error %}<p class="small" style="color:var(--t-crit)">{{ upd.error }}</p>{% endif %}
   {% if upd.available and upd.notes %}<details open><summary>Novedades de la versión {{ upd.latest }}</summary>
     <div class="notes">{{ latest_notes|safe }}</div>{% if upd.url %}<p class="small"><a href="{{ upd.url }}" target="_blank" rel="noopener">Ver la versión {{ upd.latest }} en GitHub ↗</a></p>{% endif %}</details>{% endif %}
   <div class="row">

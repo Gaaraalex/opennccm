@@ -75,6 +75,10 @@ webupdate)
   done
   sudo cat /var/lib/opennccm/update.log || fail "el servicio de actualización no se ejecutó"
   sudo grep -q "FIN=" /var/lib/opennccm/update.log || fail "la actualización no terminó"
+  # no basta con que termine: tiene que haber hecho el trabajo (sin errores de git ni del entorno de systemd)
+  ! sudo grep -qi "fatal:\|not set\|command not found" /var/lib/opennccm/update.log || fail "error del entorno al actualizar"
+  sudo grep -q "Buscando actualizaciones" /var/lib/opennccm/update.log || fail "no llegó a buscar actualizaciones"
+  sudo grep -qE "OpenNCCM actualizado|volviendo a .* automáticamente|ya es la versión más reciente"     /var/lib/opennccm/update.log || fail "la actualización no se completó ni volvió atrás"
   sudo test ! -f /var/lib/opennccm/update.request || fail "la solicitud quedó pendiente"
   for _ in $(seq 1 60); do curl -fsk $B/healthz >/dev/null 2>&1 && break; sleep 2; done
   curl -fsk $B/healthz || fail "OpenNCCM no responde tras la actualización"
