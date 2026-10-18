@@ -93,6 +93,12 @@ VOLATILE = {
     "dell_os6": ("!System Up Time          \"0 days 1 hrs\"\nvlan 10\n", "!System Up Time          \"0 days 9 hrs\"\nvlan 10\n"),
     "arista_eos": ("! Startup-config last modified at Thu Oct 16 10:00:00 2026 by admin\nhostname sw\n",
                    "! Startup-config last modified at Thu Oct 16 11:00:00 2026 by admin\nhostname sw\n"),
+    "extreme_vsp": ("*" * 60 + "\n        Command Execution Time: Sun Oct 18 01:30:01 2026 UTC\n" + "*" * 60 +
+                    "\nPreparing to Display Configuration...\n#\n# Sun Oct 18 01:30:01 2026 UTC\n"
+                    "# box type             : 5520-24T-FabricEngine\n# software version     : 9.3.0.0\n",
+                    "*" * 60 + "\n        Command Execution Time: Sun Oct 18 02:57:37 2026 UTC\n" + "*" * 60 +
+                    "\nPreparing to Display Configuration...\n#\n# Sun Oct 18 02:57:37 2026 UTC\n"
+                    "# box type             : 5520-24T-FabricEngine\n# software version     : 9.3.0.0\n"),
     "zyxel_os": ("! Last configuration change at 10:00:00 UTC Thu Oct 16 2026\nhostname z\n",
                  "! Last configuration change at 11:00:00 UTC Thu Oct 16 2026\nhostname z\n"),
 }

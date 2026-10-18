@@ -11,7 +11,7 @@
 <script>
 (function () {
   const before = "{{ upd.current }}", estado = document.getElementById('estado'), logEl = document.getElementById('log');
-  let sawRunning = false, fails = 0;
+  let fails = 0;
   async function poll() {
     try {
       const r = await fetch('/system/update/status', {cache: 'no-store', credentials: 'same-origin'});
@@ -19,16 +19,24 @@
       const s = await r.json();
       fails = 0;
       if (s.log) { logEl.textContent = s.log; logEl.scrollTop = logEl.scrollHeight; }
-      if (s.running) { sawRunning = true; estado.textContent = 'Actualizando… (versión instalada ' + s.version + ')'; }
       if (s.version !== before) {
         estado.innerHTML = '✔ OpenNCCM se actualizó a la versión <b>' + s.version + '</b>. <a href="/">Ir al panel</a>';
         return;
       }
-      if (!s.running && sawRunning && /FIN=/.test(s.log)) {
-        estado.textContent = /FIN=0/.test(s.log) ? 'La actualización terminó.' :
-          'La actualización no se completó: se mantuvo la versión ' + s.version + '. Revise el registro.';
+      const fin = /FIN=(\d+)/.exec(s.log || '');
+      if (fin) {
+        if (fin[1] === '0') {
+          estado.textContent = /ya es la versión más reciente/.test(s.log) ?
+            '✔ OpenNCCM ' + s.version + ' ya es la versión más reciente.' : '✔ La actualización terminó.';
+        } else {
+          estado.innerHTML = '✖ La actualización no se completó (código ' + fin[1] + ') y OpenNCCM sigue en la versión <b>' +
+            s.version + '</b>. Revise el registro de abajo, o actualice desde la consola del servidor con ' +
+            '<code>sudo opennccm update</code>.';
+          estado.className = 'flash error';
+        }
         return;
       }
+      if (s.running) estado.textContent = 'Actualizando… (versión instalada ' + s.version + ')';
     } catch (e) {
       fails++;
       estado.textContent = 'OpenNCCM se está reiniciando con la versión nueva… (' + fails * 3 + ' s)';

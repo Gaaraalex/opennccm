@@ -615,6 +615,9 @@ Description=OpenNCCM - actualizar a la última versión publicada (solicitado de
 
 [Service]
 Type=oneshot
+# systemd no define HOME ni un PATH completo para estos servicios: git y apt los necesitan
+Environment=HOME=/root
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ExecStartPre=/bin/rm -f $DATA_DIR/update.request
 ExecStart=/bin/sh -c '/usr/local/bin/opennccm update --yes > $DATA_DIR/update.log 2>&1; echo "FIN=\$\$?" >> $DATA_DIR/update.log'
 TimeoutStartSec=1800

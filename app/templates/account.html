@@ -41,6 +41,11 @@
         'oscuro': ['#0f141a', '#171e27', '#0a0f14', '#1f6feb'],
         'noche': ['#0b1730', '#12224a', '#08112a', '#4c9bff'],
         'bosque': ['#f1f6f2', '#ffffff', '#143424', '#1f7a4d'],
+        'arena': ['#f6f0e4', '#fffaf1', '#3b2f20', '#8f5410'],
+        'oceano': ['#06232b', '#0b2f39', '#041a20', '#3cc6c0'],
+        'atardecer': ['#1f1424', '#2a1b30', '#170e1b', '#ff8c5a'],
+        'lavanda': ['#f5f2fb', '#ffffff', '#2b2140', '#6a3fc2'],
+        'grafito': ['#151617', '#1e2022', '#0e0f10', '#c9d1d9'],
         'contraste': ['#000000', '#000000', '#ffffff', '#ffd400']} %}
       {% for key, name in themes.items() %}
       <label><input class="vh" type="radio" name="theme" value="{{ key }}" {{ 'checked' if (user.theme or 'auto') == key }}>

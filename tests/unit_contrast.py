@@ -36,9 +36,9 @@ def ratio(a, b):
 
 base = tokens(r":root")
 themes = {"claro": base}
-for name, sel in (("oscuro", r':root\[data-theme="oscuro"\]'), ("noche", r':root\[data-theme="noche"\]'),
-                  ("bosque", r':root\[data-theme="bosque"\]'), ("contraste", r':root\[data-theme="contraste"\]')):
-    themes[name] = {**base, **tokens(sel)}
+# todos los temas definidos en style.css (los nuevos se prueban solos)
+for name in sorted(set(re.findall(r':root\[data-theme="(\w+)"\]\{', CSS)) - {"auto"}):
+    themes[name] = {**base, **tokens(rf':root\[data-theme="{name}"\]')}
 
 PAIRS = [  # (primer plano, fondo, mínimo, qué es)
     ("text", "bg", 4.5, "texto sobre el fondo"),
@@ -51,6 +51,11 @@ PAIRS = [  # (primer plano, fondo, mínimo, qué es)
     ("nav-text", "nav", 4.5, "menú superior"),
     ("flash-text", "flash-bg", 4.5, "mensajes de confirmación"),
     ("flash-err-text", "flash-err-bg", 4.5, "mensajes de error"),
+    # textos de estado (números del panel, +/- de líneas, avisos) sobre tarjetas y fondo
+    ("t-ok", "panel", 4.5, "texto ok"), ("t-crit", "panel", 4.5, "texto error"),
+    ("t-warn", "panel", 4.5, "texto aviso"), ("t-major", "panel", 4.5, "texto major"),
+    ("t-info", "panel", 4.5, "texto info"), ("t-ok", "bg", 4.5, "texto ok sobre fondo"),
+    ("t-crit", "bg", 4.5, "texto error sobre fondo"), ("t-warn", "bg", 4.5, "texto aviso sobre fondo"),
     # insignias de estado: texto blanco sobre su color
     ("#ffffff", "ok", 4.5, "insignia ok"), ("#ffffff", "crit", 4.5, "insignia error/crítico"),
     ("#ffffff", "badge-major", 4.5, "insignia major"), ("#ffffff", "badge-warn", 4.5, "insignia warning/pendiente"),

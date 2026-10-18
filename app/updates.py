@@ -73,6 +73,7 @@ def _log_running() -> bool:
 
 
 def request_update() -> None:
+    UPDATE_LOG.unlink(missing_ok=True)  # que la página de progreso no muestre el resultado de un intento anterior
     UPDATE_REQUEST.write_text(datetime.now().isoformat())
 
 

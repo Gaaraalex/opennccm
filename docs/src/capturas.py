@@ -118,7 +118,7 @@ uid = re.search(r"<b>lector</b>[\s\S]*?/users/(\d+)/edit", users)
 if uid:
     save("33-usuario-editar", get(f"/users/{uid.group(1)}/edit"))
 # temas: el panel con cada tema (luego se vuelve a «automático»)
-for theme in ["noche", "bosque", "contraste", "oscuro"]:
+for theme in ["noche", "bosque", "contraste", "oscuro", "arena", "oceano", "atardecer", "lavanda", "grafito"]:
     s.post(B + "/account/theme", data={"theme": theme})
     save(f"34-tema-{theme}", get("/"), 1280, 900)
 s.post(B + "/account/theme", data={"theme": "auto"})

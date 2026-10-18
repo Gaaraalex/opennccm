@@ -411,6 +411,9 @@ GLOBAL_IGNORE = [
     r"^: Written by ",                                                            # Cisco ASA
     r"^!\s*(Last configuration change|NVRAM config last updated) at ",            # Cisco y clones IOS
     r"^!\s*Time: ",                                                               # Cisco NX-OS
+    r"Command Execution Time:",                                                   # Extreme VOSS / EXOS
+    r"^#\s*(Mon|Tue|Wed|Thu|Fri|Sat|Sun) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) +\d{1,2} "
+    r"\d{2}:\d{2}:\d{2} \d{4}",                                                  # Extreme VOSS: «# Sun Oct 18 …»
 ]
 # Valores que el equipo vuelve a cifrar con sal aleatoria en cada lectura (no son un cambio real).
 # Solo se enmascaran para decidir si hubo cambios: la versión guardada conserva el texto original.

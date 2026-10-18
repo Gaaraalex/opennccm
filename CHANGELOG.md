@@ -1,5 +1,18 @@
 # Historial de versiones
 
+## 1.6.2
+- **Corrección: actualizar desde la web**. El botón «Actualizar» fallaba con «fatal: $HOME not set» (el servicio de
+  systemd que ejecuta la actualización no tenía definida la variable HOME que necesita git). Ahora el servicio define HOME y
+  PATH, y el comando `opennccm` también lo hace por su cuenta. La página de progreso muestra claramente si la actualización
+  falló o si ya estaba al día, en lugar de quedarse en «Preparando la actualización».
+  **Importante:** esta corrección se instala con la propia actualización, así que para pasar a la 1.6.2 hay que usar una vez más
+  `sudo opennccm update` en la consola; desde la 1.6.2 el botón funciona.
+- **Extreme VOSS**: ya no se registra un cambio en cada respaldo por las líneas «Command Execution Time: …» y «# <fecha y hora>»
+  que el equipo agrega al mostrar la configuración (el primer respaldo tras actualizar guarda una versión sin esas líneas).
+- **Cinco temas nuevos**: Arena, Océano, Atardecer, Lavanda y Grafito.
+- **Legibilidad en temas oscuros**: los números de colores del panel (respaldos OK, errores, alarmas…) y los conteos +/− de
+  líneas usan tonos claros en los temas oscuros. Los 10 temas cumplen el contraste WCAG 2.1 AA (prueba automática).
+
 ## 1.6.1
 - **Consola en su propia ventana**: se abre en una ventana aparte del navegador (1000 × 640, centrada) que el usuario puede
   agrandar o achicar; el terminal ocupa toda la ventana y se adapta al tamaño.
