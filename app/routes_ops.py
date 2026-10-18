@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy import select
 
 from . import __version__, charts, eol, firmware, reports, sysbackup, updates
+from .config import UPDATE_REPO
 from .auth import Forbidden, device_scope, filter_ids, require
 from .db import Device, DeviceGroup, EolEntry, FirmwareImage, SessionLocal
 from .drivers import get_profile
@@ -192,7 +193,10 @@ def system_page(request: Request):
     return render(request, "system.html", user, backups=backups, db_url=DATABASE_URL.split("@")[-1],
                   key_file=str(KEY_FILE), profiles_count=len(PROFILES),
                   vendors_count=len({p.vendor for p in PROFILES}), unknown=unknown_profiles(),
-                  clock=systime.info(), zones=zones, upd=updates.status())
+                  clock=systime.info(), zones=zones, upd=updates.status(),
+                  changelog=[(v, updates.md_lite(t)) for v, t in updates.changelog_sections(6)],
+                  latest_notes=updates.md_lite(updates.status()["notes"]),
+                  releases_url=f"https://github.com/{UPDATE_REPO}/releases")
 
 
 # --------------------------------------------------------------------------- actualizaciones

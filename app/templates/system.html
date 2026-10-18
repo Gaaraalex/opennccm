@@ -17,8 +17,11 @@
       <span class="small muted">{% if upd.checked_at %}(comprobado {{ upd.checked_at }}){% endif %}</span></dd>
   </dl>
   {% if upd.error %}<p class="small" style="color:var(--crit)">{{ upd.error }}</p>{% endif %}
-  {% if upd.available and upd.notes %}<details open><summary>Novedades de la versión {{ upd.latest }}</summary><pre style="max-height:260px;overflow:auto;white-space:pre-wrap">{{ upd.notes }}</pre></details>{% endif %}
+  {% if upd.available and upd.notes %}<details open><summary>Novedades de la versión {{ upd.latest }}</summary>
+    <div class="notes">{{ latest_notes|safe }}</div>{% if upd.url %}<p class="small"><a href="{{ upd.url }}" target="_blank" rel="noopener">Ver la versión {{ upd.latest }} en GitHub ↗</a></p>{% endif %}</details>{% endif %}
   <div class="row">
+    <button type="button" class="sec" id="ver-novedades">Novedades de cada versión</button>
+    <a class="btn sec" href="{{ releases_url }}" target="_blank" rel="noopener">Todas las versiones en GitHub ↗</a>
     <form method="post" action="/system/update/check"><button class="sec">Buscar actualizaciones ahora</button></form>
     {% if upd.running %}
     <a class="btn" href="/system/updating">Ver la actualización en curso</a>
@@ -31,6 +34,26 @@
   <code>sudo opennccm update</code>. Esa actualización instala el servicio que permite hacerlo con este botón.</p>{% endif %}
   <p class="small muted">La búsqueda diaria y el aviso a los administradores se activan o desactivan en <a href="/settings#seguridad">Ajustes</a>.</p>
 </div>
+<dialog id="novedades" aria-labelledby="nov-title" style="max-width:860px">
+  <h2 id="nov-title" style="margin-top:0">Novedades de OpenNCCM</h2>
+  {% if upd.available and upd.notes %}
+  <h3>Disponible: versión {{ upd.latest }} <span class="badge b-warning">nueva</span></h3>
+  <div class="notes">{{ latest_notes|safe }}</div>
+  {% endif %}
+  {% for v, html in changelog %}
+  <details {{ 'open' if loop.first }}><summary><b>Versión {{ v }}</b>{% if v == upd.current %} <span class="badge b-ok">instalada</span>{% endif %}</summary>
+    <div class="notes">{{ html|safe }}</div></details>
+  {% else %}<p class="muted">No se encontró el historial de versiones en esta instalación.</p>{% endfor %}
+  <p class="row"><a class="btn sec" href="{{ releases_url }}" target="_blank" rel="noopener">Ver todas las versiones en GitHub ↗</a>
+    <button type="button" id="cerrar-novedades">Cerrar</button></p>
+</dialog>
+<script>
+(function () {
+  const d = document.getElementById('novedades');
+  document.getElementById('ver-novedades').addEventListener('click', () => d.showModal());
+  document.getElementById('cerrar-novedades').addEventListener('click', () => d.close());
+})();
+</script>
 <div class="card" id="hora">
   <h2 style="margin-top:0">Fecha, hora y zona horaria del servidor</h2>
   {% if not clock.available %}

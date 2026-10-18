@@ -50,23 +50,27 @@
 <div class="row" style="align-items:start">
 <div class="card" style="flex:1 1 480px">
   <h2 style="margin-top:0">Últimos cambios de configuración</h2>
-  <table><tr><th>Fecha</th><th>Equipo</th><th>Origen</th><th>Δ</th><th></th></tr>
+  <div class="scrollbox" data-rows="6" tabindex="0" aria-label="Últimos cambios de configuración">
+  <table><thead><tr><th>Fecha</th><th>Equipo</th><th>Origen</th><th>Δ</th><th><span class="vh">Ver</span></th></tr></thead>
   {% for v in recent %}
-  <tr><td class="small">{{ v.created_at|dt }}</td><td><a href="/devices/{{ v.device_id }}">{{ v.device.name }}</a></td>
+  <tr class="item"><td class="small">{{ v.created_at|dt }}</td><td><a href="/devices/{{ v.device_id }}">{{ v.device.name }}</a></td>
   <td>{{ v.trigger }}</td><td class="small"><span style="color:var(--ok)">+{{ v.added }}</span> <span style="color:var(--crit)">-{{ v.removed }}</span></td>
   <td><a href="/versions/{{ v.id }}">ver</a></td></tr>
   {% else %}<tr><td colspan="5" class="muted">Sin respaldos todavía. <a href="/devices/new">Agregue un dispositivo</a>.</td></tr>{% endfor %}
   </table>
+  </div>
 </div>
 <div class="card" style="flex:1 1 480px">
-  <h2 style="margin-top:0">Eventos recientes</h2>
+  <h2 style="margin-top:0">Eventos recientes <a class="small" href="/events" style="font-weight:400">ver todos</a></h2>
+  <div class="scrollbox" data-rows="6" tabindex="0" aria-label="Eventos recientes">
   <table>
   {% for e in events %}
-  <tr><td><span class="badge b-{{ e.severity }}">{{ e.severity }}</span></td><td class="small">{{ e.created_at|dt }}</td>
+  <tr class="item"><td><span class="badge b-{{ e.severity }}">{{ e.severity }}</span></td><td class="small">{{ e.created_at|dt }}</td>
   <td><b>{{ e.category }}</b>{% if e.device %} · <a href="/devices/{{ e.device_id }}">{{ e.device.name }}</a>{% endif %}
   <div class="small muted">{{ e.message[:160] }}</div></td></tr>
   {% else %}<tr><td class="muted">Sin eventos.</td></tr>{% endfor %}
   </table>
+  </div>
 </div>
 </div>
 {% endblock %}

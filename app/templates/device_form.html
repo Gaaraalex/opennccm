@@ -28,6 +28,8 @@
     <div><label>…o crear un grupo nuevo</label><input name="new_group" placeholder="Ej.: Oficina principal" maxlength="100"></div>
   </div>
   <p class="small muted">Los grupos ordenan los equipos por sede, rol o cliente: sirven para filtrar, respaldar o programar tareas por grupo y para limitar qué equipos ve cada usuario. Se administran en <a href="/credentials#groups">Credenciales → Grupos de dispositivos</a>.</p>
+  <label for="web-url">Interfaz web del equipo (opcional)</label>
+  <input id="web-url" name="web_url" style="width:100%" value="{{ device.web_url or '' if device }}" placeholder="https://IP-del-equipo/ (por omisión)">
   <label>Ubicación</label><input name="location" style="width:100%" value="{{ device.location or '' if device }}">
   <label>Notas</label><textarea name="notes" rows="3">{{ device.notes or '' if device }}</textarea>
   <label>Comando de respaldo personalizado (opcional)</label>

@@ -64,7 +64,8 @@ def console_page(request: Request, dev_id: int):
             raise Forbidden()
         info = {"id": dev.id, "name": dev.name, "host": dev.host, "port": dev.port, "protocol": dev.protocol}
     from .auth import cached_setting
-    return render(request, "console.html", user, dev=info, autologin=cached_setting("console_autologin", "0") == "1")
+    return render(request, "console.html", user, dev=info, compact=True,
+                  autologin=cached_setting("console_autologin", "0") == "1")
 
 
 class _Bridge:

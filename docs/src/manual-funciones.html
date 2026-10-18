@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 1.6.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 1.6.1<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -128,7 +128,9 @@ Si se le asignan grupos, la restricción se aplica en todas las páginas, la bú
   <tr><td>Equipos con CVE altos</td><td>Equipos con vulnerabilidades de severidad alta o crítica.</td></tr>
   <tr><td>Cambios por aprobar</td><td>Solicitudes de cambio pendientes.</td></tr>
 </table>
-<p>Debajo se muestran la gráfica de cambios por día, los últimos cambios y los eventos recientes.</p>
+<p>Debajo se muestran la gráfica de cambios por día, los <b>últimos 10 cambios</b> y los <b>últimos 10 eventos</b>: se ven 6 de
+cada uno y el resto bajando con la barra de la derecha (o con la rueda del ratón). «ver todos» lleva a Alarmas. En la página de
+cada equipo, sus eventos se muestran igual: 3 a la vista y los demás con la barra de desplazamiento.</p>
 <h2>Rendimiento del servidor (solo administradores)</h2>
 <p>Los administradores ven además el estado del propio servidor de OpenNCCM: uso de CPU ahora (y carga), memoria RAM, disco
 usado y espacio que ocupan los datos de OpenNCCM, y el tiempo encendido. Dos gráficas muestran el uso de CPU y de memoria de
@@ -173,7 +175,9 @@ firmware). Más abajo siguen cumplimiento, vulnerabilidades y eventos.</figcapti
 <p><b>Para qué sirve:</b> entrar a la línea de comandos de un equipo desde el navegador, sin PuTTY ni otro programa.</p>
 <ol class="steps">
   <li>En <b>Dispositivos</b>, pulse el icono <b>⌨</b> de la fila del equipo (a la derecha de «Estado»), o el botón
-  <b>⌨ Consola</b> en la página del equipo. La consola se abre en una pestaña nueva.</li>
+  <b>⌨ Consola</b> en la página del equipo. La consola se abre en una <b>ventana aparte</b> del navegador (1000 × 640, centrada);
+  puede agrandarla o achicarla arrastrando sus bordes y el terminal se adapta solo. Si el navegador bloquea las ventanas
+  emergentes, se abre en una pestaña nueva.</li>
   <li>Si el administrador no activó el inicio automático, escriba el <b>usuario</b> y la <b>contraseña</b> del equipo cuando
   se le pidan (la contraseña no se muestra al escribirla).</li>
   <li>Use la consola como cualquier terminal. Copiar: seleccione el texto. Pegar: Ctrl+Mayús+V o clic derecho.
@@ -187,6 +191,11 @@ firmware). Más abajo siguen cumplimiento, vulnerabilidades y eventos.</figcapti
   Cisco, EdgeSwitch y similares también entra al modo privilegiado si la credencial tiene contraseña de enable. Desactivado por
   omisión: actívelo solo si quienes pueden abrir la consola deben poder entrar a los equipos sin conocer sus contraseñas.</td></tr>
 </table>
+<h2 id="web">Interfaz web del equipo</h2>
+<p>El icono <b>🌐</b> (junto al de la consola) y el botón <b>🌐 Interfaz web</b> de la página del equipo abren su página de
+administración en una ventana aparte. Por omisión se usa <code>https://IP-del-equipo/</code>; si el equipo usa otra dirección o
+puerto (por ejemplo <code>http://10.0.0.1:8080</code>), escríbala en <b>Editar → Interfaz web del equipo</b>. OpenNCCM no
+interviene en esa conexión: el navegador se conecta directamente al equipo.</p>
 <div class="note"><b>Seguridad</b>La consola usa la misma sesión que la página (no funciona desde otros sitios web), se cierra tras
 15 minutos sin escribir (máximo 4 horas), y cada apertura, intento fallido y cierre queda en <b>Auditoría</b>, indicando si fue con
 inicio automático. Solo funciona con equipos configurados por SSH.</div>
@@ -679,6 +688,9 @@ acción o detalle y exportar.</p>
 <p>La tarjeta <b>Actualizaciones</b> muestra la versión instalada y la última publicada. <b>Buscar actualizaciones ahora</b>
 consulta GitHub; OpenNCCM también lo hace una vez al día (desactivable en Ajustes) y, si hay una versión nueva, muestra a los
 administradores un aviso con sus novedades (<b>Ver y actualizar</b> o <b>Más tarde</b>, que no lo repite en esa sesión).</p>
+<p><b>Novedades de cada versión</b> abre una ventana con lo que agregó o corrigió cada versión (la instalada aparece marcada)
+y, si hay una nueva, sus novedades antes de actualizar. <b>Todas las versiones en GitHub</b> abre la página de publicaciones del
+proyecto.</p>
 <p><b>Actualizar a la versión X</b> hace lo mismo que <code>sudo opennccm update</code> en la consola: copia previa del código y
 la base, instalación, verificación y vuelta automática a la versión anterior si la nueva no arranca. Una página muestra el
 progreso; OpenNCCM se detiene 1-2 minutos. Por seguridad la aplicación no tiene permisos de administrador del sistema: solo deja
