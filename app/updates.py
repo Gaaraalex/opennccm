@@ -76,6 +76,51 @@ def request_update() -> None:
     UPDATE_REQUEST.write_text(datetime.now().isoformat())
 
 
+def changelog_sections(limit: int = 6) -> list[tuple[str, str]]:
+    """(versión, texto) de las últimas versiones según el CHANGELOG incluido en la instalación."""
+    path = Path(__file__).resolve().parent.parent / "CHANGELOG.md"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    parts = re.split(r"(?m)^## ", text)[1:]
+    out = []
+    for part in parts[:limit]:
+        version, _, body = part.partition("\n")
+        out.append((version.strip(), body.strip()))
+    return out
+
+
+def md_lite(text: str) -> str:
+    """Markdown mínimo (viñetas, negrita, código) a HTML seguro, para mostrar notas de versión."""
+    from html import escape
+    html, in_list = [], False
+    for raw in text.splitlines():
+        line = escape(raw.rstrip())
+        line = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", line)
+        line = re.sub(r"`([^`]+)`", r"<code>\1</code>", line)
+        stripped = line.lstrip()
+        if stripped.startswith("- "):
+            if not in_list:
+                html.append("<ul>")
+                in_list = True
+            depth = (len(line) - len(stripped)) // 2
+            html.append(f'<li style="margin-left:{depth * 18}px">{stripped[2:]}</li>')
+        elif in_list and stripped and html[-1].startswith("<li"):  # continuación de la viñeta anterior
+            html[-1] = html[-1][:-5] + " " + stripped + "</li>"
+        else:
+            if in_list:
+                html.append("</ul>")
+                in_list = False
+            if stripped.startswith("#"):
+                html.append(f"<h4>{stripped.lstrip('#').strip()}</h4>")
+            elif stripped:
+                html.append(f"<p>{stripped}</p>")
+    if in_list:
+        html.append("</ul>")
+    return "\n".join(html)
+
+
 def log_tail(lines: int = 40) -> str:
     try:
         text = UPDATE_LOG.read_text(errors="replace")

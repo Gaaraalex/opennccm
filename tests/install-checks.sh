@@ -35,18 +35,32 @@ tls)
     -d "protocol=ssh" -d "port=22" -d "credential_id=1" -d "enabled=on" $B/devices/new
   dev=$(curl -sk -b "$JAR" $B/api/devices | python3 -c 'import json,sys; print([d["id"] for d in json.load(sys.stdin) if d["name"]=="consola-ci"][0])')
   cookie=$(awk '$6=="opennccm"{print $7}' "$JAR")
-  sudo /opt/opennccm/.venv/bin/python - "$dev" "$cookie" <<'PY'
-import ssl, sys
+  sleep 5  # el alta del equipo lanza su primer respaldo en segundo plano: se deja terminar
+  if ! sudo /opt/opennccm/.venv/bin/python - "$dev" "$cookie" <<'PY'
+import ssl, sys, time
 from websockets.sync.client import connect
 dev, cookie = sys.argv[1], sys.argv[2]
 ctx = ssl.create_default_context(cafile="/etc/ssl/opennccm/ca.crt")
-with connect(f"wss://127.0.0.1/devices/{dev}/console/ws?cols=80&rows=24", ssl=ctx,
-             additional_headers={"Cookie": f"opennccm={cookie}", "Origin": "https://127.0.0.1"}) as ws:
-    out = ""
-    while "Usuario:" not in out:
-        out += ws.recv(timeout=15)
-print("OK consola por nginx:", out.strip().splitlines()[0])
+for intento in (1, 2):
+    try:
+        t0 = time.time()
+        with connect(f"wss://127.0.0.1/devices/{dev}/console/ws?cols=80&rows=24", ssl=ctx, open_timeout=30,
+                     additional_headers={"Cookie": f"opennccm={cookie}", "Origin": "https://127.0.0.1"}) as ws:
+            out = ""
+            while "Usuario:" not in out:
+                out += ws.recv(timeout=15)
+        print(f"OK consola por nginx ({time.time() - t0:.1f} s):", out.strip().splitlines()[0])
+        break
+    except Exception as e:  # noqa: BLE001
+        print(f"intento {intento}: {e.__class__.__name__}: {e}")
+        if intento == 2:
+            raise
+        time.sleep(5)
 PY
+  then
+    sudo journalctl -u opennccm -n 60 --no-pager; sudo tail -n 20 /var/log/nginx/error.log
+    fail "la consola no abrió por nginx"
+  fi
   ;;
 webupdate)
   echo "== Actualizar desde la web (opennccm-webupdate.path → opennccm update)"

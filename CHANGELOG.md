@@ -1,5 +1,18 @@
 # Historial de versiones
 
+## 1.6.1
+- **Consola en su propia ventana**: se abre en una ventana aparte del navegador (1000 × 640, centrada) que el usuario puede
+  agrandar o achicar; el terminal ocupa toda la ventana y se adapta al tamaño.
+- **Interfaz web del equipo**: icono 🌐 junto al de la consola y botón «🌐 Interfaz web» en cada equipo; abre su página de
+  administración en una ventana aparte. Por omisión `https://IP/`; se puede indicar otra URL al editar el equipo.
+- **Panel**: más espacio entre los indicadores y las gráficas de CPU y memoria; «Últimos cambios» y «Eventos recientes»
+  muestran 10 elementos, 6 a la vista y el resto con barra de desplazamiento.
+- **Eventos del equipo**: 3 a la vista y el resto con barra de desplazamiento, en lugar de una lista muy larga.
+- **Sistema → Actualizaciones**: ventana «Novedades de cada versión» (historial de cambios y novedades de la versión nueva) y
+  enlace a todas las versiones en GitHub; el aviso de actualización también enlaza a las novedades en GitHub.
+- **Extreme Networks VOSS (VSP) y ERS**: el inventario usa `show sys-info` (VOSS no tiene `show version`), así que ahora se
+  completan el modelo, el número de serie y la versión de firmware.
+
 ## 1.6.0
 - **Consola SSH web**: icono ⌨ en la lista de equipos (después de «Estado») y botón «⌨ Consola» en cada equipo; abre un
   terminal en el navegador (xterm.js, incluido en el proyecto) conectado al equipo. Pide usuario y contraseña, o inicia sesión

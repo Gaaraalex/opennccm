@@ -1,17 +1,17 @@
 {% extends "base.html" %}{% block title %}Consola · {{ dev.name }}{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="/static/vendor/xterm/xterm.css?v={{ VERSION }}">
-<div class="toolbar" style="margin-bottom:8px">
-  <h1 style="margin:0"><a href="/devices/{{ dev.id }}">{{ dev.name }}</a> · consola SSH <span class="small muted">{{ dev.host }}:{{ dev.port }}</span></h1>
+<div class="toolbar console-bar">
+  <h1 style="margin:0;font-size:16px">{{ dev.name }} · consola SSH <span class="small muted">{{ dev.host }}:{{ dev.port }}</span></h1>
   <span style="flex:1"></span>
   <span id="estado" class="badge b-info" role="status" aria-live="polite">conectando…</span>
   <button type="button" class="sec" id="reconectar" hidden>Reconectar</button>
   <button type="button" class="sec" id="completa">Pantalla completa</button>
 </div>
-<div id="term" role="application" aria-label="Terminal SSH de {{ dev.name }}" style="height:calc(100vh - 210px);min-height:360px;background:#0c0c0c;padding:6px;border-radius:8px"></div>
-<p class="small muted">{% if autologin %}Inicio de sesión automático con la credencial asignada al equipo.{% else %}Escriba el usuario y la
-contraseña del equipo cuando se le pidan.{% endif %} La sesión se cierra tras 15 minutos sin escribir y queda registrada en Auditoría.
-Copiar: seleccione el texto · Pegar: Ctrl+Mayús+V o clic derecho.</p>
+<div id="term" role="application" aria-label="Terminal SSH de {{ dev.name }}"></div>
+<p class="small muted console-help">{% if autologin %}Inicio automático con la credencial del equipo.{% else %}Escriba el usuario y la
+contraseña del equipo cuando se le pidan.{% endif %} Se cierra tras 15 min sin escribir · queda en Auditoría · Copiar: seleccione ·
+Pegar: Ctrl+Mayús+V o clic derecho.</p>
 <script src="/static/vendor/xterm/xterm.js?v={{ VERSION }}"></script>
 <script src="/static/vendor/xterm/addon-fit.js?v={{ VERSION }}"></script>
 <script>
@@ -41,7 +41,8 @@ Copiar: seleccione el texto · Pegar: Ctrl+Mayús+V o clic derecho.</p>
   }
   term.onData(d => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({t: 'd', d: d})); });
   term.onResize(s => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({t: 'r', c: s.cols, r: s.rows})); });
-  window.addEventListener('resize', () => fit.fit());
+  window.addEventListener('resize', () => fit.fit());  // al cambiar el tamaño de la ventana, el terminal se adapta
+  document.title = '{{ dev.name }} · consola';
   again.addEventListener('click', connect);
   document.getElementById('completa').addEventListener('click', () => {
     const el = document.getElementById('term');

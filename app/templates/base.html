@@ -11,7 +11,7 @@
 </head>
 <body>
 <a class="skip" href="#contenido">Saltar al contenido</a>
-{% if user %}
+{% if user and not compact %}
 {% set p = request.url.path %}
 <header>
   <a class="brand" href="/" aria-label="OpenNCCM, ir al panel"><img src="/static/icon.svg?v={{ VERSION }}" alt=""><b>Open<span>NCCM</span></b></a>
@@ -48,7 +48,7 @@
 <main id="contenido" tabindex="-1">
 <div role="status" aria-live="polite">{% for kind, msg in flashes %}<div class="flash {{ kind }}">{{ msg }}</div>{% endfor %}</div>
 {% block content %}{% endblock %}
-{% if user %}<p class="small muted" style="margin-top:40px;text-align:center">OpenNCCM v{{ VERSION }} ·
+{% if user and not compact %}<p class="small muted" style="margin-top:40px;text-align:center">OpenNCCM v{{ VERSION }} ·
   <a href="/acerca">Privacidad, cookies y licencias</a></p>{% endif %}
 </main>
 {% if update_popup %}
@@ -57,6 +57,7 @@
   <p>Hay una versión nueva de OpenNCCM: <b>{{ update_popup.latest }}</b> (instalada: {{ update_popup.current }}).</p>
   {% if update_popup.notes %}<pre style="max-height:220px;overflow:auto;white-space:pre-wrap">{{ update_popup.notes[:1500] }}</pre>{% endif %}
   <p class="row"><a class="btn" href="/system#actualizaciones">Ver y actualizar</a>
+    {% if update_popup.url %}<a class="btn sec" href="{{ update_popup.url }}" target="_blank" rel="noopener">Novedades en GitHub ↗</a>{% endif %}
     <button type="button" class="sec" id="upd-later">Más tarde</button></p>
 </dialog>
 <script>
@@ -70,6 +71,24 @@
 })();
 </script>
 {% endif %}
+<script>
+/* Abre la consola o la interfaz web del equipo en una ventana aparte del navegador, centrada, con un tamaño cómodo y
+   que el usuario puede cambiar. Si el navegador bloquea las ventanas emergentes, se abre en una pestaña nueva. */
+window.abrirVentana = function (url, nombre, w, h) {
+  const W = Math.min(w, screen.availWidth - 40), H = Math.min(h, screen.availHeight - 80);
+  const x = Math.max(0, Math.round((screen.availWidth - W) / 2)), y = Math.max(0, Math.round((screen.availHeight - H) / 2));
+  const win = window.open(url, nombre, 'popup=yes,width=' + W + ',height=' + H + ',left=' + x + ',top=' + y +
+                          ',resizable=yes,scrollbars=yes');
+  if (win) { win.focus(); return false; }
+  return true;
+};
+/* Listas con desplazamiento: muestran N filas y el resto se ve bajando con la barra de la derecha */
+document.querySelectorAll('.scrollbox[data-rows]').forEach(function (box) {
+  const n = +box.dataset.rows, rows = box.querySelectorAll('tr.item');
+  if (rows.length <= n) { box.style.maxHeight = 'none'; return; }
+  box.style.maxHeight = Math.ceil(rows[n].getBoundingClientRect().top - box.getBoundingClientRect().top) + 'px';
+});
+</script>
 <script>
 /* Accesibilidad: asocia cada <label> a su campo cuando la plantilla no lo hace explícitamente, y da nombre
    accesible a los botones que solo muestran un símbolo («×»). */

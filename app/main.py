@@ -276,7 +276,7 @@ def dashboard(request: Request):
         vcrit = db.scalar(scoped(select(func.count(func.distinct(Vulnerability.device_id))).where(
             Vulnerability.severity.in_(["CRITICAL", "HIGH"])), Vulnerability.device_id)) or 0
         pending = db.scalar(select(func.count(ChangeRequest.id)).where(ChangeRequest.status == "pending")) or 0
-        events = db.scalars(scoped(select(Event), Event.device_id).order_by(Event.id.desc()).limit(15)).all()
+        events = db.scalars(scoped(select(Event), Event.device_id).order_by(Event.id.desc()).limit(10)).all()
         recent = db.scalars(scoped(select(ConfigVersion).where(ConfigVersion.kind == "running"),
                                    ConfigVersion.device_id).order_by(ConfigVersion.id.desc()).limit(10)).all()
         for v in recent:
@@ -391,6 +391,10 @@ def _apply_device_form(dev: Device, form):
     dev.enabled = form.get("enabled") == "on"
     dev.auto_rollback = form.get("auto_rollback") == "on"
     dev.custom_backup_cmd = (form.get("custom_backup_cmd") or "").strip() or None
+    web = (form.get("web_url") or "").strip()
+    if web and not web.lower().startswith(("http://", "https://")):
+        web = "https://" + web
+    dev.web_url = web[:255] or None
 
 
 @app.post("/devices/new")

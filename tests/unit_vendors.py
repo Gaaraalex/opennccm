@@ -220,5 +220,54 @@ check("Dell: VLAN del puerto y hostname se reescriben sin negar",
       "switchport access vlan 20" in dl and 'hostname "N1548"' in dl and
       not any(c.startswith(("no switchport access", "no hostname")) for c in dl))
 
+# ---------------------------------------------------------------- inventario Extreme VOSS / ERS («show sys-info»)
+from app.drivers import parse_inventory  # noqa: E402
+
+VOSS_HW = """General Info :
+
+        SysDescr     : VSP-8284XSQ (8.1.0.0) BoxType: VSP-8284XSQ
+        SysName      : VSP-8284XSQ
+        SysUpTime    : 4 day(s), 03:17:56
+
+Chassis Info:
+
+        Chassis            : 8284XSQ
+        ModelName          : 8284XSQ
+        BrandName          : Extreme Networks.
+        Serial#            : 14JP2550H0BA
+        H/W Revision       : 01
+"""
+VOSS_GNS3 = """General Info :
+
+        SysDescr     : VOSSGNS3 (8.10.0.0) BoxType: VOSSGNS3
+        SysName      : VOSS1
+        SysUpTime    : 0 day(s), 00:42:10
+
+Chassis Info:
+
+        Chassis            : VOSSGNS3
+        ModelName          : VOSSGNS3
+        BrandName          : Extreme Networks.
+        Serial#            : SDNIPM9F0CA7
+"""
+ERS = """Operation Mode:                Switch
+Serial Number:                 12JP3C4X1234
+Firmware Version:              7.0.0.11
+Software Version:              v7.6.0.021
+sysDescr:                      Ethernet Routing Switch 4826GTS-PWR+  HW:AA  FW:7.0.0.11  SW:v7.6.0.021
+"""
+vsp, ers = get_profile("extreme_vsp"), get_profile("extreme_ers")
+check("Extreme VOSS usa «show sys-info» (no tiene «show version»)", vsp.inventory == "show sys-info")
+check("Extreme ERS usa «show sys-info»", ers.inventory == "show sys-info")
+inv = parse_inventory(VOSS_HW, vsp)
+check("VOSS (VSP 8284): modelo, serie y versión",
+      inv == {"os_version": "8.1.0.0", "model": "8284XSQ", "serial": "14JP2550H0BA"}, inv)
+inv = parse_inventory(VOSS_GNS3, vsp)
+check("VOSS (máquina virtual GNS3): modelo, serie y versión",
+      inv == {"os_version": "8.10.0.0", "model": "VOSSGNS3", "serial": "SDNIPM9F0CA7"}, inv)
+inv = parse_inventory(ERS, ers)
+check("ERS 4800: modelo, serie y versión",
+      inv == {"os_version": "7.6.0.021", "model": "4826GTS-PWR+", "serial": "12JP3C4X1234"}, inv)
+
 print("\nRESULTADO:", "TODO OK" if not fails else f"{len(fails)} fallos: {fails}")
 sys.exit(1 if fails else 0)

@@ -9,8 +9,11 @@
   <form class="inline" method="post" action="/devices/{{ device.id }}/cve"><button class="sec">Buscar CVE de firmware</button></form>
   {% endif %}
   {% if can_console and device.protocol == 'ssh' %}
-  <a class="btn sec" href="/devices/{{ device.id }}/console" target="_blank" rel="noopener" aria-label="Consola SSH (nueva pestaña)">⌨ Consola</a>
+  <a class="btn sec" href="/devices/{{ device.id }}/console" target="_blank" rel="noopener"
+     onclick="return abrirVentana(this.href, 'consola-{{ device.id }}', 1000, 640)" aria-label="Consola SSH (ventana nueva)">⌨ Consola</a>
   {% endif %}
+  <a class="btn sec" href="{{ device.web_url or 'https://' ~ device.host ~ '/' }}" target="_blank" rel="noopener noreferrer"
+     onclick="return abrirVentana(this.href, 'web-{{ device.id }}', 1280, 820)" aria-label="Interfaz web del equipo (ventana nueva)">🌐 Interfaz web</a>
   {% if user.role == 'admin' %}
   <a class="btn sec" href="/devices/{{ device.id }}/edit">Editar</a>
   <form class="inline" method="post" action="/devices/{{ device.id }}/delete" onsubmit="return confirm('¿Eliminar el equipo y todo su historial?')"><button class="danger">Eliminar</button></form>
@@ -108,9 +111,11 @@
 </div>
 
 <div class="card">
-  <h2 style="margin-top:0">Eventos del equipo</h2>
+  <h2 style="margin-top:0">Eventos del equipo {% if events|length > 3 %}<span class="small muted">({{ events|length }}; baje con la barra de la derecha para ver más)</span>{% endif %}</h2>
+  <div class="scrollbox" data-rows="3" tabindex="0" aria-label="Eventos del equipo">
   <table>{% for e in events %}
-  <tr><td><span class="badge b-{{ e.severity }}">{{ e.severity }}</span></td><td class="small">{{ e.created_at|dt }}</td><td><b>{{ e.category }}</b><pre style="max-height:160px">{{ e.message }}</pre></td></tr>
+  <tr class="item"><td><span class="badge b-{{ e.severity }}">{{ e.severity }}</span></td><td class="small">{{ e.created_at|dt }}</td><td><b>{{ e.category }}</b><pre style="max-height:84px">{{ e.message }}</pre></td></tr>
   {% else %}<tr><td class="muted">Sin eventos.</td></tr>{% endfor %}</table>
+  </div>
 </div>
 {% endblock %}

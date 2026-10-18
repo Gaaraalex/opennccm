@@ -37,6 +37,10 @@ check("panel: gráficas de CPU y memoria (o aviso de que reúnen datos)",
 adm.post(B + "/users", data={"username": "lector9", "role": "viewer", "password": "Lector-2026xy",
                              "password2": "Lector-2026xy"})
 lec = login("lector9", "Lector-2026xy")
+check("panel: últimos cambios y eventos con desplazamiento (6 visibles)", html.count('class="scrollbox" data-rows="6"') == 2)
+check("panel: como máximo 10 eventos recientes", html.split("Eventos recientes")[1].count('class="item"') <= 10)
+dev = adm.get(B + "/devices/1").text
+check("equipo: eventos con desplazamiento (3 visibles)", 'class="scrollbox" data-rows="3"' in dev)
 check("un lector no ve el rendimiento del servidor", "Rendimiento del servidor" not in lec.get(B + "/").text)
 
 # ---- aviso de actualización (sin consultar GitHub: se simula una versión publicada mayor)
@@ -53,6 +57,9 @@ check("tras «Más tarde» no vuelve a salir en esta sesión", 'id="upd-popup"' 
 sysp = adm.get(B + "/system").text
 check("Sistema: tarjeta de actualizaciones", "actualización disponible" in sysp and "Novedades de prueba" in sysp)
 check("Sistema: botón para buscar actualizaciones", "/system/update/check" in sysp)
+check("Sistema: ventana «Novedades de cada versión» con el historial", 'id="novedades"' in sysp
+      and "Versión 1.6.0" in sysp and "<b>Consola SSH web</b>" in sysp)
+check("Sistema: enlace a todas las versiones en GitHub", "github.com/Gaaraalex/opennccm/releases" in sysp)
 r = adm.post(B + "/system/update")
 if "/system/updating" in r.url:  # servidor con el servicio de actualización web (systemd)
     check("actualizar desde la web abre la página de progreso", "Actualizando OpenNCCM" in r.text)
