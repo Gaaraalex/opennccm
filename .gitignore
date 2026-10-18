@@ -6,6 +6,7 @@ __pycache__/
 *.db-shm
 secret.key
 docs/src/_pages/
+docs/src/_readme/
 docs/src/_estado.json
 *.log
 .DS_Store
