@@ -13,6 +13,7 @@ from .auth import require, start_session
 from .config import TLS_CA
 from .crypto import decrypt, encrypt, verify_password
 from .db import SessionLocal, User
+from .i18n import _, _f
 from .web import flash, go, log_action, render
 
 router = APIRouter()
@@ -40,7 +41,7 @@ def totp_verify(user: User, code: str) -> bool:
 def _qr_svg(uri: str) -> str:
     buf = io.BytesIO()
     segno.make(uri, error="m").save(buf, kind="svg", scale=5, border=2, dark="#000000", light="#ffffff",
-                                    xmldecl=False, svgns=True, title="Código QR para la app de autenticación")
+                                    xmldecl=False, svgns=True, title=_("Código QR para la app de autenticación"))
     return buf.getvalue().decode()
 
 
@@ -64,8 +65,7 @@ async def twofa_enable(request: Request):
         return go("/account/2fa/setup")
     code = "".join(ch for ch in form.get("code", "") if ch.isdigit())
     if not pyotp.TOTP(secret).verify(code, valid_window=1):
-        flash(request, "El código no coincide. Revise que la hora del teléfono sea correcta y pruebe con el código "
-                       "que se muestra ahora.", "error")
+        flash(request, _("El código no coincide. Revise que la hora del teléfono sea correcta y pruebe con el código que se muestra ahora."), "error")
         return go("/account/2fa/setup")
     with SessionLocal() as db:
         u = db.get(User, user.id)
@@ -77,7 +77,7 @@ async def twofa_enable(request: Request):
         start_session(request, u)
     request.session.pop("totp_new", None)
     log_action(request, user, "2fa_enable")
-    flash(request, "Verificación en dos pasos activada. A partir de ahora se pedirá el código al ingresar.")
+    flash(request, _("Verificación en dos pasos activada. A partir de ahora se pedirá el código al ingresar."))
     return go("/account#dospasos")
 
 
@@ -88,12 +88,12 @@ async def twofa_disable(request: Request):
     with SessionLocal() as db:
         u = db.get(User, user.id)
         if not verify_password(form.get("password", ""), u.password_hash) or not totp_verify(u, form.get("code", "")):
-            flash(request, "Para desactivarla escriba su contraseña y un código válido de la app.", "error")
+            flash(request, _("Para desactivarla escriba su contraseña y un código válido de la app."), "error")
             return go("/account#dospasos")
         u.totp_enabled, u.totp_secret_enc = False, None
         db.commit()
     log_action(request, user, "2fa_disable")
-    flash(request, "Verificación en dos pasos desactivada.")
+    flash(request, _("Verificación en dos pasos desactivada."))
     return go("/account#dospasos")
 
 
@@ -110,7 +110,7 @@ def twofa_reset(request: Request, uid: int):
         name = u.username
         db.commit()
     log_action(request, user, "2fa_reset", name)
-    flash(request, f"Verificación en dos pasos quitada a «{name}». Deberá activarla de nuevo desde «Mi cuenta».")
+    flash(request, _f("Verificación en dos pasos quitada a «{0}». Deberá activarla de nuevo desde «Mi cuenta».", name))
     return go(f"/users/{uid}/edit")
 
 

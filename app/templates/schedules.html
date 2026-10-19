@@ -4,13 +4,13 @@
 <div class="card">
 <table><tr><th>Nombre</th><th>Acción</th><th>Cuándo</th><th>Grupo</th><th>Última ejecución</th><th>Próxima</th><th><span class="vh">Acciones</span></th></tr>
 {% for s in items %}
-<tr><td>{{ s.name }}</td><td>{{ ACTIONS.get(s.action, s.action) }}</td><td>{{ s.cron|cron_text }}<div class="small muted"><code>{{ s.cron }}</code></div></td><td>{{ s.group.name if s.group else 'todos' }}</td>
+<tr><td>{{ s.name }}</td><td>{{ _(ACTIONS.get(s.action, s.action)) }}</td><td>{{ s.cron|cron_text }}<div class="small muted"><code>{{ s.cron }}</code></div></td><td>{{ s.group.name if s.group else _('todos') }}</td>
 <td class="small">{{ s.last_run|dt }}</td><td class="small">{{ jobs.get('sched-' ~ s.id)|dt if s.enabled else 'pausada' }}</td>
 <td style="white-space:nowrap">
   {% if ROLES[user.role] >= 1 %}<form class="inline" method="post" action="/schedules/{{ s.id }}/run"><button class="sm">Ejecutar ya</button></form>{% endif %}
   {% if user.role == 'admin' %}
   <a class="btn sm sec" href="/schedules/{{ s.id }}/edit">Editar</a>
-  <form class="inline" method="post" action="/schedules/{{ s.id }}/toggle"><button class="sm sec">{{ 'Pausar' if s.enabled else 'Activar' }}</button></form>
+  <form class="inline" method="post" action="/schedules/{{ s.id }}/toggle"><button class="sm sec">{{ _('Pausar') if s.enabled else _('Activar') }}</button></form>
   <form class="inline" method="post" action="/schedules/{{ s.id }}/delete" onsubmit="return confirm('¿Eliminar la tarea «{{ s.name }}»?')"><button class="sm danger" aria-label="Eliminar la tarea {{ s.name }}" title="Eliminar">×</button></form>
   {% endif %}</td></tr>
 {% else %}<tr><td colspan="7" class="muted">Sin tareas. Se recomienda un respaldo nocturno (todos los días a las 02:00).</td></tr>{% endfor %}
@@ -19,7 +19,7 @@
 {% if user.role == 'admin' %}
 <div class="card" style="max-width:900px">
 <h2 style="margin-top:0">Nueva tarea</h2>
-{% set form_action = "/schedules" %}{% set submit_label = "Crear tarea" %}{% set cancel_url = None %}
+{% set form_action = "/schedules" %}{% set submit_label = _("Crear tarea") %}{% set cancel_url = None %}
 {% include "_schedule_form.html" %}
 </div>
 {% endif %}

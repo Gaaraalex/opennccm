@@ -107,8 +107,8 @@ with sync_playwright() as p:
         region("cumplimiento", y0, y0 + 560, with_nav=True)
     if want("analisis"):
         go("/analytics")
-        y0, _ = box("Equipos con más cambios", "Equipos con más cambios", 30)
-        _, y1 = box("Equipos por fabricante", "Versiones de firmware", 16)
+        y0, _ = box("Cuándo cambia la red", "Cuándo cambia la red", 26)
+        _, y1 = box("Equipos con más cambios", "Quién hace los cambios", 14)
         region("analisis", y0, y1, with_nav=True)
     if want("tareas"):
         go("/schedules")

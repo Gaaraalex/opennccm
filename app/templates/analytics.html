@@ -1,27 +1,60 @@
 {% extends "base.html" %}{% block title %}Análisis{% endblock %}
 {% block content %}
-<h1>Análisis de configuración</h1>
-<div class="toolbar">
-  {% for d in [7, 30, 90, 365] %}<a class="btn sm {{ '' if d == days else 'sec' }}" href="/analytics?days={{ d }}">{{ d }} días</a>{% endfor %}
+<div class="page-head">
+  <div>
+    <h1>Análisis de configuración</h1>
+    <p class="muted small">Qué cambia en la red, cuándo, quién lo cambia y cómo está el cumplimiento.</p>
+  </div>
+  <nav class="period" aria-label="Periodo">
+    {% for d in [7, 30, 90, 365] %}<a href="/analytics?days={{ d }}" {{ 'aria-current="page" class=on'|safe if d == days }}>{{ d }} días</a>{% endfor %}
+  </nav>
 </div>
-<div class="grid">
-  <div class="stat"><small>Equipos</small><b>{{ data.total }}</b></div>
-  <div class="stat"><small>Cambios en {{ days }} días</small><b>{{ data.changes }}</b></div>
-  <a class="stat" href="/devices?status=conflict"><small>Startup ≠ running</small><b>{{ data.conflicts }}</b></a>
-  <a class="stat" href="/devices?status=drift"><small>Fuera de línea base</small><b>{{ data.drift }}</b></a>
+
+<div class="kpis">
+  <div class="kpi">
+    <small>Cambios en {{ days }} días</small>
+    <b>{{ data.changes }}</b>
+    {% if delta > 0 %}<span class="delta up">▲ {{ delta }} más que los {{ days }} días anteriores</span>
+    {% elif delta < 0 %}<span class="delta down">▼ {{ -delta }} menos que los {{ days }} días anteriores</span>
+    {% else %}<span class="delta">= igual que los {{ days }} días anteriores</span>{% endif %}
+    {{ spark|safe }}
+  </div>
+  <div class="kpi">
+    <small>Cumplimiento global</small>
+    {% if data.compliance_pct is not none %}
+    <div class="kpi-ring">{{ ring|safe }}<div><b class="t-{{ ring_status[0] }}">{{ data.compliance_pct }}%</b>
+      <span class="delta t-{{ ring_status[0] }}">{{ ring_status[1] }} {{ _('Bien') if ring_status[0] == 'ok' else _('Mejorable') if ring_status[0] == 'warn' else _('Requiere atención') }}</span></div></div>
+    {% else %}<b>—</b><span class="delta">Sin auditorías todavía</span>{% endif %}
+  </div>
+  <div class="kpi"><small>Equipos</small><b>{{ data.total }}</b><span class="delta">de {{ data.by_vendor|length }} fabricantes</span></div>
+  <a class="kpi" href="/devices?status=conflict"><small>Startup ≠ running</small><b class="{{ 't-warn' if data.conflicts }}">{{ data.conflicts }}</b><span class="delta">sin guardar en arranque</span></a>
+  <a class="kpi" href="/devices?status=drift"><small>Fuera de línea base</small><b class="{{ 't-warn' if data.drift }}">{{ data.drift }}</b><span class="delta">distintos de su versión de referencia</span></a>
 </div>
-<div class="card" style="margin-top:16px">
-  <h2>Cambios de configuración por día</h2>{{ c_days|safe }}
-  <p class="small muted" style="margin-bottom:0"><a href="/reports/view/changes?days={{ days }}">Ver como tabla</a></p>
+
+<div class="card viz-card">
+  <div class="viz-head">
+    <h2>Actividad de cambios</h2>
+    <a class="small" href="/reports/view/changes?days={{ days }}">Ver como tabla</a>
+  </div>
+  <p class="muted small">Versiones nuevas de configuración por día, según cómo se detectaron.</p>
+  <ul class="legend inline">{% for lbl, cls in legend %}<li><i class="lg-sw {{ cls }}"></i>{{ lbl }}</li>{% endfor %}</ul>
+  {{ c_activity|safe }}
 </div>
+
 <div class="charts">
-  <div class="card"><h2>Equipos con más cambios</h2>{{ c_device|safe }}</div>
-  <div class="card"><h2>Cambios por origen</h2>{{ c_trigger|safe }}
-    <p class="small muted">manual = respaldo a pedido · scheduled = programado · syslog = detectado en tiempo real · push = aplicado por OpenNCCM</p></div>
-  <div class="card"><h2>Cambios por usuario</h2>{{ c_user|safe }}</div>
-  <div class="card"><h2>Cumplimiento por política</h2>{{ c_comp|safe }}</div>
-  <div class="card"><h2>Equipos por fabricante</h2>{{ c_vendor|safe }}</div>
-  <div class="card"><h2>Versiones de firmware más usadas</h2>{{ c_version|safe }}</div>
-  <div class="card"><h2>Ciclo de vida (EOL/EOS)</h2>{{ c_eol|safe }}<p class="small muted"><a href="/eol">Ver detalle</a></p></div>
+  <div class="card viz-card"><h2>Cuándo cambia la red</h2>
+    <p class="muted small">Cambios por día de la semana y hora del servidor. Los cambios fuera del horario laboral suelen merecer una revisión.</p>
+    {{ c_heat|safe }}</div>
+  <div class="card viz-card"><h2>Origen de los cambios</h2>
+    <p class="muted small">Manual = respaldo a pedido · Programado = tarea programada · Syslog = detectado en tiempo real · OpenNCCM = cambio aplicado desde aquí.</p>
+    {{ c_origin|safe }}</div>
+  <div class="card viz-card"><h2>Equipos con más cambios</h2>{{ c_device|safe }}</div>
+  <div class="card viz-card"><h2>Quién hace los cambios</h2>{{ c_user|safe }}</div>
+  <div class="card viz-card"><h2>Cumplimiento por política</h2>
+    <p class="muted small">✓ 90 % o más · ⚠ 70–89 % · ✕ menos de 70 %. Haga clic en una política para ver el detalle.</p>
+    {{ c_comp|safe }}</div>
+  <div class="card viz-card"><h2>Ciclo de vida (EOL/EOS)</h2>{{ c_eol|safe }}<p class="small"><a href="/eol">Ver detalle por equipo</a></p></div>
+  <div class="card viz-card"><h2>Equipos por fabricante</h2>{{ c_vendor|safe }}</div>
+  <div class="card viz-card"><h2>Versiones de firmware más usadas</h2>{{ c_version|safe }}</div>
 </div>
 {% endblock %}

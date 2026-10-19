@@ -36,17 +36,17 @@
     <dt>Fabricante</dt><dd>{{ profile.vendor }} — {{ profile.label }}</dd>
     <dt>Modelo</dt><dd>{{ device.model or '—' }}</dd>
     <dt>Nº de serie</dt><dd>{{ device.serial or '—' }}</dd>
-    <dt>Versión firmware</dt><dd>{{ device.os_version or '—' }}{% if not (device.model or device.serial or device.os_version) %} <span class="small muted">(se completan solos en cada respaldo con «{{ profile.inventory_label or 'sin comando de inventario' }}»)</span>{% endif %}</dd>
+    <dt>Versión firmware</dt><dd>{{ device.os_version or '—' }}{% if not (device.model or device.serial or device.os_version) %} <span class="small muted">(se completan solos en cada respaldo con «{{ profile.inventory_label or _('sin comando de inventario') }}»)</span>{% endif %}</dd>
     <dt>Grupo</dt><dd>{% if device.group %}<a href="/devices?group={{ device.group_id }}">{{ device.group.name }}</a>{% else %}—{% endif %}
-      {% if user.role == 'admin' %} <a class="small" href="/devices/{{ device.id }}/edit">{{ 'cambiar' if device.group else 'asignar grupo' }}</a>{% endif %}</dd>
+      {% if user.role == 'admin' %} <a class="small" href="/devices/{{ device.id }}/edit">{{ _('cambiar') if device.group else _('asignar grupo') }}</a>{% endif %}</dd>
     <dt>Ubicación</dt><dd>{{ device.location or '—' }}</dd>
     <dt>Credencial</dt><dd>{{ device.credential.name if device.credential else '—' }}</dd>
     <dt>Último respaldo</dt><dd>{{ device.last_backup_at|dt }}</dd>
-    <dt>Reversión automática</dt><dd>{{ 'Sí' if device.auto_rollback else 'No' }}</dd>
+    <dt>Reversión automática</dt><dd>{{ _('Sí') if device.auto_rollback else _('No') }}</dd>
     <dt>Línea base</dt><dd>{% if device.baseline_version_id %}<a href="/versions/{{ device.baseline_version_id }}">versión #{{ device.baseline_version_id }}</a>
       <span class="badge b-{{ 'warning' if device.baseline_drift else 'ok' }}">{{ 'difiere' if device.baseline_drift else 'coincide' }}</span>
       {% else %}<span class="muted">sin definir (márquela desde una versión)</span>{% endif %}</dd>
-    <dt>Ciclo de vida</dt><dd><span class="badge b-{{ eol_sev[eol_status] }}">{{ eol_labels[eol_status] }}</span>
+    <dt>Ciclo de vida</dt><dd><span class="badge b-{{ eol_sev[eol_status] }}">{{ _(eol_labels[eol_status]) }}</span>
       {% if eol_entry %}<span class="small muted">fin de soporte {{ eol_entry.end_of_support|ymd }}{% if eol_entry.replacement %} · reemplazo {{ eol_entry.replacement }}{% endif %}</span>{% endif %}</dd>
     {% if device.custom_backup_cmd %}<dt>Comando de respaldo</dt><dd><code>{{ device.custom_backup_cmd }}</code></dd>{% endif %}
   </dl>
@@ -94,7 +94,7 @@
   <table><tr><th>Política</th><th>Regla</th><th>Severidad</th><th>Resultado</th><th>Revisado</th><th></th></tr>
   {% for c in comp|sort(attribute='passed') %}
   <tr><td>{{ c.policy.name }}</td><td>{{ c.rule.name }}</td><td><span class="badge b-{{ c.rule.severity }}">{{ c.rule.severity }}</span></td>
-  <td><span class="badge b-{{ 'ok' if c.passed else 'error' }}">{{ 'Cumple' if c.passed else 'Infracción' }}</span></td>
+  <td><span class="badge b-{{ 'ok' if c.passed else 'error' }}">{{ _('Cumple') if c.passed else _('Infracción') }}</span></td>
   <td class="small">{{ c.checked_at|dt }}</td>
   <td>{% if not c.passed and c.rule.remediation and ROLES[user.role] >= 1 %}
     <form class="inline" method="post" action="/compliance/remediate/{{ c.id }}"><button class="sm">Corregir</button></form>{% endif %}</td></tr>
@@ -116,7 +116,7 @@
   <h2 style="margin-top:0">Eventos del equipo {% if events|length > 3 %}<span class="small muted">({{ events|length }}; baje con la barra de la derecha para ver más)</span>{% endif %}</h2>
   <div class="scrollbox" data-rows="3" tabindex="0" aria-label="Eventos del equipo">
   <table>{% for e in events %}
-  <tr class="item"><td><span class="badge b-{{ e.severity }}">{{ e.severity }}</span></td><td class="small">{{ e.created_at|dt }}</td><td><b>{{ e.category }}</b><pre style="max-height:84px">{{ e.message }}</pre></td></tr>
+  <tr class="item"><td><span class="badge b-{{ e.severity }}">{{ e.severity }}</span></td><td class="small">{{ e.created_at|dt }}</td><td><b>{{ _(e.category) }}</b><pre style="max-height:84px">{{ e.message }}</pre></td></tr>
   {% else %}<tr><td class="muted">Sin eventos.</td></tr>{% endfor %}</table>
   </div>
 </div>

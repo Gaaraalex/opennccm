@@ -27,6 +27,7 @@ from .db import (AuditLog, ChangeRequest, ComplianceResult, Configlet, ConfigVer
                  DeviceGroup, Event, Policy, Rule, SessionLocal, Schedule, User, UserGroup, Vulnerability, audit,
                  get_setting, init_db, now, set_setting)
 from .drivers import PROFILE_MAP, get_profile
+from .i18n import LANGS, LangMiddleware, N_, _, _f
 from .web import csv_response, flash, go, ip, log_action, render
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -48,6 +49,7 @@ async def lifespan(_app):
 
 
 app = FastAPI(title="OpenNCCM", lifespan=lifespan, docs_url=None, redoc_url=None)
+app.add_middleware(LangMiddleware)  # va dentro de la sesión: lee el idioma elegido
 app.add_middleware(SessionMiddleware, secret_key=session_secret(), same_site="strict",
                    https_only=os.environ.get("NCM_SECURE_COOKIE", "0") == "1", max_age=12 * 3600,
                    session_cookie="opennccm")
@@ -81,14 +83,14 @@ async def _login_required(request, _exc):
 
 @app.exception_handler(TwoFactorSetupRequired)
 async def _setup_2fa(request, _exc):
-    flash(request, "Por seguridad, los administradores deben activar la verificación en dos pasos antes de continuar.",
+    flash(request, _("Por seguridad, los administradores deben activar la verificación en dos pasos antes de continuar."),
           "error")
     return go("/account#dospasos")
 
 
 @app.exception_handler(Forbidden)
 async def _forbidden(request, _exc):
-    return HTMLResponse("<h2>403 — No tiene permisos para esta acción</h2><a href='/'>Volver</a>", 403)
+    return HTMLResponse(f"<h2>403 — {_('No tiene permisos para esta acción')}</h2><a href='/'>{_('Volver')}</a>", 403)
 
 
 # --------------------------------------------------------------------------- login
@@ -102,7 +104,7 @@ ACCOUNT_LOCK_MINUTES = 15
 @app.get("/login")
 def login_form(request: Request):
     if request.session.pop("expired", None):
-        flash(request, "Su sesión se cerró por inactividad. Vuelva a ingresar.", "error")
+        flash(request, _("Su sesión se cerró por inactividad. Vuelva a ingresar."), "error")
     return render(request, "login.html", None, ca_available=TLS_CA.is_file())
 
 
@@ -123,7 +125,7 @@ async def login(request: Request):
     addr = ip(request)
     attempts = [t for t in _failed.get(addr, []) if time.time() - t < 900]
     if len(attempts) >= 10:
-        flash(request, "Demasiados intentos desde su dirección. Espere 15 minutos.", "error")
+        flash(request, _("Demasiados intentos desde su dirección. Espere 15 minutos."), "error")
         return go("/login")
     username, password = form.get("username", ""), form.get("password", "")
     with SessionLocal() as db:
@@ -132,8 +134,7 @@ async def login(request: Request):
             dummy_verify(password)  # mismo tiempo de respuesta: no revela si el usuario existe
         elif user.locked_until and user.locked_until > now():
             audit(username, "login_locked", "", addr)
-            flash(request, "La cuenta está bloqueada temporalmente por intentos fallidos. Inténtelo más tarde o pida a "
-                           "un administrador que la desbloquee.", "error")
+            flash(request, _("La cuenta está bloqueada temporalmente por intentos fallidos. Inténtelo más tarde o pida a un administrador que la desbloquee."), "error")
             return go("/login")
         elif user.active and verify_password(password, user.password_hash):
             if needs_rehash(user.password_hash):  # contraseñas guardadas con un cifrado anterior
@@ -158,7 +159,7 @@ async def login(request: Request):
     attempts.append(time.time())
     _failed[addr] = attempts
     audit(username or "?", "login_failed", "", addr)
-    flash(request, "Usuario o contraseña incorrectos", "error")
+    flash(request, _("Usuario o contraseña incorrectos"), "error")
     return go("/login")
 
 
@@ -176,7 +177,7 @@ async def login_2fa(request: Request):
     uid, started = request.session.get("pending_uid"), request.session.get("pending_at", 0)
     if not uid or time.time() - started > 300:
         request.session.clear()
-        flash(request, "Tiempo agotado. Ingrese de nuevo.", "error")
+        flash(request, _("Tiempo agotado. Ingrese de nuevo."), "error")
         return go("/login")
     with SessionLocal() as db:
         user = db.get(User, uid)
@@ -188,9 +189,9 @@ async def login_2fa(request: Request):
     audit(user.username if user else "?", "login_2fa_failed", "", addr)
     if tries >= 5:
         request.session.clear()
-        flash(request, "Demasiados códigos incorrectos. Ingrese de nuevo.", "error")
+        flash(request, _("Demasiados códigos incorrectos. Ingrese de nuevo."), "error")
         return go("/login")
-    flash(request, "Código incorrecto. Use el código de 6 dígitos que muestra su app de autenticación.", "error")
+    flash(request, _("Código incorrecto. Use el código de 6 dígitos que muestra su app de autenticación."), "error")
     return go("/login/2fa")
 
 
@@ -217,27 +218,45 @@ async def account_save(request: Request):
     with SessionLocal() as db:
         u = db.get(User, user.id)
         if not verify_password(form.get("current", ""), u.password_hash):
-            flash(request, "La contraseña actual no es correcta.", "error")
+            flash(request, _("La contraseña actual no es correcta."), "error")
             return go("/account")
         problem = password_problem(form.get("new", ""), u.username)
         if problem:
             flash(request, problem, "error")
             return go("/account")
         if form.get("new") != form.get("new2", form.get("new")):
-            flash(request, "La nueva contraseña y su confirmación no coinciden.", "error")
+            flash(request, _("La nueva contraseña y su confirmación no coinciden."), "error")
             return go("/account")
         u.password_hash = hash_password(form["new"])
         u.session_version = (u.session_version or 0) + 1  # cierra sus sesiones abiertas en otros equipos
         db.commit()
         start_session(request, u)  # esta sesión sigue abierta
     log_action(request, user, "password_change")
-    flash(request, "Contraseña actualizada. Úsela la próxima vez que ingrese.")
+    flash(request, _("Contraseña actualizada. Úsela la próxima vez que ingrese."))
     return go("/account")
 
 
-THEMES = {"auto": "Automático (según el sistema)", "claro": "Claro", "oscuro": "Oscuro",
-          "noche": "Azul noche", "bosque": "Bosque", "arena": "Arena", "oceano": "Océano", "atardecer": "Atardecer",
-          "lavanda": "Lavanda", "grafito": "Grafito", "contraste": "Alto contraste"}
+THEMES = {"auto": N_("Automático (según el sistema)"), "claro": N_("Claro"), "oscuro": N_("Oscuro"),
+          "noche": N_("Azul noche"), "bosque": N_("Bosque"), "arena": N_("Arena"), "oceano": N_("Océano"),
+          "atardecer": N_("Atardecer"), "lavanda": N_("Lavanda"), "grafito": N_("Grafito"),
+          "contraste": N_("Alto contraste")}
+
+
+@app.get("/lang/{code}")
+def set_language(request: Request, code: str, next: str = "/"):
+    """Cambia el idioma de la interfaz (y lo guarda en el usuario si hay sesión)."""
+    if code not in LANGS:
+        return go("/")
+    request.session["lang"] = code
+    uid = request.session.get("uid")
+    if uid:
+        with SessionLocal() as db:
+            u = db.get(User, uid)
+            if u:
+                u.lang = code
+                db.commit()
+    # solo rutas locales: evita redirecciones a otros sitios
+    return go(next if next.startswith("/") and not next.startswith("//") else "/")
 
 
 @app.post("/account/theme")
@@ -248,7 +267,7 @@ async def account_theme(request: Request):
     with SessionLocal() as db:
         db.get(User, user.id).theme = theme
         db.commit()
-    flash(request, f"Tema «{THEMES[theme]}» aplicado.")
+    flash(request, _f("Tema «{0}» aplicado.", _(THEMES[theme])))
     return go(form.get("next") or "/account")
 
 
@@ -281,9 +300,9 @@ def dashboard(request: Request):
         recent = db.scalars(scoped(select(ConfigVersion).where(ConfigVersion.kind == "running"),
                                    ConfigVersion.device_id).order_by(ConfigVersion.id.desc()).limit(10)).all()
         for v in recent:
-            _ = v.device.name
+            v.device.name  # carga la relación antes de cerrar la sesión
         for e in events:
-            _ = e.device.name if e.device else None
+            e.device.name if e.device else None  # carga la relación antes de cerrar la sesión
     from . import charts
     data = reports.analytics(scope, 30)
     eol_bad = sum(n for label, n in data["eol"] if label in ("Sin soporte", "Sin parches de software"))
@@ -314,16 +333,16 @@ def _server_panel() -> dict:
     return {
         "snap": snap, "uptime": metrics.human_uptime(snap["uptime"]),
         "load": " / ".join(f"{x:.2f}" for x in snap["load"]) if snap["load"] else "—",
-        "cpu_chart": charts.line(cpu_pts, "%", title="Uso de CPU"),
-        "mem_chart": charts.line(mem_pts, "%", title="Uso de memoria RAM"),
-        "mem_meter": charts.meter(snap["mem_used"], snap["mem_total"], "Memoria RAM",
-                                  f"{hb(snap['mem_used'])} usados de {hb(snap['mem_total'])} · "
-                                  f"{hb(snap['mem_total'] - snap['mem_used'])} libres"),
-        "disk_meter": charts.meter(snap["disk_used"], snap["disk_total"], "Disco",
-                                   f"{hb(snap['disk_used'])} usados de {hb(snap['disk_total'])} · "
-                                   f"{hb(snap['disk_free'])} libres ({snap['disk_path']})"),
-        "swap_meter": charts.meter(snap["swap_used"], snap["swap_total"], "Memoria de intercambio (swap)",
-                                   f"{hb(snap['swap_used'])} usados de {hb(snap['swap_total'])}")
+        "cpu_chart": charts.line(cpu_pts, "%", title=_("Uso de CPU")),
+        "mem_chart": charts.line(mem_pts, "%", title=_("Uso de memoria RAM")),
+        "mem_meter": charts.meter(snap["mem_used"], snap["mem_total"], _("Memoria RAM"),
+                                  _f("{0} usados de {1} · {2} libres", hb(snap['mem_used']), hb(snap['mem_total']),
+                                     hb(snap['mem_total'] - snap['mem_used']))),
+        "disk_meter": charts.meter(snap["disk_used"], snap["disk_total"], _("Disco"),
+                                   _f("{0} usados de {1} · {2} libres ({3})", hb(snap['disk_used']),
+                                      hb(snap['disk_total']), hb(snap['disk_free']), snap['disk_path'])),
+        "swap_meter": charts.meter(snap["swap_used"], snap["swap_total"], _("Memoria de intercambio (swap)"),
+                                   _f("{0} usados de {1}", hb(snap['swap_used']), hb(snap['swap_total'])))
         if snap["swap_total"] else "",
         "data_size": hb(snap["data_size"]), "app_rss": hb(snap["app_rss"]),
     }
@@ -353,7 +372,7 @@ def devices(request: Request, q: str = "", group: int = 0, status: str = ""):
             stmt = stmt.where(Device.id.in_(scope))
         devs = db.scalars(stmt).all()
         for d in devs:
-            _ = d.group.name if d.group else None
+            d.group.name if d.group else None  # carga la relación antes de cerrar la sesión
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
     from .console import console_allowed
     return render(request, "devices.html", user, devices=devs, groups=groups, q=q, group=group, status=status,
@@ -421,14 +440,14 @@ async def device_save(request: Request, dev_id: int | None = None):
             db.commit()
         except Exception as e:  # noqa: BLE001
             db.rollback()
-            flash(request, f"No se pudo guardar: {e.__class__.__name__} (¿nombre duplicado?)", "error")
+            flash(request, _f("No se pudo guardar: {0} (¿nombre duplicado?)", e.__class__.__name__), "error")
             return go("/devices/new" if not dev_id else f"/devices/{dev_id}/edit")
         log_action(request, user, "device_save", f"{dev.name} {dev.host} {dev.device_type}")
         new_id = dev.id
-    flash(request, "Dispositivo guardado")
+    flash(request, _("Dispositivo guardado"))
     if not dev_id:
         services.pool.submit(services.backup_device, new_id, "manual", user.username)
-        flash(request, "Se lanzó el primer respaldo en segundo plano")
+        flash(request, _("Se lanzó el primer respaldo en segundo plano"))
     return go(f"/devices/{new_id}")
 
 
@@ -442,7 +461,7 @@ def device_delete(request: Request, dev_id: int):
             db.delete(dev)
             db.commit()
             log_action(request, user, "device_delete", name)
-    flash(request, "Dispositivo eliminado")
+    flash(request, _("Dispositivo eliminado"))
     return go("/devices")
 
 
@@ -479,7 +498,7 @@ async def device_import(request: Request):
                 groups = {g.name: g.id for g in db.scalars(select(DeviceGroup))}
                 errors.append(f"línea {i}: {str(e).splitlines()[0][:200]}")
     log_action(request, user, "device_import", f"{created} creados")
-    flash(request, f"{created} dispositivos importados")
+    flash(request, _f("{0} dispositivos importados", created))
     for e in errors[:10]:
         flash(request, e, "error")
     return go("/devices")
@@ -496,12 +515,12 @@ def device_detail(request: Request, dev_id: int):
             return go("/devices")
         images = [i for i in list_images() if not i.device_type_filter
                   or re.search(i.device_type_filter, dev.device_type)] if supports_upgrade(dev.device_type) else []
-        _ = (dev.group, dev.credential)
+        (dev.group, dev.credential)  # carga la relación antes de cerrar la sesión
         versions = db.scalars(select(ConfigVersion).where(ConfigVersion.device_id == dev_id)
                               .order_by(ConfigVersion.id.desc()).limit(200)).all()
         comp = db.scalars(select(ComplianceResult).where(ComplianceResult.device_id == dev_id)).all()
         for c in comp:
-            _ = (c.rule.name, c.policy.name)
+            (c.rule.name, c.policy.name)  # carga la relación antes de cerrar la sesión
         vulns = db.scalars(select(Vulnerability).where(Vulnerability.device_id == dev_id)
                            .order_by(Vulnerability.score.desc().nulls_last())).all()
         events = db.scalars(select(Event).where(Event.device_id == dev_id).order_by(Event.id.desc()).limit(30)).all()
@@ -523,9 +542,9 @@ def device_backup(request: Request, dev_id: int):
     check_device(user, dev_id)
     res = services.backup_device(dev_id, "manual", user.username)
     log_action(request, user, "backup", f"device={dev_id} -> {res}")
-    msgs = {"changed": "Respaldo realizado: se detectaron cambios", "unchanged": "Respaldo realizado: sin cambios",
-            "first": "Primer respaldo guardado", "error": "El respaldo falló (ver detalle)",
-            "busy": "El equipo está ocupado con otra tarea"}
+    msgs = {"changed": _("Respaldo realizado: se detectaron cambios"), "unchanged": _("Respaldo realizado: sin cambios"),
+            "first": _("Primer respaldo guardado"), "error": _("El respaldo falló (ver detalle)"),
+            "busy": _("El equipo está ocupado con otra tarea")}
     flash(request, msgs.get(res, res), "error" if res in ("error", "busy") else "ok")
     return go(f"/devices/{dev_id}")
 
@@ -538,7 +557,7 @@ async def backup_all(request: Request):
     ids = filter_ids(user, services.device_ids(gid))
     services.jobs.submit(services.backup_many, ids, "manual", user.username)
     log_action(request, user, "backup_all", f"{len(ids)} equipos")
-    flash(request, f"Respaldo de {len(ids)} equipos lanzado en segundo plano")
+    flash(request, _f("Respaldo de {0} equipos lanzado en segundo plano", len(ids)))
     return go("/devices")
 
 
@@ -547,7 +566,7 @@ def device_compliance(request: Request, dev_id: int):
     user = require(request, "operator")
     check_device(user, dev_id)
     p, f = services.run_compliance(dev_id)
-    flash(request, f"Cumplimiento: {p} reglas OK, {f} infracciones", "ok" if f == 0 else "error")
+    flash(request, _f("Cumplimiento: {0} reglas OK, {1} infracciones", p, f), "ok" if f == 0 else "error")
     return go(f"/devices/{dev_id}#compliance")
 
 
@@ -557,10 +576,10 @@ def device_cve(request: Request, dev_id: int):
     check_device(user, dev_id)
     try:
         n = services.scan_cves(dev_id)
-        flash(request, "Sin versión de firmware en inventario: haga un respaldo primero" if n < 0
-              else f"{n} CVE encontrados en NVD", "error" if n < 0 else "ok")
+        flash(request, _("Sin versión de firmware en inventario: haga un respaldo primero") if n < 0
+              else _f("{0} CVE encontrados en NVD", n), "error" if n < 0 else "ok")
     except Exception as e:  # noqa: BLE001
-        flash(request, f"Error consultando NVD: {e}", "error")
+        flash(request, _f("Error consultando NVD: {0}", e), "error")
     return go(f"/devices/{dev_id}#vulns")
 
 
@@ -570,7 +589,7 @@ def cve_all(request: Request):
     ids = filter_ids(user, services.device_ids())
     services.jobs.submit(services.scan_cves_many, ids)
     log_action(request, user, "cve_scan_all")
-    flash(request, f"Escaneo de vulnerabilidades lanzado para {len(ids)} equipos (puede tardar)")
+    flash(request, _f("Escaneo de vulnerabilidades lanzado para {0} equipos (puede tardar)", len(ids)))
     return go("/vulns")
 
 
@@ -584,7 +603,7 @@ def version_view(request: Request, ver_id: int, raw: int = 0):
             return go("/")
         check_device(user, v.device_id)
         text = decrypt(v.content_enc)
-        _ = v.device.name
+        v.device.name  # carga la relación antes de cerrar la sesión
         is_baseline = v.device.baseline_version_id == v.id
         if raw:
             log_action(request, user, "config_download", f"{v.device.name} v{v.id}")
@@ -625,7 +644,7 @@ def version_baseline(request: Request, ver_id: int):
         v = db.get(ConfigVersion, ver_id)
         check_device(user, v.device_id)
         if v.kind != "running":
-            flash(request, "Solo una configuración en ejecución puede ser línea base", "error")
+            flash(request, _("Solo una configuración en ejecución puede ser línea base"), "error")
             return go(f"/versions/{ver_id}")
         dev = v.device
         dev.baseline_version_id = v.id
@@ -635,7 +654,7 @@ def version_baseline(request: Request, ver_id: int):
         db.commit()
         name = dev.name
     log_action(request, user, "baseline_set", f"{name} -> v{ver_id}")
-    flash(request, f"Versión #{ver_id} marcada como línea base de {name}")
+    flash(request, _f("Versión #{0} marcada como línea base de {1}", ver_id, name))
     return go(f"/versions/{ver_id}")
 
 
@@ -647,7 +666,7 @@ def baseline_diff(request: Request, dev_id: int):
         dev = db.get(Device, dev_id)
         latest = services.latest_version(db, dev_id)
         if not dev.baseline_version_id or not latest:
-            flash(request, "El equipo no tiene línea base definida", "error")
+            flash(request, _("El equipo no tiene línea base definida"), "error")
             return go(f"/devices/{dev_id}")
     return go(f"/diff?a={dev.baseline_version_id}&b={latest.id}&view=side")
 
@@ -659,11 +678,11 @@ def diff_view(request: Request, a: int = 0, b: int = 0, ctx: int = 3, view: str 
     with SessionLocal() as db:
         va, vb = db.get(ConfigVersion, a), db.get(ConfigVersion, b)
         if not va or not vb:
-            flash(request, "Seleccione dos versiones", "error")
+            flash(request, _("Seleccione dos versiones"), "error")
             return go("/")
         check_device(user, va.device_id)
         check_device(user, vb.device_id)
-        _ = (va.device.name, vb.device.name)
+        (va.device.name, vb.device.name)  # carga la relación antes de cerrar la sesión
         ta, tb = decrypt(va.content_enc), decrypt(vb.content_enc)
         lines = services.diff_lines(ta, tb, f"{va.device.name} #{va.id}", f"{vb.device.name} #{vb.id}", ctx)
         rows = services.side_by_side(ta, tb, ctx) if view == "side" else []
@@ -672,7 +691,7 @@ def diff_view(request: Request, a: int = 0, b: int = 0, ctx: int = 3, view: str 
             q = q.where(ConfigVersion.device_id.in_(scope))
         all_versions = db.scalars(q).all()
         for x in all_versions:
-            _ = x.device.name
+            x.device.name  # carga la relación antes de cerrar la sesión
     added, removed = services.diff_stats(ta, tb)
     return render(request, "diff.html", user, va=va, vb=vb, lines=lines, rows=rows, ctx=ctx, view=view,
                   all_versions=all_versions, added=added, removed=removed)
@@ -688,17 +707,16 @@ async def version_rollback(request: Request, ver_id: int):
         dev_id, name = v.device_id, v.device.name
         small = _suspiciously_small(v, services.latest_version(db, dev_id, v.kind))
     if small and form.get("confirm") != "1":
-        flash(request, f"No se creó la reversión: la versión #{ver_id} es mucho más pequeña que la actual y "
-                       "probablemente es un respaldo incompleto. Revise el aviso de esta página.", "error")
+        flash(request, _f("No se creó la reversión: la versión #{0} es mucho más pequeña que la actual y probablemente es un respaldo incompleto. Revise el aviso de esta página.", ver_id), "error")
         return go(f"/versions/{ver_id}")
     cmds = services.rollback_commands(dev_id, ver_id)
     if not cmds:
-        flash(request, "La versión seleccionada es igual a la actual: nada que revertir")
+        flash(request, _("La versión seleccionada es igual a la actual: nada que revertir"))
         return go(f"/versions/{ver_id}")
     cr_id = _create_cr(user, f"Reversión de {name} a la versión #{ver_id}", "\n".join(cmds), {}, [dev_id],
                        is_rollback=True)
     log_action(request, user, "rollback_request", f"{name} -> v{ver_id}")
-    flash(request, "Se generó la solicitud de reversión. Revise los comandos antes de aprobar.")
+    flash(request, _("Se generó la solicitud de reversión. Revise los comandos antes de aprobar."))
     return go(f"/changes/{cr_id}")
 
 
@@ -711,7 +729,7 @@ def search(request: Request, q: str = "", regex: int = 0):
         try:
             pat = re.compile(q if regex else re.escape(q), re.IGNORECASE)
         except re.error as e:
-            flash(request, f"Regex inválida: {e}", "error")
+            flash(request, _f("Regex inválida: {0}", e), "error")
             return go("/search")
         scope = device_scope(user)
         with SessionLocal() as db:
@@ -755,7 +773,7 @@ async def credential_save(request: Request):
             db.add(c)
         db.commit()
     log_action(request, user, "credential_save", form["name"])
-    flash(request, "Credencial guardada (cifrada con AES-256)")
+    flash(request, _("Credencial guardada (cifrada con AES-256)"))
     return go("/credentials")
 
 
@@ -826,7 +844,7 @@ async def configlet_save(request: Request, cid: int | None = None):
             db.add(c)
         db.commit()
     log_action(request, user, "configlet_save", form["name"])
-    flash(request, "Configlet guardado")
+    flash(request, _("Configlet guardado"))
     return go("/configlets")
 
 
@@ -862,7 +880,7 @@ def configlet_run_form(request: Request, cid: int):
         devs = [d for d in db.scalars(stmt) if d.id in allowed and
                 (not c.device_type_filter or re.search(c.device_type_filter, d.device_type))]
         for d in devs:
-            _ = d.group.name if d.group else None
+            d.group.name if d.group else None  # carga la relación antes de cerrar la sesión
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
     found_vars = sorted(set(re.findall(r"{{\s*([a-zA-Z_]\w*)", c.body)) - {"device"})
     return render(request, "configlet_run.html", user, c=c, devices=devs, groups=groups, found_vars=found_vars)
@@ -877,7 +895,7 @@ async def configlet_run(request: Request, cid: int):
     if len(ids) != len(requested):
         raise Forbidden()
     if not ids:
-        flash(request, "Seleccione al menos un dispositivo", "error")
+        flash(request, _("Seleccione al menos un dispositivo"), "error")
         return go(f"/configlets/{cid}/run")
     variables = _parse_vars(form.get("variables", ""))
     with SessionLocal() as db:
@@ -979,10 +997,10 @@ async def change_review(request: Request, cr_id: int):
     with SessionLocal() as db:
         cr = db.get(ChangeRequest, cr_id)
         if cr.status != "pending":
-            flash(request, "La solicitud ya fue revisada", "error")
+            flash(request, _("La solicitud ya fue revisada"), "error")
             return go(f"/changes/{cr_id}")
         if cr.requested_by == user.username and get_setting("allow_self_approval", "1") != "1":
-            flash(request, "No puede aprobar sus propias solicitudes (ver Ajustes)", "error")
+            flash(request, _("No puede aprobar sus propias solicitudes (ver Ajustes)"), "error")
             return go(f"/changes/{cr_id}")
         cr.status = "approved" if decision == "approve" else "rejected"
         cr.reviewed_by, cr.review_comment = user.username, form.get("comment")
@@ -990,9 +1008,9 @@ async def change_review(request: Request, cr_id: int):
     log_action(request, user, f"change_{cr.status}", f"#{cr_id}")
     if cr.status == "approved":
         services.jobs.submit(services.execute_change_request, cr_id)
-        flash(request, "Solicitud aprobada: ejecutándose en segundo plano")
+        flash(request, _("Solicitud aprobada: ejecutándose en segundo plano"))
     else:
-        flash(request, "Solicitud rechazada")
+        flash(request, _("Solicitud rechazada"))
     return go(f"/changes/{cr_id}")
 
 
@@ -1003,24 +1021,24 @@ def compliance(request: Request):
     with SessionLocal() as db:
         policies = db.scalars(select(Policy).order_by(Policy.name)).all()
         for p in policies:
-            _ = p.rules
+            p.rules  # carga la relación antes de cerrar la sesión
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
         scope = device_scope(user)
         fails = [f for f in db.scalars(select(ComplianceResult).where(ComplianceResult.passed.is_(False))
                                        .order_by(ComplianceResult.device_id)) if scope is None or f.device_id in scope]
         for f in fails:
-            _ = (f.device.name, f.rule.name, f.policy.name)
+            (f.device.name, f.rule.name, f.policy.name)  # carga la relación antes de cerrar la sesión
         summary = [s for s in db.execute(select(ComplianceResult.device_id,
                                                 func.sum(case((ComplianceResult.passed.is_(True), 1), else_=0)),
                                                 func.count()).group_by(ComplianceResult.device_id)).all()
                    if scope is None or s[0] in scope]
     from . import charts
     comp = reports.analytics(scope)["compliance"]
-    chart = charts.bars([(n, v) for n, v, _ in comp], "%", vmax=100,
-                        link=[f"/compliance/policies/{pid}" for _, _, pid in comp])
+    chart = charts.bars([(n, v) for n, v, _z in comp], "%", vmax=100, status=True,
+                        link=[f"/compliance/policies/{pid}" for _a, _b, pid in comp])
     return render(request, "compliance.html", user, policies=policies, groups=groups, fails=fails,
                   devices_checked=len(summary), chart=chart,
-                  devices_ok=sum(1 for _, p, t in summary if p == t))
+                  devices_ok=sum(1 for _k, p, t in summary if p == t))
 
 
 @app.post("/compliance/policies")
@@ -1047,7 +1065,7 @@ def policy_detail(request: Request, pid: int):
     user = require(request)
     with SessionLocal() as db:
         p = db.get(Policy, pid)
-        _ = p.rules
+        p.rules  # carga la relación antes de cerrar la sesión
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
     return render(request, "policy.html", user, p=p, groups=groups)
 
@@ -1070,7 +1088,7 @@ async def rule_add(request: Request, pid: int):
     try:
         re.compile(form["pattern"], re.MULTILINE)
     except re.error as e:
-        flash(request, f"Regex inválida: {e}", "error")
+        flash(request, _f("Regex inválida: {0}", e), "error")
         return go(f"/compliance/policies/{pid}")
     with SessionLocal() as db:
         db.add(Rule(policy_id=pid, name=form["name"], kind=form["kind"], pattern=form["pattern"],
@@ -1103,7 +1121,7 @@ def compliance_run(request: Request):
             services.run_compliance(i)
     services.jobs.submit(_all)
     log_action(request, user, "compliance_run_all")
-    flash(request, "Auditoría de cumplimiento lanzada para todos los equipos")
+    flash(request, _("Auditoría de cumplimiento lanzada para todos los equipos"))
     return go("/compliance")
 
 
@@ -1113,7 +1131,7 @@ def compliance_remediate(request: Request, result_id: int):
     with SessionLocal() as db:
         r = db.get(ComplianceResult, result_id)
         if not r or not r.rule.remediation:
-            flash(request, "La regla no tiene comandos de corrección", "error")
+            flash(request, _("La regla no tiene comandos de corrección"), "error")
             return go("/compliance")
         check_device(user, r.device_id)
         title = f"Corrección '{r.rule.name}' en {r.device.name}"
@@ -1129,7 +1147,7 @@ def schedules(request: Request):
     with SessionLocal() as db:
         items = db.scalars(select(Schedule).order_by(Schedule.name)).all()
         for s in items:
-            _ = s.group
+            s.group  # carga la relación antes de cerrar la sesión
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
         configlets = db.scalars(select(Configlet).order_by(Configlet.name)).all()
     jobs = {j.id: j.next_run_time for j in scheduler.scheduler.get_jobs()}
@@ -1140,9 +1158,9 @@ def schedules(request: Request):
                   DAYS=cronutil.DAYS, FREQS=cronutil.FREQS, ACTIONS=SCHEDULE_ACTIONS, sf=sf)
 
 
-SCHEDULE_ACTIONS = {"backup": "Respaldo de configuración", "compliance": "Auditoría de cumplimiento",
-                    "cve": "Escaneo de vulnerabilidades", "configlet": "Ejecutar configlet",
-                    "report_email": "Informes por correo", "system_backup": "Copia de recuperación"}
+SCHEDULE_ACTIONS = {"backup": N_("Respaldo de configuración"), "compliance": N_("Auditoría de cumplimiento"),
+                    "cve": N_("Escaneo de vulnerabilidades"), "configlet": N_("Ejecutar configlet"),
+                    "report_email": N_("Informes por correo"), "system_backup": N_("Copia de recuperación")}
 
 
 @app.get("/schedules/{sid}/edit")
@@ -1169,7 +1187,7 @@ async def schedule_edit_save(request: Request, sid: int):
     try:
         cron = cronutil.from_form(form)
     except ValueError as e:
-        flash(request, f"Programación inválida: {e}", "error")
+        flash(request, _f("Programación inválida: {0}", e), "error")
         return go(f"/schedules/{sid}/edit")
     with SessionLocal() as db:
         s = db.get(Schedule, sid)
@@ -1185,7 +1203,7 @@ async def schedule_edit_save(request: Request, sid: int):
         db.commit()
     scheduler.reload_jobs()
     log_action(request, user, "schedule_edit", f"{before} -> {name} {cron}")
-    flash(request, f"Tarea «{name}» actualizada: {cronutil.describe(cron)}")
+    flash(request, _f("Tarea «{0}» actualizada: {1}", name, cronutil.describe(cron)))
     return go("/schedules")
 
 
@@ -1197,7 +1215,7 @@ async def schedule_save(request: Request):
     try:
         cron = cronutil.from_form(form)
     except ValueError as e:
-        flash(request, f"Programación inválida: {e}", "error")
+        flash(request, _f("Programación inválida: {0}", e), "error")
         return go("/schedules")
     with SessionLocal() as db:
         db.add(Schedule(name=form["name"], action=form["action"], cron=cron,
@@ -1206,7 +1224,7 @@ async def schedule_save(request: Request):
         db.commit()
     scheduler.reload_jobs()
     log_action(request, user, "schedule_create", f"{form['name']} {cron}")
-    flash(request, f"Tarea «{form['name']}» creada: {cronutil.describe(cron)}")
+    flash(request, _f("Tarea «{0}» creada: {1}", form['name'], cronutil.describe(cron)))
     return go("/schedules")
 
 
@@ -1222,7 +1240,7 @@ def schedule_op(request: Request, sid: int, op: str):
         db.commit()
     if op == "run":
         services.jobs.submit(scheduler.run_schedule, sid)
-        flash(request, "Tarea lanzada")
+        flash(request, _("Tarea lanzada"))
     scheduler.reload_jobs()
     log_action(request, user, f"schedule_{op}", str(sid))
     return go("/schedules")
@@ -1243,7 +1261,7 @@ def events(request: Request, sev: str = "", unack: int = 0, page: int = 1):
             stmt = stmt.where(Event.device_id.in_(scope))
         items = db.scalars(stmt.offset((page - 1) * 100).limit(100)).all()
         for e in items:
-            _ = e.device.name if e.device else None
+            e.device.name if e.device else None  # carga la relación antes de cerrar la sesión
     return render(request, "events.html", user, items=items, sev=sev, unack=unack, page=page)
 
 
@@ -1273,7 +1291,7 @@ def vulns(request: Request):
         items = [v for v in db.scalars(select(Vulnerability).order_by(Vulnerability.score.desc().nulls_last())
                                        .limit(5000)) if scope is None or v.device_id in scope][:2000]
         for v in items:
-            _ = v.device.name
+            v.device.name  # carga la relación antes de cerrar la sesión
     return render(request, "vulns.html", user, items=items)
 
 
@@ -1302,7 +1320,7 @@ def users(request: Request):
 
 
 USERNAME_RE = re.compile(r"^[A-Za-z0-9._@-]{2,64}$")
-ROLE_NAMES = {"admin": "administrador", "operator": "operador", "viewer": "lector"}
+ROLE_NAMES = {"admin": N_("administrador"), "operator": N_("operador"), "viewer": N_("lector")}
 
 
 def _active_admins(db, exclude_id: int | None = None) -> int:
@@ -1327,18 +1345,18 @@ async def user_create(request: Request):
     role = form.get("role") if form.get("role") in ROLES else "viewer"
     password = form.get("password") or ""
     if not USERNAME_RE.match(username):
-        flash(request, "Nombre de usuario no válido: 2 a 64 caracteres (letras, números, punto, guion, @).", "error")
+        flash(request, _("Nombre de usuario no válido: 2 a 64 caracteres (letras, números, punto, guion, @)."), "error")
         return go("/users")
     problem = password_problem(password, username)
     if problem:
         flash(request, problem, "error")
         return go("/users")
     if password != form.get("password2", password):
-        flash(request, "Las contraseñas no coinciden.", "error")
+        flash(request, _("Las contraseñas no coinciden."), "error")
         return go("/users")
     with SessionLocal() as db:
         if db.scalars(select(User).where(func.lower(User.username) == username.lower())).first():
-            flash(request, f"Ya existe un usuario llamado «{username}». Para cambiarlo use «Editar» en su fila.", "error")
+            flash(request, _f("Ya existe un usuario llamado «{0}». Para cambiarlo use «Editar» en su fila.", username), "error")
             return go("/users")
         u = User(username=username, role=role, email=form.get("email") or None, active=True,
                  password_hash=hash_password(password))
@@ -1347,7 +1365,7 @@ async def user_create(request: Request):
         _set_groups(db, u.id, form)
         db.commit()
     log_action(request, user, "user_create", f"{username} rol={role} grupos={form.getlist('group_ids')}")
-    flash(request, f"Usuario «{username}» creado con rol {ROLE_NAMES[role]}. Ya puede ingresar con su contraseña.")
+    flash(request, _f("Usuario «{0}» creado con rol {1}. Ya puede ingresar con su contraseña.", username, ROLE_NAMES[role]))
     return go("/users")
 
 
@@ -1375,10 +1393,10 @@ async def user_edit(request: Request, uid: int):
         was_admin = u.role == "admin" and u.active
         if was_admin and (role != "admin" or not active):
             if uid == user.id:
-                flash(request, "No puede quitarse a sí mismo el rol de administrador ni bloquearse.", "error")
+                flash(request, _("No puede quitarse a sí mismo el rol de administrador ni bloquearse."), "error")
                 return go(f"/users/{uid}/edit")
             if _active_admins(db, exclude_id=uid) == 0:
-                flash(request, "Debe quedar al menos un administrador activo.", "error")
+                flash(request, _("Debe quedar al menos un administrador activo."), "error")
                 return go(f"/users/{uid}/edit")
         changes = []
         password = form.get("password") or ""
@@ -1388,23 +1406,24 @@ async def user_edit(request: Request, uid: int):
                 flash(request, problem, "error")
                 return go(f"/users/{uid}/edit")
             if password != form.get("password2", password):
-                flash(request, "Las contraseñas no coinciden.", "error")
+                flash(request, _("Las contraseñas no coinciden."), "error")
                 return go(f"/users/{uid}/edit")
             u.password_hash = hash_password(password)
             u.session_version = (u.session_version or 0) + 1  # cierra las sesiones abiertas de ese usuario
             u.locked_until, u.failed_logins = None, 0
-            changes.append("contraseña cambiada (sesiones cerradas)")
+            changes.append(("contraseña cambiada (sesiones cerradas)", _("contraseña cambiada (sesiones cerradas)")))
         if role != u.role:
-            changes.append(f"rol {ROLE_NAMES[role]}")
+            changes.append((f"rol {ROLE_NAMES[role]}", _f("rol {0}", _(ROLE_NAMES[role]))))
         if active != u.active:
-            changes.append("activado" if active else "bloqueado")
+            changes.append(("activado", _("activado")) if active else ("bloqueado", _("bloqueado")))
         u.role, u.active, u.email = role, active, form.get("email") or None
         _set_groups(db, uid, form)
         db.commit()
         name = u.username
-    log_action(request, user, "user_edit", f"{name}: {', '.join(changes) or 'sin cambios de rol/clave'} "
+    log_action(request, user, "user_edit", f"{name}: {', '.join(c[0] for c in changes) or 'sin cambios de rol/clave'} "
                                            f"grupos={form.getlist('group_ids')}")
-    flash(request, f"Usuario «{name}» actualizado" + (f" ({', '.join(changes)})." if changes else "."))
+    flash(request, _f("Usuario «{0}» actualizado ({1}).", name, ", ".join(c[1] for c in changes)) if changes
+          else _f("Usuario «{0}» actualizado.", name))
     return go("/users")
 
 
@@ -1412,19 +1431,19 @@ async def user_edit(request: Request, uid: int):
 def user_delete(request: Request, uid: int):
     user = require(request, "admin")
     if uid == user.id:
-        flash(request, "No puede eliminarse a sí mismo.", "error")
+        flash(request, _("No puede eliminarse a sí mismo."), "error")
         return go("/users")
     with SessionLocal() as db:
         u = db.get(User, uid)
         if u:
             if u.role == "admin" and u.active and _active_admins(db, exclude_id=uid) == 0:
-                flash(request, "No se puede eliminar al último administrador activo.", "error")
+                flash(request, _("No se puede eliminar al último administrador activo."), "error")
                 return go("/users")
             name = u.username
             db.delete(u)
             db.commit()
             log_action(request, user, "user_delete", name)
-            flash(request, f"Usuario «{name}» eliminado.")
+            flash(request, _f("Usuario «{0}» eliminado.", name))
     return go("/users")
 
 
@@ -1434,7 +1453,7 @@ SETTING_KEYS = ["smtp_host", "smtp_port", "smtp_security", "smtp_user", "smtp_fr
                 "allow_self_approval", "notify_compliance", "retention_versions", "cisco_api_client_id",
                 "dr_keep", "dr_remote_host", "dr_remote_port", "dr_remote_user", "dr_remote_path",
                 "session_idle_minutes", "require_2fa_admins", "console_access", "console_autologin", "update_check",
-                "org_name", "org_contact", "org_address"]
+                "org_name", "org_contact", "org_address", "default_lang"]
 CHECKBOX_KEYS = ("require_approval", "allow_self_approval", "notify_compliance", "require_2fa_admins",
                  "console_autologin", "update_check")
 # valores por defecto cuando el ajuste nunca se guardó
@@ -1459,14 +1478,15 @@ async def settings_save(request: Request):
     for k in SETTING_KEYS:
         if k == "require_2fa_admins" and form.get(k) == "on" and not user.totp_enabled:
             # exigirla sin tenerla dejaría a este administrador fuera de todo salvo «Mi cuenta»
-            flash(request, "Para exigir la verificación en dos pasos a los administradores, actívela primero en su "
-                           "propia cuenta (Mi cuenta → Verificación en dos pasos).", "error")
+            flash(request, _("Para exigir la verificación en dos pasos a los administradores, actívela primero en su propia cuenta (Mi cuenta → Verificación en dos pasos)."), "error")
             continue
         if k in CHECKBOX_KEYS:
             set_setting(k, "1" if form.get(k) == "on" else "0")
         elif k == "session_idle_minutes":
             v = (form.get(k) or "30").strip()
             set_setting(k, str(min(max(int(v), 5), 720)) if v.isdigit() else "30")
+        elif k == "default_lang":
+            set_setting(k, form.get(k) if form.get(k) in LANGS else "es")
         elif k == "console_access":
             set_setting(k, form.get(k) if form.get(k) in ("off", "admin", "operator") else "admin")
         else:
@@ -1476,7 +1496,7 @@ async def settings_save(request: Request):
         if form.get(k):
             set_setting(k, form[k])
     log_action(request, user, "settings_save")
-    flash(request, "Ajustes guardados")
+    flash(request, _("Ajustes guardados"))
     return go("/settings")
 
 
@@ -1488,7 +1508,7 @@ def settings_test(request: Request):
         for e in errors:
             flash(request, e, "error")
     else:
-        flash(request, "Notificación de prueba enviada")
+        flash(request, _("Notificación de prueba enviada"))
     return go("/settings")
 
 
@@ -1526,7 +1546,7 @@ def report_email(request: Request):
     for e in errors:
         flash(request, e, "error")
     if not errors:
-        flash(request, "Informes enviados por correo")
+        flash(request, _("Informes enviados por correo"))
     log_action(request, user, "report_email")
     return go("/reports")
 

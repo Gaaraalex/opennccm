@@ -4,17 +4,17 @@
 <div class="card">
 <table><tr><th>Informe</th><th>Descripción</th><th></th></tr>
 {% set desc = {
-  'inventory': 'Modelo, serie, firmware, estado de respaldo, conflictos y línea base',
-  'changes': 'Versiones nuevas por equipo, origen y usuario (30 días)',
-  'compliance': 'Resultado por equipo, política y regla',
-  'conflicts': 'Equipos cuya configuración en ejecución no está guardada en arranque',
-  'baseline': 'Equipos con línea base y si se han desviado de ella',
-  'eol': 'Fin de venta, fin de parches y fin de soporte por equipo',
-  'vulns': 'CVE de firmware por equipo',
-  'changes_requests': 'Quién pidió cada cambio, quién lo aprobó y su resultado',
-  'audit': 'Actividad de usuarios (90 días, solo administradores)'} %}
+  'inventory': _('Modelo, serie, firmware, estado de respaldo, conflictos y línea base'),
+  'changes': _('Versiones nuevas por equipo, origen y usuario (30 días)'),
+  'compliance': _('Resultado por equipo, política y regla'),
+  'conflicts': _('Equipos cuya configuración en ejecución no está guardada en arranque'),
+  'baseline': _('Equipos con línea base y si se han desviado de ella'),
+  'eol': _('Fin de venta, fin de parches y fin de soporte por equipo'),
+  'vulns': _('CVE de firmware por equipo'),
+  'changes_requests': _('Quién pidió cada cambio, quién lo aprobó y su resultado'),
+  'audit': _('Actividad de usuarios (90 días, solo administradores)')} %}
 {% for k, title in titles.items() %}{% if k != 'audit' or user.role == 'admin' %}
-<tr><td><b>{{ title }}</b></td><td class="small muted">{{ desc[k] }}</td>
+<tr><td><b>{{ _(title) }}</b></td><td class="small muted">{{ desc[k] }}</td>
 <td style="white-space:nowrap"><a class="btn sm sec" href="/reports/view/{{ k }}{{ '?days=90' if k == 'audit' }}">Ver</a>
 <a class="btn sm" href="/reports/{{ k }}.csv{{ '?days=90' if k == 'audit' }}">CSV</a></td></tr>
 {% endif %}{% endfor %}

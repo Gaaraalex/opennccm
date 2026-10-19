@@ -24,6 +24,7 @@ from .crypto import decrypt
 from .db import Device, SessionLocal, audit
 from .drivers import FASTPATH, IOS, get_profile
 from .web import render
+from .i18n import _, _f
 
 log = logging.getLogger("opennccm")
 router = APIRouter()
@@ -128,7 +129,7 @@ async def console_ws(ws: WebSocket, dev_id: int):
         cred_pass = decrypt(cred.password_enc) if cred and cred.password_enc else None
         cred_secret = decrypt(cred.secret_enc) if cred and cred.secret_enc else None
     if protocol == "telnet":
-        await ws.send_text("\r\nLa consola web solo funciona por SSH; este equipo está configurado con Telnet.\r\n")
+        await ws.send_text("\r\n" + _("La consola web solo funciona por SSH; este equipo está configurado con Telnet.") + "\r\n")
         await ws.close()
         return
     try:
@@ -141,15 +142,15 @@ async def console_ws(ws: WebSocket, dev_id: int):
     try:
         if autologin:
             username, password = cred_user, cred_pass or ""
-            await ws.send_text(f"Conectando a {name} ({host}:{port}) como {username}…\r\n")
+            await ws.send_text(_f("Conectando a {0} ({1}:{2}) como {3}…", name, host, port, username) + "\r\n")
         else:
-            await ws.send_text(f"Consola de {name} ({host}:{port}). Ctrl+C cancela.\r\n")
-            username = await _read_line(ws, "Usuario: ", secret=False)
-            password = await _read_line(ws, "Contraseña: ", secret=True) if username else None
+            await ws.send_text(_f("Consola de {0} ({1}:{2}). Ctrl+C cancela.", name, host, port) + "\r\n")
+            username = await _read_line(ws, _("Usuario:") + " ", secret=False)
+            password = await _read_line(ws, _("Contraseña:") + " ", secret=True) if username else None
             if not username or password is None:
                 await ws.close()
                 return
-            await ws.send_text("Conectando…\r\n")
+            await ws.send_text(_("Conectando…") + "\r\n")
     except (WebSocketDisconnect, RuntimeError):
         return
 
@@ -168,12 +169,12 @@ async def console_ws(ws: WebSocket, dev_id: int):
     try:
         chan = await asyncio.to_thread(_connect)
     except paramiko.AuthenticationException:
-        await ws.send_text("\r\n\x1b[31mUsuario o contraseña incorrectos.\x1b[0m\r\n")
+        await ws.send_text("\r\n\x1b[31m" + _("Usuario o contraseña incorrectos.") + "\x1b[0m\r\n")
         audit(user.username, "console_failed", f"{name}: autenticación rechazada", addr)
         await ws.close()
         return
     except Exception as e:  # noqa: BLE001
-        await ws.send_text(f"\r\n\x1b[31mNo se pudo conectar: {e}\x1b[0m\r\n")
+        await ws.send_text("\r\n\x1b[31m" + _f("No se pudo conectar: {0}", e) + "\x1b[0m\r\n")
         audit(user.username, "console_failed", f"{name}: {e}", addr)
         await ws.close()
         return

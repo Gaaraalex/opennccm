@@ -10,12 +10,15 @@ import re
 
 from apscheduler.triggers.cron import CronTrigger
 
-DAYS = [("mon", "lunes"), ("tue", "martes"), ("wed", "miércoles"), ("thu", "jueves"), ("fri", "viernes"),
-        ("sat", "sábado"), ("sun", "domingo")]
+from .i18n import N_, _, _f
+
+DAYS = [("mon", N_("lunes")), ("tue", N_("martes")), ("wed", N_("miércoles")), ("thu", N_("jueves")),
+        ("fri", N_("viernes")), ("sat", N_("sábado")), ("sun", N_("domingo"))]
 DAY_NAMES = dict(DAYS)
 _CRON_NUM = {0: "sun", 1: "mon", 2: "tue", 3: "wed", 4: "thu", 5: "fri", 6: "sat", 7: "sun"}
-FREQS = [("daily", "Todos los días"), ("weekly", "Algunos días de la semana"), ("monthly", "Una vez al mes"),
-         ("hourly", "Cada hora"), ("minutes", "Cada pocos minutos"), ("cron", "Avanzado (expresión cron)")]
+FREQS = [("daily", N_("Todos los días")), ("weekly", N_("Algunos días de la semana")),
+         ("monthly", N_("Una vez al mes")), ("hourly", N_("Cada hora")), ("minutes", N_("Cada pocos minutos")),
+         ("cron", N_("Avanzado (expresión cron)"))]
 
 
 def _dow_to_names(field: str) -> str:
@@ -39,7 +42,7 @@ def _dow_to_names(field: str) -> str:
 def normalize(cron: str) -> str:
     f = cron.split()
     if len(f) != 5:
-        raise ValueError("debe tener 5 campos: minuto hora día mes día-de-la-semana")
+        raise ValueError(_("debe tener 5 campos: minuto hora día mes día-de-la-semana"))
     f[4] = _dow_to_names(f[4].lower())
     return " ".join(f)
 
@@ -53,42 +56,42 @@ def _hhmm(h: str, m: str) -> str:
 
 
 def _join(words: list[str]) -> str:
-    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " y " + words[-1]
+    return words[0] if len(words) == 1 else _f("{0} y {1}", ", ".join(words[:-1]), words[-1])
 
 
 def describe(cron: str) -> str:
-    """Texto en español para las expresiones habituales."""
+    """Texto para las expresiones habituales (en el idioma de la petición)."""
     try:
         mi, ho, dom, mon, dow = cron.split()
     except ValueError:
         return cron
     if m := re.fullmatch(r"\*/(\d+)", mi):
         if (ho, dom, mon, dow) == ("*", "*", "*", "*"):
-            return f"Cada {m.group(1)} minutos"
+            return _f("Cada {0} minutos", m.group(1))
     if not mi.isdigit():
-        return f"Personalizada: {cron}"
+        return _f("Personalizada: {0}", cron)
     if ho == "*" and (dom, mon, dow) == ("*", "*", "*"):
-        return f"Cada hora, en el minuto {int(mi)}"
+        return _f("Cada hora, en el minuto {0}", int(mi))
     if not ho.isdigit() or mon != "*":
-        return f"Personalizada: {cron}"
-    at = f"a las {_hhmm(ho, mi)}"
+        return _f("Personalizada: {0}", cron)
+    at = _hhmm(ho, mi)
     if dom == "*" and dow == "*":
-        return f"Todos los días {at}"
+        return _f("Todos los días a las {0}", at)
     if dom == "*":
         names = normalize(f"0 0 * * {dow}").split()[4]
         if names in ("mon-fri", "mon,tue,wed,thu,fri"):
-            return f"De lunes a viernes {at}"
+            return _f("De lunes a viernes a las {0}", at)
         if names in ("sat,sun", "sat-sun"):
-            return f"Sábados y domingos {at}"
+            return _f("Sábados y domingos a las {0}", at)
         days = names.split(",")
         if all(d in DAY_NAMES for d in days):
-            order = [k for k, _ in DAYS]
+            order = [k for k, _n in DAYS]
             days = sorted(set(days), key=order.index)
-            return f"Cada {_join([DAY_NAMES[d] for d in days])} {at}"
-        return f"Personalizada: {cron}"
+            return _f("Cada {0} a las {1}", _join([_(DAY_NAMES[d]) for d in days]), at)
+        return _f("Personalizada: {0}", cron)
     if dow == "*" and dom.isdigit():
-        return f"El día {int(dom)} de cada mes {at}"
-    return f"Personalizada: {cron}"
+        return _f("El día {0} de cada mes a las {1}", int(dom), at)
+    return _f("Personalizada: {0}", cron)
 
 
 def to_form(cron: str) -> dict:
@@ -128,34 +131,34 @@ def from_form(form) -> str:
     else:
         t = form.get("time") or "02:00"
         if not re.fullmatch(r"\d{1,2}:\d{2}", t):
-            raise ValueError("hora no válida")
+            raise ValueError(_("hora no válida"))
         h, m = (int(x) for x in t.split(":"))
         if not (0 <= h <= 23 and 0 <= m <= 59):
-            raise ValueError("hora no válida")
+            raise ValueError(_("hora no válida"))
         if freq == "daily":
             cron = f"{m} {h} * * *"
         elif freq == "weekly":
             days = [d for d in (form.getlist("days") if hasattr(form, "getlist") else form.get("days", []))
                     if d in DAY_NAMES]
             if not days:
-                raise ValueError("elija al menos un día de la semana")
+                raise ValueError(_("elija al menos un día de la semana"))
             cron = f"{m} {h} * * {','.join(days)}"
         elif freq == "monthly":
             dom = int(form.get("dom") or 1)
             if not 1 <= dom <= 31:
-                raise ValueError("día del mes no válido")
+                raise ValueError(_("día del mes no válido"))
             cron = f"{m} {h} {dom} * *"
         elif freq == "hourly":
             minute = int(form.get("minute") or 0)
             if not 0 <= minute <= 59:
-                raise ValueError("minuto no válido")
+                raise ValueError(_("minuto no válido"))
             cron = f"{minute} * * * *"
         elif freq == "minutes":
             every = int(form.get("every") or 30)
             if every not in (5, 10, 15, 20, 30):
-                raise ValueError("intervalo no válido")
+                raise ValueError(_("intervalo no válido"))
             cron = f"*/{every} * * * *"
         else:
-            raise ValueError("frecuencia desconocida")
+            raise ValueError(_("frecuencia desconocida"))
     trigger(cron)  # valida
     return cron

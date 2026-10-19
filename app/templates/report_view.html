@@ -1,6 +1,6 @@
-{% extends "base.html" %}{% block title %}{{ title }}{% endblock %}
+{% extends "base.html" %}{% block title %}{{ _(title) }}{% endblock %}
 {% block content %}
-<h1><a href="/reports">Informes</a> / {{ title }} <span class="muted small">({{ rows|length }} filas)</span></h1>
+<h1><a href="/reports">Informes</a> / {{ _(title) }} <span class="muted small">({{ rows|length }} filas)</span></h1>
 <div class="toolbar">
   {% if kind in ('changes', 'audit') %}
   <form class="row" method="get"><select name="days">{% for d in [1, 7, 30, 90, 365] %}<option value="{{ d }}" {{ 'selected' if d == days }}>{{ d }} días</option>{% endfor %}</select><button class="sec">Aplicar</button></form>
@@ -9,7 +9,7 @@
 </div>
 <div class="card">
 <table>
-  <tr>{% for h in header %}<th>{{ h }}</th>{% endfor %}</tr>
+  <tr>{% for h in header %}<th>{{ _(h) }}</th>{% endfor %}</tr>
   {% for r in rows[:2000] %}<tr>{% for c in r %}<td class="small">{{ c|dt if c.__class__.__name__ == 'datetime' else (c if c is not none else '') }}</td>{% endfor %}</tr>
   {% else %}<tr><td colspan="{{ header|length }}" class="muted">Sin datos.</td></tr>{% endfor %}
 </table>

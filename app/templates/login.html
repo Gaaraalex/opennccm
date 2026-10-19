@@ -1,18 +1,33 @@
-{% extends "base.html" %}{% block title %}Ingresar{% endblock %}
-{% block content %}
-<div class="login card">
-  <h1>Open<span style="color:var(--accent)">NCCM</span></h1>
-  <p class="muted">Gestión de configuración, cambios y cumplimiento de red</p>
-  <form method="post" action="/login" id="login-form">
-    <label for="username">Usuario</label>
-    <input id="username" name="username" autofocus required autocomplete="username" autocapitalize="none" spellcheck="false" style="width:100%">
-    <label for="password">Contraseña</label>
-    <input id="password" name="password" type="password" required autocomplete="current-password" style="width:100%">
-    <p><button type="submit" style="width:100%">Ingresar</button></p>
-  </form>
-  {% if ca_available %}
-  <p class="small"><a href="/certificado">¿El navegador dice «No es seguro» o no ofrece guardar la contraseña?</a></p>
-  {% endif %}
-  <p class="small muted"><a href="/acerca">Privacidad, cookies y licencias</a></p>
-</div>
+{% extends "_auth.html" %}{% block title %}Ingresar{% endblock %}
+{% block auth_form %}
+<h1>Iniciar sesión</h1>
+<p class="muted">Ingrese con su usuario de OpenNCCM.</p>
+<form method="post" action="/login" id="login-form">
+  <label for="username">Usuario</label>
+  <div class="field"><span class="ico" aria-hidden="true">👤</span>
+    <input id="username" name="username" autofocus required autocomplete="username" autocapitalize="none" spellcheck="false"></div>
+  <label for="password">Contraseña</label>
+  <div class="field"><span class="ico" aria-hidden="true">🔒</span>
+    <input id="password" name="password" type="password" required autocomplete="current-password">
+    <button type="button" class="peek" id="peek" aria-controls="password" aria-pressed="false"
+            aria-label="Mostrar la contraseña" title="Mostrar la contraseña">👁</button></div>
+  <p class="caps" id="caps" hidden role="alert">⚠ Bloq Mayús está activado</p>
+  <button type="submit" class="auth-submit">Ingresar</button>
+</form>
+<script>
+(function () {
+  const pw = document.getElementById('password'), peek = document.getElementById('peek'), caps = document.getElementById('caps');
+  const show = {{ _('Mostrar la contraseña')|tojson }}, hide = {{ _('Ocultar la contraseña')|tojson }};
+  peek.addEventListener('click', function () {
+    const on = pw.type === 'password';
+    pw.type = on ? 'text' : 'password';
+    peek.setAttribute('aria-pressed', on);
+    peek.setAttribute('aria-label', on ? hide : show); peek.title = on ? hide : show;
+    pw.focus();
+  });
+  pw.addEventListener('keyup', function (e) { caps.hidden = !(e.getModifierState && e.getModifierState('CapsLock')); });
+  document.getElementById('login-form').addEventListener('submit', function () { pw.type = 'password'; });
+})();
+</script>
 {% endblock %}
+{% block auth_links %}{% if ca_available %}<a href="/certificado">¿El navegador dice «No es seguro» o no ofrece guardar la contraseña?</a><br>{% endif %}{% endblock %}

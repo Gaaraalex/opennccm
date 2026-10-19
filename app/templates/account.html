@@ -31,6 +31,11 @@
   <p><a class="btn" href="/account/2fa/setup">Activar verificación en dos pasos</a></p>
   {% endif %}
 </div>
+<div class="card" style="flex:1 1 260px" id="idioma">
+  <h2 style="margin-top:0">Idioma</h2>
+  <p class="langs">{% for code, name in LANGS.items() %}<a class="btn {{ '' if get_lang() == code else 'sec' }}" href="/lang/{{ code }}?next=/account%23idioma" lang="{{ code }}" hreflang="{{ code }}"{{ ' aria-current="true"'|safe if get_lang() == code }}>{{ name }}</a> {% endfor %}</p>
+  <p class="small muted">Se guarda en su usuario. Los documentos PDF y los mensajes que envían los equipos siguen en su idioma original.</p>
+</div>
 <div class="card" style="flex:2 1 420px">
   <h2 style="margin-top:0">Tema de la interfaz</h2>
   <form method="post" action="/account/theme">
@@ -49,7 +54,7 @@
         'contraste': ['#000000', '#000000', '#ffffff', '#ffd400']} %}
       {% for key, name in themes.items() %}
       <label><input class="vh" type="radio" name="theme" value="{{ key }}" {{ 'checked' if (user.theme or 'auto') == key }}>
-        <span class="sw" aria-hidden="true">{% for c in swatches[key] %}<i style="background:{{ c }}"></i>{% endfor %}</span>{{ name }}</label>
+        <span class="sw" aria-hidden="true">{% for c in swatches[key] %}<i style="background:{{ c }}"></i>{% endfor %}</span>{{ _(name) }}</label>
       {% endfor %}
     </fieldset>
     <p><button>Aplicar tema</button> <span class="small muted">Se guarda en su usuario y se usa en cualquier equipo desde el que ingrese.</span></p>

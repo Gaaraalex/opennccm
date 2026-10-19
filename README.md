@@ -50,7 +50,7 @@
   </tr>
   <tr>
     <td>🛡️ <b>Cumplimiento</b>: PCI DSS, HIPAA, SOX y hardening, con corrección en un clic (y aprobación si se exige).</td>
-    <td>📈 <b>Análisis</b>: quién cambia más, por qué vía, qué cumple y qué firmware hay en la red.</td>
+    <td>📈 <b>Análisis</b>: cuándo y cómo cambia la red (mapa de calor, origen, tendencia) y cómo está el cumplimiento.</td>
   </tr>
 </table>
 
@@ -110,9 +110,9 @@ Antes de actualizar guarda una copia (código + base de datos) y después verifi
 | 🚨 **Vulnerabilidades** | CVE de firmware (NVD) y fin de vida EOL/EOS (CSV o API Cisco EoX) |
 | 🖥️ **Consola web** | SSH al equipo desde el navegador, en ventana aparte, con inicio de sesión automático opcional y auditoría |
 | ⏰ **Operación** | Tareas programadas sin escribir cron, alarmas por severidad, correo / Teams / Slack / Telegram |
-| 📈 **Análisis e informes** | Gráficas, informes en pantalla, CSV y envío programado por correo |
+| 📈 **Análisis e informes** | Actividad por origen, mapa de calor día × hora, tendencias y cumplimiento por política; informes en pantalla, CSV y por correo |
 | 🔐 **Acceso y seguridad** | Roles admin / operador / lector, grupos de equipos, verificación en dos pasos (TOTP), auditoría completa |
-| 🎨 **Interfaz** | 10 temas (más el automático), adaptable al teléfono, accesible (contraste WCAG AA) |
+| 🎨 **Interfaz** | En español e inglés (cada usuario elige), 10 temas (más el automático), adaptable al teléfono, accesible (contraste WCAG AA) |
 | ♻️ **Recuperación** | Copias cifradas de la base de datos, SFTP remoto, restauración y actualización con vuelta atrás |
 
 ## ⌨️ Comandos

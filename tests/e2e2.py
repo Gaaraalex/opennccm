@@ -96,7 +96,7 @@ s.post(B + "/devices/1/compliance")
 dev = s.get(B + "/devices/1").text
 check("PCI: detecta Telnet en VTY", "Req 2.2.7 · Sin Telnet en líneas VTY" in dev)
 check("HIPAA: detecta falta de AAA", "164.312(a)(1) · Control de acceso con AAA" in dev)
-check("gráfica de cumplimiento en SVG", '<svg class="viz"' in s.get(B + "/compliance").text)
+check("gráfica de cumplimiento en SVG", '<svg class="viz' in s.get(B + "/compliance").text)
 
 # ---------------------------------------------------------------- EOL / EOS
 r = s.post(B + "/eol/entries", data={"vendor": "Cisco", "model_pattern": "^CISCO2911", "end_of_sale": "2017-12-09",
@@ -165,7 +165,7 @@ check("panel funciona para restringido", o.get(B + "/").status_code == 200)
 
 # ---------------------------------------------------------------- análisis e informes
 a = s.get(B + "/analytics").text
-check("análisis con ≥7 gráficas SVG", a.count('<svg class="viz"') >= 7, a.count('<svg class="viz"'))
+check("análisis con ≥7 gráficas SVG", a.count('<svg class="viz') >= 7, a.count('<svg class="viz'))
 check("panel con gráfica de cambios", '<svg class="viz"' in s.get(B + "/").text)
 for k in ["inventory", "changes", "compliance", "conflicts", "baseline", "eol", "vulns", "changes_requests", "audit"]:
     r = s.get(f"{B}/reports/view/{k}")

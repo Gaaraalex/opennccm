@@ -7,13 +7,13 @@
     <select name="group"><option value="0">Todos los grupos</option>
       {% for g in groups %}<option value="{{ g.id }}" {{ 'selected' if g.id == group }}>{{ g.name }}</option>{% endfor %}</select>
     <select name="status"><option value="">Cualquier estado</option>
-      {% for s, l in [('ok','ok'),('error','error'),('pending','pendiente'),('conflict','startup ≠ running'),('drift','fuera de línea base')] %}<option value="{{ s }}" {{ 'selected' if s == status }}>{{ l }}</option>{% endfor %}</select>
+      {% for s, l in [('ok','ok'),('error','error'),('pending',_('pendiente')),('conflict','startup ≠ running'),('drift',_('fuera de línea base'))] %}<option value="{{ s }}" {{ 'selected' if s == status }}>{{ l }}</option>{% endfor %}</select>
     <button class="sec">Filtrar</button>
   </form>
   <span style="flex:1"></span>
   {% if ROLES[user.role] >= 1 %}
   <form class="inline" method="post" action="/backup/all"><input type="hidden" name="group" value="{{ group }}">
-    <button onclick="return confirm('¿Respaldar ahora todos los equipos{{ ' del grupo' if group }}?')">Respaldar todos</button></form>
+    <button onclick="return confirm('{{ (_('¿Respaldar ahora todos los equipos del grupo?') if group else _('¿Respaldar ahora todos los equipos?'))|jsq }}')">Respaldar todos</button></form>
   {% endif %}
   {% if user.role == 'admin' %}<a class="btn sec" href="/credentials#groups">Grupos</a> <a class="btn" href="/devices/new">+ Agregar</a>{% endif %}
 </div>

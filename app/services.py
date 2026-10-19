@@ -23,6 +23,7 @@ from .db import (ChangeRequest, ComplianceResult, ConfigVersion, Device, Event, 
                  Vulnerability, get_setting, now)
 from .drivers import FASTPATH, IOS, clean_config, compare_text, get_profile, parse_inventory, telnet_supported
 from .rollback import build_rollback, fastpath_style
+from .i18n import N_
 
 log = logging.getLogger("opennccm")
 pool = ThreadPoolExecutor(max_workers=WORKERS, thread_name_prefix="ncm")  # trabajo por equipo
@@ -112,6 +113,17 @@ def connect(dev: Device):
 
 
 # --------------------------------------------------------------------------- eventos y alertas
+# Categorías de eventos: se guardan en español en la base de datos y se traducen al mostrarlas
+EVENT_CATEGORIES = [
+    N_("Actualización de firmware"), N_("Cambio de configuración"), N_("Conflicto arranque/ejecución"),
+    N_("Copia de recuperación"), N_("Copia de recuperación fallida"), N_("Cuenta bloqueada"),
+    N_("Desviación de línea base"), N_("Infracción de cumplimiento"), N_("Informe programado no enviado"),
+    N_("Respaldo fallido"), N_("Respaldo programado"), N_("Reversión automática"), N_("Reversión automática fallida"),
+    N_("Solicitud de cambio ejecutada"), N_("Solicitud de cambio pendiente"), N_("Syslog de cambio"),
+    N_("Vulnerabilidad de firmware"),
+]
+
+
 def add_event(severity: str, category: str, message: str, device_id: int | None = None, notify=True):
     with SessionLocal() as db:
         db.add(Event(severity=severity, category=category, message=message, device_id=device_id))

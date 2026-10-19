@@ -4,7 +4,7 @@
 <form class="card row" method="get">
   <div><label>Versión A (izquierda)</label><select name="a">{% for x in all_versions %}<option value="{{ x.id }}" {{ 'selected' if x.id == va.id }}>{{ x.device.name }} #{{ x.id }} {{ x.kind }} {{ x.created_at|dt }}</option>{% endfor %}</select></div>
   <div><label>Versión B (derecha)</label><select name="b">{% for x in all_versions %}<option value="{{ x.id }}" {{ 'selected' if x.id == vb.id }}>{{ x.device.name }} #{{ x.id }} {{ x.kind }} {{ x.created_at|dt }}</option>{% endfor %}</select></div>
-  <div><label>Contexto</label><select name="ctx">{% for n in [0,3,10,100000] %}<option value="{{ n }}" {{ 'selected' if n == ctx }}>{{ 'completo' if n > 1000 else n ~ ' líneas' }}</option>{% endfor %}</select></div>
+  <div><label>Contexto</label><select name="ctx">{% for n in [0,3,10,100000] %}<option value="{{ n }}" {{ 'selected' if n == ctx }}>{{ _('completo') if n > 1000 else _f('{0} líneas', n) }}</option>{% endfor %}</select></div>
   <div><label>Vista</label><select name="view"><option value="side" {{ 'selected' if view == 'side' }}>Lado a lado</option><option value="unified" {{ 'selected' if view != 'side' }}>Unificada</option></select></div>
   <button>Comparar</button>
 </form>

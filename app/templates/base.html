@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es" data-theme="{{ (user.theme if user and user.theme else 'auto') }}">
+<html lang="{{ get_lang() }}" data-theme="{{ (user.theme if user and user.theme else 'auto') }}">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{% block title %}OpenNCCM{% endblock %} · OpenNCCM</title>
@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#14202e">
 <link rel="stylesheet" href="/static/style.css?v={{ VERSION }}-{{ CSS_HASH }}">
 </head>
-<body>
+<body{% block body_attr %}{% endblock %}>
 <a class="skip" href="#contenido">Saltar al contenido</a>
 {% if user and not compact %}
 {% set p = request.url.path %}
@@ -46,7 +46,7 @@
 </header>
 {% endif %}
 <main id="contenido" tabindex="-1">
-<div role="status" aria-live="polite">{% for kind, msg in flashes %}<div class="flash {{ kind }}">{{ msg }}</div>{% endfor %}</div>
+{% block flashes %}<div role="status" aria-live="polite">{% for kind, msg in flashes %}<div class="flash {{ kind }}">{{ msg }}</div>{% endfor %}</div>{% endblock %}
 {% block content %}{% endblock %}
 {% if user and not compact %}<p class="small muted" style="margin-top:40px;text-align:center">OpenNCCM v{{ VERSION }} ·
   <a href="/acerca">Privacidad, cookies y licencias</a></p>{% endif %}
@@ -109,5 +109,6 @@ document.querySelectorAll('.scrollbox[data-rows]').forEach(function (box) {
   });
 })();
 </script>
+<script src="/static/viz.js?v={{ VERSION }}" defer></script>
 </body>
 </html>
