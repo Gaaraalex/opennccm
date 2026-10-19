@@ -1,13 +1,13 @@
-{% extends "base.html" %}{% block title %}Verificación en dos pasos{% endblock %}
-{% block content %}
-<div class="login card">
-  <h1>Open<span style="color:var(--accent)">NCCM</span></h1>
-  <p>Escriba el código de 6 dígitos que muestra su app de autenticación.</p>
-  <form method="post" action="/login/2fa">
-    <label for="code">Código</label>
-    <input id="code" name="code" required autofocus inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" style="width:100%;font-size:20px;letter-spacing:4px">
-    <p><button style="width:100%">Verificar</button></p>
-  </form>
-  <p class="small"><a href="/logout">Volver al inicio de sesión</a></p>
-</div>
+{% extends "_auth.html" %}{% block title %}Verificación en dos pasos{% endblock %}
+{% block auth_form %}
+<h1>Verificación en dos pasos</h1>
+<p class="muted">Escriba el código de 6 dígitos que muestra su app de autenticación.</p>
+<form method="post" action="/login/2fa">
+  <label for="code">Código</label>
+  <div class="field"><span class="ico" aria-hidden="true">📱</span>
+    <input id="code" name="code" class="otp" required autofocus inputmode="numeric" autocomplete="one-time-code"
+           pattern="[0-9 ]{6,7}" maxlength="7" placeholder="000000"></div>
+  <button class="auth-submit">Verificar</button>
+</form>
 {% endblock %}
+{% block auth_links %}<a href="/logout">Volver al inicio de sesión</a><br>{% endblock %}

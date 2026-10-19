@@ -41,7 +41,10 @@ def clear_settings_cache():
 
 def start_session(request: Request, user: User) -> None:
     """Sesión nueva tras un ingreso correcto (contraseña y, si aplica, segundo paso)."""
+    lang = getattr(user, "lang", None) or request.session.get("lang")
     request.session.clear()
+    if lang:
+        request.session["lang"] = lang
     request.session["uid"] = user.id
     request.session["sv"] = user.session_version or 0
     request.session["seen"] = int(time.time())

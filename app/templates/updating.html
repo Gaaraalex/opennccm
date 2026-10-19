@@ -11,6 +11,13 @@
 <script>
 (function () {
   const before = "{{ upd.current }}", estado = document.getElementById('estado'), logEl = document.getElementById('log');
+  const T = {{ {'done': _('✔ OpenNCCM se actualizó a la versión {0}.'), 'panel': _('Ir al panel'),
+               'latest': _('✔ OpenNCCM {0} ya es la versión más reciente.'), 'finished': _('✔ La actualización terminó.'),
+               'failed': _('✖ La actualización no se completó (código {0}) y OpenNCCM sigue en la versión {1}. Revise el registro de abajo, o actualice desde la consola del servidor con {2}.'),
+               'running': _('Actualizando… (versión instalada {0})'),
+               'restarting': _('OpenNCCM se está reiniciando con la versión nueva… ({0} s)')}|tojson }};
+  const fmt = (s, ...a) => a.reduce((r, v, i) => r.replace('{' + i + '}', v), s);
+  const esc = v => String(v).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
   let fails = 0;
   async function poll() {
     try {
@@ -20,26 +27,23 @@
       fails = 0;
       if (s.log) { logEl.textContent = s.log; logEl.scrollTop = logEl.scrollHeight; }
       if (s.version !== before) {
-        estado.innerHTML = '✔ OpenNCCM se actualizó a la versión <b>' + s.version + '</b>. <a href="/">Ir al panel</a>';
+        estado.innerHTML = esc(fmt(T.done, s.version)) + ' <a href="/">' + esc(T.panel) + '</a>';
         return;
       }
       const fin = /FIN=(\d+)/.exec(s.log || '');
       if (fin) {
         if (fin[1] === '0') {
-          estado.textContent = /ya es la versión más reciente/.test(s.log) ?
-            '✔ OpenNCCM ' + s.version + ' ya es la versión más reciente.' : '✔ La actualización terminó.';
+          estado.textContent = /ya es la versión más reciente/.test(s.log) ? fmt(T.latest, s.version) : T.finished;
         } else {
-          estado.innerHTML = '✖ La actualización no se completó (código ' + fin[1] + ') y OpenNCCM sigue en la versión <b>' +
-            s.version + '</b>. Revise el registro de abajo, o actualice desde la consola del servidor con ' +
-            '<code>sudo opennccm update</code>.';
+          estado.innerHTML = esc(fmt(T.failed, fin[1], s.version, '\u0000')).replace('\u0000', '<code>sudo opennccm update</code>');
           estado.className = 'flash error';
         }
         return;
       }
-      if (s.running) estado.textContent = 'Actualizando… (versión instalada ' + s.version + ')';
+      if (s.running) estado.textContent = fmt(T.running, s.version);
     } catch (e) {
       fails++;
-      estado.textContent = 'OpenNCCM se está reiniciando con la versión nueva… (' + fails * 3 + ' s)';
+      estado.textContent = fmt(T.restarting, fails * 3);
     }
     setTimeout(poll, 3000);
   }

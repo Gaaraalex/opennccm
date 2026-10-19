@@ -8,6 +8,10 @@
   <input id="s-idle" name="session_idle_minutes" type="number" min="5" max="720" value="{{ s.session_idle_minutes or '30' }}">
   <p><label class="chk"><input type="checkbox" name="require_2fa_admins" {{ 'checked' if s.require_2fa_admins == '1' }}> Exigir verificación en dos pasos (código de una app de autenticación) a todos los administradores</label></p>
   <p class="small muted">Cada usuario la activa en «Mi cuenta». Si se exige, un administrador sin ella solo podrá entrar a «Mi cuenta» hasta activarla.</p>
+  <h3>Idioma</h3>
+  <label for="s-lang">Idioma predeterminado de la interfaz</label>
+  <select id="s-lang" name="default_lang">{% for code, name in LANGS.items() %}<option value="{{ code }}" {{ 'selected' if (s.default_lang or 'es') == code }}>{{ name }}</option>{% endfor %}</select>
+  <p class="small muted">Se usa cuando el navegador no pide un idioma disponible. Cada usuario puede elegir el suyo en «Mi cuenta» o en la pantalla de ingreso.</p>
   <h3>Consola SSH web</h3>
   <label for="s-console">Quién puede abrir la consola de los equipos desde el navegador</label>
   <select id="s-console" name="console_access">

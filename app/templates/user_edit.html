@@ -10,7 +10,7 @@ Verificación en dos pasos: {% if u.totp_enabled %}<span class="badge b-ok">acti
   <div class="row">
     <div><label>Nombre de usuario</label><input value="{{ u.username }}" disabled></div>
     <div><label>Rol</label><select name="role">
-      {% for k, label in [('viewer', 'lector — solo consulta'), ('operator', 'operador — respaldos, ejecutar y solicitar cambios'), ('admin', 'administrador — todo, aprueba cambios')] %}
+      {% for k, label in [('viewer', _('lector — solo consulta')), ('operator', _('operador — respaldos, ejecutar y solicitar cambios')), ('admin', _('administrador — todo, aprueba cambios'))] %}
       <option value="{{ k }}" {{ 'selected' if u.role == k }}>{{ label }}</option>{% endfor %}</select></div>
     <div><label>Email</label><input name="email" type="email" value="{{ u.email or '' }}"></div>
   </div>

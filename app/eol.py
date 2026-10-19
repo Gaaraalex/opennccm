@@ -11,10 +11,11 @@ from sqlalchemy import select
 
 from .db import Device, EolEntry, SessionLocal, get_setting
 from .drivers import get_profile
+from .i18n import N_
 
-STATUS_LABEL = {"sin_soporte": "Sin soporte", "fin_mantenimiento": "Sin parches de software",
-                "fin_venta": "Fin de venta", "proximo": "Fin de soporte < 12 meses", "vigente": "Vigente",
-                "desconocido": "Sin datos"}
+STATUS_LABEL = {"sin_soporte": N_("Sin soporte"), "fin_mantenimiento": N_("Sin parches de software"),
+                "fin_venta": N_("Fin de venta"), "proximo": N_("Fin de soporte < 12 meses"), "vigente": N_("Vigente"),
+                "desconocido": N_("Sin datos")}
 STATUS_SEV = {"sin_soporte": "critical", "fin_mantenimiento": "major", "fin_venta": "warning",
               "proximo": "warning", "vigente": "ok", "desconocido": "info"}
 

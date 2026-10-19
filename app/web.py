@@ -9,8 +9,10 @@ from . import cronutil
 from .config import BASE_DIR
 from .db import audit
 from .drivers import PROFILE_MAP, PROFILES
+from . import i18n
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+i18n.install(templates.env)  # textos de las plantillas en el idioma de cada usuario (app/locales)
 templates.env.globals["ROLES"] = ROLES
 templates.env.globals["VERSION"] = __version__
 # huella del CSS: fuerza a los navegadores a recargarlo tras cada actualización

@@ -1,6 +1,6 @@
-{% extends "base.html" %}{% block title %}{{ 'Editar' if device else 'Nuevo' }} dispositivo{% endblock %}
+{% extends "base.html" %}{% block title %}{{ _('Editar dispositivo') if device else _('Nuevo dispositivo') }}{% endblock %}
 {% block content %}
-<h1>{{ 'Editar ' ~ device.name if device else 'Nuevo dispositivo' }}</h1>
+<h1>{{ _f('Editar {0}', device.name) if device else _('Nuevo dispositivo') }}</h1>
 {% if not credentials %}<div class="flash error">Primero cree una <a href="/credentials">credencial</a> para conectarse a los equipos.</div>{% endif %}
 <div class="card" style="max-width:760px">
 <form method="post">

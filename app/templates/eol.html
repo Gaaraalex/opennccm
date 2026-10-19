@@ -3,7 +3,7 @@
 <h1>Fin de venta y fin de soporte (EOL/EOS)</h1>
 <div class="grid">
   {% for st in ['sin_soporte', 'fin_mantenimiento', 'proximo', 'fin_venta', 'vigente', 'desconocido'] %}
-  <a class="stat" href="/eol?status={{ st }}"><small><span class="badge b-{{ sev[st] }}">{{ labels[st] }}</span></small><b>{{ counts.get(st, 0) }}</b></a>
+  <a class="stat" href="/eol?status={{ st }}"><small><span class="badge b-{{ sev[st] }}">{{ _(labels[st]) }}</span></small><b>{{ counts.get(st, 0) }}</b></a>
   {% endfor %}
 </div>
 <div class="toolbar" style="margin-top:14px">
@@ -14,7 +14,7 @@
 <div class="card">
 <table><tr><th>Equipo</th><th>Modelo</th><th>Estado</th><th>Fin de venta</th><th>Fin de parches</th><th>Fin de soporte</th><th>Reemplazo</th></tr>
 {% for d, e, st in rows %}
-<tr><td><a href="/devices/{{ d.id }}">{{ d.name }}</a></td><td>{{ d.model or '—' }}</td><td><span class="badge b-{{ sev[st] }}">{{ labels[st] }}</span></td>
+<tr><td><a href="/devices/{{ d.id }}">{{ d.name }}</a></td><td>{{ d.model or '—' }}</td><td><span class="badge b-{{ sev[st] }}">{{ _(labels[st]) }}</span></td>
 <td>{{ e.end_of_sale|ymd if e else '—' }}</td><td>{{ e.end_of_sw_maintenance|ymd if e else '—' }}</td><td>{{ e.end_of_support|ymd if e else '—' }}</td>
 <td>{% if e and e.replacement %}{{ e.replacement }}{% endif %}{% if e and e.url %} <a href="{{ e.url }}" target="_blank" rel="noopener">boletín</a>{% endif %}</td></tr>
 {% else %}<tr><td colspan="7" class="muted">Sin equipos.</td></tr>{% endfor %}

@@ -89,13 +89,14 @@ def dummy_verify(password: str) -> None:
 
 
 def password_problem(password: str, username: str = "") -> str | None:
-    """Política de contraseñas: None si es aceptable, o el motivo en español."""
+    """Política de contraseñas: None si es aceptable, o el motivo (en el idioma de la petición)."""
+    from .i18n import _
     if len(password) < 10:
-        return "La contraseña debe tener al menos 10 caracteres."
+        return _("La contraseña debe tener al menos 10 caracteres.")
     if not (any(c.isalpha() for c in password) and any(c.isdigit() for c in password)):
-        return "La contraseña debe combinar letras y números."
+        return _("La contraseña debe combinar letras y números.")
     if username and username.lower() in password.lower():
-        return "La contraseña no puede contener el nombre de usuario."
+        return _("La contraseña no puede contener el nombre de usuario.")
     if password.lower() in {"admin12345", "password123", "contraseña123", "1234567890a", "opennccm123"}:
-        return "Esa contraseña es demasiado común."
+        return _("Esa contraseña es demasiado común.")
     return None

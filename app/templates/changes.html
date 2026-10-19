@@ -2,7 +2,7 @@
 {% block content %}
 <h1>Solicitudes de cambio</h1>
 <div class="toolbar">
-  {% for s, l in [('', 'Todas'), ('pending', 'Pendientes'), ('done', 'Ejecutadas'), ('failed', 'Fallidas'), ('rejected', 'Rechazadas')] %}
+  {% for s, l in [('', _('Todas')), ('pending', _('Pendientes')), ('done', _('Ejecutadas')), ('failed', _('Fallidas')), ('rejected', _('Rechazadas'))] %}
   <a class="btn sm {{ '' if s == status else 'sec' }}" href="/changes?status={{ s }}">{{ l }}</a>{% endfor %}
 </div>
 <div class="card">

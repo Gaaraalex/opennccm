@@ -15,6 +15,7 @@ Pegar: Ctrl+Mayús+V o clic derecho.</p>
 <script src="/static/vendor/xterm/xterm.js?v={{ VERSION }}"></script>
 <script src="/static/vendor/xterm/addon-fit.js?v={{ VERSION }}"></script>
 <script>
+const T = {{ {'connecting': _('conectando…'), 'connected': _('conectado'), 'disconnected': _('desconectado'), 'closed': _('Desconectado'), 'denied': _('Desconectado: sin permiso para abrir esta consola')}|tojson }};
 (function () {
   const estado = document.getElementById('estado'), again = document.getElementById('reconectar');
   const term = new Terminal({cursorBlink: true, fontSize: 14, scrollback: 5000, convertEol: false,
@@ -27,15 +28,15 @@ Pegar: Ctrl+Mayús+V o clic derecho.</p>
   function connect() {
     term.reset();
     again.hidden = true;
-    estado.textContent = 'conectando…'; estado.className = 'badge b-info';
+    estado.textContent = T.connecting; estado.className = 'badge b-info';
     const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host +
       '/devices/{{ dev.id }}/console/ws?cols=' + term.cols + '&rows=' + term.rows;
     ws = new WebSocket(url);
-    ws.onopen = () => { estado.textContent = 'conectado'; estado.className = 'badge b-ok'; term.focus(); };
+    ws.onopen = () => { estado.textContent = T.connected; estado.className = 'badge b-ok'; term.focus(); };
     ws.onmessage = e => term.write(e.data);
     ws.onclose = e => {
-      estado.textContent = 'desconectado'; estado.className = 'badge b-warning';
-      term.write('\r\n\x1b[90m[Desconectado' + (e.code === 1008 ? ': sin permiso para abrir esta consola' : '') + ']\x1b[0m\r\n');
+      estado.textContent = T.disconnected; estado.className = 'badge b-warning';
+      term.write('\r\n\x1b[90m[' + (e.code === 1008 ? T.denied : T.closed) + ']\x1b[0m\r\n');
       again.hidden = false;
     };
   }

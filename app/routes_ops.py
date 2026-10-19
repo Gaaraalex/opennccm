@@ -2,16 +2,18 @@
 from __future__ import annotations
 
 import re
+from urllib.parse import quote
 
 from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy import select
 
-from . import __version__, charts, eol, firmware, reports, sysbackup, updates
+from . import __version__, charts, cronutil, eol, firmware, reports, sysbackup, updates
 from .config import UPDATE_REPO
 from .auth import Forbidden, device_scope, filter_ids, require
 from .db import Device, DeviceGroup, EolEntry, FirmwareImage, SessionLocal
 from .drivers import get_profile
+from .i18n import N_, _, _f
 from .web import flash, go, log_action, render
 
 router = APIRouter()
@@ -26,7 +28,7 @@ def firmware_page(request: Request):
         devs = [d for d in db.scalars(select(Device).order_by(Device.name))
                 if (scope is None or d.id in scope) and firmware.supports_upgrade(d.device_type)]
         for d in devs:
-            _ = d.group.name if d.group else None
+            d.group.name if d.group else None  # carga la relación antes de cerrar la sesión
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
     return render(request, "firmware.html", user, images=firmware.list_images(), devices=devs, groups=groups,
                   supported=sorted({p for p in ("cisco_ios", "cisco_xe", "cisco_nxos", "cisco_asa", "arista_eos",
@@ -45,7 +47,7 @@ async def firmware_upload(request: Request):
         flash(request, str(e), "error")
         return go("/firmware")
     log_action(request, user, "firmware_upload", f"{img.filename} md5={img.md5}")
-    flash(request, f"Imagen {img.filename} cargada ({img.size:,} bytes, MD5 {img.md5})")
+    flash(request, _f("Imagen {0} cargada ({1} bytes, MD5 {2})", img.filename, format(img.size, ','), img.md5))
     return go("/firmware")
 
 
@@ -67,7 +69,7 @@ async def firmware_upgrade(request: Request):
     if len(ids) != len(requested):
         raise Forbidden()
     if not ids or not form.get("image_id"):
-        flash(request, "Seleccione una imagen y al menos un equipo", "error")
+        flash(request, _("Seleccione una imagen y al menos un equipo"), "error")
         return go("/firmware")
     with SessionLocal() as db:
         img = db.get(FirmwareImage, int(form["image_id"]))
@@ -75,13 +77,13 @@ async def firmware_upgrade(request: Request):
                if not firmware.supports_upgrade(d.device_type)
                or (img.device_type_filter and not re.search(img.device_type_filter, d.device_type))]
     if bad:
-        flash(request, f"La imagen no es compatible con: {', '.join(bad)}", "error")
+        flash(request, _f("La imagen no es compatible con: {0}", ', '.join(bad)), "error")
         return go("/firmware")
     reload = form.get("reload") == "on"
     cr_id = _create_cr(user, f"Firmware {img.filename} en {len(ids)} equipo(s){' + reinicio' if reload else ''}",
                        "", {}, ids, kind="firmware", firmware_id=img.id, reload=reload)
     log_action(request, user, "firmware_request", f"#{cr_id} {img.filename} -> {ids}")
-    flash(request, "Solicitud de actualización creada. Un administrador debe aprobarla.")
+    flash(request, _("Solicitud de actualización creada. Un administrador debe aprobarla."))
     return go(f"/changes/{cr_id}")
 
 
@@ -91,7 +93,7 @@ def eol_page(request: Request, status: str = ""):
     user = require(request)
     rows = eol.report(device_scope(user))
     counts = {}
-    for _, _, st in rows:
+    for _a, _b, st in rows:
         counts[st] = counts.get(st, 0) + 1
     if status:
         rows = [r for r in rows if r[2] == status]
@@ -115,10 +117,10 @@ async def eol_add(request: Request):
                             replacement=form.get("replacement") or None, url=form.get("url") or None))
             db.commit()
     except (re.error, ValueError) as e:
-        flash(request, f"No se pudo guardar: {e}", "error")
+        flash(request, _f("No se pudo guardar: {0}", e), "error")
         return go("/eol")
     log_action(request, user, "eol_add", form["model_pattern"])
-    flash(request, "Entrada EOL agregada")
+    flash(request, _("Entrada EOL agregada"))
     return go("/eol")
 
 
@@ -128,7 +130,7 @@ async def eol_import(request: Request):
     form = await request.form()
     created, errors = eol.import_csv((await form["file"].read()).decode("utf-8-sig"))
     log_action(request, user, "eol_import", f"{created} entradas")
-    flash(request, f"{created} entradas EOL importadas")
+    flash(request, _f("{0} entradas EOL importadas", created))
     for e in errors[:10]:
         flash(request, e, "error")
     return go("/eol")
@@ -151,11 +153,11 @@ def eol_cisco_sync(request: Request):
     user = require(request, "admin")
     try:
         n, errors = eol.cisco_eox_sync()
-        flash(request, f"{n} registros actualizados desde Cisco EoX")
+        flash(request, _f("{0} registros actualizados desde Cisco EoX", n))
         for e in errors[:5]:
             flash(request, e, "error")
     except Exception as e:  # noqa: BLE001
-        flash(request, f"Error consultando Cisco EoX: {e}", "error")
+        flash(request, _f("Error consultando Cisco EoX: {0}", e), "error")
     log_action(request, user, "eol_cisco_sync")
     return go("/eol")
 
@@ -167,16 +169,37 @@ def analytics_page(request: Request, days: int = 30):
     days = max(7, min(days, 365))
     data = reports.analytics(device_scope(user), days)
     label_every = max(1, days // 6)
-    return render(request, "analytics.html", user, data=data, days=days,
-                  c_days=charts.columns(data["per_day"], " cambios", label_every=label_every),
-                  c_device=charts.bars(data["by_device"], " cambios"),
-                  c_trigger=charts.bars(data["by_trigger"], " cambios"),
+    # identidad: cada origen conserva su color en todas las gráficas (orden fijo, nunca por ranking)
+    slot = {t: f"c{i + 1}" for i, t in enumerate(TRIGGER_ORDER)}
+    origin = [(_(TRIGGER_LABELS.get(t, t)), slot.get(t, "c4"), vals) for t, vals in data["by_day_trigger"]]
+    weekdays = [_(name).capitalize() for _k, name in cronutil.DAYS]
+    delta = data["changes"] - data["prev_changes"]
+    return render(request, "analytics.html", user, data=data, days=days, delta=delta,
+                  legend=[(lbl, cls) for lbl, cls, _v in origin],
+                  spark=charts.sparkline([v for _d, v in data["per_day"]]),
+                  ring=charts.ring(data["compliance_pct"]),
+                  ring_status=charts.status_of(data["compliance_pct"]) if data["compliance_pct"] is not None else None,
+                  c_activity=charts.stacked_columns(data["day_axis"], origin, label_every=label_every),
+                  c_origin=charts.donut([(lbl, cls, sum(vals)) for lbl, cls, vals in origin], _("cambios")),
+                  c_heat=charts.heatmap(data["heat"], weekdays),
+                  c_device=charts.bars(data["by_device"], " cambios",
+                                       link=[f"/devices?q={quote(n)}" for n, _v in data["by_device"]]),
                   c_user=charts.bars(data["by_user"], " cambios"),
                   c_vendor=charts.bars(data["by_vendor"], " equipos"),
                   c_version=charts.bars(data["by_version"], " equipos"),
-                  c_comp=charts.bars([(n, v) for n, v, _ in data["compliance"]], "%", vmax=100,
-                                     link=[f"/compliance/policies/{p}" for _, _, p in data["compliance"]]),
-                  c_eol=charts.bars(data["eol"], " equipos"))
+                  c_comp=charts.bars([(n, v) for n, v, _z in data["compliance"]], "%", vmax=100, status=True,
+                                     link=[f"/compliance/policies/{p}" for _a, _b, p in data["compliance"]]),
+                  c_eol=charts.segmented([(_(eol.STATUS_LABEL[k]), EOL_CLASS.get(k, "c4"), n)
+                                          for k, n in sorted(data["eol_status"], key=lambda kv: EOL_ORDER.index(kv[0])
+                                                             if kv[0] in EOL_ORDER else 99)]))
+
+
+TRIGGER_ORDER = ["manual", "scheduled", "syslog", "push"]
+TRIGGER_LABELS = {"manual": N_("Manual"), "scheduled": N_("Programado"), "syslog": N_("Detectado por syslog"),
+                  "push": N_("Aplicado por OpenNCCM")}
+EOL_ORDER = ["vigente", "proximo", "fin_venta", "fin_mantenimiento", "sin_soporte", "desconocido"]
+EOL_CLASS = {"vigente": "st-ok", "proximo": "st-warn", "fin_venta": "st-warn", "fin_mantenimiento": "st-major",
+             "sin_soporte": "st-crit", "desconocido": "st-none"}
 
 
 # --------------------------------------------------------------------------- recuperación ante desastres
@@ -189,7 +212,7 @@ def system_page(request: Request):
     from .drivers import PROFILES, unknown_profiles
     zones: dict[str, list[str]] = {}
     for z in systime.timezones():
-        zones.setdefault(z.split("/")[0] if "/" in z else "Otras", []).append(z)
+        zones.setdefault(z.split("/")[0] if "/" in z else _("Otras"), []).append(z)
     return render(request, "system.html", user, backups=backups, db_url=DATABASE_URL.split("@")[-1],
                   key_file=str(KEY_FILE), profiles_count=len(PROFILES),
                   vendors_count=len({p.vendor for p in PROFILES}), unknown=unknown_profiles(),
@@ -208,9 +231,9 @@ def update_check(request: Request):
     if st["error"]:
         flash(request, st["error"], "error")
     elif st["available"]:
-        flash(request, f"Hay una versión nueva: {st['latest']} (instalada {st['current']}).")
+        flash(request, _f("Hay una versión nueva: {0} (instalada {1}).", st['latest'], st['current']))
     else:
-        flash(request, f"OpenNCCM {st['current']} es la versión más reciente.")
+        flash(request, _f("OpenNCCM {0} es la versión más reciente.", st['current']))
     return go("/system#actualizaciones")
 
 
@@ -219,8 +242,7 @@ def update_start(request: Request):
     user = require(request, "admin")
     st = updates.status()
     if not st["web_update"]:
-        flash(request, "Esta instalación no tiene el servicio de actualización web (se agrega al actualizar una vez "
-                       "desde la consola): ejecute  sudo opennccm update", "error")
+        flash(request, _("Esta instalación no tiene el servicio de actualización web (se agrega al actualizar una vez desde la consola): ejecute  sudo opennccm update"), "error")
         return go("/system#actualizaciones")
     if st["running"]:
         return go("/system/updating")
@@ -262,7 +284,7 @@ async def system_time(request: Request):
             tz = form.get("timezone", "")
             systime.set_timezone(tz)
             log_action(request, user, "system_timezone", tz)
-            flash(request, f"Zona horaria cambiada a {tz}. Las tareas programadas ya usan la nueva hora.")
+            flash(request, _f("Zona horaria cambiada a {0}. Las tareas programadas ya usan la nueva hora.", tz))
             systime.restart_soon()
             # página de espera: el servicio se reinicia unos segundos para aplicar la zona
             return render(request, "restarting.html", user, tz=tz)
@@ -270,13 +292,14 @@ async def system_time(request: Request):
             on = form.get("ntp") == "on"
             systime.set_ntp(on)
             log_action(request, user, "system_ntp", "activada" if on else "desactivada")
-            flash(request, "Sincronización automática de hora (NTP) " + ("activada." if on else "desactivada."))
+            flash(request, _("Sincronización automática de hora (NTP) activada.") if on
+                  else _("Sincronización automática de hora (NTP) desactivada."))
         elif action == "manual":
             systime.set_time(form.get("date", ""), form.get("time", ""))
             log_action(request, user, "system_time", f"{form.get('date')} {form.get('time')}")
-            flash(request, f"Fecha y hora fijadas a {form.get('date')} {form.get('time')} (NTP desactivado).")
+            flash(request, _f("Fecha y hora fijadas a {0} {1} (NTP desactivado).", form.get('date'), form.get('time')))
     except systime.TimeError as e:
-        flash(request, f"No se pudo cambiar: {e}", "error")
+        flash(request, _f("No se pudo cambiar: {0}", e), "error")
     return go("/system#hora")
 
 
@@ -289,10 +312,10 @@ async def system_backup(request: Request):
         if include_key and form.get("passphrase") != form.get("passphrase2"):
             raise ValueError("Las contraseñas de la copia no coinciden.")
         path = sysbackup.create_backup(include_key=include_key, passphrase=form.get("passphrase") or None)
-        flash(request, f"Copia creada: {path.name}")
+        flash(request, _f("Copia creada: {0}", path.name))
         log_action(request, user, "system_backup", path.name)
     except Exception as e:  # noqa: BLE001
-        flash(request, f"Error creando la copia: {e}", "error")
+        flash(request, _f("Error creando la copia: {0}", e), "error")
     return go("/system")
 
 

@@ -2,7 +2,7 @@
 {% block content %}
 <h1><a href="/schedules">Tareas programadas</a> / Editar «{{ sf.name }}»</h1>
 <div class="card" style="max-width:900px">
-{% set form_action = "/schedules/" ~ sid ~ "/edit" %}{% set submit_label = "Guardar cambios" %}{% set cancel_url = "/schedules" %}
+{% set form_action = "/schedules/" ~ sid ~ "/edit" %}{% set submit_label = _("Guardar cambios") %}{% set cancel_url = "/schedules" %}
 {% include "_schedule_form.html" %}
 </div>
 {% endblock %}

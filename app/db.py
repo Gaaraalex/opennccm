@@ -39,6 +39,7 @@ class User(Base):
     email: Mapped[str | None] = mapped_column(String(255))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     theme: Mapped[str] = mapped_column(String(16), default="auto")  # tema visual elegido por el usuario
+    lang: Mapped[str | None] = mapped_column(String(8))  # idioma de la interfaz (vacío: el del navegador)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     # seguridad
     totp_secret_enc: Mapped[str | None] = mapped_column(Text)        # verificación en dos pasos (cifrado)

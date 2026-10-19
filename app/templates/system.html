@@ -27,7 +27,7 @@
     <a class="btn" href="/system/updating">Ver la actualización en curso</a>
     {% elif upd.web_update %}
     <form method="post" action="/system/update" onsubmit="return confirm('Se hará una copia previa y OpenNCCM se detendrá 1-2 minutos. Si la versión nueva no arranca, se vuelve sola a la anterior. ¿Actualizar ahora?')">
-      <button {{ '' if upd.available else 'class=sec' }}>{{ 'Actualizar a la versión ' ~ upd.latest if upd.available else 'Actualizar (reinstalar la última versión)' }}</button></form>
+      <button {{ '' if upd.available else 'class=sec' }}>{{ _f('Actualizar a la versión {0}', upd.latest) if upd.available else _('Actualizar (reinstalar la última versión)') }}</button></form>
     {% endif %}
   </div>
   {% if not upd.web_update %}<p class="small muted">Para actualizar desde aquí, actualice una vez desde la consola del servidor:

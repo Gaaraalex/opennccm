@@ -12,7 +12,7 @@
 </div>
 {% if cr.is_rollback %}<div class="flash error">Comandos generados automáticamente a partir de la diferencia entre la configuración actual y la versión destino. Revíselos con cuidado antes de aprobar.</div>{% endif %}
 <div class="card">
-  <h2 style="margin-top:0">Comandos a aplicar (vista previa{{ ', primeros 5 equipos' if devices|length > 5 }})</h2>
+  <h2 style="margin-top:0">Comandos a aplicar (vista previa{{ _(', primeros 5 equipos') if devices|length > 5 }})</h2>
   {% for name, text in previews %}<p><b>{{ name }}</b></p><pre>{{ text }}</pre>{% endfor %}
 </div>
 {% if cr.status == 'pending' and can_review %}

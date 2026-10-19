@@ -1,5 +1,18 @@
 # Historial de versiones
 
+## 1.8.0
+- **Interfaz en español e inglés**. Cada usuario elige su idioma en «Mi cuenta → Idioma» o en la pantalla de ingreso, y queda
+  guardado en su usuario. Sin elección se usa el idioma del navegador y, si no está disponible, el predeterminado que fija el
+  administrador en «Ajustes». Se traducen menús, páginas, avisos, gráficas, programación de tareas y la consola SSH. Los datos
+  (nombres de políticas, eventos ya registrados, auditoría, CVE) y los PDF siguen en su idioma original; los CSV mantienen los
+  encabezados en español. Añadir otro idioma es completar un archivo de traducciones (`scripts/i18n_missing.py`).
+- **Análisis renovado**: indicadores con tendencia y comparación con el período anterior, cumplimiento global con anillo de
+  estado, actividad de cambios apilada por origen, mapa de calor «cuándo cambia la red» (día × hora), anillo con el origen de los
+  cambios, cumplimiento por política con color e icono (✓ ⚠ ✕) y ciclo de vida en una barra al 100 %. Al pasar el cursor sobre
+  cualquier barra, celda o segmento se ve su valor exacto.
+- **Nueva pantalla de ingreso**: panel de presentación con las funciones principales, botón para ver la contraseña escrita, aviso
+  de Bloq Mayús y selector de idioma. La verificación en dos pasos usa el mismo diseño. En el teléfono se muestra solo el formulario.
+
 ## 1.7.0
 - **Extreme Networks EXOS: modelo y número de serie**. El número de serie no se leía cuando la línea «Switch : …» de
   `show version` trae varios espacios (como en la máquina virtual de GNS3), y el modelo no aparece en `show version`: ahora el

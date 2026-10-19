@@ -42,7 +42,7 @@
   <li>Análisis</li>
   <li>Informes</li>
   <li>Credenciales y grupos</li>
-  <li>Usuarios, mi cuenta y temas</li>
+  <li>Usuarios, mi cuenta, idioma y temas</li>
   <li>Auditoría</li>
   <li>Sistema y recuperación</li>
   <li>Ajustes</li>
@@ -580,8 +580,22 @@ Las de severidad igual o mayor a la configurada en Ajustes se envían por correo
 <h1>19. Análisis</h1>
 <p><b>Para qué sirve:</b> identificar patrones: qué equipos cambian más, quién cambia, por qué vía, qué versiones de firmware predominan
 y cómo está el cumplimiento y el ciclo de vida.</p>
-<p>Elija el período (7, 30, 90 o 365 días). Las gráficas muestran el valor exacto al pasar el cursor sobre cada barra; varias tienen
-enlace a su tabla.</p>
+<p>Elija el período (7, 30, 90 o 365 días). La página muestra:</p>
+<ul>
+  <li><b>Indicadores</b>: cambios del período con su tendencia y la comparación con el período anterior (▲ más / ▼ menos),
+  cumplimiento global con su estado (✓ bien, ⚠ mejorable, ✕ requiere atención), equipos, conflictos startup/running y equipos
+  fuera de su línea base.</li>
+  <li><b>Actividad de cambios</b>: versiones nuevas por día, apiladas según cómo se detectaron (manual, programado, syslog o
+  aplicado por OpenNCCM). Cada origen conserva siempre el mismo color.</li>
+  <li><b>Cuándo cambia la red</b>: mapa de calor por día de la semana y hora (más oscuro = más cambios). Sirve para ver cambios
+  fuera del horario laboral.</li>
+  <li><b>Origen de los cambios</b>: anillo con el total en el centro y el porcentaje de cada origen.</li>
+  <li><b>Equipos con más cambios</b> y <b>quién hace los cambios</b>; <b>cumplimiento por política</b> con color e icono según el
+  porcentaje (✓ 90 % o más, ⚠ 70–89 %, ✕ menos de 70 %); <b>ciclo de vida</b> en una barra al 100 %; fabricantes y versiones de
+  firmware.</li>
+</ul>
+<p>Al pasar el cursor (o el foco del teclado) sobre cualquier barra, celda o segmento aparece su valor exacto. Los nombres de
+equipos y políticas son enlaces, y <b>Ver como tabla</b> abre los mismos datos en el informe correspondiente.</p>
 <figure><img src="img/22-analisis.png" class="tall"><figcaption>Página de Análisis.</figcaption></figure>
 </section>
 
@@ -620,7 +634,7 @@ un equipo a un grupo: ábralo y pulse <b>asignar grupo</b> (o <b>Editar</b>). Al
 </section>
 
 <section class="chapter">
-<h1>22. Usuarios, mi cuenta y temas</h1>
+<h1>22. Usuarios, mi cuenta, idioma y temas</h1>
 <h2>Crear un usuario (administradores)</h2>
 <ol class="steps">
   <li>Menú <b>Usuarios</b>, sección <b>Crear usuario nuevo</b>.</li>
@@ -665,7 +679,15 @@ todos los administradores (para activarlo, el administrador que lo activa debe t
 <h2>Mi cuenta: cambiar mi contraseña</h2>
 <p>Cualquier usuario puede cambiar su propia contraseña con el botón <b>🔑 Cambiar contraseña</b> de la barra superior: escriba la
 actual y la nueva dos veces. Las mayúsculas y minúsculas cuentan.</p>
-<figure><img src="img/31-cuenta.png"><figcaption>Mi cuenta: contraseña y tema.</figcaption></figure>
+<figure><img src="img/31-cuenta.png"><figcaption>Mi cuenta: contraseña, idioma y tema.</figcaption></figure>
+<h2 id="idioma">Idioma</h2>
+<p>La interfaz está en <b>español</b> e <b>inglés</b>. Cada usuario elige el suyo en <b>Mi cuenta → Idioma</b> o en la pantalla de
+ingreso (selector debajo del formulario); la elección se guarda en su usuario y se aplica en cualquier equipo desde el que ingrese.
+Si un usuario no eligió, se usa el idioma del navegador y, si no está disponible, el <b>idioma predeterminado</b> que fija el
+administrador en <b>Ajustes → Seguridad y acceso → Idioma</b>.</p>
+<p>Se traducen los menús, páginas, avisos, gráficas y la consola SSH. Los datos siguen en el idioma en que se crearon: nombres de
+políticas y reglas, eventos ya registrados, descripciones de CVE, el registro de auditoría y estos documentos PDF. Los informes CSV
+mantienen sus encabezados en español para no romper integraciones.</p>
 <h2>Temas</h2>
 <p>En <b>Mi cuenta → Tema de la interfaz</b> cada usuario elige: <b>Automático</b> (claro u oscuro según el sistema del equipo),
 <b>Claro</b>, <b>Oscuro</b>, <b>Azul noche</b>, <b>Bosque</b>, <b>Arena</b> (claro y cálido), <b>Océano</b> (oscuro turquesa),
@@ -732,6 +754,7 @@ restaurar con <code>sudo opennccm restore ARCHIVO.enc</code> se la pide.</p>
   <tr><th>Ajuste</th><th>Qué hace</th></tr>
   <tr><td>Cerrar la sesión tras N minutos sin actividad</td><td>5 a 720 minutos (30 por omisión).</td></tr>
   <tr><td>Exigir verificación en dos pasos a los administradores</td><td>Un administrador sin ella solo puede entrar a «Mi cuenta» hasta activarla.</td></tr>
+  <tr><td>Idioma predeterminado</td><td>Español o inglés para quien no eligió idioma y cuyo navegador no pide uno disponible.</td></tr>
   <tr><td>Consola SSH web</td><td>Quién puede abrirla y si inicia sesión automáticamente (ver capítulo 4).</td></tr>
   <tr><td>Buscar versiones nuevas</td><td>Consulta GitHub una vez al día y avisa a los administradores.</td></tr>
 </table>

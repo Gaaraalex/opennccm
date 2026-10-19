@@ -14,7 +14,7 @@
 <table><tr><th>Severidad</th><th>Fecha</th><th>Categoría</th><th>Equipo</th><th>Mensaje</th><th></th></tr>
 {% for e in items %}
 <tr style="{{ 'opacity:.6' if e.acknowledged }}"><td><span class="badge b-{{ e.severity }}">{{ e.severity }}</span></td><td class="small">{{ e.created_at|dt }}</td>
-<td>{{ e.category }}</td><td>{% if e.device %}<a href="/devices/{{ e.device_id }}">{{ e.device.name }}</a>{% endif %}</td>
+<td>{{ _(e.category) }}</td><td>{% if e.device %}<a href="/devices/{{ e.device_id }}">{{ e.device.name }}</a>{% endif %}</td>
 <td><details><summary class="small">{{ e.message.split('\n')[0][:140] }}</summary><pre>{{ e.message }}</pre></details></td>
 <td>{% if not e.acknowledged and ROLES[user.role] >= 1 %}<form class="inline" method="post" action="/events/ack"><input type="hidden" name="id" value="{{ e.id }}"><button class="sm sec">OK</button></form>{% endif %}</td></tr>
 {% else %}<tr><td colspan="6" class="muted">Sin eventos.</td></tr>{% endfor %}
