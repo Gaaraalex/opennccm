@@ -73,7 +73,8 @@
 </header>
 {% endif %}
 <main id="contenido" tabindex="-1">
-{% block flashes %}<div class="toasts" role="status" aria-live="polite">{% for kind, msg in flashes %}<div class="flash {{ kind }}">{{ msg }}</div>{% endfor %}</div>{% endblock %}
+{% block flashes %}<div class="toasts" role="status" aria-live="polite">{% for kind, msg in flashes %}<div class="flash {{ kind }}">{{ msg }}</div>{% endfor %}
+{% if undo %}<form class="undo-form" method="post" action="{{ undo.url }}" hidden><input type="hidden" name="ids" value="{{ undo.ids }}"><button class="undo">Deshacer</button></form>{% endif %}</div>{% endblock %}
 {% block content %}{% endblock %}
 {% if user and not compact %}<p class="small muted page-foot">OpenNCCM v{{ VERSION }} ·
   <a href="/acerca">Privacidad, cookies y licencias</a></p>{% endif %}
@@ -101,7 +102,7 @@
         'search_in': _('Buscar «{0}» en las configuraciones'), 'none': _('Sin resultados'), 'close': _('Cerrar'),
         'new_device': _('Nuevo dispositivo'), 'account': _('Mi cuenta y tema'), 'run_backup': _('Ver todos los equipos'),
         'expand': _('Desplegar el menú'), 'collapse': _('Plegar el menú'), 'loading': _('Cargando…'),
-        'error': _('Error'), 'done': _('Hecho')}}|tojson }};</script>
+        'error': _('Error'), 'done': _('Hecho'), 'dirty': _('Tienes cambios sin guardar'), 'discard': _('Descartar')}}|tojson }};</script>
 <script src="/static/shell.js?v={{ VERSION }}" defer></script>
 {% endif %}
 {% if update_popup %}

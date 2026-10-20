@@ -141,7 +141,7 @@
   <tr><td><code>{{ name }}</code></td><td>{{ '{:,}'.format(size) }} B</td>
   <td><a class="btn sm sec" href="/system/backups/{{ name }}">Descargar</a>
   <form class="inline" method="post" action="/system/backups/{{ name }}/delete" onsubmit="return confirm('¿Eliminar copia?')"><button class="sm danger">×</button></form></td></tr>
-  {% else %}<tr><td colspan="3" class="muted">Sin copias todavía.</td></tr>{% endfor %}
+  {% else %}<tr class="empty-row"><td colspan="3"><div class="empty">{{ empty_art('plus') }}<h3>Aún no hay copias de recuperación</h3><p class="muted">Cree la primera ahora o programe una copia periódica en Tareas.</p></div></td></tr>{% endfor %}
   </table>
   <h2>Restaurar</h2>
   <pre>sudo opennccm restore /var/lib/opennccm/system-backups/opennccm-AAAAMMDD-HHMMSS.tar.gz</pre>

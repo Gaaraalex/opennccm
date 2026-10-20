@@ -1,5 +1,25 @@
 # Historial de versiones
 
+## 1.9.0
+- **Nuevo diseño «Señal»** en toda la interfaz. Barra lateral agrupada por tarea (Operar, Proteger, Observar, Administrar) con
+  contadores de lo pendiente y opción de plegarla; Administración y Firmware + EOL en pestañas; buscador **Ctrl K** para ir a
+  cualquier página, abrir un equipo o buscar en las configuraciones; avisos flotantes y paneles laterales para altas y ediciones.
+  Fuentes e iconos propios servidos desde el propio servidor (sin conexiones externas) y marca nueva.
+- **Temas**: Claro, Sala de control (oscuro) y Alto contraste, más un **color de acento** a elegir entre siete. Quien usaba
+  uno de los temas de color anteriores conserva su color como acento.
+- **Panel**: puntuación de **salud de la red** (0 a 100) con lo que la está bajando y una bandeja **«Qué hacer ahora»** con un
+  botón para cada asunto. El rendimiento del servidor pasa a Administración → Sistema.
+- **Dispositivos**: filtros por estado con contadores, acciones en cada fila, **acciones masivas** (respaldar, auditar y mover a
+  un grupo) e **importación CSV en un panel lateral con vista previa** de las filas válidas y con error.
+- **Ficha del equipo** en pestañas, menú ⋯ con las acciones menos frecuentes y confirmación escribiendo el nombre para eliminar.
+  Las versiones se ven en una **línea de tiempo**: se pulsan dos para compararlas.
+- **Comparación**: resumen **«Qué cambió»** en palabras, teclas **n/p** para saltar entre cambios y una minibarra con su posición.
+- **Cumplimiento** agrupado por política con **«Corregir N»** (una solicitud de cambio por equipo con todas sus correcciones) y
+  **prueba de reglas en vivo** contra la configuración de un equipo antes de guardarlas. Las severidades se muestran con forma y
+  texto traducido.
+- **Deshacer** al reconocer alarmas, barra **«Tienes cambios sin guardar»** en Ajustes y estados vacíos que explican el primer paso.
+- Manual, guía de instalación y capturas del README actualizados.
+
 ## 1.8.0
 - **Interfaz en español e inglés**. Cada usuario elige su idioma en «Mi cuenta → Idioma» o en la pantalla de ingreso, y queda
   guardado en su usuario. Sin elección se usa el idioma del navegador y, si no está disponible, el predeterminado que fija el

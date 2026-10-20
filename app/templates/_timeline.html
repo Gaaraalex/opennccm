@@ -26,7 +26,7 @@
         <a class="btn sm ghost icon-btn" href="/versions/{{ v.id }}?raw=1" title="Descargar la versión {{ v.id }}" aria-label="Descargar la versión {{ v.id }}">{{ icon('dl', 'sm') }}</a></span>
     </li>
     {% else %}
-    <li class="muted tl-empty">Sin versiones aún.</li>
+    <li class="tl-empty empty">{{ empty_art('plus') }}<h3>Aún no hay versiones</h3><p class="muted">La primera se guarda al respaldar el equipo.</p></li>
     {% endfor %}
   </ol>
 </form>

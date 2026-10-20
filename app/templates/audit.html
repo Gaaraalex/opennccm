@@ -10,7 +10,7 @@
 <table><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Detalle</th><th>IP</th></tr>
 {% for a in items %}
 <tr><td class="small">{{ a.created_at|dt }}</td><td>{{ a.username }}</td><td><code>{{ a.action }}</code></td><td class="small">{{ a.detail or '' }}</td><td class="small">{{ a.ip or '' }}</td></tr>
-{% else %}<tr><td colspan="5" class="muted">Sin registros.</td></tr>{% endfor %}
+{% else %}<tr class="empty-row"><td colspan="5"><div class="empty">{{ empty_art('search') }}<h3>Sin registros</h3><p class="muted">No hay acciones que coincidan con la búsqueda.</p></div></td></tr>{% endfor %}
 </table>
 </div>
 {% endblock %}

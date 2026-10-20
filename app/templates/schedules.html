@@ -13,7 +13,7 @@
   <form class="inline" method="post" action="/schedules/{{ s.id }}/toggle"><button class="sm sec">{{ _('Pausar') if s.enabled else _('Activar') }}</button></form>
   <form class="inline" method="post" action="/schedules/{{ s.id }}/delete" onsubmit="return confirm('¿Eliminar la tarea «{{ s.name }}»?')"><button class="sm danger" aria-label="Eliminar la tarea {{ s.name }}" title="Eliminar">×</button></form>
   {% endif %}</td></tr>
-{% else %}<tr><td colspan="7" class="muted">Sin tareas. Se recomienda un respaldo nocturno (todos los días a las 02:00).</td></tr>{% endfor %}
+{% else %}<tr class="empty-row"><td colspan="7"><div class="empty">{{ empty_art('plus') }}<h3>Aún no hay tareas programadas</h3><p class="muted">Se recomienda un respaldo nocturno, todos los días a las 02:00; el formulario de abajo ya viene preparado.</p></div></td></tr>{% endfor %}
 </table>
 </div>
 {% if user.role == 'admin' %}

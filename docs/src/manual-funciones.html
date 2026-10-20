@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 1.6.2<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 1.9.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -90,7 +90,15 @@ cambia, controla quién puede cambiarla y verifica que cumpla con sus políticas
   <li>Los informes y la página de Análisis muestran el estado de toda la red.</li>
 </ol>
 <h2>Menú principal</h2>
-<figure><img src="img/02-panel.png" class="tall"><figcaption>Panel principal con la barra de menú superior.</figcaption></figure>
+<p>La barra lateral agrupa las páginas por tarea: <b>Operar</b> (Cambios, Configlets, Tareas), <b>Proteger</b> (Cumplimiento,
+Vulnerabilidades, Firmware y ciclo de vida), <b>Observar</b> (Alarmas, Análisis, Informes) y <b>Administrar</b> (usuarios,
+credenciales, grupos, plataformas, auditoría, sistema y ajustes, en pestañas). Los números junto a Cambios y Alarmas indican lo
+pendiente. El botón del encabezado de la barra la pliega para dejar solo los iconos.</p>
+<p>Con <b>Ctrl K</b> (o el buscador de la barra superior) se abre una paleta para ir a cualquier página, abrir un equipo por nombre,
+IP, modelo o serie, lanzar acciones o buscar un texto en todas las configuraciones. Los avisos de cada acción aparecen abajo a la
+derecha; cuando la acción se puede deshacer (por ejemplo, reconocer alarmas) el aviso trae el botón <b>Deshacer</b>.</p>
+<figure><img src="img/02-panel.png" class="tall"><figcaption>Panel principal con la barra lateral.</figcaption></figure>
+<figure><img src="img/37-ctrl-k.png" style="max-height:90mm"><figcaption>Paleta Ctrl K: buscar un equipo o ir a una página.</figcaption></figure>
 </section>
 
 <section class="chapter">
@@ -115,24 +123,23 @@ Si se le asignan grupos, la restricción se aplica en todas las páginas, la bú
 
 <section class="chapter">
 <h1>3. Panel</h1>
-<p><b>Para qué sirve:</b> ver de un vistazo el estado de la red. Cada recuadro es un enlace al detalle.</p>
+<p><b>Para qué sirve:</b> ver de un vistazo el estado de la red y qué conviene hacer primero.</p>
+<h2>Salud de la red</h2>
+<p>Una puntuación de 0 a 100 resume el estado: 40 % equipos respaldados en las últimas 24 horas, 30 % reglas de cumplimiento que
+pasan, 15 % equipos sin CVE críticos o altos y 15 % equipos con soporte del fabricante. Debajo, una frase y unas etiquetas dicen
+qué la está bajando.</p>
 <table>
   <tr><th>Indicador</th><th>Qué cuenta</th></tr>
-  <tr><td>Respaldo OK / Con error</td><td>Equipos cuyo último respaldo funcionó o falló.</td></tr>
+  <tr><td>Dispositivos</td><td>Equipos gestionados y cuántos tienen su último respaldo correcto.</td></tr>
   <tr><td>Cambios 24 h</td><td>Versiones nuevas de configuración en las últimas 24 horas.</td></tr>
   <tr><td>Reglas cumplidas</td><td>Porcentaje de comprobaciones de cumplimiento (equipo × regla) que pasan.</td></tr>
-  <tr><td>Startup ≠ running</td><td>Equipos con cambios en ejecución que no se guardaron en la memoria de arranque.</td></tr>
-  <tr><td>Fuera de línea base</td><td>Equipos cuya configuración ya no coincide con su línea base.</td></tr>
-  <tr><td>Equipos sin soporte</td><td>Equipos cuyo modelo ya no tiene soporte o parches del fabricante.</td></tr>
   <tr><td>Alarmas abiertas</td><td>Eventos de severidad warning o superior sin reconocer.</td></tr>
-  <tr><td>Equipos con CVE altos</td><td>Equipos con vulnerabilidades de severidad alta o crítica.</td></tr>
-  <tr><td>Cambios por aprobar</td><td>Solicitudes de cambio pendientes.</td></tr>
 </table>
-<p>Debajo se muestran la gráfica de cambios por día, los <b>últimos 10 cambios</b> y los <b>últimos 10 eventos</b>: se ven 6 de
-cada uno y el resto bajando con la barra de la derecha (o con la rueda del ratón). «ver todos» lleva a Alarmas. En la página de
-cada equipo, sus eventos se muestran igual: 3 a la vista y los demás con la barra de desplazamiento.</p>
+<p><b>Qué hacer ahora</b> lista hasta seis asuntos ordenados por gravedad (respaldos fallidos, CVE críticos, infracciones, equipos
+fuera de línea base, cambios por aprobar…), cada uno con su botón de acción. Si no hay nada pendiente, lo dice. Debajo se
+muestran la gráfica de cambios por día y la actividad reciente.</p>
 <h2>Rendimiento del servidor (solo administradores)</h2>
-<p>Los administradores ven además el estado del propio servidor de OpenNCCM: uso de CPU ahora (y carga), memoria RAM, disco
+<p>En <b>Administración → Sistema</b> los administradores ven el estado del propio servidor de OpenNCCM: uso de CPU ahora (y carga), memoria RAM, disco
 usado y espacio que ocupan los datos de OpenNCCM, y el tiempo encendido. Dos gráficas muestran el uso de CPU y de memoria de
 las últimas 24 horas (promedios cada 5 minutos; pase el ratón para ver cada valor) y unas barras muestran disco, memoria y
 swap usados, libres y totales. Si el disco supera el 90 % aparece «⚠ casi lleno».</p>
@@ -142,14 +149,23 @@ swap usados, libres y totales. Si el disco supera el 90 % aparece «⚠ casi lle
 <h1>4. Dispositivos</h1>
 <p><b>Para qué sirve:</b> inventario de todos los equipos gestionados, con su estado de respaldo, modelo, versión de firmware y
 grupo.</p>
-<figure><img src="img/03-dispositivos.png"><figcaption>Lista de dispositivos. Las etiquetas «sin guardar» y «≠ baseline» señalan conflictos.</figcaption></figure>
+<figure><img src="img/03-dispositivos.png"><figcaption>Lista de dispositivos con filtros por estado. Las etiquetas «Sin guardar» y «Difiere de la base» señalan conflictos.</figcaption></figure>
 <h2>Cómo usarlo</h2>
 <ul>
   <li><b>Buscar y filtrar:</b> por nombre, IP, modelo, serie, versión o ubicación; por grupo; y por estado (ok, error, pendiente,
   startup ≠ running, fuera de línea base).</li>
   <li><b>Respaldar todos:</b> lanza en segundo plano el respaldo de todos los equipos (o del grupo filtrado).</li>
-  <li><b>+ Agregar</b> (admin): alta individual. <b>Importación CSV</b> (admin): alta masiva al pie de la página.</li>
+  <li><b>Acciones de la fila:</b> al pasar el ratón aparecen respaldar, consola e interfaz web del equipo.</li>
+  <li><b>Acciones masivas:</b> marque varias filas y use la barra inferior para respaldarlas, auditarlas o moverlas a un grupo.</li>
+  <li><b>+ Agregar</b> (admin): <b>Agregar uno</b> abre el formulario de alta en un panel lateral; <b>Importar desde CSV</b>
+  abre la importación masiva.</li>
 </ul>
+<h2>Importar desde CSV</h2>
+<p>El panel explica las columnas (<code>name,host,device_type,credential,group,port,protocol,location</code>; solo las tres
+primeras son obligatorias) y ofrece una plantilla para descargar. Al elegir el archivo muestra una <b>vista previa</b> con cada
+fila válida o su error (plataforma desconocida, credencial inexistente, puerto o protocolo no válidos, nombre repetido). Las filas
+con error se omiten y las válidas se importan; los grupos que no existen se crean.</p>
+<figure><img src="img/04b-importar-csv.png" style="max-height:120mm"><figcaption>Importación desde CSV con su ayuda.</figcaption></figure>
 <h2>Alta de un dispositivo</h2>
 <table>
   <tr><th>Campo</th><th>Descripción</th></tr>
@@ -159,7 +175,7 @@ grupo.</p>
   <tr><td>Protocolo y puerto</td><td>SSH (22) o Telnet (23). Telnet solo en plataformas que lo admiten.</td></tr>
   <tr><td>Credencial y grupo</td><td>Perfil de usuario/contraseña y grupo del equipo. Puede crear un grupo nuevo desde aquí mismo
   con «…o crear un grupo nuevo». También se administran en <b>Dispositivos → Grupos</b>.</td></tr>
-  <tr><td>¿Tiene interfaz web?</td><td><b>Sí</b> (por omisión) muestra el botón <b>🌐 Interfaz web</b> del equipo; se puede
+  <tr><td>¿Tiene interfaz web?</td><td><b>Sí</b> (por omisión) muestra el botón <b>Interfaz web</b> del equipo; se puede
   indicar su dirección si no es <code>https://IP/</code>. <b>No</b> oculta el botón para los equipos sin página de administración
   (muchos switches de acceso, servidores Linux…). Se puede cambiar después en <b>Editar</b>.</td></tr>
   <tr><td>Comando de respaldo personalizado</td><td>Opcional: sustituye al comando del perfil (útil con el perfil «Genérico SSH» o versiones con otra sintaxis).</td></tr>
@@ -168,17 +184,20 @@ grupo.</p>
 </table>
 <figure><img src="img/04-dispositivo-nuevo.png" style="max-height:150mm"><figcaption>Formulario de alta.</figcaption></figure>
 <h2>Ficha del dispositivo</h2>
-<p>Reúne todo sobre un equipo: inventario, línea base, ciclo de vida, historial de versiones, cumplimiento, actualización de
-firmware, vulnerabilidades y eventos. Los botones superiores permiten respaldar, auditar, buscar CVE, editar o eliminar.</p>
-<figure><img src="img/05-dispositivo.png"><figcaption>Ficha del dispositivo R1 (parte superior: inventario, línea base, ciclo de vida, versiones y
-firmware). Más abajo siguen cumplimiento, vulnerabilidades y eventos.</figcaption></figure>
+<p>Reúne todo sobre un equipo en pestañas: <b>Resumen</b> (inventario, línea base, ciclo de vida y últimas versiones),
+<b>Versiones</b>, <b>Cumplimiento</b>, <b>Vulnerabilidades</b>, <b>Firmware</b> y <b>Actividad</b>. Arriba están
+<b>Respaldar ahora</b>, <b>Consola</b> e <b>Interfaz web</b>; el menú <b>⋯</b> agrupa auditar, buscar CVE, actualizar firmware,
+editar, volver a la línea base y eliminar. Para eliminar un equipo hay que escribir su nombre, porque se borra con todo su
+historial.</p>
+<figure><img src="img/05-dispositivo.png"><figcaption>Ficha del dispositivo R1, pestaña Resumen.</figcaption></figure>
+<figure><img src="img/05c-dispositivo-cumplimiento.png" style="max-height:120mm"><figcaption>Pestaña Cumplimiento: reglas agrupadas por política, con «Corregir N».</figcaption></figure>
 </section>
 
 <h2 id="consola">Consola SSH web</h2>
 <p><b>Para qué sirve:</b> entrar a la línea de comandos de un equipo desde el navegador, sin PuTTY ni otro programa.</p>
 <ol class="steps">
-  <li>En <b>Dispositivos</b>, pulse el icono <b>⌨</b> de la fila del equipo (a la derecha de «Estado»), o el botón
-  <b>⌨ Consola</b> en la página del equipo. La consola se abre en una <b>ventana aparte</b> del navegador (1000 × 640, centrada);
+  <li>En <b>Dispositivos</b>, pase el ratón por la fila del equipo y pulse el icono de consola, o el botón
+  <b>Consola</b> en la página del equipo. La consola se abre en una <b>ventana aparte</b> del navegador (1000 × 640, centrada);
   puede agrandarla o achicarla arrastrando sus bordes y el terminal se adapta solo. Si el navegador bloquea las ventanas
   emergentes, se abre en una pestaña nueva.</li>
   <li>Si el administrador no activó el inicio automático, escriba el <b>usuario</b> y la <b>contraseña</b> del equipo cuando
@@ -195,7 +214,7 @@ firmware). Más abajo siguen cumplimiento, vulnerabilidades y eventos.</figcapti
   omisión: actívelo solo si quienes pueden abrir la consola deben poder entrar a los equipos sin conocer sus contraseñas.</td></tr>
 </table>
 <h2 id="web">Interfaz web del equipo</h2>
-<p>El icono <b>🌐</b> (junto al de la consola) y el botón <b>🌐 Interfaz web</b> de la página del equipo abren su página de
+<p>El icono de globo (junto al de la consola) y el botón <b>Interfaz web</b> de la página del equipo abren su página de
 administración en una ventana aparte. Por omisión se usa <code>https://IP-del-equipo/</code>; si el equipo usa otra dirección o
 puerto (por ejemplo <code>http://10.0.0.1:8080</code>), escríbala en <b>Editar → ¿El equipo tiene interfaz web? → Dirección</b>.
 Si el equipo no tiene web, marque <b>No</b> en esa misma pregunta y el botón deja de mostrarse. OpenNCCM no interviene en esa
@@ -220,7 +239,7 @@ inicio automático. Solo funciona con equipos configurados por SSH.</div>
 <p>Cada versión registra su <b>origen</b>: <code>manual</code> (botón), <code>scheduled</code> (tarea), <code>syslog</code>
 (detectado en tiempo real) o <code>push</code> (aplicado por OpenNCCM).</p>
 <h2>Ver una versión</h2>
-<p>En la ficha del equipo, columna «ver». Desde allí puede <b>descargar</b>, <b>comparar con la anterior</b>,
+<p>En la ficha del equipo, pestaña <b>Versiones</b>, botón <b>Ver</b> de cada versión (el icono de al lado la descarga). Desde allí puede <b>descargar</b>, <b>comparar con la anterior</b>,
 <b>etiquetar</b> (por ejemplo «antes de migración»), <b>marcar como línea base</b> o <b>revertir el equipo a esa versión</b>.</p>
 <figure><img src="img/06-version.png" class="tall"><figcaption>Vista de una versión con sus acciones.</figcaption></figure>
 <div class="tip"><b>Retención</b>En Ajustes puede limitar cuántas versiones guardar por equipo. Las versiones etiquetadas (incluida la
@@ -233,11 +252,15 @@ línea base) nunca se borran.</div>
 para comparar dos switches que deberían ser iguales).</p>
 <h2>Cómo usarlo</h2>
 <ol class="steps">
-  <li>En la ficha del equipo, marque una versión en la columna <b>A</b> y otra en la <b>B</b> y pulse <b>Comparar A ↔ B</b>.</li>
+  <li>En la pestaña <b>Versiones</b> de la ficha, pulse dos versiones de la línea de tiempo (la más antigua queda como A) y
+  pulse <b>Comparar A ↔ B</b> o <b>Unificada</b>. <b>Solo con cambios</b> oculta las versiones sin diferencias.</li>
   <li>En la página de comparación puede cambiar las versiones, el contexto (0, 3, 10 líneas o archivo completo) y la vista.</li>
 </ol>
-<p>La vista <b>lado a lado</b> muestra la versión A a la izquierda y la B a la derecha, con números de línea: en rojo lo
-eliminado o modificado, en verde lo agregado o modificado. La vista <b>unificada</b> muestra el formato clásico de diff.</p>
+<p>Arriba, <b>Qué cambió</b> resume las diferencias en palabras (por ejemplo «en «interface Gi0/1» se agregó «shutdown»»).
+La vista <b>lado a lado</b> muestra la versión A a la izquierda y la B a la derecha, con números de línea: en rojo lo
+eliminado o modificado, en verde lo agregado o modificado. La vista <b>unificada</b> muestra el formato clásico de diff. Las
+teclas <b>n</b> y <b>p</b> saltan al cambio siguiente o anterior, y la barra fina de la derecha marca dónde están todos.</p>
+<figure><img src="img/05b-dispositivo-versiones.png" style="max-height:120mm"><figcaption>Línea de tiempo de versiones con A y B elegidas.</figcaption></figure>
 <figure><img src="img/07-diff-lado-a-lado.png"><figcaption>Comparación lado a lado.</figcaption></figure>
 <figure><img src="img/08-diff-unificada.png" style="max-height:110mm"><figcaption>Comparación unificada.</figcaption></figure>
 </section>
@@ -250,14 +273,14 @@ poder volver a ella en un paso (por ejemplo, tras un incidente).</p>
 <ul>
   <li>Cada equipo puede tener una versión marcada como línea base (solo configuraciones en ejecución).</li>
   <li>En cada respaldo, OpenNCCM compara la huella de la configuración actual con la de la línea base.</li>
-  <li>Si dejan de coincidir, el equipo muestra «≠ baseline», aparece en el panel y se genera la alarma
+  <li>Si dejan de coincidir, el equipo muestra «Difiere de la base», aparece en el panel y se genera la alarma
   <b>«Desviación de línea base»</b>. Cuando vuelven a coincidir, la marca desaparece sola.</li>
 </ul>
 <h2>Cómo usarlo</h2>
 <ol class="steps">
   <li>Abra la versión aprobada y pulse <b>Marcar como línea base</b>.</li>
   <li>Si el equipo se desvía, su ficha mostrará un aviso con <b>Ver diferencias</b> (comparación lado a lado línea base ↔ actual)
-  y <b>Volver a la línea base…</b>, que genera una solicitud de reversión para aprobar.</li>
+  y, en el menú <b>⋯</b>, <b>Volver a la línea base…</b>, que genera una solicitud de reversión para aprobar.</li>
   <li>Use <b>Dispositivos → estado «fuera de línea base»</b> o <b>Informes → Desviación de línea base</b> para ver todos los afectados.</li>
 </ol>
 </section>
@@ -437,11 +460,15 @@ corregir las infracciones.</p>
 </table>
 <p class="small">Las reglas son controles técnicos de referencia. El cumplimiento normativo completo requiere además procesos y evidencias
 que no dependen del equipo.</p>
-<figure><img src="img/15-cumplimiento.png"><figcaption>Cumplimiento: indicadores, gráfica por política y políticas. Más abajo, la lista de infracciones con su botón «Corregir».</figcaption></figure>
+<figure><img src="img/15-cumplimiento.png"><figcaption>Cumplimiento: indicadores e infracciones agrupadas por política, con «Corregir N».</figcaption></figure>
 <h2>Cómo usarlo</h2>
 <ol class="steps">
-  <li>Revise las <b>infracciones</b>. Las que tienen corrección muestran <b>Corregir</b>: crea una solicitud de cambio con los comandos.</li>
-  <li>Para crear su propia política: escriba nombre y filtro y pulse <b>Crear</b>; luego agregue reglas en la página de la política.</li>
+  <li>Revise las <b>infracciones por política</b>. La severidad se distingue también por la forma (rombo crítica, triángulo
+  mayor, círculo menor). Cada regla con corrección muestra <b>Corregir</b>, y cada política <b>Corregir N</b>, que crea una
+  solicitud de cambio por equipo con todas sus correcciones juntas.</li>
+  <li>Para crear su propia política: escriba nombre y filtro y pulse <b>Crear</b>; luego agregue reglas en la página de la política.
+  Antes de agregar una regla, <b>Probar la regla</b> la evalúa contra la última configuración de un equipo y muestra las líneas
+  que coinciden, sin guardar nada.</li>
   <li>Use <b>Auditar todos ahora</b> después de cambiar reglas.</li>
 </ol>
 <figure><img src="img/16-politica-pci.png" class="tall"><figcaption>Reglas de la política PCI DSS 4.0 con su requisito, patrón, severidad y corrección.</figcaption></figure>
@@ -690,19 +717,16 @@ políticas y reglas, eventos ya registrados, descripciones de CVE, el registro d
 mantienen sus encabezados en español para no romper integraciones.</p>
 <h2>Temas</h2>
 <p>En <b>Mi cuenta → Tema de la interfaz</b> cada usuario elige: <b>Automático</b> (claro u oscuro según el sistema del equipo),
-<b>Claro</b>, <b>Oscuro</b>, <b>Azul noche</b>, <b>Bosque</b>, <b>Arena</b> (claro y cálido), <b>Océano</b> (oscuro turquesa),
-<b>Atardecer</b> (oscuro con tonos naranja), <b>Lavanda</b> (claro violeta), <b>Grafito</b> (oscuro neutro) o <b>Alto contraste</b>
-(para pantallas con mucho reflejo o baja visión). Todos cumplen el contraste mínimo de lectura WCAG 2.1 AA. El tema se guarda en el usuario y se aplica en cualquier equipo desde el que ingrese.</p>
+<b>Claro</b>, <b>Sala de control</b> (oscuro) o <b>Alto contraste</b> (para pantallas con mucho reflejo o baja visión), y un
+<b>color de acento</b> para botones y enlaces: cobalto, bosque, arena, lavanda, océano, atardecer o grafito. Todos cumplen el
+contraste mínimo de lectura WCAG 2.1 AA. La elección se guarda en el usuario y se aplica en cualquier equipo desde el que
+ingrese; quien usaba uno de los temas anteriores de colores conserva su color como acento.</p>
 <div class="two">
-<figure><img src="img/34-tema-noche.png"><figcaption>Azul noche.</figcaption></figure>
-<figure><img src="img/34-tema-bosque.png"><figcaption>Bosque.</figcaption></figure>
-<figure><img src="img/34-tema-oscuro.png"><figcaption>Oscuro.</figcaption></figure>
+<figure><img src="img/34-tema-claro.png"><figcaption>Claro.</figcaption></figure>
+<figure><img src="img/34-tema-oscuro.png"><figcaption>Sala de control (oscuro).</figcaption></figure>
 <figure><img src="img/34-tema-contraste.png"><figcaption>Alto contraste.</figcaption></figure>
-<figure><img src="img/34-tema-arena.png"><figcaption>Arena.</figcaption></figure>
-<figure><img src="img/34-tema-oceano.png"><figcaption>Océano.</figcaption></figure>
-<figure><img src="img/34-tema-atardecer.png"><figcaption>Atardecer.</figcaption></figure>
-<figure><img src="img/34-tema-lavanda.png"><figcaption>Lavanda.</figcaption></figure>
-<figure><img src="img/34-tema-grafito.png"><figcaption>Grafito.</figcaption></figure>
+<figure><img src="img/34-acento-bosque.png"><figcaption>Claro con acento bosque.</figcaption></figure>
+<figure><img src="img/34-acento-atardecer.png"><figcaption>Sala de control con acento atardecer.</figcaption></figure>
 </div>
 </section>
 
@@ -749,6 +773,7 @@ restaurar con <code>sudo opennccm restore ARCHIVO.enc</code> se la pide.</p>
 
 <section class="chapter">
 <h1>25. Ajustes</h1>
+<p>Al modificar cualquier campo aparece abajo la barra <b>Tienes cambios sin guardar</b> con <b>Descartar</b> y <b>Guardar ajustes</b>; si intenta salir de la página sin guardar, el navegador lo advierte.</p>
 <h2>Seguridad y acceso</h2>
 <table>
   <tr><th>Ajuste</th><th>Qué hace</th></tr>
@@ -799,8 +824,8 @@ root); el inventario trae versión, modelo y número de serie. Los cambios se si
 <h1>27. Uso desde el teléfono y API</h1>
 <div class="two">
 <div>
-<p>La interfaz se adapta a pantallas pequeñas: el menú se convierte en una fila deslizable y los indicadores se muestran en dos
-columnas. Si el teléfono usa tema oscuro, la aplicación también.</p>
+<p>La interfaz se adapta a pantallas pequeñas: abajo aparece una barra con Panel, Equipos, Cambios, Alarmas y Más (que
+abre la barra lateral completa) y los indicadores se muestran en dos columnas. Si el teléfono usa tema oscuro, la aplicación también.</p>
 <p>No requiere instalar ninguna app: basta con abrir la dirección del servidor en el navegador del teléfono (dentro de la VPN o la red
 de gestión).</p>
 <h2>API JSON</h2>

@@ -10,8 +10,8 @@
 {% for cr in items %}
 <tr><td>{{ cr.id }}</td><td class="small">{{ cr.created_at|dt }}</td>
 <td><a href="/changes/{{ cr.id }}">{{ cr.title }}</a>{% if cr.is_rollback %} <span class="badge b-warning">reversión</span>{% endif %}</td>
-<td>{{ cr.requested_by }}</td><td>{{ cr.reviewed_by or '—' }}</td><td><span class="badge b-{{ cr.status }}">{{ cr.status }}</span></td></tr>
-{% else %}<tr><td colspan="6" class="muted">Sin solicitudes. Se crean desde <a href="/configlets">Configlets</a>, reversiones o correcciones de cumplimiento.</td></tr>{% endfor %}
+<td>{{ cr.requested_by }}</td><td>{{ cr.reviewed_by or '—' }}</td><td>{{ crstatus(cr.status) }}</td></tr>
+{% else %}<tr class="empty-row"><td colspan="6"><div class="empty">{{ empty_art('check') }}<h3>Todo al día</h3><p class="muted">No hay solicitudes de cambio. Se crean desde <a href="/configlets">Configlets</a>, reversiones o correcciones de cumplimiento.</p></div></td></tr>{% endfor %}
 </table>
 </div>
 {% endblock %}

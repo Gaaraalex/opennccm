@@ -2,7 +2,7 @@
 {% block content %}
 {% include "_admin_tabs.html" %}
 <h1>Ajustes</h1>
-<form method="post" action="/settings">
+<form method="post" action="/settings" data-dirty>
 <div class="card" style="max-width:900px" id="seguridad">
   <h2 style="margin-top:0">Seguridad y acceso</h2>
   <label for="s-idle">Cerrar la sesión tras estos minutos sin actividad (5 a 720)</label>

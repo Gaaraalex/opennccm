@@ -67,7 +67,10 @@ dl = adm.get(B + "/devices").text
 check("lista: chips de estado con recuento", 'class="chip on"' in dl and re.search(r'Todos <span class="num">\d+</span>', dl))
 check("lista: casillas para selección múltiple", 'name="ids"' in dl and 'id="sel-all"' in dl)
 check("lista: barra de acciones masivas", 'action="/devices/bulk"' in dl and 'value="backup"' in dl and 'value="move"' in dl)
-check("lista: «Agregar» ofrece importar CSV", 'href="#importar"' in dl and 'id="importar"' in dl)
+check("lista: «Agregar» ofrece importar CSV en un panel lateral", 'href="/devices/import" data-sheet' in dl and 'id="importar"' not in dl)
+imp = adm.get(B + "/devices/import").text
+check("importar CSV: columnas, plantilla y vista previa", all(t in imp for t in ("device_type", 'id="imp-tpl"', 'id="imp-prev"', 'action="/devices/import"')))
+check("el lector no abre la importación", lec.get(B + "/devices/import", allow_redirects=False).status_code in (302, 303, 403))
 r = adm.post(B + "/devices/bulk", data={"action": "backup", "ids": ["1"]})
 check("masivo: respaldar los seleccionados", any("Respaldo de 1 equipos" in f for f in flashes(r.text)), flashes(r.text))
 r = adm.post(B + "/devices/bulk", data={"action": "audit", "ids": ["1"]})
@@ -156,6 +159,21 @@ t = adm.post(B + "/compliance/rules/test", data={"device_id": dev_id, "pattern":
 check("prueba de regla: patrón no válido devuelve un error", bool(t.get("error")), str(t))
 check("el lector no puede probar reglas",
       lec.post(B + "/compliance/rules/test", data={"device_id": dev_id, "pattern": "x"}).status_code == 403)
+
+# --- Alarmas: reconocer muestra un aviso con «Deshacer», y deshacer las deja pendientes otra vez
+ev = adm.get(B + "/events?unack=1").text
+eid = re.search(r'name="id" value="(\d+)"', ev)
+check("alarmas: severidad con forma y texto (sin valores crudos)", 'class="sev ' in ev and ">major<" not in ev)
+if eid:
+    r = adm.post(B + "/events/ack", data={"id": eid.group(1)}, headers={"Referer": B + "/events?unack=1"})
+    check("reconocer una alarma avisa y ofrece «Deshacer»", '<div class="flash ok">Alarma reconocida</div>' in r.text
+          and 'action="/events/unack"' in r.text and f'value="{eid.group(1)}"' in r.text)
+    check("el lector no puede deshacer", lec.post(B + "/events/unack", data={"ids": eid.group(1)},
+                                                   allow_redirects=False).status_code == 403)
+    r = adm.post(B + "/events/unack", data={"ids": eid.group(1)}, headers={"Referer": B + "/events?unack=1"})
+    check("«Deshacer» vuelve a dejar la alarma pendiente", "la alarma vuelve a estar pendiente" in r.text
+          and f'name="id" value="{eid.group(1)}"' in r.text)
+    check("el aviso de «Deshacer» sale una sola vez", 'action="/events/unack"' not in adm.get(B + "/events").text)
 
 m = re.search(r"<b>lector9</b>[\s\S]*?/users/(\d+)/edit", adm.get(B + "/users").text)
 if m:

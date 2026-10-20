@@ -524,6 +524,16 @@ def device_delete(request: Request, dev_id: int):
     return go("/devices")
 
 
+@app.get("/devices/import")
+def device_import_form(request: Request):
+    """Importación CSV (se abre en un panel lateral desde «Agregar»), con vista previa en el navegador."""
+    user = require(request, "admin")
+    with SessionLocal() as db:
+        creds = [c.name for c in db.scalars(select(Credential).order_by(Credential.name))]
+        groups = [g.name for g in db.scalars(select(DeviceGroup).order_by(DeviceGroup.name))]
+    return render(request, "devices_import.html", user, creds=creds, groups=groups, types=sorted(PROFILE_MAP))
+
+
 @app.post("/devices/import")
 async def device_import(request: Request):
     """CSV: name,host,device_type,credential,group,port,protocol,location"""
@@ -1401,10 +1411,38 @@ async def events_ack(request: Request):
         scope = device_scope(user)
         if scope is not None:
             stmt = stmt.where(Event.device_id.in_(scope))
+        ids = []
         for e in db.scalars(stmt):
             e.acknowledged = True
+            ids.append(e.id)
         db.commit()
     log_action(request, user, "events_ack", form.get("id") or "all")
+    if ids:
+        flash(request, _("Alarma reconocida") if len(ids) == 1 else _f("{0} alarmas reconocidas", len(ids)))
+        request.session["undo"] = {"url": "/events/unack", "ids": ",".join(map(str, ids[:5000]))}
+    return go(request.headers.get("referer") or "/events")
+
+
+@app.post("/events/unack")
+async def events_unack(request: Request):
+    """«Deshacer» del aviso flotante: vuelve a dejar sin reconocer las alarmas recién reconocidas."""
+    user = require(request, "operator")
+    form = await request.form()
+    ids = [int(x) for x in (form.get("ids") or "").split(",") if x.strip().isdigit()][:5000]
+    n = 0
+    with SessionLocal() as db:
+        if ids:
+            stmt = select(Event).where(Event.id.in_(ids), Event.acknowledged.is_(True))
+            scope = device_scope(user)
+            if scope is not None:
+                stmt = stmt.where(Event.device_id.in_(scope))
+            for e in db.scalars(stmt):
+                e.acknowledged = False
+                n += 1
+            db.commit()
+    log_action(request, user, "events_unack", str(n))
+    flash(request, _("Se deshizo: la alarma vuelve a estar pendiente") if n == 1
+          else _f("Se deshizo: {0} alarmas vuelven a estar pendientes", n))
     return go(request.headers.get("referer") or "/events")
 
 

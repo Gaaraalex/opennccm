@@ -11,7 +11,7 @@
 <td style="white-space:nowrap">{% if ROLES[user.role] >= 1 %}<a class="btn sm" href="/configlets/{{ c.id }}/run">Ejecutar</a>{% endif %}
 {% if user.role == 'admin' %}<a class="btn sm sec" href="/configlets/{{ c.id }}/edit" data-sheet>Editar</a>
 <form class="inline" method="post" action="/configlets/{{ c.id }}/delete" onsubmit="return confirm('¿Eliminar?')"><button class="sm danger">×</button></form>{% endif %}</td></tr>
-{% else %}<tr><td colspan="5" class="muted">Sin configlets. Ejecute <code>opennccm-cli seed</code> para cargar ejemplos.</td></tr>{% endfor %}
+{% else %}<tr class="empty-row"><td colspan="5"><div class="empty">{{ empty_art('plus') }}<h3>Aún no hay configlets</h3><p class="muted">Son plantillas de comandos para aplicar a muchos equipos a la vez. Para cargar ejemplos, ejecute <code>opennccm-cli seed</code>.</p></div></td></tr>{% endfor %}
 </table>
 </div>
 {% endblock %}

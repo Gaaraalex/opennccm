@@ -58,9 +58,21 @@
     close.innerHTML = icon('x', 'sm');
     close.addEventListener('click', function () { w.remove(); });
     w.appendChild(close);
-    if (!err) setTimeout(function () { w.classList.add('out'); setTimeout(function () { w.remove(); }, 300); }, 6000);
+    if (!err) setTimeout(function () {
+      if (w.contains(document.activeElement)) return;  // no quitar el aviso mientras se usa con el teclado
+      w.classList.add('out'); setTimeout(function () { w.remove(); }, 300);
+    }, $('.toasts > .undo-form') ? 10000 : 6000);
   }
   $$('.toasts > .flash').forEach(enhanceToast);
+  var undo = $('.toasts > .undo-form');
+  if (undo) {  // «Deshacer» va dentro del último aviso y le da más tiempo en pantalla
+    var last = $$('.toasts > .toast:not(.err)').pop();
+    if (last) {
+      last.classList.add('has-undo');
+      last.insertBefore(undo, last.lastChild);
+      undo.hidden = false;
+    } else undo.remove();
+  }
   window.ocToast = function (msg, kind) {
     var box = $('.toasts') || document.body.appendChild(Object.assign(document.createElement('div'), {className: 'toasts'}));
     var f = document.createElement('div');
@@ -320,3 +332,34 @@
 
 // Lectores de pantalla: la entrada activa del menú lleva aria-current
 document.querySelectorAll('.rail .nav.on, .mobnav a.on').forEach(function (a) { a.setAttribute('aria-current', 'page'); });
+
+/* Formularios largos (Ajustes): barra «Tienes cambios sin guardar» y aviso al salir de la página */
+(function () {
+  var T = (window.OC && window.OC.t) || {};
+  document.querySelectorAll('form[data-dirty]').forEach(function (form) {
+    var bar = null, dirty = false, saveLabel = (form.querySelector('button:not([type=button])') || {}).textContent || 'OK';
+    function show(on) {
+      dirty = on;
+      if (on && !bar) {
+        bar = document.createElement('div');
+        bar.className = 'bulkbar dirtybar';
+        bar.setAttribute('role', 'region');
+        bar.setAttribute('aria-label', T.dirty || '');
+        bar.innerHTML = '<span class="dot" aria-hidden="true"></span><b></b><button type="button" class="ghost"></button><button type="button" class="signal"></button>';
+        bar.querySelector('b').textContent = T.dirty || '';
+        bar.querySelector('.ghost').textContent = T.discard || '';
+        bar.querySelector('.signal').textContent = saveLabel.trim();
+        bar.querySelector('.ghost').addEventListener('click', function () { form.reset(); show(false); });
+        bar.querySelector('.signal').addEventListener('click', function () {
+          if (form.requestSubmit) form.requestSubmit(); else form.submit();
+        });
+        document.body.appendChild(bar);
+      }
+      if (bar) bar.hidden = !on;
+    }
+    form.addEventListener('input', function () { show(true); });
+    form.addEventListener('change', function () { show(true); });
+    form.addEventListener('submit', function () { dirty = false; });
+    window.addEventListener('beforeunload', function (e) { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+  });
+})();

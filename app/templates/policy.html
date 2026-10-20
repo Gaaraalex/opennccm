@@ -20,9 +20,9 @@
 <table><tr><th>Nombre</th><th>Condición</th><th>Patrón (regex)</th><th>Severidad</th><th>Corrección</th><th></th></tr>
 {% for r in p.rules %}
 <tr><td>{{ r.name }}</td><td>{{ _('debe contener') if r.kind == 'must_contain' else _('no debe contener') }}</td><td><code>{{ r.pattern }}</code></td>
-<td><span class="badge b-{{ r.severity }}">{{ r.severity }}</span></td><td><pre style="padding:4px">{{ r.remediation or '—' }}</pre></td>
+<td>{{ sevtag(r.severity) }}</td><td><pre style="padding:4px">{{ r.remediation or '—' }}</pre></td>
 <td>{% if user.role == 'admin' %}<form class="inline" method="post" action="/compliance/rules/{{ r.id }}/delete"><button class="sm danger">×</button></form>{% endif %}</td></tr>
-{% else %}<tr><td colspan="6" class="muted">Sin reglas.</td></tr>{% endfor %}
+{% else %}<tr class="empty-row"><td colspan="6"><div class="empty">{{ empty_art('plus') }}<h3>Esta política aún no tiene reglas</h3><p class="muted">Agregue la primera abajo y pruébela contra un equipo antes de guardarla.</p></div></td></tr>{% endfor %}
 </table>
 </div>
 {% if user.role == 'admin' %}

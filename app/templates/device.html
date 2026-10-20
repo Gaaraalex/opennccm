@@ -143,7 +143,7 @@
   </ul>
 </details>
 {% else %}
-<div class="card empty"><h3>Sin auditar</h3><p class="muted">No hay políticas aplicables o aún no se audita.</p>
+<div class="card empty">{{ empty_art('search') }}<h3>Sin auditar</h3><p class="muted">No hay políticas aplicables o aún no se audita.</p>
   {% if can_run %}<form method="post" action="/devices/{{ device.id }}/compliance"><button>{{ icon('shield', 'sm') }} Auditar ahora</button></form>{% endif %}</div>
 {% endfor %}
 </section>
@@ -156,7 +156,7 @@
   {% for v in vulns %}
   <tr><td class="mono"><a href="{{ v.url }}" target="_blank" rel="noopener">{{ v.cve_id }}</a></td><td class="num">{{ v.score or '—' }}</td>
   <td>{% set s = sevmap.get((v.severity or '').upper(), 'info') %}<span class="sev {{ s }}">{{ sevlabel[s] }}</span></td><td class="small">{{ (v.description or '')[:300] }}</td></tr>
-  {% else %}<tr><td colspan="4" class="muted">Sin datos. Pulse "Buscar CVE de firmware".</td></tr>{% endfor %}
+  {% else %}<tr class="empty-row"><td colspan="4"><div class="empty">{{ empty_art('search') }}<h3>Aún no se han buscado vulnerabilidades</h3><p class="muted">Use «Buscar CVE de firmware» en el menú ⋯ para comparar su versión con la base del NIST.</p></div></td></tr>{% endfor %}
   </table>
 </div>
 </section>
@@ -181,8 +181,8 @@
   <h2 style="margin-top:0">Eventos del equipo {% if events|length > 3 %}<span class="small muted">({{ events|length }}; baje con la barra de la derecha para ver más)</span>{% endif %}</h2>
   <div class="scrollbox" data-rows="3" tabindex="0" aria-label="Eventos del equipo">
   <table>{% for e in events %}
-  <tr class="item"><td><span class="badge b-{{ e.severity }}">{{ e.severity }}</span></td><td class="small" title="{{ e.created_at|dt }}">{{ e.created_at|ago }}</td><td><b>{{ _(e.category) }}</b><pre style="max-height:84px">{{ e.message }}</pre></td></tr>
-  {% else %}<tr><td class="muted">Sin eventos.</td></tr>{% endfor %}</table>
+  <tr class="item"><td>{{ sevtag(e.severity) }}</td><td class="small" title="{{ e.created_at|dt }}">{{ e.created_at|ago }}</td><td><b>{{ _(e.category) }}</b><pre style="max-height:84px">{{ e.message }}</pre></td></tr>
+  {% else %}<tr class="empty-row"><td colspan="3"><div class="empty">{{ empty_art('check') }}<h3>Sin actividad</h3><p class="muted">Este equipo no tiene eventos registrados.</p></div></td></tr>{% endfor %}</table>
   </div>
 </div>
 </section>

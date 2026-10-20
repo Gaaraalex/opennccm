@@ -13,7 +13,7 @@
       <summary class="btn">{{ icon('plus', 'sm') }} Agregar {{ icon('down', 'sm') }}</summary>
       <div class="drop">
         <a href="/devices/new" data-sheet data-title="Nuevo dispositivo">{{ icon('plus', 'sm') }} Agregar uno</a>
-        <a href="#importar" id="go-import">{{ icon('ul', 'sm') }} Importar desde CSV</a>
+        <a href="/devices/import" data-sheet data-title="Importar desde CSV">{{ icon('ul', 'sm') }} Importar desde CSV</a>
         <a href="/credentials#groups">{{ icon('folder', 'sm') }} Administrar grupos</a>
       </div>
     </details>
@@ -75,15 +75,16 @@
 </table>
 {% elif q or status or group %}
 <div class="empty">
-  <svg class="empty-art" viewBox="0 0 120 80" aria-hidden="true"><path d="M20 60 L50 30 L80 50" class="ln"/><circle cx="20" cy="60" r="6" class="nd"/><circle cx="50" cy="30" r="6" class="nd"/><circle cx="80" cy="50" r="6" class="nd"/><circle cx="98" cy="28" r="11" class="lime"/><circle cx="96" cy="26" r="4.5" class="ck"/><path d="M99.5 29.5l4 4" class="ck"/></svg>
+  {{ empty_art('search') }}
   <h3>Ningún equipo coincide con el filtro</h3>
   <p><a class="btn sec" href="/devices">Quitar filtros</a></p>
 </div>
 {% else %}
 <div class="empty">
-  <svg class="empty-art" viewBox="0 0 120 80" aria-hidden="true"><path d="M20 60 L50 30 L80 50" class="ln"/><circle cx="20" cy="60" r="6" class="nd"/><circle cx="50" cy="30" r="6" class="nd"/><circle cx="80" cy="50" r="6" class="nd"/><circle cx="100" cy="24" r="11" class="lime"/><path d="M100 18v12M94 24h12" class="ck"/></svg>
+  {{ empty_art('plus') }}
   <h3>Aún no hay equipos</h3><p class="muted">Agregue el primero o impórtelos desde un CSV.</p>
-  {% if user.role == 'admin' %}<p><a class="btn" href="/devices/new" data-sheet>Agregar un dispositivo</a></p>{% endif %}
+  {% if user.role == 'admin' %}<p><a class="btn" href="/devices/new" data-sheet>{{ icon('plus', 'sm') }} Agregar un dispositivo</a>
+    <a class="btn sec" href="/devices/import" data-sheet data-title="Importar desde CSV">{{ icon('ul', 'sm') }} Importar desde CSV</a></p>{% endif %}
 </div>
 {% endif %}
 </div>
@@ -103,17 +104,6 @@
 </form>
 {% endif %}
 
-{% if user.role == 'admin' %}
-<details class="card" id="importar">
-  <summary><h2>Importación masiva (CSV)</h2></summary>
-  <p class="small muted">Columnas: <code>name,host,device_type,credential,group,port,protocol,location</code>.
-  <code>credential</code> es el nombre de una credencial existente; los grupos inexistentes se crean.
-  Valores de <code>device_type</code>: ver la <a href="/vendors">lista de {{ profiles|length }} plataformas soportadas</a>.</p>
-  <form method="post" action="/devices/import" enctype="multipart/form-data" class="row">
-    <input type="file" name="file" accept=".csv" required><button>Importar</button>
-  </form>
-</details>
-{% endif %}
 <script>
 (function () {
   const bulk = document.getElementById('bulk');
@@ -129,11 +119,6 @@
   if (all) all.addEventListener('change', () => { boxes.forEach(b => { b.checked = all.checked; }); sync(); });
   const clear = document.getElementById('bulk-clear');
   if (clear) clear.addEventListener('click', () => { boxes.forEach(b => { b.checked = false; }); sync(); });
-  const imp = document.getElementById('importar');
-  function openImport() { if (location.hash === '#importar' && imp) { imp.open = true; imp.scrollIntoView({block: 'start'}); } }
-  window.addEventListener('hashchange', openImport); openImport();
-  const go = document.getElementById('go-import');
-  if (go) go.addEventListener('click', () => { go.closest('details').open = false; setTimeout(openImport, 0); });
   sync();
 })();
 </script>
