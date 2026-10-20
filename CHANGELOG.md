@@ -1,5 +1,18 @@
 # Historial de versiones
 
+## 2.0.1
+- **Consola SSH en un diálogo** sobre la página, como en el prototipo: Reconectar, Pantalla completa, cerrar y estado de la
+  conexión. Un botón la abre en una ventana aparte (redimensionable) y Ctrl+clic, en una pestaña nueva. La ventana propia tiene la
+  misma cabecera.
+- **Activar la verificación en dos pasos**: el código QR y la clave ya no se solapan; el código se escribe en seis casillas (se puede
+  pegar).
+- **Ficha del equipo**: el menú ⋯ muestra siempre las opciones de línea base (sin línea base, permite marcar la última versión) y
+  «Últimas versiones» de un equipo sin respaldos muestra bien su estado vacío.
+- **Actualizador**: `opennccm update` ya no falla de vez en cuando con el código 141 (SIGPIPE) al leer las novedades del CHANGELOG
+  ni al comprobar la configuración de git.
+- Ctrl K: «Administración › Grupos» lleva a la pestaña Grupos.
+- Manual de funciones, guía de instalación y capturas del README actualizados al diseño «Señal 2».
+
 ## 2.0.0
 - **Interfaz rehecha pantalla por pantalla según el prototipo de diseño «Señal 2»**, con los datos reales de cada instalación:
   armazón, barra superior (búsqueda, tema y acento, notificaciones, ayuda), paneles laterales, diálogos y avisos con «Deshacer».
