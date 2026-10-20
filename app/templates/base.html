@@ -102,12 +102,15 @@
         'ph': _('Equipos, IPs, texto en configuraciones, páginas o acciones…'), 'move': _('moverse'), 'open': _('abrir'),
         'adv': _('Búsqueda avanzada en configuraciones'), 'expand': _('Desplegar menú'), 'collapse': _('Plegar menú'),
         'loading': _('Cargando…'), 'error': _('Error'), 'done': _('Hecho'), 'dirty': _('Tienes cambios sin guardar'),
-        'discard': _('Descartar'), 'working': _('Trabajando…')},
+        'discard': _('Descartar'), 'working': _('Trabajando…'), 'console': _('Consola · {0}'), 'reconnect': _('Reconectar'),
+        'fullscreen': _('Pantalla completa'), 'window': _('Abrir en una ventana aparte'), 'c_connecting': _('conectando…'),
+        'c_connected': _('conectado'), 'c_closed': _('desconectado'),
+        'c_help': _('Ctrl+Mayús+C / V para copiar y pegar · se cierra tras 15 min sin escribir · la sesión queda en Auditoría.')},
   'pages': [[_('Mi cuenta'), '/account', 'user'], [_('Cambiar mi contraseña'), '/account#clave', 'key'],
             [_('Comparar configuraciones'), '/diff', 'branch'], [_('Instalar el certificado'), '/certificado', 'cert'],
             [_('Privacidad y licencias'), '/acerca', 'info']]
            + ([[_('Administración › Usuarios'), '/users', 'cog'], [_('Administración › Credenciales'), '/credentials', 'cog'],
-               [_('Administración › Grupos'), '/credentials#groups', 'cog'], [_('Administración › Plataformas'), '/vendors', 'cog'],
+               [_('Administración › Grupos'), '/groups', 'cog'], [_('Administración › Plataformas'), '/vendors', 'cog'],
                [_('Administración › Auditoría'), '/audit', 'cog'], [_('Administración › Sistema'), '/system', 'cog'],
                [_('Administración › Ajustes'), '/settings', 'cog']] if user.role == 'admin' else []),
   'actions': ([[_('Respaldar todos los equipos'), '/backup/all', 'dl', 'post'], [_('Auditar cumplimiento de todos'), '/compliance/run', 'shield', 'post']] if user.role != 'viewer' else [])

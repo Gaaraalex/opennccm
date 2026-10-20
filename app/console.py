@@ -22,7 +22,7 @@ from . import legacy_ssh
 from .auth import ROLES, Forbidden, check_device, current_user, device_scope, require
 from .crypto import decrypt
 from .db import Device, SessionLocal, audit
-from .drivers import FASTPATH, IOS, get_profile
+from .drivers import FASTPATH, IOS, PROFILE_MAP, get_profile
 from .web import render
 from .i18n import _, _f
 
@@ -54,7 +54,8 @@ def console_allowed(user, device_id: int | None = None) -> bool:
 
 
 @router.get("/devices/{dev_id}/console")
-def console_page(request: Request, dev_id: int):
+def console_page(request: Request, dev_id: int, embed: int = 0):
+    """Consola SSH. embed=1: solo el terminal, para el diálogo que se abre sobre la página (prototipo)."""
     user = require(request)
     check_device(user, dev_id)
     if not console_allowed(user, dev_id):
@@ -63,10 +64,17 @@ def console_page(request: Request, dev_id: int):
         dev = db.get(Device, dev_id)
         if dev is None:
             raise Forbidden()
-        info = {"id": dev.id, "name": dev.name, "host": dev.host, "port": dev.port, "protocol": dev.protocol}
+        prof = PROFILE_MAP.get(dev.device_type)
+        info = {"id": dev.id, "name": dev.name, "host": dev.host, "port": dev.port, "protocol": dev.protocol,
+                "vend": (prof.vendor if prof else dev.device_type)[:3].upper()}
     from .auth import cached_setting
-    return render(request, "console.html", user, dev=info, compact=True,
+    resp = render(request, "console.html", user, dev=info, compact=True, embed=bool(embed),
                   autologin=cached_setting("console_autologin", "0") == "1")
+    if embed:  # solo esta página puede mostrarse dentro de otra, y únicamente de OpenNCCM mismo
+        from .main import CSP
+        resp.headers["Content-Security-Policy"] = CSP.replace("frame-ancestors 'none'", "frame-ancestors 'self'")
+        resp.headers["X-Frame-Options"] = "SAMEORIGIN"
+    return resp
 
 
 class _Bridge:

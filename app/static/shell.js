@@ -107,6 +107,48 @@
   paintSwatches();
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', paintSwatches);
 
+  /* ---------- consola SSH en un diálogo sobre la página (prototipo); el terminal va en un iframe (?embed=1) ---------- */
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('a[data-console]');
+    if (!a || e.ctrlKey || e.metaKey || e.shiftKey) return;  // con modificadores: abrirla en otra pestaña, como un enlace
+    e.preventDefault();
+    var d = document.createElement('dialog'), href = a.getAttribute('href');
+    d.className = 'dlg wide console-dlg';
+    d.setAttribute('aria-label', (T.console || '{0}').replace('{0}', a.dataset.name || ''));
+    d.innerHTML = '<div class="row nowrap"><span class="vend">' + esc(a.dataset.vend || '') + '</span>' +
+      '<h2 class="grow">' + esc((T.console || '{0}').replace('{0}', a.dataset.name || '')) + '</h2>' +
+      '<button type="button" class="btn s ghost" data-c="reconnect">' + icon('refresh', 's') + esc(T.reconnect || '') + '</button>' +
+      '<button type="button" class="btn s ghost" data-c="full">' + icon('expand', 's') + esc(T.fullscreen || '') + '</button>' +
+      '<button type="button" class="btn s icon ghost" data-c="window" title="' + esc(T.window || '') + '" aria-label="' + esc(T.window || '') + '">' + icon('monitor', 's') + '</button>' +
+      '<button type="button" class="tbtn" data-c="close" aria-label="' + esc(T.close || '') + '">' + icon('x') + '</button></div>' +
+      '<div class="term" style="padding:0;overflow:hidden"><iframe title="' + esc(a.getAttribute('aria-label') || '') + '" src="' + esc(href) + '?embed=1"></iframe></div>' +
+      '<div class="row nowrap"><span class="pill" role="status" aria-live="polite">' + esc(T.c_connecting || '') + '</span>' +
+      '<p class="muted sm grow" style="margin:0">' + esc(T.c_help || '') + '</p></div>';
+    document.body.appendChild(d);
+    var frame = $('iframe', d), pill = $('.pill', d);
+    function cmd(c) { if (frame.contentWindow) frame.contentWindow.postMessage({oc: 'console', cmd: c}, location.origin); }
+    function onMsg(ev) {
+      if (ev.origin !== location.origin || ev.source !== frame.contentWindow || !ev.data || ev.data.oc !== 'console') return;
+      var s = ev.data.state;
+      pill.textContent = T['c_' + {connecting: 'connecting', connected: 'connected'}[s]] || T.c_closed || s;
+      pill.className = 'pill ' + ({connected: 'ok', disconnected: 'warn'}[s] || '');
+    }
+    window.addEventListener('message', onMsg);
+    d.addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-c]');
+      if (ev.target === d) { d.close(); return; }  // clic en el fondo
+      if (!b) return;
+      var c = b.dataset.c;
+      if (c === 'close') d.close();
+      else if (c === 'reconnect') cmd('reconnect');
+      else if (c === 'full') { d.classList.toggle('full'); setTimeout(function () { cmd('fit'); }, 60); }
+      else if (c === 'window') { d.close(); if (window.abrirVentana) window.abrirVentana(href, 'consola-' + (a.dataset.console || ''), 1000, 640); else window.open(href); }
+    });
+    d.addEventListener('close', function () { window.removeEventListener('message', onMsg); d.remove(); });  // cierra la sesión SSH
+    d.showModal();
+    frame.addEventListener('load', function () { cmd('fit'); });
+  });
+
   /* ---------- diálogos (atajos, confirmaciones creadas por las páginas) ---------- */
   var overlay = null;
   function closeOverlay() {

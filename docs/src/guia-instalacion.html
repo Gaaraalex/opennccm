@@ -15,7 +15,7 @@
     <p class="sub">Paso a paso para instalar, configurar, asegurar, respaldar y actualizar OpenNCCM, el sistema de gestión
     de configuración, cambios y cumplimiento de red.</p>
   </div>
-  <div class="meta">Versión del software: 1.9.0<br>Sistemas soportados: Ubuntu Server 22.04 LTS y 24.04 LTS (64 bits)<br>
+  <div class="meta">Versión del software: 2.0.1<br>Sistemas soportados: Ubuntu Server 22.04 LTS y 24.04 LTS (64 bits)<br>
   Octubre de 2026</div>
 </div>
 
@@ -121,7 +121,7 @@ avisan de los cambios en tiempo real enviando mensajes syslog.</p>
   <tr><td>Más de 2 000 equipos</td><td>8 vCPU</td><td>16 GB</td><td>200 GB+</td><td>PostgreSQL (sección 15)</td></tr>
 </table>
 <p class="small">Valores orientativos. El disco crece con la cantidad de versiones guardadas y con las imágenes de firmware; puede
-limitar las versiones por equipo en <b>Ajustes → Retención</b>.</p>
+limitar las versiones por equipo en <b>Administración → Ajustes → Flujo de cambios</b>.</p>
 <ul>
   <li>Ubuntu Server <b>22.04 LTS</b> o <b>24.04 LTS</b>, 64 bits, recién instalado (físico o máquina virtual).</li>
   <li>Acceso con un usuario que tenga <code>sudo</code>.</li>
@@ -324,7 +324,7 @@ Al guardar, OpenNCCM hace el primer respaldo automáticamente.</p>
 core-sw1,10.0.0.1,cisco_ios,red-admin,Core,22,ssh,Datacenter
 fw-01,10.0.0.254,fortinet,firewalls,Seguridad,22,ssh,Datacenter
 edge-r1,10.0.1.1,juniper_junos,red-admin,WAN,22,ssh,Sucursal Norte</pre>
-<p>El valor de <code>device_type</code> de cada plataforma está en <b>Sistema → plataformas soportadas</b> (página
+<p>El valor de <code>device_type</code> de cada plataforma está en <b>Administración → Plataformas</b> (página
 <code>/vendors</code>). Los grupos que no existan se crean solos.</p>
 
 <h2>7.4 Verificar el primer respaldo</h2>
@@ -472,7 +472,7 @@ contraseñas del equipo).</div>
 <section class="chapter">
 <h1>14. Actualizar a una versión nueva y volver atrás</h1>
 <p>Las versiones nuevas se publican en el repositorio de GitHub. Cuando hay una, OpenNCCM avisa a los administradores con un
-mensaje emergente. Se puede actualizar <b>desde la web</b> (<b>Sistema → Actualizaciones → Actualizar a la versión X</b>, desde
+mensaje emergente. Se puede actualizar <b>desde la web</b> (<b>Administración → Sistema → Actualizaciones → Actualizar ahora</b>, desde
 la 1.6.0) o con un comando en el servidor; ambos hacen exactamente lo mismo:</p>
 <div class="term" data-title="Servidor Ubuntu"><span class="p">$</span> sudo opennccm update
 <span class="o">==&gt; Buscando actualizaciones (stable)…

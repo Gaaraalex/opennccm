@@ -53,8 +53,12 @@ page = adm.get(B + "/devices/1/console").text
 check("página de consola", "xterm.js" in page)
 check("la consola se muestra sin el menú (ventana propia)", 'aria-label="Menú principal"' not in page)
 lista = adm.get(B + "/devices").text
-check("la consola se abre en una ventana aparte redimensionable",
-      "abrirVentana(this.href, 'consola-1'" in lista and "resizable=yes" in lista)
+check("la consola se abre en un diálogo, con opción de ventana aparte redimensionable",
+      'data-console="1"' in lista and "resizable=yes" in lista)
+emb = adm.get(B + "/devices/1/console?embed=1")
+check("consola embebida: solo puede mostrarse dentro de OpenNCCM",
+      "frame-ancestors 'self'" in emb.headers.get("content-security-policy", "") and emb.headers.get("x-frame-options") == "SAMEORIGIN"
+      and "frame-ancestors 'none'" in adm.get(B + "/devices/1/console").headers.get("content-security-policy", ""))
 check("botón de interfaz web en cada equipo", "Interfaz web de R1" in lista and "https://127.0.0.1/" in lista)
 form = adm.get(B + "/devices/1/edit").text
 data = dict(re.findall(r'name="(name|host|device_type|protocol|port|credential_id|group_id)"[^>]*value="([^"]*)"', form))

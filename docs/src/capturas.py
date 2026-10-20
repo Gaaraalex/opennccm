@@ -117,7 +117,7 @@ save("12-configlet-exec-resultado", f"/configlets/{exec_id}/run",
 save("13-solicitudes", "/changes")
 save("14-solicitud-pendiente", f"/changes/{pending_cr}")
 save("15-cumplimiento", "/compliance", height=1400, full=False)
-save("16-politica-pci", f"/compliance/policies/{pci}")
+save("16-politica-pci", f"/compliance/policies/{pci}", height=1500, full=False)
 save("17-firmware", "/firmware")
 save("18-eol", "/eol")
 save("19-vulnerabilidades", "/vulns", height=1400, full=False)

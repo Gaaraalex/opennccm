@@ -1,55 +1,74 @@
-{% extends "base.html" %}{% block title %}Consola · {{ dev.name }}{% endblock %}
+{% extends "base.html" %}{% block title %}{{ _f('Consola · {0}', dev.name) }}{% endblock %}
 {% block content %}
+{# Consola SSH (xterm.js). embed=1: solo el terminal, dentro del diálogo de la página (prototipo);
+   sin embed: ventana propia con la misma cabecera que el diálogo. #}
 <link rel="stylesheet" href="/static/vendor/xterm/xterm.css?v={{ VERSION }}">
-<div class="toolbar console-bar">
-  <h1 style="margin:0;font-size:16px">{{ dev.name }} · consola SSH <span class="small muted">{{ dev.host }}:{{ dev.port }}</span></h1>
-  <span style="flex:1"></span>
-  <span id="estado" class="badge b-info" role="status" aria-live="polite">conectando…</span>
-  <button type="button" class="sec" id="reconectar" hidden>Reconectar</button>
-  <button type="button" class="sec" id="completa">Pantalla completa</button>
-</div>
-<div id="term" role="application" aria-label="Terminal SSH de {{ dev.name }}"></div>
-<p class="small muted console-help">{% if autologin %}Inicio automático con la credencial del equipo.{% else %}Escriba el usuario y la
-contraseña del equipo cuando se le pidan.{% endif %} Se cierra tras 15 min sin escribir · queda en Auditoría · Copiar: seleccione ·
-Pegar: Ctrl+Mayús+V o clic derecho.</p>
+{% if embed %}
+<style>html,body,main{height:100%;margin:0;padding:0;background:var(--term);overflow:hidden}#term{height:100%;padding:8px 10px;box-sizing:border-box}</style>
+<div id="term" role="application" aria-label="{{ _f('Terminal SSH de {0}', dev.name) }}"></div>
+{% else %}
+<style>main{padding:16px 18px;box-sizing:border-box;height:100vh;display:flex;flex-direction:column;gap:12px}#term{flex:1;min-height:0;padding:8px 10px}</style>
+<div class="row nowrap"><span class="vend">{{ dev.vend }}</span><h2 class="grow" style="margin:0">{{ _f('Consola · {0}', dev.name) }} <span class="muted sm mono" style="font-weight:400">{{ dev.host }}:{{ dev.port }}</span></h2>
+  <span id="estado" class="pill" role="status" aria-live="polite">conectando…</span>
+  <button type="button" class="btn s ghost" id="reconectar">{{ icon('refresh', 's') }}Reconectar</button>
+  <button type="button" class="btn s ghost" id="completa">{{ icon('expand', 's') }}Pantalla completa</button></div>
+<div id="term" class="term" role="application" aria-label="{{ _f('Terminal SSH de {0}', dev.name) }}"></div>
+<p class="muted sm" style="margin:0">{% if autologin %}Inicio automático con la credencial del equipo.{% else %}Escribe el usuario y la contraseña del equipo cuando se te pidan.{% endif %}
+  Ctrl+Mayús+C / V para copiar y pegar · se cierra tras 15 min sin escribir · la sesión queda en Auditoría.</p>
+{% endif %}
 <script src="/static/vendor/xterm/xterm.js?v={{ VERSION }}"></script>
 <script src="/static/vendor/xterm/addon-fit.js?v={{ VERSION }}"></script>
 <script>
 const T = {{ {'connecting': _('conectando…'), 'connected': _('conectado'), 'disconnected': _('desconectado'), 'closed': _('Desconectado'), 'denied': _('Desconectado: sin permiso para abrir esta consola')}|tojson }};
 (function () {
-  const estado = document.getElementById('estado'), again = document.getElementById('reconectar');
-  const term = new Terminal({cursorBlink: true, fontSize: 14, scrollback: 5000, convertEol: false,
-    fontFamily: 'Cascadia Mono, Consolas, "DejaVu Sans Mono", monospace', theme: {background: '#0c0c0c'}});
+  const EMBED = {{ 'true' if embed else 'false' }};
+  const estado = document.getElementById('estado');
+  const css = getComputedStyle(document.documentElement);
+  const bg = (css.getPropertyValue('--term') || '#0b0e14').trim(), fg = (css.getPropertyValue('--term-ink') || '#d6e2f0').trim();
+  const term = new Terminal({cursorBlink: true, fontSize: 13, lineHeight: 1.25, scrollback: 5000, convertEol: false,
+    fontFamily: '"Geist Mono", "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace',
+    theme: {background: bg, foreground: fg, cursor: (css.getPropertyValue('--signal') || '#c8f560').trim()}});
   const fit = new FitAddon.FitAddon();
   term.loadAddon(fit);
   term.open(document.getElementById('term'));
   fit.fit();
   let ws = null;
+  function state(s) {  // conectando / conectado / desconectado: en la ventana propia y en el diálogo de la página
+    if (estado) { estado.textContent = T[s]; estado.className = 'pill ' + ({connected: 'ok', disconnected: 'warn'}[s] || ''); }
+    if (EMBED && window.parent !== window) window.parent.postMessage({oc: 'console', state: s}, location.origin);
+  }
   function connect() {
+    if (ws && ws.readyState <= 1) ws.close();
     term.reset();
-    again.hidden = true;
-    estado.textContent = T.connecting; estado.className = 'badge b-info';
+    state('connecting');
     const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host +
       '/devices/{{ dev.id }}/console/ws?cols=' + term.cols + '&rows=' + term.rows;
-    ws = new WebSocket(url);
-    ws.onopen = () => { estado.textContent = T.connected; estado.className = 'badge b-ok'; term.focus(); };
-    ws.onmessage = e => term.write(e.data);
-    ws.onclose = e => {
-      estado.textContent = T.disconnected; estado.className = 'badge b-warning';
+    const sock = ws = new WebSocket(url);
+    sock.onopen = () => { state('connected'); term.focus(); };
+    sock.onmessage = e => term.write(e.data);
+    sock.onclose = e => {
+      if (sock !== ws) return;  // una reconexión ya abrió otro
+      state('disconnected');
       term.write('\r\n\x1b[90m[' + (e.code === 1008 ? T.denied : T.closed) + ']\x1b[0m\r\n');
-      again.hidden = false;
     };
   }
   term.onData(d => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({t: 'd', d: d})); });
   term.onResize(s => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({t: 'r', c: s.cols, r: s.rows})); });
-  window.addEventListener('resize', () => fit.fit());  // al cambiar el tamaño de la ventana, el terminal se adapta
-  document.title = '{{ dev.name }} · consola';
-  again.addEventListener('click', connect);
-  document.getElementById('completa').addEventListener('click', () => {
-    const el = document.getElementById('term');
-    (el.requestFullscreen ? el.requestFullscreen() : Promise.resolve()).then(() => setTimeout(() => fit.fit(), 200));
+  window.addEventListener('resize', () => fit.fit());  // al cambiar el tamaño (ventana o diálogo), el terminal se adapta
+  window.addEventListener('message', e => {  // botones del diálogo de la página
+    if (e.origin !== location.origin || !e.data || e.data.oc !== 'console') return;
+    if (e.data.cmd === 'reconnect') connect();
+    if (e.data.cmd === 'fit') { fit.fit(); term.focus(); }
   });
-  document.addEventListener('fullscreenchange', () => setTimeout(() => fit.fit(), 200));
+  if (!EMBED) {
+    document.title = {{ _f('{0} · consola', dev.name)|tojson }};
+    document.getElementById('reconectar').addEventListener('click', connect);
+    document.getElementById('completa').addEventListener('click', () => {
+      const el = document.documentElement;
+      (el.requestFullscreen ? el.requestFullscreen() : Promise.resolve()).then(() => setTimeout(() => fit.fit(), 200));
+    });
+    document.addEventListener('fullscreenchange', () => setTimeout(() => fit.fit(), 200));
+  }
   connect();
 })();
 </script>

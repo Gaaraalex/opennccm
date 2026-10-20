@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 1.9.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 2.0.1<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -130,19 +130,21 @@ pasan, 15 % equipos sin CVE críticos o altos y 15 % equipos con soporte del fab
 qué la está bajando.</p>
 <table>
   <tr><th>Indicador</th><th>Qué cuenta</th></tr>
-  <tr><td>Dispositivos</td><td>Equipos gestionados y cuántos tienen su último respaldo correcto.</td></tr>
-  <tr><td>Cambios 24 h</td><td>Versiones nuevas de configuración en las últimas 24 horas.</td></tr>
+  <tr><td>Dispositivos</td><td>Equipos gestionados, con su tendencia y cuántos se agregaron esta semana.</td></tr>
+  <tr><td>Respaldo OK</td><td>Equipos respaldados correctamente en las últimas 24 horas.</td></tr>
   <tr><td>Reglas cumplidas</td><td>Porcentaje de comprobaciones de cumplimiento (equipo × regla) que pasan.</td></tr>
-  <tr><td>Alarmas abiertas</td><td>Eventos de severidad warning o superior sin reconocer.</td></tr>
+  <tr><td>Con error</td><td>Equipos cuyo último respaldo falló (en rojo si hay alguno).</td></tr>
+  <tr><td>Fuera de línea base · Startup ≠ running</td><td>Equipos que difieren de su línea base o con cambios sin guardar.</td></tr>
+  <tr><td>Equipos sin soporte · Cambios por aprobar</td><td>Equipos sin soporte del fabricante y solicitudes pendientes (con la más antigua).</td></tr>
 </table>
-<p><b>Qué hacer ahora</b> lista hasta seis asuntos ordenados por gravedad (respaldos fallidos, CVE críticos, infracciones, equipos
-fuera de línea base, cambios por aprobar…), cada uno con su botón de acción. Si no hay nada pendiente, lo dice. Debajo se
-muestran la gráfica de cambios por día y la actividad reciente.</p>
+<p>Cada indicador lleva a la lista filtrada. <b>Necesita tu atención</b> lista los asuntos más importantes ordenados por gravedad
+(respaldos fallidos, CVE críticos, infracciones, equipos fuera de línea base, cambios por aprobar…), cada uno con su botón de
+acción. Al lado, la gráfica <b>Cambios de configuración</b> muestra los cambios por día de los últimos 7 o 30 días.</p>
 <h2>Rendimiento del servidor (solo administradores)</h2>
 <p>En <b>Administración → Sistema</b> los administradores ven el estado del propio servidor de OpenNCCM: uso de CPU ahora (y carga), memoria RAM, disco
 usado y espacio que ocupan los datos de OpenNCCM, y el tiempo encendido. Dos gráficas muestran el uso de CPU y de memoria de
 las últimas 24 horas (promedios cada 5 minutos; pase el ratón para ver cada valor) y unas barras muestran disco, memoria y
-swap usados, libres y totales. Si el disco supera el 90 % aparece «⚠ casi lleno».</p>
+swap usados, libres y totales. Si el disco o la memoria superan el 90 %, su indicador se marca en rojo.</p>
 </section>
 
 <section class="chapter">
@@ -157,7 +159,7 @@ grupo.</p>
   <li><b>Respaldar todos:</b> lanza en segundo plano el respaldo de todos los equipos (o del grupo filtrado).</li>
   <li><b>Acciones de la fila:</b> al pasar el ratón aparecen respaldar, consola e interfaz web del equipo.</li>
   <li><b>Acciones masivas:</b> marque varias filas y use la barra inferior para respaldarlas, auditarlas o moverlas a un grupo.</li>
-  <li><b>+ Agregar</b> (admin): <b>Agregar uno</b> abre el formulario de alta en un panel lateral; <b>Importar desde CSV</b>
+  <li><b>+ Agregar</b> (admin): <b>Agregar un equipo</b> abre el formulario de alta en un panel lateral; <b>Importar CSV</b>
   abre la importación masiva.</li>
 </ul>
 <h2>Importar desde CSV</h2>
@@ -185,9 +187,10 @@ con error se omiten y las válidas se importan; los grupos que no existen se cre
 <figure><img src="img/04-dispositivo-nuevo.png" style="max-height:150mm"><figcaption>Formulario de alta.</figcaption></figure>
 <h2>Ficha del dispositivo</h2>
 <p>Reúne todo sobre un equipo en pestañas: <b>Resumen</b> (inventario, línea base, ciclo de vida y últimas versiones),
-<b>Versiones</b>, <b>Cumplimiento</b>, <b>Vulnerabilidades</b>, <b>Firmware</b> y <b>Actividad</b>. Arriba están
-<b>Respaldar ahora</b>, <b>Consola</b> e <b>Interfaz web</b>; el menú <b>⋯</b> agrupa auditar, buscar CVE, actualizar firmware,
-editar, volver a la línea base y eliminar. Para eliminar un equipo hay que escribir su nombre, porque se borra con todo su
+<b>Versiones</b>, <b>Cumplimiento</b>, <b>Vulnerabilidades</b>, <b>Firmware</b> y <b>Eventos</b>. Arriba están
+<b>Consola</b>, <b>Interfaz web</b> y <b>Respaldar ahora</b>; el menú <b>⋯</b> agrupa auditar, buscar CVE, actualizar firmware,
+editar, comparar con otro equipo, ver las diferencias con la línea base, volver a ella (si el equipo aún no tiene línea base,
+permite marcar la última versión) y eliminar. Para eliminar un equipo hay que escribir su nombre, porque se borra con todo su
 historial.</p>
 <figure><img src="img/05-dispositivo.png"><figcaption>Ficha del dispositivo R1, pestaña Resumen.</figcaption></figure>
 <figure><img src="img/05c-dispositivo-cumplimiento.png" style="max-height:120mm"><figcaption>Pestaña Cumplimiento: reglas agrupadas por política, con «Corregir N».</figcaption></figure>
@@ -197,13 +200,14 @@ historial.</p>
 <p><b>Para qué sirve:</b> entrar a la línea de comandos de un equipo desde el navegador, sin PuTTY ni otro programa.</p>
 <ol class="steps">
   <li>En <b>Dispositivos</b>, pase el ratón por la fila del equipo y pulse el icono de consola, o el botón
-  <b>Consola</b> en la página del equipo. La consola se abre en una <b>ventana aparte</b> del navegador (1000 × 640, centrada);
-  puede agrandarla o achicarla arrastrando sus bordes y el terminal se adapta solo. Si el navegador bloquea las ventanas
-  emergentes, se abre en una pestaña nueva.</li>
+  <b>Consola</b> en la página del equipo. La consola se abre en un <b>diálogo sobre la página</b>, con <b>Reconectar</b>,
+  <b>Pantalla completa</b> (lo agranda) y cerrar; abajo se ve si está conectada. El botón de pantalla abre la misma consola en una
+  <b>ventana aparte</b> del navegador, que puede agrandar o achicar arrastrando sus bordes (el terminal se adapta solo).
+  Ctrl+clic en el icono la abre en una pestaña nueva.</li>
   <li>Si el administrador no activó el inicio automático, escriba el <b>usuario</b> y la <b>contraseña</b> del equipo cuando
   se le pidan (la contraseña no se muestra al escribirla).</li>
-  <li>Use la consola como cualquier terminal. Copiar: seleccione el texto. Pegar: Ctrl+Mayús+V o clic derecho.
-  <b>Pantalla completa</b> agranda el terminal; <b>Reconectar</b> abre una sesión nueva.</li>
+  <li>Use la consola como cualquier terminal. Copiar: seleccione el texto (o Ctrl+Mayús+C). Pegar: Ctrl+Mayús+V o clic derecho.
+  <b>Reconectar</b> abre una sesión nueva. Al cerrar el diálogo se cierra la sesión.</li>
 </ol>
 <table>
   <tr><th>Ajuste (Ajustes → Seguridad y acceso)</th><th>Efecto</th></tr>
@@ -239,7 +243,7 @@ inicio automático. Solo funciona con equipos configurados por SSH.</div>
 <p>Cada versión registra su <b>origen</b>: <code>manual</code> (botón), <code>scheduled</code> (tarea), <code>syslog</code>
 (detectado en tiempo real) o <code>push</code> (aplicado por OpenNCCM).</p>
 <h2>Ver una versión</h2>
-<p>En la ficha del equipo, pestaña <b>Versiones</b>, botón <b>Ver</b> de cada versión (el icono de al lado la descarga). Desde allí puede <b>descargar</b>, <b>comparar con la anterior</b>,
+<p>En la ficha del equipo, pestaña <b>Versiones</b>, la flecha <b>›</b> de cada versión la abre en un panel lateral. Desde allí puede <b>descargar</b>, <b>comparar con la anterior</b>,
 <b>etiquetar</b> (por ejemplo «antes de migración»), <b>marcar como línea base</b> o <b>revertir el equipo a esa versión</b>.</p>
 <figure><img src="img/06-version.png" class="tall"><figcaption>Vista de una versión con sus acciones.</figcaption></figure>
 <div class="tip"><b>Retención</b>En Ajustes puede limitar cuántas versiones guardar por equipo. Las versiones etiquetadas (incluida la
@@ -252,9 +256,10 @@ línea base) nunca se borran.</div>
 para comparar dos switches que deberían ser iguales).</p>
 <h2>Cómo usarlo</h2>
 <ol class="steps">
-  <li>En la pestaña <b>Versiones</b> de la ficha, pulse dos versiones de la línea de tiempo (la más antigua queda como A) y
-  pulse <b>Comparar A ↔ B</b> o <b>Unificada</b>. <b>Solo con cambios</b> oculta las versiones sin diferencias.</li>
-  <li>En la página de comparación puede cambiar las versiones, el contexto (0, 3, 10 líneas o archivo completo) y la vista.</li>
+  <li>En la pestaña <b>Versiones</b> de la ficha, pulse dos versiones de la línea de tiempo (la más antigua queda como A y la
+  otra como B): la comparación aparece al lado, en vista <b>lado a lado</b> o <b>unificada</b>.</li>
+  <li><b>Comparar configuraciones</b> (desde Buscar en configs o el menú ⋯ del equipo) compara versiones de equipos distintos y
+  permite cambiar el contexto (0, 3, 10 líneas o archivo completo) e intercambiar A y B.</li>
 </ol>
 <p>Arriba, <b>Qué cambió</b> resume las diferencias en palabras (por ejemplo «en «interface Gi0/1» se agregó «shutdown»»).
 La vista <b>lado a lado</b> muestra la versión A a la izquierda y la B a la derecha, con números de línea: en rojo lo
@@ -281,7 +286,7 @@ poder volver a ella en un paso (por ejemplo, tras un incidente).</p>
   <li>Abra la versión aprobada y pulse <b>Marcar como línea base</b>.</li>
   <li>Si el equipo se desvía, su ficha mostrará un aviso con <b>Ver diferencias</b> (comparación lado a lado línea base ↔ actual)
   y, en el menú <b>⋯</b>, <b>Volver a la línea base…</b>, que genera una solicitud de reversión para aprobar.</li>
-  <li>Use <b>Dispositivos → estado «fuera de línea base»</b> o <b>Informes → Desviación de línea base</b> para ver todos los afectados.</li>
+  <li>Use <b>Dispositivos → estado «fuera de línea base»</b> o <b>Informes → Fuera de línea base</b> para ver todos los afectados.</li>
 </ol>
 </section>
 
@@ -345,9 +350,9 @@ spanning-tree vlan {{ vlan_id }} priority 4096
 <figure><img src="img/32-configlet-form.png" style="max-height:120mm"><figcaption>Edición de un configlet. «Aplica a» limita los equipos compatibles (expresión sobre el device_type).</figcaption></figure>
 <h2>Ejecutar</h2>
 <ol class="steps">
-  <li>Pulse <b>Ejecutar</b> en el configlet.</li>
-  <li>Complete las variables detectadas (una por línea, <code>nombre=valor</code>).</li>
-  <li>Elija los equipos: uno a uno, todos, o un grupo completo.</li>
+  <li>Pulse <b>Ejecutar</b> en la tarjeta del configlet: se abre un panel lateral.</li>
+  <li>Complete las variables detectadas: hay un campo por cada una, y la <b>vista previa de comandos</b> se actualiza al escribir.</li>
+  <li>Elija los equipos compatibles: uno a uno, todos, ninguno o un grupo completo.</li>
   <li>Para <b>config</b>: pulse <b>Crear solicitud de cambio</b> y espere la aprobación. Para <b>exec</b>: verá la salida al instante.</li>
 </ol>
 <figure><img src="img/11-configlet-ejecutar.png"><figcaption>Ejecución: variables y selección de equipos.</figcaption></figure>
@@ -379,8 +384,9 @@ lo aprobó, qué se aplicó y con qué resultado.</p>
 <h2>Cómo usarlo</h2>
 <ol class="steps">
   <li>Las solicitudes se crean desde configlets, correcciones de cumplimiento, reversiones y actualizaciones de firmware.</li>
-  <li>El administrador abre la solicitud (menú <b>Cambios</b>), revisa la <b>vista previa de los comandos por equipo</b>, escribe un
-  comentario y pulsa <b>Aprobar y ejecutar</b> o <b>Rechazar</b>.</li>
+  <li>El administrador abre la solicitud (menú <b>Cambios</b>, que se abre en «Por aprobar» si hay pendientes), revisa en el panel
+  lateral la <b>vista previa de los comandos por equipo</b> y pulsa <b>Aprobar y ejecutar</b> o <b>Rechazar</b>. El comentario es
+  opcional al aprobar y obligatorio al rechazar, para que quien la pidió sepa qué cambiar.</li>
   <li>Al ejecutarse, la sección <b>Resultado</b> muestra la salida de cada equipo. Los comandos se envían <b>de uno en uno</b>:
   si el equipo rechaza uno, OpenNCCM se detiene ahí, <b>no guarda</b> la configuración (ni hace commit; en Junos, IOS-XR, VyOS y
   similares descarta los cambios pendientes), indica qué comando falló y cuáles ya se aplicaron, y respalda el equipo para
@@ -460,18 +466,20 @@ corregir las infracciones.</p>
 </table>
 <p class="small">Las reglas son controles técnicos de referencia. El cumplimiento normativo completo requiere además procesos y evidencias
 que no dependen del equipo.</p>
-<figure><img src="img/15-cumplimiento.png"><figcaption>Cumplimiento: indicadores e infracciones agrupadas por política, con «Corregir N».</figcaption></figure>
+<figure><img src="img/15-cumplimiento.png"><figcaption>Cumplimiento: mapa equipo × política y políticas con sus infracciones.</figcaption></figure>
 <h2>Cómo usarlo</h2>
 <ol class="steps">
-  <li>Revise las <b>infracciones por política</b>. La severidad se distingue también por la forma (rombo crítica, triángulo
-  mayor, círculo menor). Cada regla con corrección muestra <b>Corregir</b>, y cada política <b>Corregir N</b>, que crea una
-  solicitud de cambio por equipo con todas sus correcciones juntas.</li>
-  <li>Para crear su propia política: escriba nombre y filtro y pulse <b>Crear</b>; luego agregue reglas en la página de la política.
-  Antes de agregar una regla, <b>Probar la regla</b> la evalúa contra la última configuración de un equipo y muestra las líneas
-  que coinciden, sin guardar nada.</li>
+  <li>El <b>mapa equipo × política</b> muestra el porcentaje de reglas que cumple cada equipo en cada política (verde, ámbar o
+  rojo); un clic lleva al equipo. Debajo, cada política muestra una barra por gravedad y, al desplegarla, las reglas que fallan y en
+  qué equipos. La severidad se distingue también por la forma (rombo crítica, triángulo mayor, círculo menor). Cada regla con
+  corrección muestra <b>Corregir</b>; en la ficha del equipo, <b>Corregir N</b> crea una solicitud con todas sus correcciones juntas.</li>
+  <li>Para crear o cambiar una política: <b>Nueva política</b> o <b>Editar</b> abren el editor en un panel lateral. Cada regla tiene
+  nombre, condición (debe o no debe contener), severidad, patrón y corrección opcional, y se <b>prueba en vivo</b> contra la
+  configuración del equipo elegido mientras se escribe («cumple» / «incumple»). <b>Guardar</b> guarda la política y todas sus reglas
+  a la vez.</li>
   <li>Use <b>Auditar todos ahora</b> después de cambiar reglas.</li>
 </ol>
-<figure><img src="img/16-politica-pci.png" class="tall"><figcaption>Reglas de la política PCI DSS 4.0 con su requisito, patrón, severidad y corrección.</figcaption></figure>
+<figure><img src="img/16-politica-pci.png" class="tall"><figcaption>Editor de la política PCI DSS 4.0: cada regla con su patrón, severidad, corrección y prueba en vivo.</figcaption></figure>
 </section>
 
 <section class="chapter">
@@ -480,14 +488,18 @@ que no dependen del equipo.</p>
 <h2>Cómo funciona</h2>
 <p>Con la versión de firmware leída del inventario, OpenNCCM consulta la base pública <b>NVD</b> del NIST. Usa el identificador CPE
 del fabricante cuando existe (Cisco IOS/IOS-XE/NX-OS/IOS-XR/ASA, Junos, EOS, AOS-CX, FortiOS, PAN-OS, RouterOS) y búsqueda por
-palabras en el resto. Guarda el ID CVE, la puntuación CVSS, la severidad y el enlace, y genera una alarma crítica si hay CVE críticos.</p>
+palabras en el resto. Guarda el ID CVE, la puntuación CVSS, la severidad y el enlace, y genera una alarma crítica si hay CVE críticos.
+Además descarga (como mucho una vez al día) el catálogo <b>KEV</b> de CISA y marca los CVE <b>«explotado activamente»</b>.</p>
 <h2>Cómo usarlo</h2>
 <ul>
-  <li>En un equipo: botón <b>Buscar CVE de firmware</b>. Para todos: <b>CVE → Escanear todos</b> o una tarea programada.</li>
+  <li>En un equipo: menú <b>⋯ → Buscar CVE de firmware</b>. Para todos: <b>Vulnerabilidades → Escanear todos</b> o una tarea programada.</li>
+  <li>La página agrupa los resultados por CVE (qué equipos afecta, qué permite y la solución: si ya hay una imagen corregida cargada,
+  lo indica con un enlace). Arriba, los indicadores de críticos, explotados activamente, equipos afectados y equipos con imagen
+  corregida; los filtros separan por severidad o «Explotados activamente».</li>
   <li>Sin clave de API, NVD permite unas 5 consultas cada 30 segundos (el escaneo masivo espera entre equipos). Una clave gratuita
   (<code>NCM_NVD_API_KEY</code>) lo acelera.</li>
 </ul>
-<figure><img src="img/19-vulnerabilidades.png" class="tall"><figcaption>Vulnerabilidades ordenadas por puntuación CVSS.</figcaption></figure>
+<figure><img src="img/19-vulnerabilidades.png" class="tall"><figcaption>Vulnerabilidades agrupadas por CVE, con indicadores y filtros.</figcaption></figure>
 <p class="small">Los resultados dependen de cómo NVD registre cada versión: confirme siempre con el boletín del fabricante.</p>
 </section>
 
@@ -520,14 +532,16 @@ palabras en el resto. Guarda el ID CVE, la puntuación CVSS, la severidad y el e
 </table>
 <h2>Cómo usarlo</h2>
 <ol class="steps">
-  <li>(admin) <b>Firmware → Cargar</b>: elija el archivo, indique la versión y, opcionalmente, para qué device_type es.</li>
-  <li>Elija la imagen, marque los equipos y, si corresponde, <b>Reiniciar los equipos al terminar</b>. Pulse <b>Crear solicitud</b>.
-  También puede hacerlo desde la ficha de cada equipo.</li>
+  <li>(admin) <b>Firmware y ciclo de vida → Imágenes → Cargar imagen</b>: arrastre el archivo, indique la versión y para qué
+  device_type es. La tabla muestra el MD5, el tamaño y los equipos compatibles.</li>
+  <li>Pestaña <b>Actualizar equipos</b> (o <b>Usar</b> en la imagen): elija la imagen; se marcan solos los equipos compatibles que
+  tienen otra versión. Si corresponde, marque <b>Reiniciar cada equipo al terminar</b> y pulse <b>Crear solicitud de
+  actualización</b>. También puede hacerlo desde la ficha de cada equipo.</li>
   <li>Un administrador revisa los pasos previstos y aprueba. El resultado muestra si el archivo ya existía, si se transfirió y si el MD5
   coincidió.</li>
   <li>Tras el reinicio, OpenNCCM vuelve a respaldar el equipo a los 15 minutos para actualizar la versión en el inventario.</li>
 </ol>
-<figure><img src="img/17-firmware.png"><figcaption>Repositorio de imágenes y selección de equipos.</figcaption></figure>
+<figure><img src="img/17-firmware.png"><figcaption>Firmware y ciclo de vida: pestaña Imágenes.</figcaption></figure>
 <div class="warn"><b>Antes de actualizar en producción</b>Lea las notas del fabricante (espacio libre, rutas de actualización, modo
 <i>install</i> en IOS-XE) y pruebe en un equipo de laboratorio. En Cisco, habilite <code>ip scp server enable</code>.</div>
 </section>
@@ -550,12 +564,13 @@ equipo toma la primera entrada que coincide y recibe un estado:</p>
 </table>
 <h2>Cómo cargar las fechas</h2>
 <ul>
-  <li><b>A mano:</b> formulario al pie de la página EOL/EOS.</li>
-  <li><b>CSV:</b> columnas <code>vendor,model_pattern,end_of_sale,end_of_sw_maintenance,end_of_support,replacement,url</code>.</li>
+  <li><b>A mano:</b> botón <b>Agregar</b> de la pestaña <b>Fin de vida (EOL/EOS)</b>; mientras escribe el patrón indica con qué
+  equipos coincide. Cada modelo de la tabla se puede editar o eliminar.</li>
+  <li><b>CSV:</b> botón <b>Importar CSV</b>, columnas <code>vendor,model_pattern,end_of_sale,end_of_sw_maintenance,end_of_support,replacement,url</code>.</li>
   <li><b>API Cisco EoX:</b> con credenciales de apiconsole.cisco.com en Ajustes, el botón <b>Sincronizar con Cisco EoX</b> completa las
   fechas de todos los modelos Cisco del inventario.</li>
 </ul>
-<figure><img src="img/18-eol.png"><figcaption>Estado de ciclo de vida por equipo y base de modelos.</figcaption></figure>
+<figure><img src="img/18-eol.png"><figcaption>Fin de vida: soporte restante de cada equipo y base de modelos filtrable por fabricante.</figcaption></figure>
 </section>
 
 <section class="chapter">
@@ -581,9 +596,9 @@ equipo toma la primera entrada que coincide y recibe un estado:</p>
   <tr><td>Cada pocos minutos</td><td>5, 10, 15, 20 o 30 minutos.</td></tr>
   <tr><td>Avanzado (expresión cron)</td><td>Para casos especiales: <code>minuto hora día mes día-semana</code>; 0 o 7 es domingo y 1 es lunes.</td></tr>
 </table>
-<p>La hora es la del servidor (Sistema → Fecha, hora y zona horaria). La tabla muestra cada tarea en palabras y su próxima
-ejecución. Cada tarea puede <b>editarse</b> (botón «Editar»: abre el mismo asistente con sus valores), pausarse, ejecutarse ya o
-eliminarse.</p>
+<p>La hora es la del servidor (Sistema → Fecha, hora y zona horaria). La tabla muestra cada tarea en palabras, su próxima
+ejecución («hoy 06:00», «lun 07:00»…) y un interruptor para pausarla o reanudarla. <b>Nueva tarea</b> y el lápiz de cada fila abren
+el asistente en un panel lateral; <b>Ejecutar ya</b> la lanza al momento y <b>Eliminar</b> está dentro del panel de edición.</p>
 <figure><img src="img/36-tarea-editar.png" style="max-height:110mm"><figcaption>Editar una tarea: el mismo asistente con sus valores actuales.</figcaption></figure>
 <figure><img src="img/20-tareas.png"><figcaption>Tareas programadas.</figcaption></figure>
 </section>
@@ -598,49 +613,47 @@ eliminarse.</p>
   <tr><td><span class="badge b-warn">warning</span></td><td>Cambio de configuración, conflicto startup/running, desviación de línea base, infracciones</td></tr>
   <tr><td><span class="badge b-info">info</span></td><td>Syslog recibido, solicitud pendiente o ejecutada, copias creadas</td></tr>
 </table>
-<p>En <b>Alarmas</b> se filtran por severidad, se ve el detalle (por ejemplo, las líneas cambiadas) y se <b>reconocen</b> una a una o todas.
+<p><b>Alarmas</b> se abre en <b>Sin reconocer</b> (o <b>Todas</b>), con chips por severidad y su recuento. Cada alarma muestra el
+equipo y hace cuánto ocurrió (el detalle completo aparece al pasar el ratón), con <b>Abrir equipo</b> y <b>Reconocer</b>; también se
+pueden reconocer todas (con <b>Deshacer</b> en el aviso).
 Las de severidad igual o mayor a la configurada en Ajustes se envían por correo, webhook (Teams, Slack…) y/o Telegram.</p>
-<figure><img src="img/21-alarmas.png" class="tall"><figcaption>Alarmas y eventos con su detalle desplegable.</figcaption></figure>
+<figure><img src="img/21-alarmas.png" class="tall"><figcaption>Alarmas y eventos.</figcaption></figure>
 </section>
 
 <section class="chapter">
 <h1>19. Análisis</h1>
 <p><b>Para qué sirve:</b> identificar patrones: qué equipos cambian más, quién cambia, por qué vía, qué versiones de firmware predominan
 y cómo está el cumplimiento y el ciclo de vida.</p>
-<p>Elija el período (7, 30, 90 o 365 días). La página muestra:</p>
+<p>Elija el período (7, 30 o 90 días). La página muestra:</p>
 <ul>
-  <li><b>Indicadores</b>: cambios del período con su tendencia y la comparación con el período anterior (▲ más / ▼ menos),
-  cumplimiento global con su estado (✓ bien, ⚠ mejorable, ✕ requiere atención), equipos, conflictos startup/running y equipos
-  fuera de su línea base.</li>
-  <li><b>Actividad de cambios</b>: versiones nuevas por día, apiladas según cómo se detectaron (manual, programado, syslog o
-  aplicado por OpenNCCM). Cada origen conserva siempre el mismo color.</li>
-  <li><b>Cuándo cambia la red</b>: mapa de calor por día de la semana y hora (más oscuro = más cambios). Sirve para ver cambios
+  <li><b>Indicadores</b>: cambios del período con su minigráfica y la comparación con el período anterior, cambios <b>fuera de
+  solicitud</b> (detectados por syslog), cambios <b>revertidos</b> y <b>equipos con cambios</b>.</li>
+  <li><b>Cuándo cambia la red</b>: mapa de calor por día de la semana y hora (más intenso = más cambios). Sirve para ver cambios
   fuera del horario laboral.</li>
-  <li><b>Origen de los cambios</b>: anillo con el total en el centro y el porcentaje de cada origen.</li>
-  <li><b>Equipos con más cambios</b> y <b>quién hace los cambios</b>; <b>cumplimiento por política</b> con color e icono según el
-  porcentaje (✓ 90 % o más, ⚠ 70–89 %, ✕ menos de 70 %); <b>ciclo de vida</b> en una barra al 100 %; fabricantes y versiones de
-  firmware.</li>
+  <li><b>Origen de los cambios</b>: anillo con el total en el centro y el porcentaje de cada origen (programado, syslog, manual o
+  aplicado por OpenNCCM).</li>
+  <li>Barras de <b>equipos con más cambios</b>, <b>quién hace los cambios</b>, <b>equipos por fabricante</b>, <b>firmware más
+  usado</b>, <b>ciclo de vida</b> y <b>cumplimiento por política</b>.</li>
 </ul>
-<p>Al pasar el cursor (o el foco del teclado) sobre cualquier barra, celda o segmento aparece su valor exacto. Los nombres de
-equipos y políticas son enlaces, y <b>Ver como tabla</b> abre los mismos datos en el informe correspondiente.</p>
+<p>Al pasar el cursor sobre una barra o celda aparece su valor exacto. Los nombres de equipos y políticas son enlaces.</p>
 <figure><img src="img/22-analisis.png" class="tall"><figcaption>Página de Análisis.</figcaption></figure>
 </section>
 
 <section class="chapter">
 <h1>20. Informes</h1>
-<p>Cada informe se puede <b>ver en pantalla</b> o <b>descargar en CSV</b> (UTF-8, se abre directamente en Excel). Los administradores
-pueden enviarlos por correo al momento o programarlos.</p>
+<p>Cada informe es una tarjeta con <b>Ver</b> (en pantalla, con el periodo de 7, 30, 90 días o un año cuando aplica) y <b>CSV</b>
+(UTF-8, se abre directamente en Excel). Los administradores pueden <b>enviarlos por correo ahora</b> o <b>programar el envío</b>.</p>
 <table>
   <tr><th>Informe</th><th>Contenido</th></tr>
   <tr><td>Inventario</td><td>Nombre, IP, fabricante, modelo, serie, versión, grupo, estado, conflictos y línea base</td></tr>
   <tr><td>Cambios de configuración</td><td>Cada versión nueva con fecha, origen, usuario y líneas</td></tr>
   <tr><td>Cumplimiento</td><td>Resultado por equipo, política y regla</td></tr>
-  <tr><td>Conflictos startup/running</td><td>Equipos con cambios sin guardar</td></tr>
-  <tr><td>Desviación de línea base</td><td>Equipos con línea base y si se desviaron</td></tr>
+  <tr><td>Conflictos startup ≠ running</td><td>Equipos con cambios sin guardar</td></tr>
+  <tr><td>Fuera de línea base</td><td>Equipos con línea base y si se desviaron</td></tr>
   <tr><td>Fin de vida (EOL/EOS)</td><td>Fechas y estado de cada equipo</td></tr>
   <tr><td>Vulnerabilidades</td><td>CVE por equipo</td></tr>
   <tr><td>Solicitudes de cambio</td><td>Quién pidió, quién aprobó y el resultado</td></tr>
-  <tr><td>Actividad de usuarios</td><td>Auditoría (solo administradores)</td></tr>
+  <tr><td>Auditoría de usuarios</td><td>Inicios de sesión y acciones (solo administradores)</td></tr>
 </table>
 <div class="two">
 <figure><img src="img/23-informes.png"><figcaption>Lista de informes.</figcaption></figure>
@@ -653,29 +666,36 @@ pueden enviarlos por correo al momento o programarlos.</p>
 <p><b>Credenciales:</b> perfiles de usuario, contraseña y contraseña privilegiada (<i>enable</i>) para conectarse a los equipos. Si el
 equipo entra en modo usuario («&gt;») y la credencial no tiene <i>enable</i>, OpenNCCM prueba la contraseña de ingreso; si no sirve,
 el error indica en qué credencial escribirla. Se guardan
-cifradas con AES-256-GCM y nunca se muestran. Al actualizar una credencial, deje en blanco lo que no quiera cambiar.</p>
-<p><b>Grupos:</b> agrupan equipos (sede, rol, cliente) para filtrar, programar tareas, aplicar políticas y restringir usuarios. Se
-llega aquí también con el botón <b>Grupos</b> de la página Dispositivos, y un grupo se puede crear al editar un equipo. Para asignar
+cifradas con AES-256-GCM y nunca se muestran. Están en <b>Administración → Credenciales</b>: la tabla indica cuántos equipos usa
+cada una y su estado (funciona, falla en N equipos o sin usar). <b>Crear credencial</b> y <b>Actualizar</b> abren un panel lateral;
+al actualizar, deje en blanco lo que no quiera cambiar.</p>
+<p><b>Grupos</b> (pestaña <b>Administración → Grupos</b>): agrupan equipos (sede, rol, cliente) para filtrar, programar tareas,
+aplicar políticas y restringir usuarios. La tabla muestra cuántos equipos tiene cada uno, con <b>Ver equipos</b>; se crean con el
+campo del pie. Se llega aquí también con el botón <b>Grupos</b> de la página Dispositivos, y un grupo se puede crear al editar un equipo. Para asignar
 un equipo a un grupo: ábralo y pulse <b>asignar grupo</b> (o <b>Editar</b>). Al eliminar un grupo, sus equipos quedan sin grupo.</p>
-<figure><img src="img/25-credenciales.png"><figcaption>Credenciales y grupos.</figcaption></figure>
+<div class="two">
+<figure><img src="img/25-credenciales.png"><figcaption>Credenciales con su estado.</figcaption></figure>
+<figure><img src="img/25b-grupos.png"><figcaption>Grupos de dispositivos.</figcaption></figure>
+</div>
 </section>
 
 <section class="chapter">
 <h1>22. Usuarios, mi cuenta, idioma y temas</h1>
 <h2>Crear un usuario (administradores)</h2>
 <ol class="steps">
-  <li>Menú <b>Usuarios</b>, sección <b>Crear usuario nuevo</b>.</li>
-  <li>Escriba el nombre (letras, números, punto, guion o @; sin espacios), elija el rol y escriba la contraseña dos veces
+  <li><b>Administración → Usuarios → Crear usuario</b> (se abre un panel lateral).</li>
+  <li>Escriba el nombre (letras, números, punto, guion o @; sin espacios), elija el rol en sus tarjetas (Lector, Operador o
+  Administrador) y escriba la contraseña dos veces
   (mínimo 10 caracteres, con letras y números, sin incluir el nombre de usuario). El correo es opcional.</li>
   <li>Para limitarlo a ciertos equipos, marque sus grupos. Sin grupos marcados verá todos los equipos.</li>
   <li>Pulse <b>Crear usuario</b>. El mensaje confirma el nombre y el rol; ya puede ingresar.</li>
 </ol>
 <p>No se permiten dos usuarios con el mismo nombre (sin distinguir mayúsculas). Crear un usuario <b>nunca</b> modifica a otro.</p>
-<figure><img src="img/26-usuarios.png"><figcaption>Lista de usuarios con «Editar» y «Eliminar» en cada fila, y el formulario de creación.</figcaption></figure>
+<figure><img src="img/26-usuarios.png"><figcaption>Usuarios y roles: equipos permitidos, verificación en dos pasos y último acceso.</figcaption></figure>
 <h2>Editar un usuario</h2>
-<p>Pulse <b>Editar</b> en su fila para cambiar el rol, el correo, si está activo, sus grupos o su contraseña (deje la contraseña vacía
-para no cambiarla). Al guardar, el mensaje indica exactamente qué cambió (por ejemplo «contraseña cambiada, rol lector»).
-«Activo» desmarcado impide el ingreso sin borrar el usuario ni su historial.</p>
+<p>Pulse la fila o <b>Editar</b> para cambiar el rol, el correo, sus grupos, si la <b>cuenta está activa</b> o su contraseña (deje
+la contraseña vacía para no cambiarla). Al guardar, el mensaje indica exactamente qué cambió (por ejemplo «contraseña cambiada, rol
+lector»). Desactivar la cuenta impide el ingreso sin borrar el usuario ni su historial. <b>Eliminar</b> está en el mismo panel.</p>
 <figure><img src="img/33-usuario-editar.png" style="max-height:110mm"><figcaption>Edición de un usuario.</figcaption></figure>
 <div class="note"><b>Protecciones</b>Un administrador no puede quitarse a sí mismo el rol, bloquearse ni eliminarse, y siempre debe quedar al
 menos un administrador activo. Si se pierde el acceso, en la consola del servidor: <code>sudo opennccm users</code> lista los usuarios y
@@ -687,12 +707,12 @@ segundos en el teléfono. Aunque alguien conozca la contraseña, no puede entrar
   <li>Instale en el teléfono una app de autenticación (Google Authenticator, Microsoft Authenticator, Authy, FreeOTP…).</li>
   <li>En OpenNCCM: <b>Mi cuenta → Verificación en dos pasos → Activar</b>.</li>
   <li>En la app, «Agregar cuenta» y escanee el código QR (o escriba la clave que aparece debajo).</li>
-  <li>Escriba el código de 6 dígitos que muestra la app y pulse <b>Confirmar y activar</b>.</li>
+  <li>Escriba el código de 6 dígitos que muestra la app en las seis casillas (se puede pegar) y pulse <b>Confirmar y activar</b>.</li>
 </ol>
 <figure><img src="img/34-dospasos.png" style="max-height:120mm"><figcaption>Activación de la verificación en dos pasos: código QR, clave y confirmación.</figcaption></figure>
 <p>Desde entonces, tras la contraseña se pide el código. Un mismo código no sirve dos veces. Para desactivarla se pide la
-contraseña y un código. Si alguien pierde el teléfono, un administrador la quita en <b>Usuarios → Editar → Quitar la verificación
-en dos pasos</b>, o en la consola del servidor: <code>sudo opennccm reset-2fa USUARIO</code>. En <b>Ajustes</b> se puede exigir a
+contraseña y un código (<b>Mi cuenta → Desactivar…</b>). Si alguien pierde el teléfono, un administrador la quita en
+<b>Usuarios → Editar → Quitarla (perdió su teléfono)</b>, o en la consola del servidor: <code>sudo opennccm reset-2fa USUARIO</code>. En <b>Ajustes</b> se puede exigir a
 todos los administradores (para activarlo, el administrador que lo activa debe tenerla ya).</p>
 <h2>Bloqueos y sesiones</h2>
 <ul>
@@ -704,9 +724,10 @@ todos los administradores (para activarlo, el administrador que lo activa debe t
   <li>Al cambiar la contraseña (uno mismo o un administrador) se cierran las sesiones abiertas de ese usuario en otros equipos.</li>
 </ul>
 <h2>Mi cuenta: cambiar mi contraseña</h2>
-<p>Cualquier usuario puede cambiar su propia contraseña con el botón <b>🔑 Cambiar contraseña</b> de la barra superior: escriba la
-actual y la nueva dos veces. Las mayúsculas y minúsculas cuentan.</p>
-<figure><img src="img/31-cuenta.png"><figcaption>Mi cuenta: contraseña, idioma y tema.</figcaption></figure>
+<p>Cualquier usuario puede cambiar su propia contraseña en <b>Mi cuenta → Cambiar mi contraseña</b> (también desde Ctrl K): escriba
+la actual y la nueva dos veces. A la derecha, la lista <b>La nueva contraseña debe tener</b> marca en verde cada requisito cumplido
+(10 caracteres, letras, números y que las dos coincidan). Las mayúsculas y minúsculas cuentan.</p>
+<figure><img src="img/31-cuenta.png"><figcaption>Mi cuenta: apariencia, idioma, verificación en dos pasos y contraseña.</figcaption></figure>
 <h2 id="idioma">Idioma</h2>
 <p>La interfaz está en <b>español</b> e <b>inglés</b>. Cada usuario elige el suyo en <b>Mi cuenta → Idioma</b> o en la pantalla de
 ingreso (selector debajo del formulario); la elección se guarda en su usuario y se aplica en cualquier equipo desde el que ingrese.
@@ -716,11 +737,12 @@ administrador en <b>Ajustes → Seguridad y acceso → Idioma</b>.</p>
 políticas y reglas, eventos ya registrados, descripciones de CVE, el registro de auditoría y estos documentos PDF. Los informes CSV
 mantienen sus encabezados en español para no romper integraciones.</p>
 <h2>Temas</h2>
-<p>En <b>Mi cuenta → Tema de la interfaz</b> cada usuario elige: <b>Automático</b> (claro u oscuro según el sistema del equipo),
+<p>En <b>Mi cuenta → Apariencia</b> (o en el botón de tema de la barra superior) cada usuario elige, y se aplica al instante: <b>Automático</b> (claro u oscuro según el sistema del equipo),
 <b>Claro</b>, <b>Sala de control</b> (oscuro) o <b>Alto contraste</b> (para pantallas con mucho reflejo o baja visión), y un
 <b>color de acento</b> para botones y enlaces: cobalto, bosque, arena, lavanda, océano, atardecer o grafito. Todos cumplen el
 contraste mínimo de lectura WCAG 2.1 AA. La elección se guarda en el usuario y se aplica en cualquier equipo desde el que
-ingrese; quien usaba uno de los temas anteriores de colores conserva su color como acento.</p>
+ingrese; quien usaba uno de los temas anteriores de colores conserva su color como acento. La <b>densidad de tablas</b>
+(cómoda o compacta) ajusta el alto de las filas.</p>
 <div class="two">
 <figure><img src="img/34-tema-claro.png"><figcaption>Claro.</figcaption></figure>
 <figure><img src="img/34-tema-oscuro.png"><figcaption>Sala de control (oscuro).</figcaption></figure>
@@ -741,13 +763,13 @@ acción o detalle y exportar.</p>
 <section class="chapter">
 <h1>24. Sistema y recuperación</h1>
 <h2>Actualizaciones</h2>
-<p>La tarjeta <b>Actualizaciones</b> muestra la versión instalada y la última publicada. <b>Buscar actualizaciones ahora</b>
+<p>La tarjeta <b>Actualizaciones</b> muestra la versión instalada y la última publicada. <b>Buscar ahora</b>
 consulta GitHub; OpenNCCM también lo hace una vez al día (desactivable en Ajustes) y, si hay una versión nueva, muestra a los
 administradores un aviso con sus novedades (<b>Ver y actualizar</b> o <b>Más tarde</b>, que no lo repite en esa sesión).</p>
 <p><b>Novedades de cada versión</b> abre una ventana con lo que agregó o corrigió cada versión (la instalada aparece marcada)
 y, si hay una nueva, sus novedades antes de actualizar. <b>Todas las versiones en GitHub</b> abre la página de publicaciones del
 proyecto.</p>
-<p><b>Actualizar a la versión X</b> hace lo mismo que <code>sudo opennccm update</code> en la consola: copia previa del código y
+<p><b>Actualizar ahora</b> (pide confirmación) hace lo mismo que <code>sudo opennccm update</code> en la consola: copia previa del código y
 la base, instalación, verificación y vuelta automática a la versión anterior si la nueva no arranca. Una página muestra el
 progreso; OpenNCCM se detiene 1-2 minutos. Por seguridad la aplicación no tiene permisos de administrador del sistema: solo deja
 una solicitud que atiende un servicio de systemd (<code>opennccm-webupdate</code>) instalado a partir de la 1.6.0.</p>
@@ -755,14 +777,15 @@ una solicitud que atiende un servicio de systemd (<code>opennccm-webupdate</code
 <p>Si marca «Incluir la clave de cifrado», el archivo completo se cifra (AES-256-GCM) con una contraseña de al menos 12
 caracteres que usted elige, y termina en <code>.enc</code>. Sin esa contraseña no se puede restaurar: guárdela aparte. Al
 restaurar con <code>sudo opennccm restore ARCHIVO.enc</code> se la pide.</p>
-<p>Muestra la base de datos y la clave en uso, las plataformas soportadas, la <b>fecha y hora del servidor</b> y las
-<b>copias de recuperación</b>: crear (con o sin la clave de cifrado), descargar y eliminar.</p>
+<p>La pestaña <b>Sistema</b> muestra además el rendimiento del servidor, el <b>espacio</b>, la <b>fecha y hora del servidor</b>, la
+base de datos y la clave en uso, y las <b>copias de recuperación</b>: <b>Crear copia ahora</b> (con o sin la clave de cifrado),
+descargar, eliminar y <b>Restaurar…</b> (explica el comando de consola que la restaura).</p>
 <h2>Fecha, hora y zona horaria</h2>
 <ul>
   <li><b>Zona horaria:</b> elíjala de la lista (agrupada por región) y pulse <b>Cambiar zona</b>. OpenNCCM se reinicia unos segundos
   para que el historial y las tareas programadas usen la nueva hora.</li>
-  <li><b>Sincronización NTP:</b> mantiene la hora exacta automáticamente (recomendado).</li>
-  <li><b>Fijar fecha y hora a mano:</b> en «Fijar fecha y hora a mano»; desactiva NTP.</li>
+  <li><b>Sincronizar con NTP:</b> interruptor que mantiene la hora exacta automáticamente (recomendado).</li>
+  <li><b>Fijar fecha y hora a mano:</b> al desactivar NTP aparecen los campos de fecha y hora y el botón <b>Fijar</b>.</li>
 </ul>
 <p class="small">El servicio no tiene privilegios de administrador: el instalador le concede, mediante una regla de polkit, permiso
 <b>solo</b> para estas tres acciones. Cada cambio queda en Auditoría.</p>
@@ -773,15 +796,17 @@ restaurar con <code>sudo opennccm restore ARCHIVO.enc</code> se la pide.</p>
 
 <section class="chapter">
 <h1>25. Ajustes</h1>
-<p>Al modificar cualquier campo aparece abajo la barra <b>Tienes cambios sin guardar</b> con <b>Descartar</b> y <b>Guardar ajustes</b>; si intenta salir de la página sin guardar, el navegador lo advierte.</p>
+<p>Los ajustes están en <b>Administración → Ajustes</b>, separados en secciones que se eligen a la izquierda: Seguridad y acceso,
+Organización, Flujo de cambios, Notificaciones, Fin de vida (Cisco EoX), Recuperación ante desastres y Actualizaciones. Al modificar
+cualquier campo aparece abajo la barra <b>Tienes cambios sin guardar</b> con <b>Descartar</b> y <b>Guardar ajustes</b>; si intenta
+salir de la página sin guardar, el navegador lo advierte.</p>
 <h2>Seguridad y acceso</h2>
 <table>
   <tr><th>Ajuste</th><th>Qué hace</th></tr>
   <tr><td>Cerrar la sesión tras N minutos sin actividad</td><td>5 a 720 minutos (30 por omisión).</td></tr>
   <tr><td>Exigir verificación en dos pasos a los administradores</td><td>Un administrador sin ella solo puede entrar a «Mi cuenta» hasta activarla.</td></tr>
   <tr><td>Idioma predeterminado</td><td>Español o inglés para quien no eligió idioma y cuyo navegador no pide uno disponible.</td></tr>
-  <tr><td>Consola SSH web</td><td>Quién puede abrirla y si inicia sesión automáticamente (ver capítulo 4).</td></tr>
-  <tr><td>Buscar versiones nuevas</td><td>Consulta GitHub una vez al día y avisa a los administradores.</td></tr>
+  <tr><td>Consola SSH web</td><td>Quién puede abrirla y si entra con la credencial del equipo (ver capítulo 4).</td></tr>
 </table>
 <h2>Datos de la organización</h2>
 <p>Nombre, correo de contacto y dirección de quien administra esta instalación. Se muestran en la página
@@ -791,18 +816,19 @@ las licencias.</p>
 <figure><img src="img/35-acerca.png" style="max-height:200mm"><figcaption>Página pública «Privacidad, cookies y licencias».</figcaption></figure>
 <table>
   <tr><th>Sección</th><th>Opciones</th></tr>
-  <tr><td>Flujo de cambios</td><td>Exigir aprobación · permitir auto-aprobación · notificar infracciones · retención de versiones</td></tr>
-  <tr><td>Notificaciones</td><td>Severidad mínima · SMTP · destinatarios · webhook · Telegram · botón de prueba</td></tr>
-  <tr><td>API Cisco EoX</td><td>Client ID y Secret para fechas de ciclo de vida</td></tr>
+  <tr><td>Flujo de cambios</td><td>Requiere aprobación o ejecución directa · auto-aprobación · avisar infracciones · versiones a conservar</td></tr>
+  <tr><td>Notificaciones</td><td>Severidad mínima · SMTP · destinatarios · webhook · Telegram · notificación de prueba</td></tr>
+  <tr><td>Fin de vida (Cisco EoX)</td><td>Client ID y Secret para fechas de ciclo de vida</td></tr>
   <tr><td>Recuperación ante desastres</td><td>Copias a conservar · servidor SFTP remoto (servidor, puerto, usuario, contraseña, carpeta)</td></tr>
+  <tr><td>Actualizaciones</td><td>Buscar versiones nuevas cada día y avisar a los administradores</td></tr>
 </table>
 <p>Las contraseñas de SMTP, de la API de Cisco y del SFTP se guardan cifradas y no se muestran: el formulario indica «(guardada)».</p>
 </section>
 
 <section class="chapter">
 <h1>26. Plataformas soportadas</h1>
-<p>Menú <b>Plataformas</b>. Lista las 125 plataformas con su <code>device_type</code> y los comandos que se ejecutan en
-cada una: <b>respaldo</b>, <b>arranque</b> (startup, para detectar cambios sin guardar) e <b>inventario</b> (modelo, serie y versión);
+<p><b>Administración → Plataformas</b>. Muestra las 125 plataformas en fichas (las comprobadas en su red llevan una marca) y,
+en <b>Comandos de cada plataforma</b>, su <code>device_type</code> y los comandos que se ejecutan en cada una: <b>respaldo</b>, <b>arranque</b> (startup, para detectar cambios sin guardar) e <b>inventario</b> (modelo, serie y versión);
 además el tipo de reversión y si admite actualización de firmware.</p>
 <ul>
   <li><b>Buscador</b> y <b>filtro por fabricante</b>; la casilla <b>Solo las de mi red</b> muestra únicamente las plataformas que usted usa.</li>
