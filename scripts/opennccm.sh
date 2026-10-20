@@ -29,7 +29,7 @@ load_conf() {
   CHANNEL=stable; DB_MODE=sqlite
   # shellcheck disable=SC1090
   [[ -r $CONF ]] && . "$CONF"
-  git config --global --get-all safe.directory 2>/dev/null | grep -qx "$APP_DIR" || \
+  git config --global --get-all safe.directory 2>/dev/null | grep -x "$APP_DIR" >/dev/null || \
     git config --global --add safe.directory "$APP_DIR"
 }
 version_of() { grep -oP '__version__ = "\K[^"]+' "$1" 2>/dev/null || echo "?"; }
@@ -64,7 +64,7 @@ target_ref() {  # target_ref [versión] -> referencia git a instalar
   elif [[ ${CHANNEL:-stable} == main ]]; then
     echo origin/main
   else
-    local t; t=$(git -C $APP_DIR tag -l 'v*' --sort=-v:refname | head -n1)
+    local t; t=$(git -C $APP_DIR tag -l 'v*' --sort=-v:refname | sed -n 1p)
     [[ -n $t ]] || t=origin/main
     echo "$t"
   fi
@@ -73,7 +73,7 @@ target_ref() {  # target_ref [versión] -> referencia git a instalar
 changelog_between() {  # changelog_between REF VERSION_ACTUAL
   git -C $APP_DIR show "$1:CHANGELOG.md" 2>/dev/null | awk -v cur="## $2" '
     /^## / { if (index($0, cur) == 1) exit; seen=1 }
-    seen { print }' | head -n 60
+    seen { print }' | sed -n 1,60p
 }
 
 # ----------------------------------------------------------------- copia previa / vuelta atrás
@@ -247,7 +247,7 @@ cmd_status() {
   echo "  Datos:      $DATA_DIR ($(du -sh $DATA_DIR 2>/dev/null | cut -f1))"
   echo "  Disco libre: $(df -h $DATA_DIR | awk 'NR==2{print $4}')"
   if [[ $EUID -eq 0 && -d $APP_DIR/.git ]] && timeout 15 git -C $APP_DIR fetch --quiet --tags origin 2>/dev/null; then
-    local latest; latest=$(git -C $APP_DIR tag -l 'v*' --sort=-v:refname | head -n1)
+    local latest; latest=$(git -C $APP_DIR tag -l 'v*' --sort=-v:refname | sed -n 1p)
     if [[ -n $latest && $latest != "v$ver" ]]; then warn "Hay una versión nueva: $latest  →  sudo opennccm update"
     else ok "Al día"; fi
   fi

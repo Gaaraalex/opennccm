@@ -280,7 +280,7 @@ check_preflight() {
   tcp443=$(ss -ltnpH 'sport = :443' 2>/dev/null || true)
   udpsys=$(ss -lunpH "sport = :$SYSLOG_PORT" 2>/dev/null || true)
   if [[ $TLS_MODE != none && -n $tcp443 && $tcp443 != *nginx* ]]; then
-    problems+=("El puerto TCP 443 está ocupado por otro servicio: $(grep -oP 'users:\(\("\K[^"]+' <<<"$tcp443" | head -n1).")
+    problems+=("El puerto TCP 443 está ocupado por otro servicio: $(grep -oP 'users:\(\("\K[^"]+' <<<"$tcp443" | sed -n 1p || true).")
   fi
   if [[ -n $udpsys && $udpsys != *python* && $udpsys != *uvicorn* ]]; then
     notes+=("El puerto UDP $SYSLOG_PORT ya está en uso (¿rsyslog con recepción remota?). La detección en tiempo real no funcionará hasta liberarlo.")
@@ -465,10 +465,10 @@ fetch_code() {
     local src=${SOURCE_DIR:-$REPO_URL}
     run git clone --quiet "$src" "$APP_DIR"
   fi
-  git config --global --get-all safe.directory 2>/dev/null | grep -qx "$APP_DIR" || \
+  git config --global --get-all safe.directory 2>/dev/null | grep -x "$APP_DIR" >/dev/null || \
     git config --global --add safe.directory "$APP_DIR"
   if [[ -n $SOURCE_DIR ]]; then
-    git config --global --get-all safe.directory | grep -qx "$SOURCE_DIR" || git config --global --add safe.directory "$SOURCE_DIR"
+    git config --global --get-all safe.directory | grep -x "$SOURCE_DIR" >/dev/null || git config --global --add safe.directory "$SOURCE_DIR"
     run git -C "$APP_DIR" remote set-url origin "$SOURCE_DIR"
   else
     run git -C "$APP_DIR" remote set-url origin "$REPO_URL"
@@ -484,7 +484,7 @@ fetch_code() {
   elif [[ $CHANNEL == main ]]; then
     target=origin/main
   else
-    target=$(git -C "$APP_DIR" tag -l 'v*' --sort=-v:refname | head -n1)
+    target=$(git -C "$APP_DIR" tag -l 'v*' --sort=-v:refname | sed -n 1p)
     [[ -n $target ]] || target=origin/$(git -C "$APP_DIR" remote show origin 2>/dev/null | awk '/HEAD branch/{print $NF}')
     [[ $target != "origin/" ]] || target=HEAD
   fi
@@ -517,9 +517,9 @@ setup_database() {
     progress 55 "Configurando PostgreSQL…"
     local pg_pass; pg_pass=$(openssl rand -hex 16)
     run systemctl enable --now postgresql
-    sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='opennccm'" | grep -q 1 \
+    sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='opennccm'" | grep 1 >/dev/null \
       || run sudo -u postgres psql -c "CREATE USER opennccm WITH PASSWORD '$pg_pass';"
-    sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='opennccm'" | grep -q 1 \
+    sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='opennccm'" | grep 1 >/dev/null \
       || run sudo -u postgres psql -c "CREATE DATABASE opennccm OWNER opennccm;"
     run sudo -u postgres psql -c "ALTER USER opennccm WITH PASSWORD '$pg_pass';"
     PG_URL="postgresql+psycopg2://opennccm:${pg_pass}@localhost/opennccm"
@@ -707,7 +707,7 @@ setup_nginx() {
     make_local_ca_cert $crt $key
   fi
   local http2_listen="listen 443 ssl; listen [::]:443 ssl; http2 on;"
-  nginx -v 2>&1 | grep -qE 'nginx/1\.(2[5-9]|[3-9][0-9])' || http2_listen="listen 443 ssl http2; listen [::]:443 ssl http2;"
+  nginx -v 2>&1 | grep -E 'nginx/1\.(2[5-9]|[3-9][0-9])' >/dev/null || http2_listen="listen 443 ssl http2; listen [::]:443 ssl http2;"
   cat > /etc/nginx/sites-available/opennccm <<EOF
 # Generado por el instalador de OpenNCCM
 map \$http_upgrade \$opennccm_connection { default upgrade; '' close; }   # consola SSH web (WebSocket)
@@ -750,7 +750,7 @@ EOF
 
 setup_firewall() {
   if [[ $FIREWALL == auto ]]; then
-    command -v ufw >/dev/null && ufw status | grep -q "Status: active" && FIREWALL=yes || FIREWALL=no
+    command -v ufw >/dev/null && ufw status | grep "Status: active" >/dev/null && FIREWALL=yes || FIREWALL=no
   fi
   [[ $FIREWALL == yes ]] || return 0
   progress 80 "Configurando el cortafuegos…"

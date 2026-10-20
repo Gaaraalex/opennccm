@@ -30,7 +30,7 @@ echo "== Versión instalada: $CUR"
 rm -rf "$NEXT"
 git clone -q "$REPO" "$NEXT"
 git -C "$NEXT" checkout -q -B main "$(git -C "$REPO" rev-parse HEAD)"
-git config --global --get-all safe.directory | grep -qx "$NEXT" || git config --global --add safe.directory "$NEXT"
+git config --global --get-all safe.directory | grep -x "$NEXT" >/dev/null || git config --global --add safe.directory "$NEXT"
 git -C /opt/opennccm remote set-url origin "$NEXT"
 
 echo "== 1) Actualización correcta a 9.9.9"
@@ -40,7 +40,7 @@ grep -q "9.9.9" /tmp/check.txt
 opennccm update --yes
 [[ $(health_version) == 9.9.9 ]] || { echo "No quedó en 9.9.9"; exit 1; }
 login_ok || { echo "El inicio de sesión falló tras actualizar"; exit 1; }
-opennccm update --check | grep -q "ya es la versión más reciente"
+opennccm update --check | grep "ya es la versión más reciente" >/dev/null
 echo "OK actualización"
 
 echo "== 2) Vuelta atrás manual"
