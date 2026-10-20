@@ -1,37 +1,68 @@
 {% extends "base.html" %}{% block title %}Dispositivos{% endblock %}
 {% block content %}
-<h1>Dispositivos ({{ devices|length }})</h1>
-<div class="toolbar">
-  <form class="row" method="get">
-    <input name="q" value="{{ q }}" placeholder="Nombre, IP, modelo, serie, versión…">
-    <select name="group"><option value="0">Todos los grupos</option>
-      {% for g in groups %}<option value="{{ g.id }}" {{ 'selected' if g.id == group }}>{{ g.name }}</option>{% endfor %}</select>
-    <select name="status"><option value="">Cualquier estado</option>
-      {% for s, l in [('ok','ok'),('error','error'),('pending',_('pendiente')),('conflict','startup ≠ running'),('drift',_('fuera de línea base'))] %}<option value="{{ s }}" {{ 'selected' if s == status }}>{{ l }}</option>{% endfor %}</select>
-    <button class="sec">Filtrar</button>
-  </form>
-  <span style="flex:1"></span>
-  {% if ROLES[user.role] >= 1 %}
-  <form class="inline" method="post" action="/backup/all"><input type="hidden" name="group" value="{{ group }}">
-    <button onclick="return confirm('{{ (_('¿Respaldar ahora todos los equipos del grupo?') if group else _('¿Respaldar ahora todos los equipos?'))|jsq }}')">Respaldar todos</button></form>
-  {% endif %}
-  {% if user.role == 'admin' %}<a class="btn sec" href="/credentials#groups">Grupos</a> <a class="btn" href="/devices/new" data-sheet>+ Agregar</a>{% endif %}
+{% set can_run = ROLES[user.role] >= 1 %}
+<div class="page-head">
+  <div><h1>Dispositivos <span class="muted num">{{ devices|length }}</span></h1></div>
+  <div class="row">
+    {% if can_run %}
+    <form class="inline" method="post" action="/backup/all"><input type="hidden" name="group" value="{{ group }}">
+      <button class="sec" onclick="return confirm('{{ (_('¿Respaldar ahora todos los equipos del grupo?') if group else _('¿Respaldar ahora todos los equipos?'))|jsq }}')">{{ icon('refresh', 'sm') }} Respaldar todos</button></form>
+    {% endif %}
+    {% if user.role == 'admin' %}
+    <details class="dropdown">
+      <summary class="btn">{{ icon('plus', 'sm') }} Agregar {{ icon('down', 'sm') }}</summary>
+      <div class="drop">
+        <a href="/devices/new" data-sheet data-title="Nuevo dispositivo">{{ icon('plus', 'sm') }} Agregar uno</a>
+        <a href="#importar" id="go-import">{{ icon('ul', 'sm') }} Importar desde CSV</a>
+        <a href="/credentials#groups">{{ icon('folder', 'sm') }} Administrar grupos</a>
+      </div>
+    </details>
+    {% endif %}
+  </div>
 </div>
-<div class="card">
-<table>
-<tr><th>Nombre</th><th>IP / Host</th><th class="hide-sm">Fabricante / tipo</th><th class="hide-sm">Modelo</th><th class="hide-sm">Versión</th><th>Grupo</th><th>Último respaldo</th><th>Estado</th><th><span class="vh">Accesos</span></th></tr>
+
+<form class="filters" method="get" role="search">
+  <div class="search-in">{{ icon('search', 'sm') }}<input name="q" value="{{ q }}" placeholder="Nombre, IP, modelo, serie, versión…" aria-label="Buscar equipos"></div>
+  <select name="group" aria-label="Grupo" onchange="this.form.submit()"><option value="0">Todos los grupos</option>
+    {% for g in groups %}<option value="{{ g.id }}" {{ 'selected' if g.id == group }}>{{ g.name }}</option>{% endfor %}</select>
+  <input type="hidden" name="status" value="{{ status }}">
+  <noscript><button class="sec">Filtrar</button></noscript>
+</form>
+<nav class="chips" aria-label="Filtrar por estado">
+  {% for st, label in [('', _('Todos')), ('ok', _('Respaldo OK')), ('error', _('Con error')), ('pending', _('Pendientes')), ('conflict', _('Sin guardar')), ('drift', _('Difieren de la base'))] %}
+  {% if st == '' or counts[st] %}<a class="chip{{ ' on' if status == st }}" href="?status={{ st }}{{ ('&q=' ~ q|urlencode) if q }}{{ ('&group=' ~ group) if group }}" {{ 'aria-current="true"'|safe if status == st }}>{{ label }} <span class="num">{{ counts[st] }}</span></a>{% endif %}
+  {% endfor %}
+</nav>
+
+<div class="card flush">
+{% if devices %}
+<table class="dtable">
+<thead><tr>
+  {% if can_run %}<th class="sel"><input type="checkbox" id="sel-all" aria-label="Seleccionar todos"></th>{% endif %}
+  <th>Equipo</th><th>Dirección</th><th class="hide-sm">Modelo · firmware</th><th class="hide-sm">Grupo</th><th>Último respaldo</th><th>Estado</th><th><span class="vh">Acciones</span></th>
+</tr></thead>
+<tbody>
 {% for d in devices %}
+{% set prof = profile_map[d.device_type] if d.device_type in profile_map else none %}
 <tr>
-  <td><a href="/devices/{{ d.id }}"><b>{{ d.name }}</b></a>{% if not d.enabled %} <span class="badge">deshabilitado</span>{% endif %}</td>
-  <td>{{ d.host }}<span class="muted small">:{{ d.port }} {{ d.protocol }}</span></td>
-  <td class="hide-sm">{{ profile_map[d.device_type].label if d.device_type in profile_map else d.device_type }}</td>
-  <td class="hide-sm">{{ d.model or '—' }}</td><td class="hide-sm">{{ d.os_version or '—' }}</td>
-  <td>{{ d.group.name if d.group else '—' }}</td>
-  <td class="small">{{ d.last_backup_at|dt }}</td>
-  <td><span class="badge b-{{ d.last_status }}">{{ d.last_status }}</span>
-      {% if d.startup_conflict %}<span class="badge b-warning" title="Running ≠ startup">sin guardar</span>{% endif %}
-      {% if d.baseline_drift %}<span class="badge b-warning" title="Difiere de la línea base">≠ baseline</span>{% endif %}</td>
-  <td style="white-space:nowrap">
+  {% if can_run %}<td class="sel"><input type="checkbox" name="ids" value="{{ d.id }}" form="bulk" aria-label="Seleccionar {{ d.name }}"></td>{% endif %}
+  <td><div class="dev">
+    <span class="vendor" aria-hidden="true">{{ (prof.vendor if prof else d.device_type)[:3]|upper }}</span>
+    <div><a href="/devices/{{ d.id }}"><b>{{ d.name }}</b></a>{% if not d.enabled %} <span class="badge">deshabilitado</span>{% endif %}
+      <span class="muted small">{{ prof.label if prof else d.device_type }}</span></div>
+  </div></td>
+  <td class="mono">{{ d.host }}{% if d.port != 22 or d.protocol != 'ssh' %}<span class="muted">:{{ d.port }}{% if d.protocol != 'ssh' %} {{ d.protocol }}{% endif %}</span>{% endif %}</td>
+  <td class="hide-sm">{{ d.model or '—' }}{% if d.os_version %}<span class="muted small mono">{{ d.os_version }}</span>{% endif %}</td>
+  <td class="hide-sm">{{ d.group.name if d.group else '—' }}</td>
+  <td><span title="{{ d.last_backup_at|dt }}">{{ d.last_backup_at|ago }}</span></td>
+  <td class="pills">
+    {% if d.last_status == 'ok' %}<span class="badge b-ok">Respaldo OK</span>
+    {% elif d.last_status == 'error' %}<span class="badge b-error" title="{{ (d.last_error or '')[:200] }}">Error</span>
+    {% else %}<span class="badge b-pending">Pendiente</span>{% endif %}
+    {% if d.startup_conflict %}<span class="badge b-warning" title="Running ≠ startup">Sin guardar</span>{% endif %}
+    {% if d.baseline_drift %}<span class="badge b-major" title="Difiere de la línea base">Difiere de la base</span>{% endif %}</td>
+  <td class="acts">
+    {% if can_run %}<form method="post" action="/devices/{{ d.id }}/backup"><button class="sec sm icon-btn" title="Respaldar {{ d.name }} ahora" aria-label="Respaldar {{ d.name }} ahora">{{ icon('refresh', 'sm') }}</button></form>{% endif %}
     {% if can_console and d.protocol == 'ssh' %}<a class="btn sm sec icon-btn" href="/devices/{{ d.id }}/console" target="_blank" rel="noopener"
       onclick="return abrirVentana(this.href, 'consola-{{ d.id }}', 1000, 640)"
       title="Consola SSH de {{ d.name }}" aria-label="Abrir consola SSH de {{ d.name }} (ventana nueva)">{{ icon('term', 'sm') }}</a>{% endif %}
@@ -39,19 +70,71 @@
       onclick="return abrirVentana(this.href, 'web-{{ d.id }}', 1280, 820)"
       title="Interfaz web de {{ d.name }}" aria-label="Abrir la interfaz web de {{ d.name }} (ventana nueva)">{{ icon('globe', 'sm') }}</a>{% endif %}</td>
 </tr>
-{% else %}<tr><td colspan="9" class="muted">No hay dispositivos.</td></tr>{% endfor %}
+{% endfor %}
+</tbody>
 </table>
+{% elif q or status or group %}
+<div class="empty">
+  <svg class="empty-art" viewBox="0 0 120 80" aria-hidden="true"><path d="M20 60 L50 30 L80 50" class="ln"/><circle cx="20" cy="60" r="6" class="nd"/><circle cx="50" cy="30" r="6" class="nd"/><circle cx="80" cy="50" r="6" class="nd"/><circle cx="98" cy="28" r="11" class="lime"/><circle cx="96" cy="26" r="4.5" class="ck"/><path d="M99.5 29.5l4 4" class="ck"/></svg>
+  <h3>Ningún equipo coincide con el filtro</h3>
+  <p><a class="btn sec" href="/devices">Quitar filtros</a></p>
+</div>
+{% else %}
+<div class="empty">
+  <svg class="empty-art" viewBox="0 0 120 80" aria-hidden="true"><path d="M20 60 L50 30 L80 50" class="ln"/><circle cx="20" cy="60" r="6" class="nd"/><circle cx="50" cy="30" r="6" class="nd"/><circle cx="80" cy="50" r="6" class="nd"/><circle cx="100" cy="24" r="11" class="lime"/><path d="M100 18v12M94 24h12" class="ck"/></svg>
+  <h3>Aún no hay equipos</h3><p class="muted">Agregue el primero o impórtelos desde un CSV.</p>
+  {% if user.role == 'admin' %}<p><a class="btn" href="/devices/new" data-sheet>Agregar un dispositivo</a></p>{% endif %}
+</div>
+{% endif %}
 </div>
 
+{% if can_run %}
+<form id="bulk" class="bulkbar" method="post" action="/devices/bulk" hidden>
+  <input type="hidden" name="next" value="{{ request.url.path }}{{ '?' ~ request.url.query if request.url.query }}">
+  <b class="num" id="bulk-n">0</b> <span>seleccionados</span>
+  <button name="action" value="backup">{{ icon('refresh', 'sm') }} Respaldar</button>
+  <button name="action" value="audit" class="sec">{{ icon('shield', 'sm') }} Auditar</button>
+  {% if user.role == 'admin' %}
+  <span class="bulk-move"><select name="group_id" aria-label="Grupo de destino"><option value="0">Sin grupo</option>
+    {% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}</select>
+    <button name="action" value="move" class="sec">{{ icon('folder', 'sm') }} Mover</button></span>
+  {% endif %}
+  <button type="button" class="ghost" id="bulk-clear" aria-label="Quitar la selección">{{ icon('x', 'sm') }}</button>
+</form>
+{% endif %}
+
 {% if user.role == 'admin' %}
-<div class="card">
-  <h2 style="margin-top:0">Importación masiva (CSV)</h2>
+<details class="card" id="importar">
+  <summary><h2>Importación masiva (CSV)</h2></summary>
   <p class="small muted">Columnas: <code>name,host,device_type,credential,group,port,protocol,location</code>.
   <code>credential</code> es el nombre de una credencial existente; los grupos inexistentes se crean.
   Valores de <code>device_type</code>: ver la <a href="/vendors">lista de {{ profiles|length }} plataformas soportadas</a>.</p>
   <form method="post" action="/devices/import" enctype="multipart/form-data" class="row">
     <input type="file" name="file" accept=".csv" required><button>Importar</button>
   </form>
-</div>
+</details>
 {% endif %}
+<script>
+(function () {
+  const bulk = document.getElementById('bulk');
+  const boxes = Array.from(document.querySelectorAll('input[name=ids]'));
+  const all = document.getElementById('sel-all');
+  function sync() {
+    const n = boxes.filter(b => b.checked).length;
+    if (bulk) { bulk.hidden = n === 0; document.getElementById('bulk-n').textContent = n; }
+    if (all) { all.checked = n > 0 && n === boxes.length; all.indeterminate = n > 0 && n < boxes.length; }
+    boxes.forEach(b => b.closest('tr').classList.toggle('picked', b.checked));
+  }
+  boxes.forEach(b => b.addEventListener('change', sync));
+  if (all) all.addEventListener('change', () => { boxes.forEach(b => { b.checked = all.checked; }); sync(); });
+  const clear = document.getElementById('bulk-clear');
+  if (clear) clear.addEventListener('click', () => { boxes.forEach(b => { b.checked = false; }); sync(); });
+  const imp = document.getElementById('importar');
+  function openImport() { if (location.hash === '#importar' && imp) { imp.open = true; imp.scrollIntoView({block: 'start'}); } }
+  window.addEventListener('hashchange', openImport); openImport();
+  const go = document.getElementById('go-import');
+  if (go) go.addEventListener('click', () => { go.closest('details').open = false; setTimeout(openImport, 0); });
+  sync();
+})();
+</script>
 {% endblock %}

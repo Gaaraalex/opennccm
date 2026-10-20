@@ -27,21 +27,66 @@ def login(user, pw):
 
 adm = login("admin", "Admin12345")
 html = adm.get(B + "/").text
-check("panel: sección de rendimiento del servidor", "Rendimiento del servidor de OpenNCCM" in html)
-check("panel: CPU, memoria, disco y tiempo encendido",
-      all(t in html for t in ("CPU ahora", "Memoria RAM", "Disco usado", "Encendido desde hace")))
-check("panel: barras de disco y memoria accesibles", html.count('role="meter"') >= 2)
-check("panel: gráficas de CPU y memoria (o aviso de que reúnen datos)",
-      html.count("últimas 24 h") >= 2 and ("<svg" in html or "Reuniendo datos" in html))
+sysp0 = adm.get(B + "/system").text
+check("Sistema: sección de rendimiento del servidor (sale del Panel)",
+      "Rendimiento del servidor de OpenNCCM" in sysp0 and "Rendimiento del servidor" not in html)
+check("Sistema: CPU, memoria, disco y tiempo encendido",
+      all(t in sysp0 for t in ("CPU ahora", "Memoria RAM", "Disco usado", "Encendido desde hace")))
+check("Sistema: barras de disco y memoria accesibles", sysp0.count('role="meter"') >= 2)
+check("Sistema: gráficas de CPU y memoria (o aviso de que reúnen datos)",
+      sysp0.count("últimas 24 h") >= 2 and ("<svg" in sysp0 or "Reuniendo datos" in sysp0))
+
+# --- Panel «Señal»: salud, 4 indicadores, bandeja de atención y actividad
+check("panel: puntuación de salud de 0 a 100", "Salud de la red" in html and 'class="health-ring"' in html
+      and any(f in html for f in ("Tu red está bien", "Casi todo en orden", "Hay trabajo pendiente", "Tu red necesita atención")))
+check("panel: 4 indicadores", len(re.findall(r'class="kpi(?: alert)?"', html)) == 4)
+check("panel: bandeja de atención con una acción por fila (o celebración)",
+      "Qué hacer ahora" in html and ('class="queue"' in html or "Nada pendiente" in html))
+check("panel: como máximo 6 filas en la bandeja", html.count('<li class="q-') <= 6)
+check("panel: actividad reciente con tiempo relativo", "Actividad reciente" in html and ("hace " in html or "ahora mismo" in html))
+check("panel: gráfica de cambios por día", '<svg class="viz"' in html)
 
 adm.post(B + "/users", data={"username": "lector9", "role": "viewer", "password": "Lector-2026xy",
                              "password2": "Lector-2026xy"})
 lec = login("lector9", "Lector-2026xy")
-check("panel: últimos cambios y eventos con desplazamiento (6 visibles)", html.count('class="scrollbox" data-rows="6"') == 2)
-check("panel: como máximo 10 eventos recientes", html.split("Eventos recientes")[1].count('class="item"') <= 10)
+lp = lec.get(B + "/").text
+check("un lector ve el Panel sin botones de acción", "Salud de la red" in lp and "/backup/all" not in lp)
 dev = adm.get(B + "/devices/1").text
 check("equipo: eventos con desplazamiento (3 visibles)", 'class="scrollbox" data-rows="3"' in dev)
-check("un lector no ve el rendimiento del servidor", "Rendimiento del servidor" not in lec.get(B + "/").text)
+check("un lector no ve Sistema", lec.get(B + "/system").status_code == 403)
+
+# --- Dispositivos: chips de estado, selección múltiple y acciones masivas
+import html as htmlmod  # noqa: E402
+
+
+def flashes(text):
+    return [htmlmod.unescape(x) for x in re.findall(r'<div class="flash[^"]*">(.*?)</div>', text, re.S)]
+
+
+dl = adm.get(B + "/devices").text
+check("lista: chips de estado con recuento", 'class="chip on"' in dl and re.search(r'Todos <span class="num">\d+</span>', dl))
+check("lista: casillas para selección múltiple", 'name="ids"' in dl and 'id="sel-all"' in dl)
+check("lista: barra de acciones masivas", 'action="/devices/bulk"' in dl and 'value="backup"' in dl and 'value="move"' in dl)
+check("lista: «Agregar» ofrece importar CSV", 'href="#importar"' in dl and 'id="importar"' in dl)
+r = adm.post(B + "/devices/bulk", data={"action": "backup", "ids": ["1"]})
+check("masivo: respaldar los seleccionados", any("Respaldo de 1 equipos" in f for f in flashes(r.text)), flashes(r.text))
+r = adm.post(B + "/devices/bulk", data={"action": "audit", "ids": ["1"]})
+check("masivo: auditar los seleccionados", any("Auditoría de cumplimiento lanzada para 1" in f for f in flashes(r.text)), flashes(r.text))
+adm.post(B + "/groups", data={"name": "Masivo-UI"})
+gid = re.search(r'<option value="(\d+)">Masivo-UI</option>', adm.get(B + "/devices").text)
+before = re.search(r"<dt>Grupo</dt><dd>(.*?)</dd>", adm.get(B + "/devices/1").text, re.S).group(1)
+r = adm.post(B + "/devices/bulk", data={"action": "move", "ids": ["1"], "group_id": gid.group(1) if gid else "0"})
+check("masivo: mover a un grupo", gid and "Masivo-UI" in adm.get(B + "/devices/1").text, flashes(r.text))
+check("masivo: sin selección avisa", "Seleccione al menos un dispositivo" in " ".join(flashes(adm.post(B + "/devices/bulk", data={"action": "backup"}).text)))
+check("masivo: el lector no puede", lec.post(B + "/devices/bulk", data={"action": "backup", "ids": ["1"]}).status_code == 403)
+# devolver R1 a su grupo original (otras pruebas lo usan)
+orig = (re.search(r">([^<]+)</a>", before) or re.search(r"(—)", before)).group(1).strip()
+for m in re.finditer(r'<option value="(\d+)"[^>]*>([^<]+)</option>', adm.get(B + "/devices").text):
+    if orig and orig != "—" and m.group(2).strip() == orig:
+        adm.post(B + "/devices/bulk", data={"action": "move", "ids": ["1"], "group_id": m.group(1)})
+        break
+else:
+    adm.post(B + "/devices/bulk", data={"action": "move", "ids": ["1"], "group_id": "0"})
 
 # ---- aviso de actualización (sin consultar GitHub: se simula una versión publicada mayor)
 adm.post(B + "/settings", data={"require_approval": "on", "allow_self_approval": "on", "console_access": "admin"})

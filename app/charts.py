@@ -73,11 +73,13 @@ def _grid(parts, left, top, w_plot, h_plot, vmax):
 
 
 # --------------------------------------------------------------------------- columnas (una serie)
-def columns(data: list[tuple[str, float]], unit: str = "", height: int = 220, label_every: int = 5) -> str:
+def columns(data: list[tuple[str, float]], unit: str = "", height: int = 220, label_every: int = 5,
+            width: int = 800) -> str:
     """Serie temporal / categorías ordenadas como columnas verticales."""
     if not data or not any(v for _k, v in data):
         return _empty()
-    w_plot, left, top, bottom = 760, 36, 10, 28
+    left, top, bottom = 36, 10, 28
+    w_plot = width - left - 4
     h_plot = height - top - bottom
     vmax = _nice_max(max(v for _k, v in data))
     n = len(data)
@@ -97,7 +99,7 @@ def columns(data: list[tuple[str, float]], unit: str = "", height: int = 220, la
         if v > 0:
             parts.append(f'<path class="bar" d="{_bar_v(x, top + h_plot - h, bw, h)}"/>')
         parts.append("</g>")
-        if i % label_every == 0 or i == n - 1:
+        if (i % label_every == 0 and n - 1 - i >= label_every // 2) or i == n - 1:
             parts.append(f'<text class="tick" x="{x + bw / 2:.1f}" y="{height - 8}" text-anchor="middle">'
                          f"{escape(label)}</text>")
     parts.append("</svg>")

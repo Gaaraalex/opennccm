@@ -28,7 +28,27 @@ def icon(name: str, cls: str = "", label: str = ""):
                   f'#i-{escape(name)}"/></svg>')
 
 
+def ago(d) -> str:
+    """Tiempo relativo para lo reciente («hace 3 min»), fecha corta para lo antiguo; la fecha exacta va en title."""
+    if not d:
+        return "—"
+    from .db import now
+    from .i18n import _, _f
+    secs = (now() - d).total_seconds()
+    if secs < 60:
+        return _("ahora mismo")
+    if secs < 3600:
+        return _f("hace {0} min", int(secs // 60))
+    if secs < 86400:
+        return _f("hace {0} h", int(secs // 3600))
+    if secs < 7 * 86400:
+        return _f("hace {0} d", int(secs // 86400))
+    return d.strftime("%Y-%m-%d")
+
+
 templates.env.globals["icon"] = icon
+templates.env.globals["now"] = __import__("app.db", fromlist=["now"]).now
+templates.env.filters["ago"] = ago
 templates.env.filters["dt"] =lambda d: d.strftime("%Y-%m-%d %H:%M") if d else "—"
 templates.env.filters["cron_text"] = cronutil.describe
 templates.env.filters["ymd"] = lambda d: d.strftime("%Y-%m-%d") if d else "—"

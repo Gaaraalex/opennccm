@@ -310,15 +310,17 @@ def dashboard(request: Request):
             v.device.name  # carga la relación antes de cerrar la sesión
         for e in events:
             e.device.name if e.device else None  # carga la relación antes de cerrar la sesión
-    from . import charts
+    from . import charts, health
     data = reports.analytics(scope, 30)
     eol_bad = sum(n for label, n in data["eol"] if label in ("Sin soporte", "Sin parches de software"))
     comp = round(100 * cpass / (cpass + cfail)) if (cpass + cfail) else None
     server = _server_panel() if user.role == "admin" else None
+    week = [v for _d, v in data["per_day"][-7:]]
     return render(request, "dashboard.html", user, total=total, ok=ok, err=err, conflicts=conflicts,
                   changes24=changes24, comp=comp, alarms=alarms, vcrit=vcrit, pending=pending, drift=drift,
-                  eol_bad=eol_bad, events=events, recent=recent, server=server,
-                  chart_changes=charts.columns(data["per_day"], " cambios"))
+                  eol_bad=eol_bad, events=events, recent=recent, h=health.summary(scope, user.role == "admin", server),
+                  spark=charts.sparkline(week, 96, 30), week_total=sum(week),
+                  chart_changes=charts.columns(data["per_day"], " cambios", height=210, label_every=7, width=470))
 
 
 def _server_panel() -> dict:
@@ -381,9 +383,59 @@ def devices(request: Request, q: str = "", group: int = 0, status: str = ""):
         for d in devs:
             d.group.name if d.group else None  # carga la relación antes de cerrar la sesión
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
+        # recuentos de los chips de estado (sobre los equipos visibles, sin el filtro de estado)
+        base = select(Device)
+        if scope is not None:
+            base = base.where(Device.id.in_(scope))
+        if group:
+            base = base.where(Device.group_id == group)
+        every = db.scalars(base).all()
+        counts = {"": len(every), "ok": sum(d.last_status == "ok" for d in every),
+                  "error": sum(d.last_status == "error" for d in every),
+                  "pending": sum(d.last_status == "pending" for d in every),
+                  "conflict": sum(bool(d.startup_conflict) for d in every), "drift": sum(bool(d.baseline_drift) for d in every)}
     from .console import console_allowed
     return render(request, "devices.html", user, devices=devs, groups=groups, q=q, group=group, status=status,
-                  can_console=console_allowed(user))
+                  counts=counts, can_console=console_allowed(user))
+
+
+@app.post("/devices/bulk")
+async def devices_bulk(request: Request):
+    """Acciones sobre los equipos seleccionados en la lista: respaldar, auditar o mover a un grupo."""
+    form = await request.form()
+    action = form.get("action", "")
+    user = require(request, "admin" if action == "move" else "operator")
+    ids = filter_ids(user, [int(i) for i in form.getlist("ids") if str(i).isdigit()])
+    back = form.get("next") or "/devices"
+    back = back if back.startswith("/") and not back.startswith("//") else "/devices"
+    if not ids:
+        flash(request, _("Seleccione al menos un dispositivo"), "error")
+        return go(back)
+    if action == "backup":
+        services.jobs.submit(services.backup_many, ids, "manual", user.username)
+        log_action(request, user, "backup_selected", f"{ids}")
+        flash(request, _f("Respaldo de {0} equipos lanzado en segundo plano", len(ids)))
+    elif action == "audit":
+        def _audit():
+            for i in ids:
+                services.run_compliance(i)
+        services.jobs.submit(_audit)
+        log_action(request, user, "compliance_selected", f"{ids}")
+        flash(request, _f("Auditoría de cumplimiento lanzada para {0} equipos", len(ids)))
+    elif action == "move":
+        gid = int(form.get("group_id") or 0) or None
+        with SessionLocal() as db:
+            if gid and db.get(DeviceGroup, gid) is None:
+                flash(request, _("El grupo no existe"), "error")
+                return go(back)
+            for d in db.scalars(select(Device).where(Device.id.in_(ids))):
+                d.group_id = gid
+            db.commit()
+        log_action(request, user, "devices_move", f"{ids} -> grupo {gid}")
+        flash(request, _f("{0} equipos movidos de grupo", len(ids)))
+    else:
+        flash(request, _("Acción desconocida"), "error")
+    return go(back)
 
 
 def _device_form_ctx(db):

@@ -2,6 +2,28 @@
 {% block content %}
 {% include "_admin_tabs.html" %}
 <h1>Sistema y recuperación ante desastres</h1>
+{% if server %}
+<section id="servidor">
+<h2>Rendimiento del servidor de OpenNCCM</h2>
+<div class="kpis">
+  <div class="kpi"><small>CPU ahora</small><b>{{ '%.0f' % server.snap.cpu }}%</b><span class="delta">{{ server.snap.cpus }} núcleos · carga {{ server.load }}</span></div>
+  <div class="kpi{{ ' alert' if server.snap.mem_pct >= 90 }}"><small>Memoria RAM</small><b>{{ '%.0f' % server.snap.mem_pct }}%</b><span class="delta">OpenNCCM usa {{ server.app_rss }}</span></div>
+  <div class="kpi{{ ' alert' if server.snap.disk_pct >= 90 }}"><small>Disco usado</small><b>{{ '%.0f' % server.snap.disk_pct }}%</b><span class="delta">datos de OpenNCCM: {{ server.data_size }}</span></div>
+  <div class="kpi"><small>Encendido desde hace</small><b class="kpi-sm">{{ server.uptime }}</b></div>
+</div>
+<div class="charts">
+<div class="card viz-card"><h3>Uso de CPU (%), últimas 24 h</h3>{{ server.cpu_chart|safe }}</div>
+<div class="card viz-card"><h3>Uso de memoria RAM (%), últimas 24 h</h3>{{ server.mem_chart|safe }}</div>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">Espacio y memoria</h3>
+  {{ server.disk_meter|safe }}
+  {{ server.mem_meter|safe }}
+  {{ server.swap_meter|safe }}
+  <p class="small muted" style="margin-bottom:0">Se mide cada minuto y se conservan 24 horas (se reinicia al reiniciar el servicio). Pase el ratón sobre la gráfica para ver cada valor.</p>
+</div>
+</section>
+{% endif %}
 <div class="card">
   <dl class="kv">
     <dt>Base de datos</dt><dd><code>{{ db_url }}</code></dd>
