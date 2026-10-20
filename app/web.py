@@ -42,8 +42,28 @@ def render(request: Request, name: str, user, **ctx):
         st = updates.status()  # aviso emergente: una vez por sesión y por versión nueva
         if st["available"] and not st["running"] and request.session.get("upd_dismissed") != st["latest"]:
             popup = st
+    counts = _nav_counts(user) if user is not None and not ctx.get("compact") else {}
     return templates.TemplateResponse(request, name, {"user": user, "flashes": flashes, "update_popup": popup,
+                                                      "nav_counts": counts,
                                                       "profiles": PROFILES, "profile_map": PROFILE_MAP, **ctx})
+
+
+def _nav_counts(user) -> dict:
+    """Contadores de la barra lateral: solicitudes de cambio por aprobar y alarmas abiertas (de sus equipos)."""
+    from sqlalchemy import func, select
+
+    from .auth import device_scope
+    from .db import ChangeRequest, Event, SessionLocal
+    try:
+        scope = device_scope(user)
+        with SessionLocal() as db:
+            stmt = select(func.count(Event.id)).where(Event.acknowledged.is_(False), Event.severity != "info")
+            if scope is not None:
+                stmt = stmt.where(Event.device_id.in_(scope))
+            return {"alarms": db.scalar(stmt) or 0,
+                    "pending": db.scalar(select(func.count(ChangeRequest.id)).where(ChangeRequest.status == "pending")) or 0}
+    except Exception:  # noqa: BLE001 - un contador nunca debe impedir mostrar la página
+        return {}
 
 
 def flash(request: Request, msg: str, kind="ok"):

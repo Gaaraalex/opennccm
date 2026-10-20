@@ -1,0 +1,7 @@
+{# Firmware y ciclo de vida: las páginas /firmware y /eol bajo una misma entrada del menú #}
+{% set p = request.url.path %}
+<p class="eyebrow">Firmware y ciclo de vida</p>
+<nav class="page-tabs" aria-label="Firmware y ciclo de vida">
+  <a href="/firmware" {{ 'aria-current="page"'|safe if p.startswith('/firmware') }}>{{ icon('chip', 'sm') }} Firmware</a>
+  <a href="/eol" {{ 'aria-current="page"'|safe if p.startswith('/eol') }}>{{ icon('clock', 'sm') }} Fin de vida (EOL/EOS)</a>
+</nav>

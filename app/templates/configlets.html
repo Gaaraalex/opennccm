@@ -2,14 +2,14 @@
 {% block content %}
 <h1>Configlets y scripts</h1>
 <p class="muted">Plantillas de comandos (Jinja2) para aplicar cambios masivos (<b>config</b>, pasan por aprobación) o ejecutar comandos de diagnóstico (<b>exec</b>, inmediatos).</p>
-{% if user.role == 'admin' %}<p><a class="btn" href="/configlets/new">+ Nuevo configlet</a></p>{% endif %}
+{% if user.role == 'admin' %}<p><a class="btn" href="/configlets/new" data-sheet>+ Nuevo configlet</a></p>{% endif %}
 <div class="card">
 <table><tr><th>Nombre</th><th>Tipo</th><th>Aplica a</th><th>Descripción</th><th></th></tr>
 {% for c in items %}
 <tr><td><b>{{ c.name }}</b></td><td><span class="badge b-{{ 'major' if c.kind == 'config' else 'info' }}">{{ c.kind }}</span></td>
 <td class="small"><code>{{ c.device_type_filter or 'todos' }}</code></td><td class="small">{{ c.description or '' }}</td>
 <td style="white-space:nowrap">{% if ROLES[user.role] >= 1 %}<a class="btn sm" href="/configlets/{{ c.id }}/run">Ejecutar</a>{% endif %}
-{% if user.role == 'admin' %}<a class="btn sm sec" href="/configlets/{{ c.id }}/edit">Editar</a>
+{% if user.role == 'admin' %}<a class="btn sm sec" href="/configlets/{{ c.id }}/edit" data-sheet>Editar</a>
 <form class="inline" method="post" action="/configlets/{{ c.id }}/delete" onsubmit="return confirm('¿Eliminar?')"><button class="sm danger">×</button></form>{% endif %}</td></tr>
 {% else %}<tr><td colspan="5" class="muted">Sin configlets. Ejecute <code>opennccm-cli seed</code> para cargar ejemplos.</td></tr>{% endfor %}
 </table>

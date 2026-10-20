@@ -15,7 +15,7 @@
   <form class="inline" method="post" action="/backup/all"><input type="hidden" name="group" value="{{ group }}">
     <button onclick="return confirm('{{ (_('¿Respaldar ahora todos los equipos del grupo?') if group else _('¿Respaldar ahora todos los equipos?'))|jsq }}')">Respaldar todos</button></form>
   {% endif %}
-  {% if user.role == 'admin' %}<a class="btn sec" href="/credentials#groups">Grupos</a> <a class="btn" href="/devices/new">+ Agregar</a>{% endif %}
+  {% if user.role == 'admin' %}<a class="btn sec" href="/credentials#groups">Grupos</a> <a class="btn" href="/devices/new" data-sheet>+ Agregar</a>{% endif %}
 </div>
 <div class="card">
 <table>

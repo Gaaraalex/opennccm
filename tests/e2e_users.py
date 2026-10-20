@@ -36,7 +36,8 @@ check("botón «Cambiar contraseña» junto al usuario", "Cambiar contraseña" i
 fav = adm.get(B + "/favicon.ico")
 check("/favicon.ico responde con una imagen", fav.status_code == 200 and fav.headers["content-type"].startswith("image/"))
 check("/static/icon.svg", adm.get(B + "/static/icon.svg").status_code == 200)
-check("menú con enlace a Plataformas", 'href="/vendors"' in html)
+check("menú con enlace a Administración", 'href="/users" class="nav' in html and ">Administración<" in html)
+check("Plataformas es una pestaña de Administración", 'href="/vendors" aria-current="page"' in adm.get(B + "/vendors").text)
 
 # --- crear usuario
 r = adm.post(B + "/users", data={"username": "ana", "role": "operator", "password": "Clave-Inicial-1", "password2": "Clave-Inicial-1"})

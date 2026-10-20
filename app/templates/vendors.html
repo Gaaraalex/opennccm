@@ -1,5 +1,6 @@
 {% extends "base.html" %}{% block title %}Plataformas soportadas{% endblock %}
 {% block content %}
+{% include "_admin_tabs.html" %}
 <h1>Plataformas soportadas ({{ rows|length }})</h1>
 <p class="muted">Comandos que OpenNCCM ejecuta en cada plataforma. La configuración se obtiene mostrando el resultado del comando
 dentro de la misma sesión SSH (no se crean archivos en el equipo). Use el <b>device_type</b> en la importación CSV.

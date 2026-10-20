@@ -1,5 +1,6 @@
 {% extends "base.html" %}{% block title %}Auditoría{% endblock %}
 {% block content %}
+{% include "_admin_tabs.html" %}
 <h1>Actividad de usuarios</h1>
 <div class="toolbar">
   <form class="row" method="get"><input name="q" value="{{ q }}" placeholder="Usuario, acción o detalle"><button class="sec">Buscar</button></form>

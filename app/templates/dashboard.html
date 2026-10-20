@@ -56,7 +56,7 @@
   <tr class="item"><td class="small">{{ v.created_at|dt }}</td><td><a href="/devices/{{ v.device_id }}">{{ v.device.name }}</a></td>
   <td>{{ v.trigger }}</td><td class="small"><span style="color:var(--t-ok)">+{{ v.added }}</span> <span style="color:var(--t-crit)">-{{ v.removed }}</span></td>
   <td><a href="/versions/{{ v.id }}">ver</a></td></tr>
-  {% else %}<tr><td colspan="5" class="muted">Sin respaldos todavía. <a href="/devices/new">Agregue un dispositivo</a>.</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="5" class="muted">Sin respaldos todavía. <a href="/devices/new" data-sheet>Agregue un dispositivo</a>.</td></tr>{% endfor %}
   </table>
   </div>
 </div>

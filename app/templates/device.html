@@ -17,7 +17,7 @@
      onclick="return abrirVentana(this.href, 'web-{{ device.id }}', 1280, 820)" aria-label="Interfaz web del equipo (ventana nueva)">{{ icon('globe', 'sm') }} Interfaz web</a>
   {% endif %}
   {% if user.role == 'admin' %}
-  <a class="btn sec" href="/devices/{{ device.id }}/edit">Editar</a>
+  <a class="btn sec" href="/devices/{{ device.id }}/edit" data-sheet>Editar</a>
   <form class="inline" method="post" action="/devices/{{ device.id }}/delete" onsubmit="return confirm('¿Eliminar el equipo y todo su historial?')"><button class="danger">Eliminar</button></form>
   {% endif %}
 </div>
@@ -38,7 +38,7 @@
     <dt>Nº de serie</dt><dd>{{ device.serial or '—' }}</dd>
     <dt>Versión firmware</dt><dd>{{ device.os_version or '—' }}{% if not (device.model or device.serial or device.os_version) %} <span class="small muted">(se completan solos en cada respaldo con «{{ profile.inventory_label or _('sin comando de inventario') }}»)</span>{% endif %}</dd>
     <dt>Grupo</dt><dd>{% if device.group %}<a href="/devices?group={{ device.group_id }}">{{ device.group.name }}</a>{% else %}—{% endif %}
-      {% if user.role == 'admin' %} <a class="small" href="/devices/{{ device.id }}/edit">{{ _('cambiar') if device.group else _('asignar grupo') }}</a>{% endif %}</dd>
+      {% if user.role == 'admin' %} <a class="small" href="/devices/{{ device.id }}/edit" data-sheet>{{ _('cambiar') if device.group else _('asignar grupo') }}</a>{% endif %}</dd>
     <dt>Ubicación</dt><dd>{{ device.location or '—' }}</dd>
     <dt>Credencial</dt><dd>{{ device.credential.name if device.credential else '—' }}</dd>
     <dt>Último respaldo</dt><dd>{{ device.last_backup_at|dt }}</dd>
