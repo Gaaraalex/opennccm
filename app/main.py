@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from datetime import timedelta
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import case, delete, func, or_, select
 from starlette.middleware.sessions import SessionMiddleware
@@ -587,9 +587,24 @@ def device_detail(request: Request, dev_id: int):
     from . import eol
     with SessionLocal() as db:
         entry = eol.match_entry(dev, list(db.scalars(select(eol.EolEntry))))
+    # cumplimiento agrupado por política: las infracciones primero (críticas antes) y «Corregir N» por política
+    sev_rank = {"critical": 0, "major": 1, "minor": 2}
+    groups: dict[int, dict] = {}
+    for c in comp:
+        g = groups.setdefault(c.policy_id, {"policy": c.policy, "results": [], "fails": 0, "fixable": 0, "crit": 0})
+        g["results"].append(c)
+        if not c.passed:
+            g["fails"] += 1
+            g["fixable"] += bool(c.rule.remediation)
+            g["crit"] += c.rule.severity == "critical"
+    for g in groups.values():
+        g["results"].sort(key=lambda c: (c.passed, sev_rank.get(c.rule.severity, 3), c.rule.name))
+    comp_groups = sorted(groups.values(), key=lambda g: (-g["crit"], -g["fails"], g["policy"].name))
     from .console import console_allowed
     return render(request, "device.html", user, can_console=console_allowed(user, dev.id), device=dev,
-                  versions=versions, comp=comp, vulns=vulns,
+                  versions=versions, comp=comp, vulns=vulns, comp_groups=comp_groups,
+                  comp_fails=sum(g["fails"] for g in comp_groups),
+                  vuln_high=sum(1 for v in vulns if (v.severity or "").upper() in ("CRITICAL", "HIGH")),
                   events=events, inventory=inventory, profile=get_profile(dev.device_type), images=images,
                   eol_entry=entry, eol_status=eol.status(entry), eol_labels=eol.STATUS_LABEL,
                   eol_sev=eol.STATUS_SEV)
@@ -753,7 +768,7 @@ def diff_view(request: Request, a: int = 0, b: int = 0, ctx: int = 3, view: str 
             x.device.name  # carga la relación antes de cerrar la sesión
     added, removed = services.diff_stats(ta, tb)
     return render(request, "diff.html", user, va=va, vb=vb, lines=lines, rows=rows, ctx=ctx, view=view,
-                  all_versions=all_versions, added=added, removed=removed)
+                  all_versions=all_versions, added=added, removed=removed, summary=services.diff_summary(ta, tb))
 
 
 @app.post("/versions/{ver_id}/rollback")
@@ -1126,7 +1141,10 @@ def policy_detail(request: Request, pid: int):
         p = db.get(Policy, pid)
         p.rules  # carga la relación antes de cerrar la sesión
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
-    return render(request, "policy.html", user, p=p, groups=groups)
+        scope = device_scope(user)
+        devs = [d for d in db.scalars(select(Device).order_by(Device.name))
+                if (scope is None or d.id in scope) and (not p.device_type_filter or re.search(p.device_type_filter, d.device_type))]
+    return render(request, "policy.html", user, p=p, groups=groups, test_devices=devs)
 
 
 @app.post("/compliance/policies/{pid}/delete")
@@ -1197,6 +1215,54 @@ def compliance_remediate(request: Request, result_id: int):
         body, dev_id = r.rule.remediation, r.device_id
     cr_id = _create_cr(user, title, body, {}, [dev_id])
     return go(f"/changes/{cr_id}")
+
+
+@app.post("/compliance/remediate-policy")
+async def compliance_remediate_policy(request: Request):
+    """«Corregir N»: una solicitud de cambio por equipo con todas las correcciones de sus infracciones de la política."""
+    user = require(request, "operator")
+    form = await request.form()
+    pid = int(form.get("policy_id") or 0)
+    only = int(form.get("device_id") or 0)
+    back = form.get("next") or "/compliance"
+    back = back if back.startswith("/") and not back.startswith("//") else "/compliance"
+    scope = device_scope(user)
+    per_dev: dict[int, list] = {}
+    with SessionLocal() as db:
+        for r in db.scalars(select(ComplianceResult).where(ComplianceResult.policy_id == pid,
+                                                             ComplianceResult.passed.is_(False))):
+            if (only and r.device_id != only) or (scope is not None and r.device_id not in scope):
+                continue
+            if r.rule and r.rule.remediation:
+                per_dev.setdefault(r.device_id, []).append((r.rule.name, r.rule.remediation.strip(), r.device.name,
+                                                            r.policy.name))
+    if not per_dev:
+        flash(request, _("No hay infracciones con comandos de corrección en esta política"), "error")
+        return go(back)
+    created = []
+    for dev_id, fixes in per_dev.items():
+        names = ", ".join(n for n, *_x in fixes)
+        title = f"Corrección de {len(fixes)} reglas de '{fixes[0][3]}' en {fixes[0][2]}"
+        created.append(_create_cr(user, title[:200], "\n".join(body for _n, body, *_x in fixes), {}, [dev_id]))
+        log_action(request, user, "remediate_policy", f"politica={pid} equipo={dev_id}: {names}"[:500])
+    flash(request, _f("Se crearon {0} solicitudes de corrección", len(created)) if len(created) != 1
+          else _("Se creó la solicitud de corrección"))
+    return go(f"/changes/{created[0]}" if len(created) == 1 else "/changes?status=pending")
+
+
+@app.post("/compliance/rules/test")
+async def compliance_rule_test(request: Request):
+    """Prueba en vivo de una regla contra la última configuración de un equipo (editor de políticas)."""
+    user = require(request, "admin")
+    form = await request.form()
+    dev_id = int(form.get("device_id") or 0)
+    check_device(user, dev_id)
+    with SessionLocal() as db:
+        ver = services.latest_version(db, dev_id)
+        if not ver:
+            return JSONResponse({"error": _("El equipo no tiene versiones respaldadas")})
+        text = decrypt(ver.content_enc)
+    return JSONResponse(services.test_rule(text, form.get("pattern", ""), form.get("kind", "must_contain")))
 
 
 # --------------------------------------------------------------------------- tareas programadas

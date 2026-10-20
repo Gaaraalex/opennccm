@@ -35,7 +35,7 @@ def backup(dev_id):
 
 def versions(dev_id):
     page = s.get(f"{B}/devices/{dev_id}").text
-    return [int(x) for x in re.findall(r'href="/versions/(\d+)">ver</a>', page)]  # más reciente primero
+    return [int(x) for x in dict.fromkeys(re.findall(r'class="tl-row[^"]*" data-id="(\d+)"', page))]  # más reciente primero
 
 
 def wait_cr(cr_id):
@@ -63,8 +63,8 @@ try:
     check("respaldo del EdgeSwitch (el primero se hace al crearlo)",
           any("Primer respaldo" in x or "sin cambios" in x or "cambios" in x for x in f), f)
     page = htmlmod.unescape(s.get(f"{B}/devices/{dev}").text)
-    check("inventario: modelo ES-16-150W", "<dd>ES-16-150W</dd>" in page)
-    check("inventario: serie 7483C2ABCDEF", "<dd>7483C2ABCDEF</dd>" in page)
+    check("inventario: modelo ES-16-150W", re.search(r"<dd[^>]*>ES-16-150W</dd>", page) is not None)
+    check("inventario: serie 7483C2ABCDEF", re.search(r"<dd[^>]*>7483C2ABCDEF</dd>", page) is not None)
     check("inventario: firmware 1.9.3.5263085", "1.9.3.5263085" in page)
     check("grupo creado desde el formulario del equipo", "Oficina principal</a>" in page)
 

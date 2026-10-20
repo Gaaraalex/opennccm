@@ -1,14 +1,19 @@
 {% extends "base.html" %}{% block title %}Cumplimiento{% endblock %}
 {% block content %}
-<h1>Cumplimiento de configuración</h1>
-<div class="grid">
-  <div class="stat"><small>Equipos auditados</small><b>{{ devices_checked }}</b></div>
-  <div class="stat"><small>Equipos que cumplen</small><b style="color:var(--t-ok)">{{ devices_ok }}</b></div>
-  <div class="stat"><small>Infracciones abiertas</small><b style="color:var(--t-crit)">{{ fails|length }}</b></div>
+{% set can_run = ROLES[user.role] >= 1 %}
+{% set sevmap = {'critical': 'crit', 'major': 'major', 'minor': 'minor'} %}
+{% set sevlabel = {'crit': _('Crítica'), 'major': _('Mayor'), 'minor': _('Menor'), 'info': _('Info')} %}
+<div class="page-head">
+  <div><h1>Cumplimiento de configuración</h1></div>
+  <div class="row">
+    <a class="btn sec" href="/reports/compliance.csv">{{ icon('dl', 'sm') }} Exportar CSV</a>
+    {% if can_run %}<form class="inline" method="post" action="/compliance/run"><button>{{ icon('shield', 'sm') }} Auditar todos ahora</button></form>{% endif %}
+  </div>
 </div>
-<div class="toolbar" style="margin-top:14px">
-  {% if ROLES[user.role] >= 1 %}<form class="inline" method="post" action="/compliance/run"><button>Auditar todos ahora</button></form>{% endif %}
-  <a class="btn sec" href="/reports/compliance.csv">Exportar CSV</a>
+<div class="kpis">
+  <div class="kpi"><small>Equipos auditados</small><b>{{ devices_checked }}</b></div>
+  <div class="kpi"><small>Equipos que cumplen</small><b class="t-ok">{{ devices_ok }}</b><span class="delta">de {{ devices_checked }}</span></div>
+  <div class="kpi{{ ' alert' if fails }}"><small>Infracciones abiertas</small><b>{{ fails|length }}</b></div>
 </div>
 
 <div class="card">
@@ -17,12 +22,44 @@
 <p class="small muted" style="margin-bottom:0">Porcentaje de comprobaciones (equipo × regla) que cumplen. <a href="/reports/view/compliance">Ver como tabla</a>.</p>
 </div>
 
+<h2>Infracciones por política</h2>
+{% for pid, items in fails|groupby('policy_id') %}
+{% set fixable = items|selectattr('rule.remediation')|list|length %}
+{% set crit = items|selectattr('rule.severity', 'equalto', 'critical')|list|length %}
+<details class="card flush pol" {{ 'open' if loop.index <= 3 }}>
+  <summary class="pol-head">
+    <span class="pol-name"><a href="/compliance/policies/{{ pid }}"><b>{{ items[0].policy.name }}</b></a>
+      <span class="muted small">{{ items|length }} infracciones en {{ items|map(attribute='device_id')|unique|list|length }} equipos{% if crit %} · {{ crit }} críticas{% endif %}</span></span>
+    <span></span><span></span>
+    {% if fixable and can_run %}
+    <form method="post" action="/compliance/remediate-policy"><input type="hidden" name="policy_id" value="{{ pid }}">
+      <button class="signal sm">{{ icon('wrench', 'sm') }} Corregir {{ fixable }}</button></form>
+    {% endif %}
+  </summary>
+  <ul class="rules">
+    {% for f in items|sort(attribute='device.name') %}
+    <li class="fail">
+      {% set s = sevmap.get(f.rule.severity, 'info') %}<span class="sev {{ s }}">{{ sevlabel[s] }}</span>
+      <span class="rule-name"><a href="/devices/{{ f.device_id }}#compliance">{{ f.device.name }}</a> · {{ f.rule.name }}</span>
+      <span></span>
+      {% if f.rule.remediation and can_run %}<form method="post" action="/compliance/remediate/{{ f.id }}"><button class="sm sec">Corregir</button></form>{% else %}<span></span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</details>
+{% else %}
+<div class="card empty">
+  <svg class="empty-art" viewBox="0 0 120 80" aria-hidden="true"><path d="M20 60 L50 30 L80 50 L100 20" class="ln"/><circle cx="20" cy="60" r="6" class="nd"/><circle cx="50" cy="30" r="6" class="nd"/><circle cx="80" cy="50" r="6" class="nd"/><circle cx="100" cy="20" r="10" class="lime"/><path d="M95 20l3.5 3.5 6.5-7" class="ck"/></svg>
+  <h3>Sin infracciones.</h3><p class="muted">Todas las reglas auditadas se cumplen.</p>
+</div>
+{% endfor %}
+
 <div class="card">
 <h2 style="margin-top:0">Políticas</h2>
 <table><tr><th>Nombre</th><th>Aplica a</th><th>Reglas</th><th>Estado</th></tr>
 {% for p in policies %}
 <tr><td><a href="/compliance/policies/{{ p.id }}">{{ p.name }}</a></td><td class="small"><code>{{ p.device_type_filter or 'todos' }}</code></td>
-<td>{{ p.rules|length }}</td><td>{{ 'activa' if p.enabled else 'inactiva' }}</td></tr>
+<td>{{ p.rules|length }}</td><td>{% if p.enabled %}<span class="badge b-ok">activa</span>{% else %}<span class="badge">inactiva</span>{% endif %}</td></tr>
 {% else %}<tr><td colspan="4" class="muted">Sin políticas. Ejecute <code>opennccm-cli seed</code> para cargar ejemplos (hardening Cisco, Huawei, Juniper, FortiGate).</td></tr>{% endfor %}
 </table>
 {% if user.role == 'admin' %}
@@ -33,16 +70,5 @@
   <input type="hidden" name="enabled" value="on"><button>Crear</button>
 </form>
 {% endif %}
-</div>
-
-<div class="card">
-<h2 style="margin-top:0">Infracciones</h2>
-<table><tr><th>Equipo</th><th>Política</th><th>Regla</th><th>Severidad</th><th></th></tr>
-{% for f in fails %}
-<tr><td><a href="/devices/{{ f.device_id }}">{{ f.device.name }}</a></td><td>{{ f.policy.name }}</td><td>{{ f.rule.name }}</td>
-<td><span class="badge b-{{ f.rule.severity }}">{{ f.rule.severity }}</span></td>
-<td>{% if f.rule.remediation and ROLES[user.role] >= 1 %}<form class="inline" method="post" action="/compliance/remediate/{{ f.id }}"><button class="sm">Corregir</button></form>{% endif %}</td></tr>
-{% else %}<tr><td colspan="5" class="muted">Sin infracciones.</td></tr>{% endfor %}
-</table>
 </div>
 {% endblock %}

@@ -21,6 +21,12 @@ s = requests.Session()
 fails = []
 
 
+
+def tl_ids(page, kind=None):
+    """Ids de la línea de tiempo de versiones de la ficha (más reciente primero), opcionalmente de un tipo."""
+    rows = re.findall(r'class="tl-row[^"]*" data-id="(\d+)"(?:(?!data-id=).)*?class="tl-kind">(\w+)<', page, re.S)
+    return list(dict.fromkeys(i for i, k in rows if kind is None or k == kind))
+
 def check(name, cond, extra=""):
     print(("OK   " if cond else "FAIL ") + name + (f"  [{extra}]" if extra and not cond else ""))
     if not cond:
@@ -58,8 +64,8 @@ check("Netmiko conoce todas las plataformas", "no conoce" not in sysp)
 s.post(B + "/devices/1/edit", data={"name": "R1", "host": "127.0.0.1", "device_type": "cisco_ios", "protocol": "ssh",
                                     "port": "2222", "credential_id": "1", "group_id": "1", "enabled": "on"})
 html = s.get(B + "/devices/1").text
-latest = re.findall(r'<td>(\d+)</td><td class="small">[^<]*</td><td>running</td>', html)[0]
-startup_id = re.findall(r'<td>(\d+)</td><td class="small">[^<]*</td><td>startup</td>', html)[0]
+latest = tl_ids(html, "running")[0]
+startup_id = tl_ids(html, "startup")[0]
 r = s.post(f"{B}/versions/{startup_id}/baseline")
 check("startup no puede ser línea base", "Solo una configuración en ejecución" in r.text)
 r = s.post(f"{B}/versions/{latest}/baseline")
@@ -77,7 +83,7 @@ check("filtro de equipos fuera de baseline", "R1" in s.get(B + "/devices?status=
 r = s.get(B + "/devices/1/baseline-diff")
 check("comparar con baseline (lado a lado)", 'class="sbs"' in r.text and f"ntp server {NTP}" in r.text)
 check("fila agregada resaltada", re.search(r'<tr class="a">.*?ntp server ' + re.escape(NTP), r.text, re.S) is not None)
-base_id = re.search(r'/versions/(\d+)/rollback"><button class="sm danger">Volver a la línea base', html)
+base_id = re.search(r'/versions/(\d+)/rollback"><button[^>]*>.{0,200}?Volver a la línea base', html)
 check("botón 'Volver a la línea base'", base_id is not None)
 r = s.post(f"{B}/versions/{base_id.group(1)}/rollback")
 check("reversión a baseline genera 'no ntp server …'", f"no ntp server {NTP}" in r.text)

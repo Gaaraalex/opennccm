@@ -1,28 +1,43 @@
 {% extends "base.html" %}{% block title %}Comparar{% endblock %}
 {% block content %}
 <h1>Comparación de configuraciones</h1>
-<form class="card row" method="get">
+<form class="card diff-form" method="get">
   <div><label>Versión A (izquierda)</label><select name="a">{% for x in all_versions %}<option value="{{ x.id }}" {{ 'selected' if x.id == va.id }}>{{ x.device.name }} #{{ x.id }} {{ x.kind }} {{ x.created_at|dt }}</option>{% endfor %}</select></div>
   <div><label>Versión B (derecha)</label><select name="b">{% for x in all_versions %}<option value="{{ x.id }}" {{ 'selected' if x.id == vb.id }}>{{ x.device.name }} #{{ x.id }} {{ x.kind }} {{ x.created_at|dt }}</option>{% endfor %}</select></div>
   <div><label>Contexto</label><select name="ctx">{% for n in [0,3,10,100000] %}<option value="{{ n }}" {{ 'selected' if n == ctx }}>{{ _('completo') if n > 1000 else _f('{0} líneas', n) }}</option>{% endfor %}</select></div>
   <div><label>Vista</label><select name="view"><option value="side" {{ 'selected' if view == 'side' }}>Lado a lado</option><option value="unified" {{ 'selected' if view != 'side' }}>Unificada</option></select></div>
   <button>Comparar</button>
 </form>
-<p class="muted">Puede comparar versiones del mismo equipo o de equipos distintos.
-  <span style="color:var(--t-ok)">+{{ added }}</span> / <span style="color:var(--t-crit)">-{{ removed }}</span> líneas ·
-  <span style="background:var(--del);padding:0 6px">eliminado / modificado</span> <span style="background:var(--add);padding:0 6px">agregado / modificado</span></p>
+<p class="muted small">Puede comparar versiones del mismo equipo o de equipos distintos.</p>
+
+{% if summary %}
+<div class="card diff-summary">
+  <div class="card-head"><h2>Qué cambió</h2><span class="mono diffc"><span class="add">+{{ added }}</span> <span class="del">−{{ removed }}</span> líneas</span></div>
+  <ul>{% for s in summary %}<li>{{ s }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<div class="diff-wrap" data-diff>
+  <div class="diff-tools">
+    <span class="muted small"><span class="legend-del">eliminado / modificado</span> <span class="legend-add">agregado / modificado</span></span>
+    <span class="diff-nav"><span class="muted small diff-pos" aria-live="polite"></span>
+      <button type="button" class="sec sm" data-diff-prev title="Cambio anterior (p)">{{ icon('left', 'sm') }} <kbd>p</kbd></button>
+      <button type="button" class="sec sm" data-diff-next title="Cambio siguiente (n)"><kbd>n</kbd> {{ icon('right', 'sm') }}</button></span>
+  </div>
 {% if view == 'side' %}
-<div class="card">
+<div class="card flush diff-card">
 {% if rows %}
 <table class="sbs">
   <colgroup><col style="width:44px"><col><col style="width:44px"><col></colgroup>
-  <tr><th colspan="2">{{ va.device.name }} #{{ va.id }} · {{ va.created_at|dt }}</th><th colspan="2">{{ vb.device.name }} #{{ vb.id }} · {{ vb.created_at|dt }}</th></tr>
+  <thead><tr><th colspan="2"><span class="tag">A</span> {{ va.device.name }} #{{ va.id }} · {{ va.kind }} · {{ va.created_at|dt }}</th><th colspan="2"><span class="tag">B</span> {{ vb.device.name }} #{{ vb.id }} · {{ vb.kind }} · {{ vb.created_at|dt }}</th></tr></thead>
+  <tbody>
   {% for kind, na, ta, nb, tb in rows %}
   {% if kind == 's' %}<tr class="s"><td colspan="4">{{ ta }}</td></tr>
   {% else %}<tr class="{{ kind }}"><td class="n">{{ na or '' }}</td><td class="l">{{ ta }}</td><td class="n">{{ nb or '' }}</td><td class="r">{{ tb }}</td></tr>{% endif %}
   {% endfor %}
+  </tbody>
 </table>
-{% else %}<p class="muted">Las configuraciones son idénticas.</p>{% endif %}
+{% else %}<p class="muted" style="padding:20px 24px">Las configuraciones son idénticas.</p>{% endif %}
 </div>
 {% else %}
 <div class="card diff">
@@ -35,4 +50,51 @@
 {% else %}<p class="muted">Las configuraciones son idénticas.</p>{% endfor %}
 </div>
 {% endif %}
+  <div class="diff-map" aria-hidden="true"></div>
+</div>
+<script>
+(function () {
+  const wrap = document.querySelector('[data-diff]');
+  if (!wrap) return;
+  const T = {{ {'pos': _('cambio {0} de {1}'), 'none': _('sin cambios')}|tojson }};
+  // un «cambio» = filas consecutivas modificadas (lado a lado) o líneas +/− consecutivas (unificada)
+  const rows = Array.from(wrap.querySelectorAll('table.sbs tbody tr, .diff > div'));
+  const isChg = r => r.matches('tr.c, tr.a, tr.d, .diff > div.a, .diff > div.d');
+  const blocks = [];
+  rows.forEach((r, i) => { if (isChg(r) && !(i && isChg(rows[i - 1]))) blocks.push(r); });
+  const pos = wrap.querySelector('.diff-pos'), map = wrap.querySelector('.diff-map');
+  let cur = -1;
+  function go(i) {
+    if (!blocks.length) return;
+    cur = (i + blocks.length) % blocks.length;
+    blocks.forEach(b => b.classList.remove('cur'));
+    blocks[cur].classList.add('cur');
+    blocks[cur].scrollIntoView({block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
+    pos.textContent = T.pos.replace('{0}', cur + 1).replace('{1}', blocks.length);
+  }
+  pos.textContent = blocks.length ? T.pos.replace('{0}', '–').replace('{1}', blocks.length) : T.none;
+  wrap.querySelector('[data-diff-next]').addEventListener('click', () => go(cur + 1));
+  wrap.querySelector('[data-diff-prev]').addEventListener('click', () => go(cur - 1));
+  document.addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+    if (e.key === 'n') go(cur + 1); else if (e.key === 'p') go(cur - 1);
+  });
+  // minibarra: dónde están los cambios en todo el archivo
+  if (rows.length && blocks.length) {
+    rows.forEach((r, i) => {
+      if (!isChg(r)) return;
+      const m = document.createElement('i');
+      m.className = r.matches('tr.a, div.a') ? 'add' : r.matches('tr.d, div.d') ? 'del' : 'chg';
+      m.style.top = (100 * i / rows.length) + '%';
+      map.appendChild(m);
+    });
+    map.addEventListener('click', e => {
+      const f = (e.clientY - map.getBoundingClientRect().top) / map.offsetHeight;
+      const target = rows[Math.min(rows.length - 1, Math.floor(f * rows.length))];
+      const near = blocks.reduce((best, b, i) => Math.abs(rows.indexOf(b) - rows.indexOf(target)) < Math.abs(rows.indexOf(blocks[best]) - rows.indexOf(target)) ? i : best, 0);
+      go(near);
+    });
+  } else { map.hidden = true; }
+})();
+</script>
 {% endblock %}

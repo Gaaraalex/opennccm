@@ -219,6 +219,89 @@
     });
   }
 
+  /* ---------- pestañas de página enlazables (#resumen, #versions…); sin JavaScript se ven todas ---------- */
+  $$('[data-tabs]').forEach(function (nav) {
+    var links = $$('a[href^="#"]', nav);
+    var panels = links.map(function (a) { return document.getElementById(a.getAttribute('href').slice(1)); }).filter(Boolean);
+    if (!panels.length) return;
+    nav.setAttribute('role', 'tablist');
+    function show(id, push) {
+      var target = panels.filter(function (p) { return p.id === id; })[0] || panels[0];
+      panels.forEach(function (p) { p.hidden = p !== target; });
+      links.forEach(function (a) {
+        var on = a.getAttribute('href') === '#' + target.id;
+        a.setAttribute('aria-selected', String(on));
+        if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+      });
+      if (push) history.replaceState(null, '', '#' + target.id);
+    }
+    links.forEach(function (a) {
+      a.setAttribute('role', 'tab');
+      a.addEventListener('click', function (e) { e.preventDefault(); show(a.getAttribute('href').slice(1), true); });
+    });
+    $$('[data-tab-link]').forEach(function (a) {
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        var dd = a.closest('details'); if (dd) dd.open = false;
+        show(a.getAttribute('href').slice(1), true);
+        nav.scrollIntoView({block: 'nearest'});
+      });
+    });
+    show(location.hash.slice(1), false);
+    window.addEventListener('hashchange', function () { show(location.hash.slice(1), false); });
+  });
+
+  /* ---------- línea de tiempo de versiones: clic = A, segundo clic = B, tercero reinicia ---------- */
+  $$('[data-timeline]').forEach(function (form) {
+    var rows = $$('.tl-row', form), a = form.elements.a, b = form.elements.b, picks = [];
+    if (a.value) picks.push(a.value);
+    if (b.value) picks.push(b.value);
+    function paint() {
+      a.value = picks[0] || ''; b.value = picks[1] || '';
+      rows.forEach(function (r) {
+        var i = picks.indexOf(r.dataset.id);
+        r.classList.toggle('pick-a', i === 0); r.classList.toggle('pick-b', i === 1);
+        r.setAttribute('aria-pressed', String(i >= 0));
+        r.querySelector('.tl-ab').textContent = i === 0 ? 'A' : i === 1 ? 'B' : '';
+      });
+      var ta = $('.tl-a', form), tb = $('.tl-b', form);
+      if (ta) ta.textContent = picks[0] ? '#' + picks[0] : 'A';
+      if (tb) tb.textContent = picks[1] ? '#' + picks[1] : 'B';
+      $$('button[name=view]', form).forEach(function (btn) { btn.disabled = picks.length < 2; });
+    }
+    function toggle(r) {
+      if (picks.length >= 2) picks = [];
+      var id = r.dataset.id, i = picks.indexOf(id);
+      if (i >= 0) picks.splice(i, 1); else picks.push(id);
+      picks.sort(function (x, y) { return +x - +y; });  // A = la más antigua
+      paint();
+    }
+    rows.forEach(function (r) {
+      r.addEventListener('click', function (e) { if (!e.target.closest('a,button,input')) toggle(r); });
+      r.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(r); } });
+    });
+    var only = $('.tl-changes', form);
+    if (only) only.addEventListener('change', function () { form.classList.toggle('only-changes', only.checked); });
+    paint();
+  });
+
+  /* ---------- diálogos de confirmación: «escriba el nombre para confirmar» ---------- */
+  $$('[data-dialog]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var d = document.getElementById(btn.dataset.dialog);
+      if (!d || !d.showModal) return;
+      var dd = btn.closest('details'); if (dd) dd.open = false;
+      d.showModal();
+      var inp = $('[data-expect]', d);
+      if (inp) { inp.value = ''; inp.focus(); }
+    });
+  });
+  $$('dialog [data-expect]').forEach(function (inp) {
+    var go = $('button:not([type=button])', inp.form);
+    inp.addEventListener('input', function () { go.disabled = inp.value.trim() !== inp.dataset.expect; });
+  });
+  $$('dialog [data-close]').forEach(function (b) { b.addEventListener('click', function () { b.closest('dialog').close(); }); });
+
   /* ---------- teclado global ---------- */
   document.addEventListener('keydown', function (e) {
     if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
@@ -234,3 +317,6 @@
     }
   });
 })();
+
+// Lectores de pantalla: la entrada activa del menú lleva aria-current
+document.querySelectorAll('.rail .nav.on, .mobnav a.on').forEach(function (a) { a.setAttribute('aria-current', 'page'); });

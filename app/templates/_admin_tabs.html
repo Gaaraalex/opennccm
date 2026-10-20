@@ -1,14 +1,14 @@
 {# Pestañas de Administración: cada pestaña es la página de siempre (las URLs no cambian) #}
 {% if user and user.role == 'admin' %}
-{% set p = request.url.path %}
+{% set navp = request.url.path %}
 <p class="eyebrow">Administración</p>
 <nav class="page-tabs admin-tabs" aria-label="Administración">
-  <a href="/users" {{ 'aria-current="page"'|safe if p.startswith('/users') }}>{{ icon('users', 'sm') }} Usuarios</a>
-  <a href="/credentials" {{ 'aria-current="page"'|safe if p.startswith('/credentials') }}>{{ icon('key', 'sm') }} Credenciales</a>
+  <a href="/users" {{ 'aria-current="page"'|safe if navp.startswith('/users') }}>{{ icon('users', 'sm') }} Usuarios</a>
+  <a href="/credentials" {{ 'aria-current="page"'|safe if navp.startswith('/credentials') }}>{{ icon('key', 'sm') }} Credenciales</a>
   <a href="/credentials#groups">{{ icon('folder', 'sm') }} Grupos</a>
-  <a href="/vendors" {{ 'aria-current="page"'|safe if p.startswith('/vendors') }}>{{ icon('db', 'sm') }} Plataformas</a>
-  <a href="/audit" {{ 'aria-current="page"'|safe if p.startswith('/audit') }}>{{ icon('eye', 'sm') }} Auditoría</a>
-  <a href="/system" {{ 'aria-current="page"'|safe if p.startswith('/system') }}>{{ icon('monitor', 'sm') }} Sistema</a>
-  <a href="/settings" {{ 'aria-current="page"'|safe if p.startswith('/settings') }}>{{ icon('cog', 'sm') }} Ajustes</a>
+  <a href="/vendors" {{ 'aria-current="page"'|safe if navp.startswith('/vendors') }}>{{ icon('db', 'sm') }} Plataformas</a>
+  <a href="/audit" {{ 'aria-current="page"'|safe if navp.startswith('/audit') }}>{{ icon('eye', 'sm') }} Auditoría</a>
+  <a href="/system" {{ 'aria-current="page"'|safe if navp.startswith('/system') }}>{{ icon('monitor', 'sm') }} Sistema</a>
+  <a href="/settings" {{ 'aria-current="page"'|safe if navp.startswith('/settings') }}>{{ icon('cog', 'sm') }} Ajustes</a>
 </nav>
 {% endif %}

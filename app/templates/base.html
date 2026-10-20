@@ -13,8 +13,8 @@
 <body{% block body_attr %}{% endblock %}>
 <a class="skip" href="#contenido">Saltar al contenido</a>
 {% if user and not compact %}
-{% set p = request.url.path %}
-{% set admin_on = p.startswith(('/users', '/credentials', '/audit', '/system', '/settings')) or (p.startswith('/vendors') and user.role == 'admin') %}
+{% set navp = request.url.path %}
+{% set admin_on = navp.startswith(('/users', '/credentials', '/audit', '/system', '/settings')) or (navp.startswith('/vendors') and user.role == 'admin') %}
 <div class="shell" id="shell">
 <script>try { if (localStorage.getItem('oc-rail') === 'mini') document.getElementById('shell').classList.add('mini'); } catch (e) {}</script>
 <nav class="rail" id="rail" aria-label="Menú principal">
@@ -24,30 +24,30 @@
   </div>
   <button type="button" class="find" data-palette title="Buscar o ir a… (Ctrl K)">{{ icon('search', 'sm') }}<span class="txt">Buscar o ir a…</span><kbd class="txt">Ctrl K</kbd></button>
   <div class="grp">
-    <a href="/" class="nav {{ 'on' if p == '/' }}" {{ 'aria-current="page"'|safe if p == '/' }} title="Panel">{{ icon('grid') }}<span class="txt">Panel</span></a>
-    <a href="/devices" class="nav {{ 'on' if p.startswith('/devices') or p.startswith('/versions') or p.startswith('/diff') }}" title="Dispositivos">{{ icon('server') }}<span class="txt">Dispositivos</span></a>
-    <a href="/search" class="nav {{ 'on' if p.startswith('/search') }}" title="Buscar en configuraciones">{{ icon('code') }}<span class="txt">Buscar en configuraciones</span></a>
+    <a href="/" class="nav {{ 'on' if navp == '/' }}" {{ 'aria-current="page"'|safe if navp == '/' }} title="Panel">{{ icon('grid') }}<span class="txt">Panel</span></a>
+    <a href="/devices" class="nav {{ 'on' if navp.startswith('/devices') or navp.startswith('/versions') or navp.startswith('/diff') }}" title="Dispositivos">{{ icon('server') }}<span class="txt">Dispositivos</span></a>
+    <a href="/search" class="nav {{ 'on' if navp.startswith('/search') }}" title="Buscar en configuraciones">{{ icon('code') }}<span class="txt">Buscar en configuraciones</span></a>
   </div>
   <div class="grp"><span class="label">Operar</span>
-    <a href="/changes" class="nav {{ 'on' if p.startswith('/changes') }}" title="Cambios">{{ icon('branch') }}<span class="txt">Cambios</span>{% if nav_counts.pending %}<span class="cnt" title="Por aprobar">{{ nav_counts.pending }}</span><i class="dotc"></i>{% endif %}</a>
-    <a href="/configlets" class="nav {{ 'on' if p.startswith('/configlets') }}" title="Configlets">{{ icon('term') }}<span class="txt">Configlets</span></a>
-    <a href="/schedules" class="nav {{ 'on' if p.startswith('/schedules') }}" title="Tareas">{{ icon('cal') }}<span class="txt">Tareas</span></a>
+    <a href="/changes" class="nav {{ 'on' if navp.startswith('/changes') }}" title="Cambios">{{ icon('branch') }}<span class="txt">Cambios</span>{% if nav_counts.pending %}<span class="cnt" title="Por aprobar">{{ nav_counts.pending }}</span><i class="dotc"></i>{% endif %}</a>
+    <a href="/configlets" class="nav {{ 'on' if navp.startswith('/configlets') }}" title="Configlets">{{ icon('term') }}<span class="txt">Configlets</span></a>
+    <a href="/schedules" class="nav {{ 'on' if navp.startswith('/schedules') }}" title="Tareas">{{ icon('cal') }}<span class="txt">Tareas</span></a>
   </div>
   <div class="grp"><span class="label">Proteger</span>
-    <a href="/compliance" class="nav {{ 'on' if p.startswith('/compliance') }}" title="Cumplimiento">{{ icon('shield') }}<span class="txt">Cumplimiento</span></a>
-    <a href="/vulns" class="nav {{ 'on' if p.startswith('/vulns') }}" title="Vulnerabilidades">{{ icon('bug') }}<span class="txt">Vulnerabilidades</span></a>
-    <a href="/firmware" class="nav {{ 'on' if p.startswith('/firmware') or p.startswith('/eol') }}" title="Firmware y ciclo de vida">{{ icon('chip') }}<span class="txt">Firmware y ciclo de vida</span></a>
+    <a href="/compliance" class="nav {{ 'on' if navp.startswith('/compliance') }}" title="Cumplimiento">{{ icon('shield') }}<span class="txt">Cumplimiento</span></a>
+    <a href="/vulns" class="nav {{ 'on' if navp.startswith('/vulns') }}" title="Vulnerabilidades">{{ icon('bug') }}<span class="txt">Vulnerabilidades</span></a>
+    <a href="/firmware" class="nav {{ 'on' if navp.startswith('/firmware') or navp.startswith('/eol') }}" title="Firmware y ciclo de vida">{{ icon('chip') }}<span class="txt">Firmware y ciclo de vida</span></a>
   </div>
   <div class="grp"><span class="label">Observar</span>
-    <a href="/events" class="nav {{ 'on' if p.startswith('/events') }}" title="Alarmas">{{ icon('bell') }}<span class="txt">Alarmas</span>{% if nav_counts.alarms %}<span class="cnt" title="Abiertas">{{ nav_counts.alarms }}</span><i class="dotc"></i>{% endif %}</a>
-    <a href="/analytics" class="nav {{ 'on' if p.startswith('/analytics') }}" title="Análisis">{{ icon('chart') }}<span class="txt">Análisis</span></a>
-    <a href="/reports" class="nav {{ 'on' if p.startswith('/reports') }}" title="Informes">{{ icon('file') }}<span class="txt">Informes</span></a>
+    <a href="/events" class="nav {{ 'on' if navp.startswith('/events') }}" title="Alarmas">{{ icon('bell') }}<span class="txt">Alarmas</span>{% if nav_counts.alarms %}<span class="cnt" title="Abiertas">{{ nav_counts.alarms }}</span><i class="dotc"></i>{% endif %}</a>
+    <a href="/analytics" class="nav {{ 'on' if navp.startswith('/analytics') }}" title="Análisis">{{ icon('chart') }}<span class="txt">Análisis</span></a>
+    <a href="/reports" class="nav {{ 'on' if navp.startswith('/reports') }}" title="Informes">{{ icon('file') }}<span class="txt">Informes</span></a>
   </div>
   <div class="grp"><span class="label">Administrar</span>
     {% if user.role == 'admin' %}
     <a href="/users" class="nav {{ 'on' if admin_on }}" title="Administración">{{ icon('cog') }}<span class="txt">Administración</span></a>
     {% else %}
-    <a href="/vendors" class="nav {{ 'on' if p.startswith('/vendors') }}" title="Plataformas">{{ icon('db') }}<span class="txt">Plataformas</span></a>
+    <a href="/vendors" class="nav {{ 'on' if navp.startswith('/vendors') }}" title="Plataformas">{{ icon('db') }}<span class="txt">Plataformas</span></a>
     {% endif %}
   </div>
   <details class="me">
@@ -82,10 +82,10 @@
 </div>
 </div>
 <nav class="mobnav" aria-label="Accesos rápidos">
-  <a href="/" class="{{ 'on' if p == '/' }}">{{ icon('grid') }}<span>Panel</span></a>
-  <a href="/devices" class="{{ 'on' if p.startswith('/devices') }}">{{ icon('server') }}<span>Equipos</span></a>
-  <a href="/changes" class="{{ 'on' if p.startswith('/changes') }}">{{ icon('branch') }}<span>Cambios</span></a>
-  <a href="/events" class="{{ 'on' if p.startswith('/events') }}">{{ icon('bell') }}<span>Alarmas</span></a>
+  <a href="/" class="{{ 'on' if navp == '/' }}">{{ icon('grid') }}<span>Panel</span></a>
+  <a href="/devices" class="{{ 'on' if navp.startswith('/devices') }}">{{ icon('server') }}<span>Equipos</span></a>
+  <a href="/changes" class="{{ 'on' if navp.startswith('/changes') }}">{{ icon('branch') }}<span>Cambios</span></a>
+  <a href="/events" class="{{ 'on' if navp.startswith('/events') }}">{{ icon('bell') }}<span>Alarmas</span></a>
   <button type="button" id="mob-more" aria-controls="rail">{{ icon('menu') }}<span>Más</span></button>
 </nav>
 <div class="pal-wrap" id="palette" hidden>

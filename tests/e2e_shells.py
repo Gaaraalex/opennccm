@@ -27,7 +27,7 @@ def flashes(text):
 
 
 def field(page, label):
-    m = re.search(rf"<dt>{label}</dt><dd>(.*?)</dd>", page, re.S)
+    m = re.search(rf"<dt>{label}</dt><dd[^>]*>(.*?)</dd>", page, re.S)
     return htmlmod.unescape(re.sub(r"<[^>]+>", "", m.group(1))).strip() if m else None
 
 
@@ -75,7 +75,7 @@ try:
         check(f"{name}: n.º de serie «{serial}»", field(page, "Nº de serie") == serial, field(page, "Nº de serie"))
         check(f"{name}: versión «{version}»", field(page, "Versión firmware") == version,
               field(page, "Versión firmware"))
-        vid = re.search(r'href="/versions/(\d+)">ver</a>', page)
+        vid = re.search(r'class="tl-row[^"]*" data-id="(\d+)"', page)
         check(f"{name}: guardó la configuración", vid and htmlmod.escape(text, quote=False)
               in s.get(f"{B}/versions/{vid.group(1)}").text.replace("&#34;", '"').replace("&quot;", '"'))
         has_btn = 'aria-label="Interfaz web del equipo (ventana nueva)"' in page

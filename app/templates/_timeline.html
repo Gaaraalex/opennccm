@@ -1,0 +1,32 @@
+{# Línea de tiempo de versiones: clic = A, segundo clic = B, tercero reinicia. Variables: tl_versions, tl_id, baseline_id #}
+<form class="timeline" method="get" action="/diff" data-timeline id="{{ tl_id }}">
+  <input type="hidden" name="a" value="{{ tl_versions[1].id if tl_versions|length > 1 else '' }}">
+  <input type="hidden" name="b" value="{{ tl_versions[0].id if tl_versions else '' }}">
+  {% if tl_versions|length > 1 %}
+  <div class="tl-bar">
+    <span class="muted small tl-help">Pulse dos versiones para compararlas: la primera es A, la segunda B.</span>
+    <label class="chk small"><input type="checkbox" class="tl-changes"> Solo con cambios</label>
+    <span class="split">
+      <button name="view" value="side">{{ icon('branch', 'sm') }} Comparar <b class="tl-a">A</b> ↔ <b class="tl-b">B</b></button>
+      <button name="view" value="unified" class="sec" title="Vista unificada">Unificada</button>
+    </span>
+  </div>
+  {% endif %}
+  <ol class="tl">
+    {% for v in tl_versions %}
+    <li class="tl-row{{ ' nochg' if not v.added and not v.removed }}" data-id="{{ v.id }}" tabindex="0" role="button"
+        aria-pressed="false" aria-label="{{ _f('Versión {0}, {1}', v.id, v.created_at|dt) }}">
+      <span class="tl-dot {{ 'base' if v.id == baseline_id else v.kind }}" title="{{ _('línea base') if v.id == baseline_id else v.kind }}"></span>
+      <span class="tl-ab" aria-hidden="true"></span>
+      <span class="tl-main"><b>#{{ v.id }}</b> <span class="tl-kind">{{ v.kind }}</span>
+        {% if v.id == baseline_id %}<span class="tag signal">línea base</span>{% elif v.label %}<span class="tag">{{ v.label }}</span>{% endif %}
+        <span class="muted small tl-meta">{{ v.trigger|capitalize }}{% if v.username %} · {{ v.username }}{% endif %} · <span title="{{ v.created_at|dt }}">{{ v.created_at|ago }}</span></span></span>
+      <span class="mono diffc"><span class="add">+{{ v.added }}</span> <span class="del">−{{ v.removed }}</span></span>
+      <span class="tl-acts"><a class="btn sm sec" href="/versions/{{ v.id }}">Ver</a>
+        <a class="btn sm ghost icon-btn" href="/versions/{{ v.id }}?raw=1" title="Descargar la versión {{ v.id }}" aria-label="Descargar la versión {{ v.id }}">{{ icon('dl', 'sm') }}</a></span>
+    </li>
+    {% else %}
+    <li class="muted tl-empty">Sin versiones aún.</li>
+    {% endfor %}
+  </ol>
+</form>

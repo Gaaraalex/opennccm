@@ -74,7 +74,7 @@ r = adm.post(B + "/devices/bulk", data={"action": "audit", "ids": ["1"]})
 check("masivo: auditar los seleccionados", any("Auditoría de cumplimiento lanzada para 1" in f for f in flashes(r.text)), flashes(r.text))
 adm.post(B + "/groups", data={"name": "Masivo-UI"})
 gid = re.search(r'<option value="(\d+)">Masivo-UI</option>', adm.get(B + "/devices").text)
-before = re.search(r"<dt>Grupo</dt><dd>(.*?)</dd>", adm.get(B + "/devices/1").text, re.S).group(1)
+before = re.search(r"<dt>Grupo</dt><dd[^>]*>(.*?)</dd>", adm.get(B + "/devices/1").text, re.S).group(1)
 r = adm.post(B + "/devices/bulk", data={"action": "move", "ids": ["1"], "group_id": gid.group(1) if gid else "0"})
 check("masivo: mover a un grupo", gid and "Masivo-UI" in adm.get(B + "/devices/1").text, flashes(r.text))
 check("masivo: sin selección avisa", "Seleccione al menos un dispositivo" in " ".join(flashes(adm.post(B + "/devices/bulk", data={"action": "backup"}).text)))
@@ -113,6 +113,49 @@ else:
 check("el lector no puede actualizar", lec.post(B + "/system/update").status_code == 403)
 set_setting("update_latest", "")
 set_setting("update_notes", "")
+
+# --- Ficha de equipo «Señal», comparación, «Corregir N» y prueba de reglas en vivo (fase 4)
+dev_id = re.search(r'href="/devices/(\d+)"><b>R1</b>', adm.get(B + "/devices").text)
+dev_id = dev_id.group(1) if dev_id else "1"
+adm.post(B + "/compliance/run")
+time.sleep(4)
+dev = adm.get(f"{B}/devices/{dev_id}").text
+check("ficha: pestañas Resumen, Versiones, Cumplimiento y Actividad",
+      all(f'href="#{t}"' in dev for t in ("resumen", "versions", "compliance", "activity")) and "data-tabs" in dev)
+check("ficha: línea de tiempo con selección A/B", "data-timeline" in dev and 'name="a"' in dev and 'name="b"' in dev)
+check("ficha: borrar exige escribir el nombre del equipo", 'data-expect="R1"' in dev)
+vers = re.findall(r'href="/versions/(\d+)"', dev)
+if len(set(vers)) >= 2:
+    a, b = sorted(set(vers), key=int)[:2]
+    d = adm.get(f"{B}/diff?a={a}&b={b}&view=side&ctx=3").text
+    check("comparación: resumen en palabras o configuraciones idénticas",
+          "Qué cambió" in d or "Las configuraciones son idénticas" in d)
+    check("comparación: navegación n/p y minibarra", "data-diff-next" in d and 'class="diff-map"' in d)
+pol = re.search(r'name="policy_id" value="(\d+)"', dev)
+check("ficha: «Corregir N» por política con infracciones corregibles", pol is not None)
+if pol:
+    check("el lector no puede pedir correcciones",
+          lec.post(B + "/compliance/remediate-policy", data={"policy_id": pol.group(1), "device_id": dev_id},
+                   allow_redirects=False).status_code == 403)
+    r = adm.post(B + "/compliance/remediate-policy",
+                 data={"policy_id": pol.group(1), "device_id": dev_id, "next": f"/devices/{dev_id}"})
+    cr = re.search(r"/changes/(\d+)$", r.url)
+    check("«Corregir N» crea una solicitud de cambio con las correcciones",
+          cr is not None and "Se creó la solicitud de corrección" in r.text, r.url)
+    if cr:  # no dejar la solicitud pendiente para las pruebas siguientes
+        adm.post(f"{B}/changes/{cr.group(1)}/review", data={"decision": "reject", "comment": "prueba"})
+    pp = adm.get(f"{B}/compliance/policies/{pol.group(1)}").text
+    check("política: el título muestra el nombre de la política",
+          re.search(r'<h1><a href="/compliance">Cumplimiento</a> / [^<]+</h1>', pp) is not None)
+    check("política: panel para probar la regla", 'id="rule-test"' in pp and 'id="rt-go"' in pp)
+t = adm.post(B + "/compliance/rules/test", data={"device_id": dev_id, "pattern": "^hostname", "kind": "must_contain"}).json()
+check("prueba de regla: se cumple y devuelve las líneas", t.get("passed") is True and any("hostname" in x for x in t.get("lines", [])), str(t))
+t = adm.post(B + "/compliance/rules/test", data={"device_id": dev_id, "pattern": "^hostname", "kind": "must_not_contain"}).json()
+check("prueba de regla: «no debe contener» invierte el resultado", t.get("passed") is False, str(t))
+t = adm.post(B + "/compliance/rules/test", data={"device_id": dev_id, "pattern": "(", "kind": "must_contain"}).json()
+check("prueba de regla: patrón no válido devuelve un error", bool(t.get("error")), str(t))
+check("el lector no puede probar reglas",
+      lec.post(B + "/compliance/rules/test", data={"device_id": dev_id, "pattern": "x"}).status_code == 403)
 
 m = re.search(r"<b>lector9</b>[\s\S]*?/users/(\d+)/edit", adm.get(B + "/users").text)
 if m:
