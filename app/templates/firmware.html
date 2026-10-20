@@ -1,5 +1,6 @@
 {% extends "base.html" %}{% block title %}Firmware{% endblock %}
 {% block content %}
+{% include "_fw_tabs.html" %}
 <h1>Actualización de firmware</h1>
 <p class="muted">Repositorio de imágenes y actualización remota: transferencia SCP, verificación MD5 en el equipo,
 configuración de arranque y reinicio opcional. Plataformas: Cisco IOS / IOS-XE / NX-OS / ASA, Arista EOS y Juniper Junos.
@@ -12,7 +13,7 @@ Las vulnerabilidades de cada versión se consultan en <a href="/vulns">CVE</a>.<
 <tr><td><code>{{ i.filename }}</code></td><td>{{ i.version or '—' }}</td><td class="small"><code>{{ i.device_type_filter or 'cualquiera' }}</code></td>
 <td class="small">{{ '{:,}'.format(i.size) }} B</td><td class="small"><code>{{ i.md5 }}</code></td><td class="small">{{ i.uploaded_at|dt }} · {{ i.uploaded_by }}</td>
 <td>{% if user.role == 'admin' %}<form class="inline" method="post" action="/firmware/{{ i.id }}/delete" onsubmit="return confirm('¿Eliminar imagen?')"><button class="sm danger">×</button></form>{% endif %}</td></tr>
-{% else %}<tr><td colspan="7" class="muted">No hay imágenes cargadas.</td></tr>{% endfor %}
+{% else %}<tr class="empty-row"><td colspan="7"><div class="empty">{{ empty_art('plus') }}<h3>Aún no hay imágenes de firmware</h3><p class="muted">Cargue una imagen para poder actualizar equipos desde OpenNCCM.</p></div></td></tr>{% endfor %}
 </table>
 {% if user.role == 'admin' %}
 <form method="post" action="/firmware/upload" enctype="multipart/form-data" class="row" style="margin-top:12px">

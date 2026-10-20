@@ -11,8 +11,8 @@
 {% for v in items %}
 <tr><td><a href="/devices/{{ v.device_id }}">{{ v.device.name }}</a></td><td>{{ v.device.os_version }}</td>
 <td><a href="{{ v.url }}" target="_blank" rel="noopener">{{ v.cve_id }}</a></td><td>{{ v.score or '—' }}</td>
-<td><span class="badge b-{{ v.severity }}">{{ v.severity or '?' }}</span></td><td class="small">{{ (v.description or '')[:220] }}</td></tr>
-{% else %}<tr><td colspan="6" class="muted">Sin datos todavía.</td></tr>{% endfor %}
+<td>{{ sevtag(v.severity) }}</td><td class="small">{{ (v.description or '')[:220] }}</td></tr>
+{% else %}<tr class="empty-row"><td colspan="6"><div class="empty">{{ empty_art('search') }}<h3>Aún no se han buscado vulnerabilidades</h3><p class="muted">La búsqueda compara el firmware de cada equipo con la base de CVE del NIST; se lanza desde la ficha del equipo o con una tarea programada.</p></div></td></tr>{% endfor %}
 </table>
 </div>
 {% endblock %}

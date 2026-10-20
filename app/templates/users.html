@@ -1,5 +1,6 @@
 {% extends "base.html" %}{% block title %}Usuarios{% endblock %}
 {% block content %}
+{% include "_admin_tabs.html" %}
 <h1>Usuarios y roles</h1>
 <div class="card">
 <table><tr><th>Usuario</th><th>Rol</th><th>Equipos permitidos</th><th>Email</th><th>Estado</th><th>Creado</th><th></th></tr>
@@ -8,12 +9,12 @@
 <td><span class="badge b-{{ 'critical' if u.role == 'admin' else ('major' if u.role == 'operator' else 'info') }}">{{ {'admin': 'administrador', 'operator': 'operador', 'viewer': 'lector'}[u.role] }}</span></td>
 <td>{% if u.role == 'admin' or not user_groups[u.id] %}<span class="muted">todos</span>{% else %}{{ user_groups[u.id]|join(', ') }}{% endif %}</td>
 <td>{{ u.email or '' }}</td><td>{{ 'activo' if u.active else 'bloqueado' }}</td><td class="small">{{ u.created_at|dt }}</td>
-<td style="white-space:nowrap"><a class="btn sm sec" href="/users/{{ u.id }}/edit">Editar</a>
+<td style="white-space:nowrap"><a class="btn sm sec" href="/users/{{ u.id }}/edit" data-sheet>Editar</a>
 {% if u.id != user.id %}<form class="inline" method="post" action="/users/{{ u.id }}/delete" onsubmit="return confirm('¿Eliminar al usuario «{{ u.username }}»?')"><button class="sm danger">Eliminar</button></form>{% endif %}</td></tr>
 {% endfor %}
 </table>
 <p class="small muted" style="margin-bottom:0">Para cambiar la contraseña, el rol o los grupos de un usuario use <b>Editar</b> en su fila.
-Cada usuario puede cambiar su propia contraseña con el botón 🔑 de la barra superior.</p>
+Cada usuario puede cambiar su propia contraseña con el botón «Cambiar contraseña» de la barra superior.</p>
 </div>
 
 <div class="card" style="max-width:860px">

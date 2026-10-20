@@ -31,7 +31,7 @@
   {% set web_on = not device or device.web_enabled %}
   <fieldset class="webq">
     <legend>¿El equipo tiene interfaz web?</legend>
-    <label class="chk"><input type="radio" name="web_enabled" value="1" {{ 'checked' if web_on }}> Sí, mostrar el botón 🌐 Interfaz web</label>
+    <label class="chk"><input type="radio" name="web_enabled" value="1" {{ 'checked' if web_on }}> Sí, mostrar el botón «Interfaz web»</label>
     <label class="chk"><input type="radio" name="web_enabled" value="0" {{ 'checked' if not web_on }}> No (el equipo no tiene web o no se quiere usar)</label>
     <div id="web-url-box" {{ 'hidden' if not web_on }}>
       <label for="web-url">Dirección de la interfaz web (opcional)</label>

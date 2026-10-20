@@ -69,9 +69,9 @@ HERO = f"""
   -webkit-mask-image:radial-gradient(circle at 30% 40%,#000,transparent 75%)}}
 .txt{{position:absolute;left:96px;top:150px;width:640px}}
 .logo{{display:flex;align-items:center;gap:22px}}
-.logo img{{width:96px;height:96px;border-radius:22px;box-shadow:0 12px 40px #2563eb66}}
+.logo img{{width:96px;height:96px;border-radius:22px;box-shadow:0 12px 40px #2347e866}}
 .logo h1{{font-size:84px;font-weight:800;letter-spacing:-2px}}
-.logo h1 span{{color:#4c9bff}}
+.logo h1 span{{color:#c6f432}}
 .tag{{margin-top:34px;font-size:33px;line-height:1.35;color:#c9d6ea;font-weight:400}}
 .tag b{{color:#fff;font-weight:600}}
 .chips{{margin-top:40px;display:flex;flex-wrap:wrap;gap:12px}}
@@ -97,7 +97,7 @@ HERO = f"""
 """
 
 CARDS = [  # nombre, imagen, título, url, color del brillo
-    ("panel", "panelg.png", "Panel de control", "/", "#2563eb"),
+    ("panel", "panelg.png", "Panel de control", "/", "#2347e8"),
     ("equipo", "equipo.png", "Inventario y versiones", "/devices/1", "#7c3aed"),
     ("diff", "diff.png", "Comparación lado a lado", "/diff", "#16a34a"),
     ("consola", "consola-c.png", "Consola SSH en el navegador", "/devices/1/console", "#0d9488"),
@@ -119,24 +119,23 @@ def card(img, title, url, glow):
 <div class="card"><h2>{title}</h2>{frame(SH / img, "opennccm.empresa.local" + url, height=760)}</div>"""
 
 
-THEMES = [("claro", "Claro"), ("oscuro", "Oscuro"), ("noche", "Noche"), ("bosque", "Bosque"),
-          ("contraste", "Alto contraste"), ("arena", "Arena"), ("oceano", "Océano"), ("atardecer", "Atardecer"),
-          ("lavanda", "Lavanda"), ("grafito", "Grafito")]
+THEMES = [("claro", "Claro"), ("oscuro", "Sala de control"), ("contraste", "Alto contraste"),
+          ("claro-bosque", "Claro · acento bosque"), ("oscuro-atardecer", "Oscuro · acento atardecer")]
 tiles = "".join(f'<figure><div class="t"><img src="{(TEM / t / "panel.png").as_uri()}"></div>'
                 f'<figcaption>{n}</figcaption></figure>' for t, n in THEMES)
 MOSAIC = f"""
 <style>
-.m{{width:1760px;height:720px;padding:64px 72px;
+.m{{width:1760px;height:470px;padding:64px 72px;
   background:radial-gradient(900px 500px at 50% 0%,#4c1d9555,transparent 70%),linear-gradient(160deg,#080c18,#0e1526)}}
 .m h2{{font-size:56px;font-weight:700;letter-spacing:-1px}}
-.m h2 span{{background:linear-gradient(90deg,#60a5fa,#c084fc,#f472b6,#fbbf24);-webkit-background-clip:text;color:transparent}}
+.m h2 span{{color:#c6f432}}
 .m p{{font-size:26px;color:#9fb0c8;margin:10px 0 40px}}
 .g{{display:grid;grid-template-columns:repeat(5,1fr);gap:26px}}
 figure .t{{border-radius:14px;overflow:hidden;aspect-ratio:16/8.4;box-shadow:0 18px 40px -12px #000c,0 0 0 1px #ffffff1c}}
 figure img{{width:100%;height:100%;object-fit:cover;object-position:left top;display:block}}
 figcaption{{text-align:center;font-size:22px;margin-top:12px;color:#dbe4f2;font-weight:600}}
 </style>
-<div class="m"><h2><span>10 temas</span> para elegir</h2><p>Claros, oscuros y uno de alto contraste. Todos cumplen el contraste WCAG AA.</p>
+<div class="m"><h2><span>3 temas y 7 acentos</span> para elegir</h2><p>Claro, Sala de control (oscuro) y alto contraste, con el color de acento de cada usuario. Todos cumplen WCAG AA.</p>
 <div class="g">{tiles}</div></div>"""
 
 with sync_playwright() as p:
@@ -149,5 +148,5 @@ with sync_playwright() as p:
         if not only or name in only:
             render(pg, name, card(img, title, url, glow), 1600, 1000)
     if not only or "temas" in only:
-        render(pg, "temas", MOSAIC, 1760, 720)
+        render(pg, "temas", MOSAIC, 1760, 470)
     br.close()

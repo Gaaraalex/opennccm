@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% block title %}Cambio #{{ cr.id }}{% endblock %}
 {% block content %}
-<h1>Solicitud #{{ cr.id }}: {{ cr.title }} <span class="badge b-{{ cr.status }}">{{ cr.status }}</span></h1>
+<h1>Solicitud #{{ cr.id }}: {{ cr.title }} {{ crstatus(cr.status) }}</h1>
 <div class="card">
   <dl class="kv">
     <dt>Solicitada por</dt><dd>{{ cr.requested_by }} · {{ cr.created_at|dt }}</dd>

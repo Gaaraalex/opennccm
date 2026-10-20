@@ -1,56 +1,110 @@
 <!doctype html>
-<html lang="{{ get_lang() }}" data-theme="{{ (user.theme if user and user.theme else 'auto') }}">
+<html lang="{{ get_lang() }}" data-theme="{{ (user.theme if user and user.theme else 'auto') }}" data-accent="{{ (user.accent if user and user.accent else 'cobalto') }}">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>{% block title %}OpenNCCM{% endblock %} · OpenNCCM</title>
 <link rel="icon" href="/static/icon.svg?v={{ VERSION }}" type="image/svg+xml">
 <link rel="icon" href="/favicon.ico?v={{ VERSION }}" sizes="any">
 <link rel="apple-touch-icon" href="/static/icon-180.png?v={{ VERSION }}">
-<meta name="theme-color" content="#14202e">
+<meta name="theme-color" content="#101626">
+<link rel="preload" href="/static/fonts/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/style.css?v={{ VERSION }}-{{ CSS_HASH }}">
 </head>
 <body{% block body_attr %}{% endblock %}>
 <a class="skip" href="#contenido">Saltar al contenido</a>
 {% if user and not compact %}
-{% set p = request.url.path %}
-<header>
-  <a class="brand" href="/" aria-label="OpenNCCM, ir al panel"><img src="/static/icon.svg?v={{ VERSION }}" alt=""><b>Open<span>NCCM</span></b></a>
-  <nav aria-label="Menú principal">
-    <a href="/" class="{{ 'on' if p == '/' }}">Panel</a>
-    <a href="/devices" class="{{ 'on' if p.startswith('/devices') }}">Dispositivos</a>
-    <a href="/search" class="{{ 'on' if p.startswith('/search') }}">Buscar</a>
-    <a href="/changes" class="{{ 'on' if p.startswith('/changes') }}">Cambios</a>
-    <a href="/configlets" class="{{ 'on' if p.startswith('/configlets') }}">Configlets</a>
-    <a href="/compliance" class="{{ 'on' if p.startswith('/compliance') }}">Cumplimiento</a>
-    <a href="/vulns" class="{{ 'on' if p.startswith('/vulns') }}">CVE</a>
-    <a href="/firmware" class="{{ 'on' if p.startswith('/firmware') }}">Firmware</a>
-    <a href="/eol" class="{{ 'on' if p.startswith('/eol') }}">EOL/EOS</a>
-    <a href="/schedules" class="{{ 'on' if p.startswith('/schedules') }}">Tareas</a>
-    <a href="/events" class="{{ 'on' if p.startswith('/events') }}">Alarmas</a>
-    <a href="/analytics" class="{{ 'on' if p.startswith('/analytics') }}">Análisis</a>
-    <a href="/reports" class="{{ 'on' if p.startswith('/reports') }}">Informes</a>
-    <a href="/vendors" class="{{ 'on' if p.startswith('/vendors') }}">Plataformas</a>
-    {% if user.role == 'admin' %}
-    <a href="/credentials" class="{{ 'on' if p.startswith('/credentials') }}">Credenciales</a>
-    <a href="/users" class="{{ 'on' if p.startswith('/users') }}">Usuarios</a>
-    <a href="/audit" class="{{ 'on' if p.startswith('/audit') }}">Auditoría</a>
-    <a href="/system" class="{{ 'on' if p.startswith('/system') }}">Sistema</a>
-    <a href="/settings" class="{{ 'on' if p.startswith('/settings') }}">Ajustes</a>
-    {% endif %}
-  </nav>
-  <div class="who">
-    <a href="/account" title="Mi cuenta y tema">{{ user.username }}</a> ({{ user.role }})
-    <a class="pw" href="/account#clave" title="Cambiar mi contraseña">🔑 <span>Cambiar contraseña</span></a>
-    <a href="/logout">Salir</a>
+{% set navp = request.url.path %}
+{% set admin_on = navp.startswith(('/users', '/credentials', '/audit', '/system', '/settings')) or (navp.startswith('/vendors') and user.role == 'admin') %}
+<div class="shell" id="shell">
+<script>try { if (localStorage.getItem('oc-rail') === 'mini') document.getElementById('shell').classList.add('mini'); } catch (e) {}</script>
+<nav class="rail" id="rail" aria-label="Menú principal">
+  <div class="rail-head">
+    <a class="brand" href="/" aria-label="OpenNCCM, ir al panel"><img src="/static/icon.svg?v={{ VERSION }}" alt=""><span class="txt">Open<em>NCCM</em></span></a>
+    <button type="button" class="rail-btn collapse" id="rail-toggle" aria-controls="rail" aria-expanded="true" title="Plegar o desplegar el menú">{{ icon('panel') }}</button>
   </div>
+  <button type="button" class="find" data-palette title="Buscar o ir a… (Ctrl K)">{{ icon('search', 'sm') }}<span class="txt">Buscar o ir a…</span><kbd class="txt">Ctrl K</kbd></button>
+  <div class="grp">
+    <a href="/" class="nav {{ 'on' if navp == '/' }}" {{ 'aria-current="page"'|safe if navp == '/' }} title="Panel">{{ icon('grid') }}<span class="txt">Panel</span></a>
+    <a href="/devices" class="nav {{ 'on' if navp.startswith('/devices') or navp.startswith('/versions') or navp.startswith('/diff') }}" title="Dispositivos">{{ icon('server') }}<span class="txt">Dispositivos</span></a>
+    <a href="/search" class="nav {{ 'on' if navp.startswith('/search') }}" title="Buscar en configuraciones">{{ icon('code') }}<span class="txt">Buscar en configuraciones</span></a>
+  </div>
+  <div class="grp"><span class="label">Operar</span>
+    <a href="/changes" class="nav {{ 'on' if navp.startswith('/changes') }}" title="Cambios">{{ icon('branch') }}<span class="txt">Cambios</span>{% if nav_counts.pending %}<span class="cnt" title="Por aprobar">{{ nav_counts.pending }}</span><i class="dotc"></i>{% endif %}</a>
+    <a href="/configlets" class="nav {{ 'on' if navp.startswith('/configlets') }}" title="Configlets">{{ icon('term') }}<span class="txt">Configlets</span></a>
+    <a href="/schedules" class="nav {{ 'on' if navp.startswith('/schedules') }}" title="Tareas">{{ icon('cal') }}<span class="txt">Tareas</span></a>
+  </div>
+  <div class="grp"><span class="label">Proteger</span>
+    <a href="/compliance" class="nav {{ 'on' if navp.startswith('/compliance') }}" title="Cumplimiento">{{ icon('shield') }}<span class="txt">Cumplimiento</span></a>
+    <a href="/vulns" class="nav {{ 'on' if navp.startswith('/vulns') }}" title="Vulnerabilidades">{{ icon('bug') }}<span class="txt">Vulnerabilidades</span></a>
+    <a href="/firmware" class="nav {{ 'on' if navp.startswith('/firmware') or navp.startswith('/eol') }}" title="Firmware y ciclo de vida">{{ icon('chip') }}<span class="txt">Firmware y ciclo de vida</span></a>
+  </div>
+  <div class="grp"><span class="label">Observar</span>
+    <a href="/events" class="nav {{ 'on' if navp.startswith('/events') }}" title="Alarmas">{{ icon('bell') }}<span class="txt">Alarmas</span>{% if nav_counts.alarms %}<span class="cnt" title="Abiertas">{{ nav_counts.alarms }}</span><i class="dotc"></i>{% endif %}</a>
+    <a href="/analytics" class="nav {{ 'on' if navp.startswith('/analytics') }}" title="Análisis">{{ icon('chart') }}<span class="txt">Análisis</span></a>
+    <a href="/reports" class="nav {{ 'on' if navp.startswith('/reports') }}" title="Informes">{{ icon('file') }}<span class="txt">Informes</span></a>
+  </div>
+  <div class="grp"><span class="label">Administrar</span>
+    {% if user.role == 'admin' %}
+    <a href="/users" class="nav {{ 'on' if admin_on }}" title="Administración">{{ icon('cog') }}<span class="txt">Administración</span></a>
+    {% else %}
+    <a href="/vendors" class="nav {{ 'on' if navp.startswith('/vendors') }}" title="Plataformas">{{ icon('db') }}<span class="txt">Plataformas</span></a>
+    {% endif %}
+  </div>
+  <details class="me">
+    <summary title="Mi cuenta">
+      <span class="av" aria-hidden="true">{{ user.username[:2]|upper }}</span>
+      <span class="txt"><b>{{ user.username }}</b><small>{{ _({'admin': 'administrador', 'operator': 'operador', 'viewer': 'lector'}.get(user.role, user.role)) }}</small></span>
+    </summary>
+    <div class="me-menu">
+      <a href="/account">{{ icon('user', 'sm') }} Mi cuenta y tema</a>
+      <a href="/account#clave">{{ icon('key', 'sm') }} Cambiar contraseña</a>
+      <a href="/logout">{{ icon('logout', 'sm') }} Salir</a>
+    </div>
+  </details>
+  <p class="railfoot txt"><a href="/acerca">Privacidad y licencias</a> · <a href="/certificado">Certificado</a></p>
+</nav>
+<div class="scrim-rail" id="rail-scrim" hidden></div>
+<div class="content">
+<header class="top">
+  <button type="button" class="rail-btn menu-btn" id="menu-btn" aria-controls="rail" aria-expanded="false" title="Menú">{{ icon('menu') }}</button>
+  <div class="crumbs"><b>{% block crumbs %}{{ self.title() }}{% endblock %}</b></div>
+  <button type="button" class="search-top" data-palette title="Buscar o ir a… (Ctrl K)">{{ icon('search', 'sm') }}<span>Buscar equipos, páginas…</span><kbd>Ctrl K</kbd></button>
+  <a class="rail-btn top-me" href="/account" title="Mi cuenta y tema"><span class="av sm" aria-hidden="true">{{ user.username[:2]|upper }}</span></a>
 </header>
 {% endif %}
 <main id="contenido" tabindex="-1">
-{% block flashes %}<div role="status" aria-live="polite">{% for kind, msg in flashes %}<div class="flash {{ kind }}">{{ msg }}</div>{% endfor %}</div>{% endblock %}
+{% block flashes %}<div class="toasts" role="status" aria-live="polite">{% for kind, msg in flashes %}<div class="flash {{ kind }}">{{ msg }}</div>{% endfor %}
+{% if undo %}<form class="undo-form" method="post" action="{{ undo.url }}" hidden><input type="hidden" name="ids" value="{{ undo.ids }}"><button class="undo">Deshacer</button></form>{% endif %}</div>{% endblock %}
 {% block content %}{% endblock %}
-{% if user and not compact %}<p class="small muted" style="margin-top:40px;text-align:center">OpenNCCM v{{ VERSION }} ·
+{% if user and not compact %}<p class="small muted page-foot">OpenNCCM v{{ VERSION }} ·
   <a href="/acerca">Privacidad, cookies y licencias</a></p>{% endif %}
 </main>
+{% if user and not compact %}
+</div>
+</div>
+<nav class="mobnav" aria-label="Accesos rápidos">
+  <a href="/" class="{{ 'on' if navp == '/' }}">{{ icon('grid') }}<span>Panel</span></a>
+  <a href="/devices" class="{{ 'on' if navp.startswith('/devices') }}">{{ icon('server') }}<span>Equipos</span></a>
+  <a href="/changes" class="{{ 'on' if navp.startswith('/changes') }}">{{ icon('branch') }}<span>Cambios</span></a>
+  <a href="/events" class="{{ 'on' if navp.startswith('/events') }}">{{ icon('bell') }}<span>Alarmas</span></a>
+  <button type="button" id="mob-more" aria-controls="rail">{{ icon('menu') }}<span>Más</span></button>
+</nav>
+<div class="pal-wrap" id="palette" hidden>
+  <div class="pal" role="dialog" aria-modal="true" aria-label="Buscar o ir a">
+    <div class="q">{{ icon('search') }}<input id="pal-q" type="text" autocomplete="off" spellcheck="false" placeholder="Buscar equipos, páginas y acciones…" aria-controls="pal-res" aria-autocomplete="list" role="combobox" aria-expanded="true"><kbd>Esc</kbd></div>
+    <div class="res" id="pal-res" role="listbox" aria-label="Resultados"></div>
+    <div class="ft"><span><kbd>↑</kbd> <kbd>↓</kbd> moverse</span><span><kbd>↵</kbd> abrir</span><span><kbd>Esc</kbd> cerrar</span>
+      <a href="/search">Búsqueda avanzada con expresiones regulares</a></div>
+  </div>
+</div>
+<script>window.OC = {{ {'admin': user.role == 'admin',
+  't': {'pages': _('Páginas'), 'devices': _('Equipos'), 'actions': _('Acciones'), 'configs': _('En configuraciones'),
+        'search_in': _('Buscar «{0}» en las configuraciones'), 'none': _('Sin resultados'), 'close': _('Cerrar'),
+        'new_device': _('Nuevo dispositivo'), 'account': _('Mi cuenta y tema'), 'run_backup': _('Ver todos los equipos'),
+        'expand': _('Desplegar el menú'), 'collapse': _('Plegar el menú'), 'loading': _('Cargando…'),
+        'error': _('Error'), 'done': _('Hecho'), 'dirty': _('Tienes cambios sin guardar'), 'discard': _('Descartar')}}|tojson }};</script>
+<script src="/static/shell.js?v={{ VERSION }}" defer></script>
+{% endif %}
 {% if update_popup %}
 <dialog id="upd-popup" aria-labelledby="upd-title">
   <h2 id="upd-title" style="margin-top:0">Actualización disponible</h2>
@@ -92,9 +146,9 @@ document.querySelectorAll('.scrollbox[data-rows]').forEach(function (box) {
 <script>
 /* Accesibilidad: asocia cada <label> a su campo cuando la plantilla no lo hace explícitamente, y da nombre
    accesible a los botones que solo muestran un símbolo («×»). */
-(function () {
-  let n = 0;
-  document.querySelectorAll('label:not([for])').forEach(function (l) {
+window.ocLabels = function (root) {
+  let n = document.querySelectorAll('[id^="campo-"]').length;
+  root.querySelectorAll('label:not([for])').forEach(function (l) {
     if (l.querySelector('input,select,textarea')) return;
     let el = l.nextElementSibling;
     while (el && el.tagName === 'BR') el = el.nextElementSibling;
@@ -103,11 +157,12 @@ document.querySelectorAll('.scrollbox[data-rows]').forEach(function (box) {
       l.htmlFor = el.id;
     }
   });
-  document.querySelectorAll('button, a.btn').forEach(function (b) {
+  root.querySelectorAll('button, a.btn').forEach(function (b) {
     const t = b.textContent.trim();
     if (!b.getAttribute('aria-label') && (t === '×' || t === '✕')) b.setAttribute('aria-label', b.title || 'Eliminar');
   });
-})();
+};
+window.ocLabels(document);
 </script>
 <script src="/static/viz.js?v={{ VERSION }}" defer></script>
 </body>

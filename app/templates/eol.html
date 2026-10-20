@@ -1,5 +1,6 @@
 {% extends "base.html" %}{% block title %}Fin de vida (EOL/EOS){% endblock %}
 {% block content %}
+{% include "_fw_tabs.html" %}
 <h1>Fin de venta y fin de soporte (EOL/EOS)</h1>
 <div class="grid">
   {% for st in ['sin_soporte', 'fin_mantenimiento', 'proximo', 'fin_venta', 'vigente', 'desconocido'] %}

@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from datetime import timedelta
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import case, delete, func, or_, select
 from starlette.middleware.sessions import SessionMiddleware
@@ -208,7 +208,7 @@ def logout(request: Request):
 
 @app.get("/account")
 def account(request: Request):
-    return render(request, "account.html", require(request), themes=THEMES)
+    return render(request, "account.html", require(request), themes=THEMES, accents=ACCENTS)
 
 
 @app.post("/account")
@@ -236,10 +236,10 @@ async def account_save(request: Request):
     return go("/account")
 
 
-THEMES = {"auto": N_("Automático (según el sistema)"), "claro": N_("Claro"), "oscuro": N_("Oscuro"),
-          "noche": N_("Azul noche"), "bosque": N_("Bosque"), "arena": N_("Arena"), "oceano": N_("Océano"),
-          "atardecer": N_("Atardecer"), "lavanda": N_("Lavanda"), "grafito": N_("Grafito"),
+THEMES = {"auto": N_("Automático (según el sistema)"), "claro": N_("Claro"), "oscuro": N_("Sala de control (oscuro)"),
           "contraste": N_("Alto contraste")}
+ACCENTS = {"cobalto": N_("Cobalto"), "bosque": N_("Bosque"), "arena": N_("Arena"), "lavanda": N_("Lavanda"),
+           "oceano": N_("Océano"), "atardecer": N_("Atardecer"), "grafito": N_("Grafito")}
 
 
 @app.get("/lang/{code}")
@@ -263,9 +263,16 @@ def set_language(request: Request, code: str, next: str = "/"):
 async def account_theme(request: Request):
     user = require(request)
     form = await request.form()
-    theme = form.get("theme") if form.get("theme") in THEMES else "auto"
+    old = form.get("theme")
+    from .db import OLD_THEMES
+    theme, accent = OLD_THEMES.get(old, (old, form.get("accent")))  # acepta también los nombres antiguos
+    theme = theme if theme in THEMES else "auto"
+    accent = accent if accent in ACCENTS else None
     with SessionLocal() as db:
-        db.get(User, user.id).theme = theme
+        u = db.get(User, user.id)
+        u.theme = theme
+        if accent or "accent" in form:
+            u.accent = accent
         db.commit()
     flash(request, _f("Tema «{0}» aplicado.", _(THEMES[theme])))
     return go(form.get("next") or "/account")
@@ -303,15 +310,17 @@ def dashboard(request: Request):
             v.device.name  # carga la relación antes de cerrar la sesión
         for e in events:
             e.device.name if e.device else None  # carga la relación antes de cerrar la sesión
-    from . import charts
+    from . import charts, health
     data = reports.analytics(scope, 30)
     eol_bad = sum(n for label, n in data["eol"] if label in ("Sin soporte", "Sin parches de software"))
     comp = round(100 * cpass / (cpass + cfail)) if (cpass + cfail) else None
     server = _server_panel() if user.role == "admin" else None
+    week = [v for _d, v in data["per_day"][-7:]]
     return render(request, "dashboard.html", user, total=total, ok=ok, err=err, conflicts=conflicts,
                   changes24=changes24, comp=comp, alarms=alarms, vcrit=vcrit, pending=pending, drift=drift,
-                  eol_bad=eol_bad, events=events, recent=recent, server=server,
-                  chart_changes=charts.columns(data["per_day"], " cambios"))
+                  eol_bad=eol_bad, events=events, recent=recent, h=health.summary(scope, user.role == "admin", server),
+                  spark=charts.sparkline(week, 96, 30), week_total=sum(week),
+                  chart_changes=charts.columns(data["per_day"], " cambios", height=210, label_every=7, width=470))
 
 
 def _server_panel() -> dict:
@@ -374,9 +383,59 @@ def devices(request: Request, q: str = "", group: int = 0, status: str = ""):
         for d in devs:
             d.group.name if d.group else None  # carga la relación antes de cerrar la sesión
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
+        # recuentos de los chips de estado (sobre los equipos visibles, sin el filtro de estado)
+        base = select(Device)
+        if scope is not None:
+            base = base.where(Device.id.in_(scope))
+        if group:
+            base = base.where(Device.group_id == group)
+        every = db.scalars(base).all()
+        counts = {"": len(every), "ok": sum(d.last_status == "ok" for d in every),
+                  "error": sum(d.last_status == "error" for d in every),
+                  "pending": sum(d.last_status == "pending" for d in every),
+                  "conflict": sum(bool(d.startup_conflict) for d in every), "drift": sum(bool(d.baseline_drift) for d in every)}
     from .console import console_allowed
     return render(request, "devices.html", user, devices=devs, groups=groups, q=q, group=group, status=status,
-                  can_console=console_allowed(user))
+                  counts=counts, can_console=console_allowed(user))
+
+
+@app.post("/devices/bulk")
+async def devices_bulk(request: Request):
+    """Acciones sobre los equipos seleccionados en la lista: respaldar, auditar o mover a un grupo."""
+    form = await request.form()
+    action = form.get("action", "")
+    user = require(request, "admin" if action == "move" else "operator")
+    ids = filter_ids(user, [int(i) for i in form.getlist("ids") if str(i).isdigit()])
+    back = form.get("next") or "/devices"
+    back = back if back.startswith("/") and not back.startswith("//") else "/devices"
+    if not ids:
+        flash(request, _("Seleccione al menos un dispositivo"), "error")
+        return go(back)
+    if action == "backup":
+        services.jobs.submit(services.backup_many, ids, "manual", user.username)
+        log_action(request, user, "backup_selected", f"{ids}")
+        flash(request, _f("Respaldo de {0} equipos lanzado en segundo plano", len(ids)))
+    elif action == "audit":
+        def _audit():
+            for i in ids:
+                services.run_compliance(i)
+        services.jobs.submit(_audit)
+        log_action(request, user, "compliance_selected", f"{ids}")
+        flash(request, _f("Auditoría de cumplimiento lanzada para {0} equipos", len(ids)))
+    elif action == "move":
+        gid = int(form.get("group_id") or 0) or None
+        with SessionLocal() as db:
+            if gid and db.get(DeviceGroup, gid) is None:
+                flash(request, _("El grupo no existe"), "error")
+                return go(back)
+            for d in db.scalars(select(Device).where(Device.id.in_(ids))):
+                d.group_id = gid
+            db.commit()
+        log_action(request, user, "devices_move", f"{ids} -> grupo {gid}")
+        flash(request, _f("{0} equipos movidos de grupo", len(ids)))
+    else:
+        flash(request, _("Acción desconocida"), "error")
+    return go(back)
 
 
 def _device_form_ctx(db):
@@ -465,6 +524,16 @@ def device_delete(request: Request, dev_id: int):
     return go("/devices")
 
 
+@app.get("/devices/import")
+def device_import_form(request: Request):
+    """Importación CSV (se abre en un panel lateral desde «Agregar»), con vista previa en el navegador."""
+    user = require(request, "admin")
+    with SessionLocal() as db:
+        creds = [c.name for c in db.scalars(select(Credential).order_by(Credential.name))]
+        groups = [g.name for g in db.scalars(select(DeviceGroup).order_by(DeviceGroup.name))]
+    return render(request, "devices_import.html", user, creds=creds, groups=groups, types=sorted(PROFILE_MAP))
+
+
 @app.post("/devices/import")
 async def device_import(request: Request):
     """CSV: name,host,device_type,credential,group,port,protocol,location"""
@@ -528,9 +597,24 @@ def device_detail(request: Request, dev_id: int):
     from . import eol
     with SessionLocal() as db:
         entry = eol.match_entry(dev, list(db.scalars(select(eol.EolEntry))))
+    # cumplimiento agrupado por política: las infracciones primero (críticas antes) y «Corregir N» por política
+    sev_rank = {"critical": 0, "major": 1, "minor": 2}
+    groups: dict[int, dict] = {}
+    for c in comp:
+        g = groups.setdefault(c.policy_id, {"policy": c.policy, "results": [], "fails": 0, "fixable": 0, "crit": 0})
+        g["results"].append(c)
+        if not c.passed:
+            g["fails"] += 1
+            g["fixable"] += bool(c.rule.remediation)
+            g["crit"] += c.rule.severity == "critical"
+    for g in groups.values():
+        g["results"].sort(key=lambda c: (c.passed, sev_rank.get(c.rule.severity, 3), c.rule.name))
+    comp_groups = sorted(groups.values(), key=lambda g: (-g["crit"], -g["fails"], g["policy"].name))
     from .console import console_allowed
     return render(request, "device.html", user, can_console=console_allowed(user, dev.id), device=dev,
-                  versions=versions, comp=comp, vulns=vulns,
+                  versions=versions, comp=comp, vulns=vulns, comp_groups=comp_groups,
+                  comp_fails=sum(g["fails"] for g in comp_groups),
+                  vuln_high=sum(1 for v in vulns if (v.severity or "").upper() in ("CRITICAL", "HIGH")),
                   events=events, inventory=inventory, profile=get_profile(dev.device_type), images=images,
                   eol_entry=entry, eol_status=eol.status(entry), eol_labels=eol.STATUS_LABEL,
                   eol_sev=eol.STATUS_SEV)
@@ -694,7 +778,7 @@ def diff_view(request: Request, a: int = 0, b: int = 0, ctx: int = 3, view: str 
             x.device.name  # carga la relación antes de cerrar la sesión
     added, removed = services.diff_stats(ta, tb)
     return render(request, "diff.html", user, va=va, vb=vb, lines=lines, rows=rows, ctx=ctx, view=view,
-                  all_versions=all_versions, added=added, removed=removed)
+                  all_versions=all_versions, added=added, removed=removed, summary=services.diff_summary(ta, tb))
 
 
 @app.post("/versions/{ver_id}/rollback")
@@ -1067,7 +1151,10 @@ def policy_detail(request: Request, pid: int):
         p = db.get(Policy, pid)
         p.rules  # carga la relación antes de cerrar la sesión
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
-    return render(request, "policy.html", user, p=p, groups=groups)
+        scope = device_scope(user)
+        devs = [d for d in db.scalars(select(Device).order_by(Device.name))
+                if (scope is None or d.id in scope) and (not p.device_type_filter or re.search(p.device_type_filter, d.device_type))]
+    return render(request, "policy.html", user, p=p, groups=groups, test_devices=devs)
 
 
 @app.post("/compliance/policies/{pid}/delete")
@@ -1138,6 +1225,54 @@ def compliance_remediate(request: Request, result_id: int):
         body, dev_id = r.rule.remediation, r.device_id
     cr_id = _create_cr(user, title, body, {}, [dev_id])
     return go(f"/changes/{cr_id}")
+
+
+@app.post("/compliance/remediate-policy")
+async def compliance_remediate_policy(request: Request):
+    """«Corregir N»: una solicitud de cambio por equipo con todas las correcciones de sus infracciones de la política."""
+    user = require(request, "operator")
+    form = await request.form()
+    pid = int(form.get("policy_id") or 0)
+    only = int(form.get("device_id") or 0)
+    back = form.get("next") or "/compliance"
+    back = back if back.startswith("/") and not back.startswith("//") else "/compliance"
+    scope = device_scope(user)
+    per_dev: dict[int, list] = {}
+    with SessionLocal() as db:
+        for r in db.scalars(select(ComplianceResult).where(ComplianceResult.policy_id == pid,
+                                                             ComplianceResult.passed.is_(False))):
+            if (only and r.device_id != only) or (scope is not None and r.device_id not in scope):
+                continue
+            if r.rule and r.rule.remediation:
+                per_dev.setdefault(r.device_id, []).append((r.rule.name, r.rule.remediation.strip(), r.device.name,
+                                                            r.policy.name))
+    if not per_dev:
+        flash(request, _("No hay infracciones con comandos de corrección en esta política"), "error")
+        return go(back)
+    created = []
+    for dev_id, fixes in per_dev.items():
+        names = ", ".join(n for n, *_x in fixes)
+        title = f"Corrección de {len(fixes)} reglas de '{fixes[0][3]}' en {fixes[0][2]}"
+        created.append(_create_cr(user, title[:200], "\n".join(body for _n, body, *_x in fixes), {}, [dev_id]))
+        log_action(request, user, "remediate_policy", f"politica={pid} equipo={dev_id}: {names}"[:500])
+    flash(request, _f("Se crearon {0} solicitudes de corrección", len(created)) if len(created) != 1
+          else _("Se creó la solicitud de corrección"))
+    return go(f"/changes/{created[0]}" if len(created) == 1 else "/changes?status=pending")
+
+
+@app.post("/compliance/rules/test")
+async def compliance_rule_test(request: Request):
+    """Prueba en vivo de una regla contra la última configuración de un equipo (editor de políticas)."""
+    user = require(request, "admin")
+    form = await request.form()
+    dev_id = int(form.get("device_id") or 0)
+    check_device(user, dev_id)
+    with SessionLocal() as db:
+        ver = services.latest_version(db, dev_id)
+        if not ver:
+            return JSONResponse({"error": _("El equipo no tiene versiones respaldadas")})
+        text = decrypt(ver.content_enc)
+    return JSONResponse(services.test_rule(text, form.get("pattern", ""), form.get("kind", "must_contain")))
 
 
 # --------------------------------------------------------------------------- tareas programadas
@@ -1276,10 +1411,38 @@ async def events_ack(request: Request):
         scope = device_scope(user)
         if scope is not None:
             stmt = stmt.where(Event.device_id.in_(scope))
+        ids = []
         for e in db.scalars(stmt):
             e.acknowledged = True
+            ids.append(e.id)
         db.commit()
     log_action(request, user, "events_ack", form.get("id") or "all")
+    if ids:
+        flash(request, _("Alarma reconocida") if len(ids) == 1 else _f("{0} alarmas reconocidas", len(ids)))
+        request.session["undo"] = {"url": "/events/unack", "ids": ",".join(map(str, ids[:5000]))}
+    return go(request.headers.get("referer") or "/events")
+
+
+@app.post("/events/unack")
+async def events_unack(request: Request):
+    """«Deshacer» del aviso flotante: vuelve a dejar sin reconocer las alarmas recién reconocidas."""
+    user = require(request, "operator")
+    form = await request.form()
+    ids = [int(x) for x in (form.get("ids") or "").split(",") if x.strip().isdigit()][:5000]
+    n = 0
+    with SessionLocal() as db:
+        if ids:
+            stmt = select(Event).where(Event.id.in_(ids), Event.acknowledged.is_(True))
+            scope = device_scope(user)
+            if scope is not None:
+                stmt = stmt.where(Event.device_id.in_(scope))
+            for e in db.scalars(stmt):
+                e.acknowledged = False
+                n += 1
+            db.commit()
+    log_action(request, user, "events_unack", str(n))
+    flash(request, _("Se deshizo: la alarma vuelve a estar pendiente") if n == 1
+          else _f("Se deshizo: {0} alarmas vuelven a estar pendientes", n))
     return go(request.headers.get("referer") or "/events")
 
 

@@ -20,9 +20,9 @@
 <table><tr><th>Nombre</th><th>Condición</th><th>Patrón (regex)</th><th>Severidad</th><th>Corrección</th><th></th></tr>
 {% for r in p.rules %}
 <tr><td>{{ r.name }}</td><td>{{ _('debe contener') if r.kind == 'must_contain' else _('no debe contener') }}</td><td><code>{{ r.pattern }}</code></td>
-<td><span class="badge b-{{ r.severity }}">{{ r.severity }}</span></td><td><pre style="padding:4px">{{ r.remediation or '—' }}</pre></td>
+<td>{{ sevtag(r.severity) }}</td><td><pre style="padding:4px">{{ r.remediation or '—' }}</pre></td>
 <td>{% if user.role == 'admin' %}<form class="inline" method="post" action="/compliance/rules/{{ r.id }}/delete"><button class="sm danger">×</button></form>{% endif %}</td></tr>
-{% else %}<tr><td colspan="6" class="muted">Sin reglas.</td></tr>{% endfor %}
+{% else %}<tr class="empty-row"><td colspan="6"><div class="empty">{{ empty_art('plus') }}<h3>Esta política aún no tiene reglas</h3><p class="muted">Agregue la primera abajo y pruébela contra un equipo antes de guardarla.</p></div></td></tr>{% endfor %}
 </table>
 </div>
 {% if user.role == 'admin' %}
@@ -35,9 +35,47 @@
     <div><label>Severidad</label><select name="severity"><option>critical</option><option selected>major</option><option>minor</option></select></div>
   </div>
   <label>Patrón (regex multilínea, <code>^</code> = inicio de línea)</label><input name="pattern" required style="width:100%" placeholder="^ip ssh version 2">
+  <div class="rule-test" id="rule-test">
+    <div class="row">
+      <div><label for="rt-dev">Probar contra la configuración de</label>
+        <select id="rt-dev">{% for d in test_devices %}<option value="{{ d.id }}">{{ d.name }}</option>{% else %}<option value="">—</option>{% endfor %}</select></div>
+      <button type="button" class="sec" id="rt-go" {{ 'disabled' if not test_devices }}>{{ icon('play', 'sm') }} Probar la regla</button>
+    </div>
+    <div class="rt-out" id="rt-out" aria-live="polite" hidden></div>
+    <p class="small muted">La prueba usa la última configuración respaldada del equipo y no guarda nada.</p>
+  </div>
   <label>Comandos de corrección (opcional, Jinja2)</label><textarea name="remediation" rows="4"></textarea>
   <p><button>Agregar</button></p>
 </form>
+<script>
+(function () {
+  const btn = document.getElementById('rt-go'), out = document.getElementById('rt-out');
+  if (!btn) return;
+  const T = {{ {'pass': _('La regla se cumple en este equipo.'), 'fail': _('La regla NO se cumple en este equipo.'),
+                'found': _('Líneas que coinciden:'), 'nomatch': _('Ninguna línea coincide con el patrón.'),
+                'bad': _('Patrón no válido: {0}'), 'empty': _('Escriba un patrón para probar.'), 'err': _('No se pudo probar la regla.')}|tojson }};
+  const form = btn.closest('form');
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  async function run() {
+    const pattern = form.elements.pattern.value;
+    out.hidden = false;
+    if (!pattern.trim()) { out.className = 'rt-out'; out.textContent = T.empty; return; }
+    const fd = new FormData();
+    fd.append('pattern', pattern); fd.append('kind', form.elements.kind.value);
+    fd.append('device_id', document.getElementById('rt-dev').value);
+    try {
+      const r = await fetch('/compliance/rules/test', {method: 'POST', body: fd, credentials: 'same-origin'});
+      const j = await r.json();
+      if (j.error) { out.className = 'rt-out bad'; out.textContent = T.bad.replace('{0}', j.error); return; }
+      out.className = 'rt-out ' + (j.passed ? 'ok' : 'bad');
+      out.innerHTML = '<b>' + esc(j.passed ? T.pass : T.fail) + '</b><br>' +
+        (j.lines.length ? esc(T.found) + '<pre>' + j.lines.map(esc).join('\n') + '</pre>' : '<span class="muted">' + esc(T.nomatch) + '</span>');
+    } catch (e) { out.className = 'rt-out bad'; out.textContent = T.err; }
+  }
+  btn.addEventListener('click', run);
+  form.elements.pattern.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
+})();
+</script>
 </div>
 {% endif %}
 {% endblock %}

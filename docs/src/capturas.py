@@ -1,45 +1,28 @@
 """Genera capturas de pantalla reales de OpenNCCM (demo local) para la documentación.
 
-Inicia sesión, guarda el HTML de cada página con la hoja de estilos local y lo renderiza con
-Microsoft Edge en modo headless. Luego recorta el espacio vacío inferior.
+Abre cada página en Microsoft Edge (Playwright) con la sesión del administrador, en el tema claro, y recorta el
+espacio vacío inferior. Las páginas que son respuesta de un POST se muestran en el mismo origen con set_content,
+para que carguen los iconos, las fuentes y los scripts de la interfaz.
 Uso:  python capturas.py   (con la demo corriendo en http://127.0.0.1:8000)
 """
 import json
 import re
-import subprocess
 import sys
 from pathlib import Path
 
 import requests
 from PIL import Image
+from playwright.sync_api import sync_playwright
 
 B = "http://127.0.0.1:8000"
 HERE = Path(__file__).resolve().parent
 OUT = HERE / "img"
-PAGES = HERE / "_pages"
-CSS = (HERE.parent.parent / "app" / "static" / "style.css").as_uri()
-EDGE = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 OUT.mkdir(exist_ok=True)
-PAGES.mkdir(exist_ok=True)
 
 s = requests.Session()
 s.post(B + "/login", data={"username": "admin", "password": "Admin12345"})
-
-
-def save(name: str, html: str, width=1280, height=2400):
-    html = re.sub(r'href="/static/style\.css[^"]*"', f'href="{CSS}"', html)
-    static = (HERE.parent.parent / "app" / "static").as_uri()
-    html = re.sub(r'(src|href)="/static/([^"?]+)(\?[^"]*)?"', lambda m: f'{m.group(1)}="{static}/{m.group(2)}"', html)
-    # que el navegador headless use el tema claro aunque el sistema esté en oscuro
-    html = html.replace("<head>", '<head><meta name="color-scheme" content="light">', 1)
-    page = PAGES / f"{name}.html"
-    page.write_text(html, encoding="utf-8")
-    png = OUT / f"{name}.png"
-    subprocess.run([EDGE, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--force-color-profile=srgb",
-                    "--blink-settings=preferredColorScheme=1", f"--window-size={width},{height}",
-                    f"--screenshot={png}", page.as_uri()], check=True, capture_output=True, timeout=60)
-    crop(png)
-    print("ok", name)
+s.get(B + "/lang/es")
+s.post(B + "/account/theme", data={"theme": "claro", "accent": "cobalto"})
 
 
 def crop(png: Path):
@@ -50,7 +33,9 @@ def crop(png: Path):
     last = h - 1
     while last > 0 and all(px[x, last] == bg for x in range(0, w, 7)):
         last -= 1
-    im.crop((0, 0, w, min(h, last + 24))).save(png, optimize=True)
+    im = im.crop((0, 0, w, min(h, last + 24)))
+    # paleta de 256 colores sin tramado: en capturas de interfaz no se nota y los PDF pesan la mitad
+    im.quantize(colors=256, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).save(png, optimize=True)
 
 
 def get(path):
@@ -59,10 +44,46 @@ def get(path):
     return r.text
 
 
+def tl_ids(page, kind=None):
+    """Ids de la línea de tiempo de versiones de la ficha (más reciente primero)."""
+    rows = re.findall(r'class="tl-row[^"]*" data-id="(\d+)"(?:(?!data-id=).)*?class="tl-kind">(\w+)<', page, re.S)
+    return list(dict.fromkeys(i for i, k in rows if kind is None or k == kind))
+
+
+pw = sync_playwright().start()
+browser = pw.chromium.launch(channel="msedge")
+
+
+def _page(width, height, anon=False):
+    ctx = browser.new_context(viewport={"width": width, "height": height}, color_scheme="light", reduced_motion="reduce")
+    if not anon:
+        ctx.add_cookies([{"name": c.name, "value": c.value, "url": B} for c in s.cookies])
+    return ctx.new_page()
+
+
+def save(name: str, path: str = None, width=1280, height=900, html: str = None, anon=False, full=True):
+    """Captura `path` (GET en el navegador) o el HTML dado (respuesta de un POST) en el mismo origen."""
+    pg = _page(width, height, anon)
+    if html is None:
+        pg.goto(B + path)
+    else:
+        pg.goto(B + (path or "/"))
+        pg.set_content(html)
+    pg.wait_for_load_state("networkidle")
+    pg.evaluate("document.fonts.ready")
+    pg.evaluate("window.scrollTo(0, 0)")  # las pestañas con #hash desplazan la página
+    pg.wait_for_timeout(400)
+    png = OUT / f"{name}.png"
+    pg.screenshot(path=str(png), full_page=full)
+    pg.context.close()
+    crop(png)
+    print("ok", name)
+
+
 # ---------------------------------------------------------------- datos para las capturas
 s.post(B + "/devices/1/backup")
 dev = get("/devices/1")
-running = re.findall(r'<td>(\d+)</td><td class="small">[^<]*</td><td>running</td>', dev)
+running = tl_ids(dev, "running")
 cl = get("/configlets")
 vlan = re.search(r'<b>Agregar VLAN \(IOS-like\)</b>[\s\S]*?/configlets/(\d+)/run', cl).group(1)
 exec_id = re.search(r'<b>Estado de interfaces \(IOS\)</b>[\s\S]*?/configlets/(\d+)/run', cl).group(1)
@@ -75,53 +96,63 @@ r = s.post(f"{B}/configlets/{vlan}/run", data={"device_ids": "1", "variables": "
                                                 "title": "Agregar VLAN 30 de cámaras"})
 pending_cr = re.search(r"/changes/(\d+)", r.url).group(1)
 comp = get("/compliance")
-pci = re.search(r'/compliance/policies/(\d+)">PCI DSS 4.0 \(IOS\)', comp).group(1)
+pci = re.search(r'/compliance/policies/(\d+)"[^>]*>PCI DSS 4.0 \(IOS\)', comp).group(1)
 
-login = requests.get(B + "/login").text
-save("01-login", login, 1280, 800)
-save("02-panel", get("/"))
-save("03-dispositivos", get("/devices"))
-save("04-dispositivo-nuevo", get("/devices/new"))
-save("05-dispositivo", get("/devices/1"), height=3600)
-save("06-version", get(f"/versions/{running[0]}"), height=1400)
-save("07-diff-lado-a-lado", get(f"/diff?a={running[-1]}&b={running[0]}&view=side&ctx=3"))
-save("08-diff-unificada", get(f"/diff?a={running[-1]}&b={running[0]}&view=unified&ctx=3"))
-save("09-busqueda", get("/search?q=snmp"))
-save("10-configlets", get("/configlets"))
-save("11-configlet-ejecutar", get(f"/configlets/{vlan}/run"))
-save("12-configlet-exec-resultado", s.post(f"{B}/configlets/{exec_id}/run", data={"device_ids": "1"}).text)
-save("13-solicitudes", get("/changes"))
-save("14-solicitud-pendiente", get(f"/changes/{pending_cr}"))
-save("15-cumplimiento", get("/compliance"), height=3000)
-save("16-politica-pci", get(f"/compliance/policies/{pci}"), height=3000)
-save("17-firmware", get("/firmware"))
-save("18-eol", get("/eol"))
-save("19-vulnerabilidades", get("/vulns"), height=1600)
-save("20-tareas", get("/schedules"))
-save("21-alarmas", get("/events"), height=1800)
-save("22-analisis", get("/analytics"), height=4200)
-save("23-informes", get("/reports"))
-save("24-informe-inventario", get("/reports/view/inventory"))
-save("25-credenciales", get("/credentials"))
-save("26-usuarios", get("/users"))
-save("27-auditoria", get("/audit"), height=1600)
-save("28-sistema", get("/system"))
-save("29-ajustes", get("/settings"), height=3000)
-save("30-plataformas", get("/vendors"), height=1500)
-save("31-cuenta", get("/account"), 1280, 700)
-save("32-configlet-form", get(f"/configlets/{vlan}/edit"))
-save("34-dospasos", get("/account/2fa/setup"), 1280, 1000)
-save("35-acerca", requests.get(B + "/acerca").text, height=3200)
-save("36-tarea-editar", get("/schedules/" + re.search(r"/schedules/(\d+)/edit", get("/schedules")).group(1) + "/edit"))
+save("01-login", "/login", 1280, 800, anon=True, full=False)
+save("02-panel", "/")
+save("03-dispositivos", "/devices")
+save("04-dispositivo-nuevo", "/devices/new")
+save("04b-importar-csv", "/devices/import")
+save("05-dispositivo", "/devices/1")
+save("05b-dispositivo-versiones", "/devices/1#versions")
+save("05c-dispositivo-cumplimiento", "/devices/1#compliance", height=1200, full=False)
+save("06-version", f"/versions/{running[0]}")
+save("07-diff-lado-a-lado", f"/diff?a={running[-1]}&b={running[0]}&view=side&ctx=3")
+save("08-diff-unificada", f"/diff?a={running[-1]}&b={running[0]}&view=unified&ctx=3")
+save("09-busqueda", "/search?q=snmp")
+save("10-configlets", "/configlets")
+save("11-configlet-ejecutar", f"/configlets/{vlan}/run")
+save("12-configlet-exec-resultado", f"/configlets/{exec_id}/run",
+     html=s.post(f"{B}/configlets/{exec_id}/run", data={"device_ids": "1"}).text)
+save("13-solicitudes", "/changes")
+save("14-solicitud-pendiente", f"/changes/{pending_cr}")
+save("15-cumplimiento", "/compliance", height=1400, full=False)
+save("16-politica-pci", f"/compliance/policies/{pci}")
+save("17-firmware", "/firmware")
+save("18-eol", "/eol")
+save("19-vulnerabilidades", "/vulns", height=1400, full=False)
+save("20-tareas", "/schedules")
+save("21-alarmas", "/events", height=1400, full=False)
+save("22-analisis", "/analytics")
+save("23-informes", "/reports")
+save("24-informe-inventario", "/reports/view/inventory")
+save("25-credenciales", "/credentials")
+save("26-usuarios", "/users")
+save("27-auditoria", "/audit", height=1400, full=False)
+save("28-sistema", "/system")
+save("29-ajustes", "/settings")
+save("30-plataformas", "/vendors", height=1400, full=False)
+save("31-cuenta", "/account")
+save("32-configlet-form", f"/configlets/{vlan}/edit")
+save("34-dospasos", "/account/2fa/setup")
+save("35-acerca", "/acerca")
+save("36-tarea-editar", "/schedules/" + re.search(r"/schedules/(\d+)/edit", get("/schedules")).group(1) + "/edit")
+pg = _page(1280, 760)  # paleta Ctrl K: buscar un equipo o ir a una página
+pg.goto(B + "/devices"); pg.wait_for_load_state("networkidle")
+pg.keyboard.press("Control+k"); pg.keyboard.type("r1"); pg.wait_for_timeout(600)
+pg.screenshot(path=str(OUT / "37-ctrl-k.png")); pg.context.close(); print("ok", "37-ctrl-k")
 users = get("/users")
 uid = re.search(r"<b>lector</b>[\s\S]*?/users/(\d+)/edit", users)
 if uid:
-    save("33-usuario-editar", get(f"/users/{uid.group(1)}/edit"))
-# temas: el panel con cada tema (luego se vuelve a «automático»)
-for theme in ["noche", "bosque", "contraste", "oscuro", "arena", "oceano", "atardecer", "lavanda", "grafito"]:
-    s.post(B + "/account/theme", data={"theme": theme})
-    save(f"34-tema-{theme}", get("/"), 1280, 900)
-s.post(B + "/account/theme", data={"theme": "auto"})
-# vista móvil del panel
+    save("33-usuario-editar", f"/users/{uid.group(1)}/edit")
+# temas: el panel con cada tema y dos acentos de ejemplo (luego se vuelve a «automático»)
+for name, theme, accent in [("34-tema-claro", "claro", "cobalto"), ("34-tema-oscuro", "oscuro", "cobalto"),
+                            ("34-tema-contraste", "contraste", "cobalto"), ("34-acento-bosque", "claro", "bosque"),
+                            ("34-acento-atardecer", "oscuro", "atardecer")]:
+    s.post(B + "/account/theme", data={"theme": theme, "accent": accent})
+    save(name, "/", 1280, 900, full=False)
+s.post(B + "/account/theme", data={"theme": "auto", "accent": "cobalto"})
+browser.close()
+pw.stop()
 json.dump({"pending_cr": pending_cr}, open(HERE / "_estado.json", "w"))
 sys.exit(0)

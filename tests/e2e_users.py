@@ -36,7 +36,8 @@ check("botón «Cambiar contraseña» junto al usuario", "Cambiar contraseña" i
 fav = adm.get(B + "/favicon.ico")
 check("/favicon.ico responde con una imagen", fav.status_code == 200 and fav.headers["content-type"].startswith("image/"))
 check("/static/icon.svg", adm.get(B + "/static/icon.svg").status_code == 200)
-check("menú con enlace a Plataformas", 'href="/vendors"' in html)
+check("menú con enlace a Administración", 'href="/users" class="nav' in html and ">Administración<" in html)
+check("Plataformas es una pestaña de Administración", 'href="/vendors" aria-current="page"' in adm.get(B + "/vendors").text)
 
 # --- crear usuario
 r = adm.post(B + "/users", data={"username": "ana", "role": "operator", "password": "Clave-Inicial-1", "password2": "Clave-Inicial-1"})
@@ -82,16 +83,24 @@ check("cambio propio: correcto", "Contraseña actualizada" in flashes(r.text), f
 _, ok = login("ana", "Clave-Final-33")
 check("ingresa con su nueva contraseña", ok)
 
-# --- temas
-r = ana.post(B + "/account/theme", data={"theme": "noche"})
-check("aplicar tema", 'data-theme="noche"' in r.text, re.findall(r'data-theme="[^"]*"', r.text))
-check("el tema se conserva entre páginas", 'data-theme="noche"' in ana.get(B + "/devices").text)
-for tema in ("arena", "oceano", "atardecer", "lavanda", "grafito"):
-    r = ana.post(B + "/account/theme", data={"theme": tema})
-    check(f"tema nuevo «{tema}» se aplica", f'data-theme="{tema}"' in r.text)
+# --- temas y color de acento
+r = ana.post(B + "/account/theme", data={"theme": "oscuro", "accent": "bosque"})
+check("aplicar tema y acento", 'data-theme="oscuro" data-accent="bosque"' in r.text,
+      re.findall(r'data-(?:theme|accent)="[^"]*"', r.text))
+check("el tema se conserva entre páginas", 'data-theme="oscuro" data-accent="bosque"' in ana.get(B + "/devices").text)
+for tema in ("claro", "contraste", "auto"):
+    r = ana.post(B + "/account/theme", data={"theme": tema, "accent": "lavanda"})
+    check(f"tema «{tema}» se aplica", f'data-theme="{tema}" data-accent="lavanda"' in r.text)
+# los nombres de los 10 temas anteriores se convierten en tema + acento
+for viejo, base, acento in (("noche", "oscuro", "cobalto"), ("arena", "claro", "arena"), ("oceano", "oscuro", "oceano")):
+    r = ana.post(B + "/account/theme", data={"theme": viejo})
+    check(f"tema anterior «{viejo}» pasa a {base} + {acento}", f'data-theme="{base}" data-accent="{acento}"' in r.text,
+          re.findall(r'data-(?:theme|accent)="[^"]*"', r.text))
 check("otro usuario mantiene su tema", 'data-theme="auto"' in adm.get(B + "/").text)
-r = ana.post(B + "/account/theme", data={"theme": "inexistente"})
-check("tema desconocido vuelve a automático", 'data-theme="auto"' in r.text)
+r = ana.post(B + "/account/theme", data={"theme": "inexistente", "accent": "nada"})
+check("tema y acento desconocidos: automático y cobalto", 'data-theme="auto" data-accent="cobalto"' in r.text)
+acc = ana.get(B + "/account").text
+check("Mi cuenta ofrece 4 temas y 7 acentos", acc.count('name="theme"') == 4 and acc.count('name="accent"') == 7)
 
 # --- plataformas
 v = adm.get(B + "/vendors").text

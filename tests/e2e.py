@@ -10,6 +10,12 @@ s = requests.Session()
 fails = []
 
 
+
+def tl_ids(page, kind=None):
+    """Ids de la línea de tiempo de versiones de la ficha (más reciente primero), opcionalmente de un tipo."""
+    rows = re.findall(r'class="tl-row[^"]*" data-id="(\d+)"(?:(?!data-id=).)*?class="tl-kind">(\w+)<', page, re.S)
+    return list(dict.fromkeys(i for i, k in rows if kind is None or k == kind))
+
 def check(name, cond, extra=""):
     print(("OK   " if cond else "FAIL ") + name + (f"  [{extra}]" if extra and not cond else ""))
     if not cond:
@@ -87,13 +93,13 @@ for _ in range(30):
 check("cambio ejecutado (done)", 'badge b-done' in t, re.findall(r'badge b-(\w+)', t)[:3])
 time.sleep(4)
 html = get("/devices/1").text
-vers = re.findall(r'name="a" value="(\d+)"', html)
-check("nueva versión tras el cambio", len([v for v in vers]) >= 3, vers)
+vers = tl_ids(html)
+check("nueva versión tras el cambio", len(vers) >= 3, vers)
 run = get("/search?q=vlan+20").text
 check("búsqueda encuentra 'vlan 20'", "1 equipos con coincidencias" in run)
 
 # diff entre primera y última running
-running_ids = re.findall(r'<td>(\d+)</td><td class="small">[^<]*</td><td>running</td>', html)
+running_ids = tl_ids(html, "running")
 last, first = running_ids[0], running_ids[-1]
 d = get(f"/diff?a={first}&b={last}&view=unified").text
 check("diff muestra +vlan 20", '<div class="a">+vlan 20</div>' in d)

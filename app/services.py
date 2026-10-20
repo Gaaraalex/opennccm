@@ -716,3 +716,81 @@ def scan_cves_many(ids: list[int]):
         except Exception as e:  # noqa: BLE001
             log.warning("CVE scan falló para %s: %s", i, e)
         time.sleep(delay)
+
+
+# --------------------------------------------------------------------------- resumen de un diff en palabras
+_SUMMARY_SKIP = re.compile(r"^\s*(!|#|$)")
+
+
+def _sections(text: str) -> dict[str, str]:
+    """Línea -> sección (la línea sin sangría anterior), para decir «en interface Gi0/1: …»."""
+    sec, out = "", {}
+    for ln in text.replace("\r\n", "\n").split("\n"):
+        if _SUMMARY_SKIP.match(ln):
+            continue
+        if not ln.startswith((" ", "\t")):
+            sec = ln.strip()
+            out.setdefault(ln.strip(), "")
+        else:
+            out.setdefault(ln.strip(), sec)
+    return out
+
+
+def diff_summary(old: str, new: str, limit: int = 5) -> list[str]:
+    """Frases cortas que describen un cambio de configuración: qué se agregó, quitó o cambió y dónde.
+    Reglas simples: dos líneas de la misma sección que empiezan igual (mismas 2 primeras palabras) son un cambio."""
+    from .i18n import _f
+    so, sn = _sections(old), _sections(new)
+    removed = [ln for ln in so if ln not in sn]
+    added = [ln for ln in sn if ln not in so]
+    key = lambda ln: " ".join(ln.split()[:2]).lower()  # noqa: E731
+    phrases, used_add = [], set()
+    for r in removed:
+        match = next((a for a in added if a not in used_add and key(a) == key(r) and sn[a] == so[r]), None)
+        if not match and so[r]:  # dentro de un bloque basta con la primera palabra («description», «shutdown»…)
+            match = next((a for a in added if a not in used_add and sn[a] == so[r]
+                          and a.split()[:1] == r.split()[:1]), None)
+        where = so[r]
+        if match:
+            used_add.add(match)
+            phrases.append(_f("en «{0}»: «{1}» → «{2}»", where, r, match) if where else _f("«{0}» → «{1}»", r, match))
+        else:
+            phrases.append(_f("en «{0}» se quitó «{1}»", where, r) if where else _f("se quitó «{0}»", r))
+    # bloques nuevos: una sola frase por sección nueva
+    new_secs = {}
+    for a in added:
+        if a in used_add:
+            continue
+        if sn[a] and sn[a] in added:
+            new_secs.setdefault(sn[a], []).append(a)
+            continue
+        if not sn[a] and a in {x for x in sn.values()}:
+            new_secs.setdefault(a, [])
+            continue
+        phrases.append(_f("en «{0}» se agregó «{1}»", sn[a], a) if sn[a] else _f("se agregó «{0}»", a))
+    for sec, lines in new_secs.items():
+        phrases.append(_f("se agregó «{0}» ({1} líneas)", sec, len(lines) + 1) if lines else _f("se agregó «{0}»", sec))
+    more = len(phrases) - limit
+    out = phrases[:limit]
+    if more > 0:
+        out.append(_f("y {0} cambios más", more))
+    return out
+
+
+def test_rule(text: str, pattern: str, kind: str) -> dict:
+    """Prueba una regla de cumplimiento contra un texto de configuración (editor de políticas)."""
+    try:
+        rx = re.compile(pattern, re.MULTILINE)
+    except re.error as e:
+        return {"error": str(e)}
+    lines = []
+    for m in rx.finditer(text):  # la línea completa donde coincide, no solo el trozo
+        start = text.rfind("\n", 0, m.start()) + 1
+        end = text.find("\n", m.start())
+        line = text[start:end if end >= 0 else len(text)].strip()[:160]
+        if line and line not in lines:
+            lines.append(line)
+        if len(lines) == 5:
+            break
+    found = rx.search(text) is not None
+    return {"found": found, "passed": found if kind == "must_contain" else not found, "lines": lines}

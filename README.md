@@ -29,11 +29,11 @@
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/readme/panel.png" alt="Panel de control con el estado de la red y del servidor"></td>
+    <td width="50%"><img src="docs/readme/panel.png" alt="Panel de control con la salud de la red y lo que hay que hacer"></td>
     <td width="50%"><img src="docs/readme/equipo.png" alt="Ficha de un equipo con inventario y versiones de configuración"></td>
   </tr>
   <tr>
-    <td>📊 <b>Panel de control</b>: el estado de toda la red de un vistazo y el rendimiento del propio servidor.</td>
+    <td>📊 <b>Panel de control</b>: la salud de la red de 0 a 100 y qué conviene hacer primero, con un botón para cada cosa.</td>
     <td>🗂️ <b>Inventario y versiones</b>: modelo, serie y firmware, con el historial completo de cada configuración.</td>
   </tr>
   <tr>
@@ -55,7 +55,7 @@
 </table>
 
 <p align="center">
-  <img src="docs/readme/temas.png" alt="Los 10 temas de color de OpenNCCM" width="100%">
+  <img src="docs/readme/temas.png" alt="Los temas y colores de acento de OpenNCCM" width="100%">
 </p>
 
 ## 🚀 Instalación
@@ -112,7 +112,7 @@ Antes de actualizar guarda una copia (código + base de datos) y después verifi
 | ⏰ **Operación** | Tareas programadas sin escribir cron, alarmas por severidad, correo / Teams / Slack / Telegram |
 | 📈 **Análisis e informes** | Actividad por origen, mapa de calor día × hora, tendencias y cumplimiento por política; informes en pantalla, CSV y por correo |
 | 🔐 **Acceso y seguridad** | Roles admin / operador / lector, grupos de equipos, verificación en dos pasos (TOTP), auditoría completa |
-| 🎨 **Interfaz** | En español e inglés (cada usuario elige), 10 temas (más el automático), adaptable al teléfono, accesible (contraste WCAG AA) |
+| 🎨 **Interfaz** | En español e inglés (cada usuario elige), diseño «Señal» con barra lateral y buscador Ctrl K, temas claro, oscuro y alto contraste con 7 colores de acento, adaptable al teléfono, accesible (contraste WCAG AA) |
 | ♻️ **Recuperación** | Copias cifradas de la base de datos, SFTP remoto, restauración y actualización con vuelta atrás |
 
 ## ⌨️ Comandos

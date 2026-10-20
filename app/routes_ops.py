@@ -213,7 +213,9 @@ def system_page(request: Request):
     zones: dict[str, list[str]] = {}
     for z in systime.timezones():
         zones.setdefault(z.split("/")[0] if "/" in z else _("Otras"), []).append(z)
+    from .main import _server_panel
     return render(request, "system.html", user, backups=backups, db_url=DATABASE_URL.split("@")[-1],
+                  server=_server_panel(),
                   key_file=str(KEY_FILE), profiles_count=len(PROFILES),
                   vendors_count=len({p.vendor for p in PROFILES}), unknown=unknown_profiles(),
                   clock=systime.info(), zones=zones, upd=updates.status(),
