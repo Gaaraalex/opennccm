@@ -15,7 +15,7 @@ tls)
   test -f /etc/ssl/opennccm/ca.crt || fail "no existe /etc/ssl/opennccm/ca.crt"
   issuer=$(echo | openssl s_client -connect 127.0.0.1:443 2>/dev/null | openssl x509 -noout -issuer)
   [[ $issuer == *"OpenNCCM CA"* ]] || fail "emisor inesperado: $issuer"
-  sudo openssl x509 -in /etc/ssl/opennccm/ca.crt -noout -text | grep -q "Name Constraints" || fail "la CA no tiene restricción de nombres"
+  sudo openssl x509 -in /etc/ssl/opennccm/ca.crt -noout -text | grep "Name Constraints" >/dev/null || fail "la CA no tiene restricción de nombres"
   curl -fsS --cacert /etc/ssl/opennccm/ca.crt $B/healthz >/dev/null || fail "el certificado no valida con la CA (como en un PC que la instaló)"
   curl -fsk $B/ca.crt | cmp - /etc/ssl/opennccm/ca.crt || fail "/ca.crt no entrega la CA"
   test "$(sudo stat -c %a /etc/ssl/opennccm/ca.key)" = 600 || fail "permisos de ca.key"
@@ -23,9 +23,9 @@ tls)
 
   echo "== Cookie de sesión solo por HTTPS y cabeceras de seguridad"
   hdr=$(curl -sk -D - -o /dev/null --data-urlencode "username=admin" --data-urlencode "password=$PASS" $B/login)
-  echo "$hdr" | grep -i '^set-cookie: opennccm=' | grep -qi 'secure' || fail "la cookie no es Secure"
-  echo "$hdr" | grep -qi '^content-security-policy:' || fail "falta Content-Security-Policy"
-  echo "$hdr" | grep -qi '^strict-transport-security:' || fail "falta HSTS"
+  echo "$hdr" | grep -i '^set-cookie: opennccm=' | grep -i 'secure' >/dev/null || fail "la cookie no es Secure"
+  echo "$hdr" | grep -i '^content-security-policy:' >/dev/null || fail "falta Content-Security-Policy"
+  echo "$hdr" | grep -i '^strict-transport-security:' >/dev/null || fail "falta HSTS"
   echo "OK cookie y cabeceras"
 
   echo "== Consola SSH web a través de nginx (WebSocket)"

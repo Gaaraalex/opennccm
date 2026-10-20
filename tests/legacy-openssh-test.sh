@@ -14,7 +14,7 @@ sudo ssh-keygen -q -t rsa -b 2048 -N '' -f "$DIR/host_rsa"
 sudo mkdir -p /run/sshd
 status=0
 for KEX in diffie-hellman-group14-sha1 diffie-hellman-group-exchange-sha1 diffie-hellman-group1-sha1; do
-  if ! ssh -Q kex | grep -qx "$KEX"; then echo "-- $KEX no está disponible en este OpenSSH; se omite"; continue; fi
+  if ! ssh -Q kex | grep -x "$KEX" >/dev/null; then echo "-- $KEX no está disponible en este OpenSSH; se omite"; continue; fi
   cat > "$DIR/sshd_config" <<EOF
 Port $PORT
 ListenAddress 127.0.0.1
