@@ -25,7 +25,7 @@ set_tz() {
     fi
     [[ $(systemctl show opennccm -p MainPID --value) != "$pid" ]] || continue
     if [[ $(timedatectl show -p Timezone --value) == "$1" ]] && curl -fsS $B/healthz >/tmp/hz.json 2>/dev/null; then
-      grep -q '"started":' /tmp/hz.json && ! grep -q "\"started\":$old[,}]" /tmp/hz.json \
+      grep -q '"started":' /tmp/hz.json && ! grep -q "\"started\":${old}[,}]" /tmp/hz.json \
         || { echo "healthz no indica el arranque del proceso nuevo: $(cat /tmp/hz.json)"; return 1; }
       return 0
     fi
