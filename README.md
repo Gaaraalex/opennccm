@@ -111,7 +111,7 @@ Antes de actualizar guarda una copia (código + base de datos) y después verifi
 | 🖥️ **Consola web** | SSH al equipo desde el navegador, en ventana aparte, con inicio de sesión automático opcional y auditoría |
 | ⏰ **Operación** | Tareas programadas sin escribir cron, alarmas por severidad, correo / Teams / Slack / Telegram |
 | 📈 **Análisis e informes** | Actividad por origen, mapa de calor día × hora, tendencias y cumplimiento por política; informes en pantalla, CSV y por correo |
-| 🔐 **Acceso y seguridad** | Roles admin / operador / lector, grupos de equipos, verificación en dos pasos (TOTP), auditoría completa |
+| 🔐 **Acceso y seguridad** | Roles admin / operador / lector, grupos de equipos, inicio de sesión con Active Directory y Microsoft Entra ID (Azure AD), verificación en dos pasos (TOTP), auditoría completa |
 | 🎨 **Interfaz** | En español e inglés (cada usuario elige), diseño «Señal» con barra lateral y buscador Ctrl K, temas claro, oscuro y alto contraste con 7 colores de acento, adaptable al teléfono, accesible (contraste WCAG AA) |
 | ♻️ **Recuperación** | Copias cifradas de la base de datos, SFTP remoto, restauración y actualización con vuelta atrás |
 
