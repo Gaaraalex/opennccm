@@ -71,9 +71,10 @@ target_ref() {  # target_ref [versión] -> referencia git a instalar
 }
 
 changelog_between() {  # changelog_between REF VERSION_ACTUAL
+  # awk lee hasta el final (sin «exit»): si dejara de leer, «git show» moriría por SIGPIPE y, con pipefail, la actualización fallaría
   git -C $APP_DIR show "$1:CHANGELOG.md" 2>/dev/null | awk -v cur="## $2" '
-    /^## / { if (index($0, cur) == 1) exit; seen=1 }
-    seen { print }' | sed -n 1,60p
+    /^## / { if (index($0, cur) == 1) stop=1; else if (!stop) seen=1 }
+    seen && !stop { print }' | sed -n 1,60p
 }
 
 # ----------------------------------------------------------------- copia previa / vuelta atrás
