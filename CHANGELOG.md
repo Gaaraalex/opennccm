@@ -1,5 +1,13 @@
 # Historial de versiones
 
+## 2.2.0
+- **Apoya OpenNCCM**: forma de apoyar el proyecto con una donación, opcional y sin rastreo.
+  - Los administradores ven un botón en la barra superior que abre las opciones (en el móvil, en un diálogo).
+  - Acerca de y Sistema muestran una tarjeta con las mismas opciones.
+  - Tras actualizar a una versión nueva, el primer administrador que entra ve una vez un aviso con «Donar» y «Ahora no».
+  - Por ahora la opción es Ko-fi. Los enlaces solo se abren si se pulsan, en una pestaña nueva, y no se envía ningún dato del servidor; la página de privacidad lo explica.
+- Los avisos flotantes vuelven a aparecer abajo a la derecha de la ventana también en las páginas largas (antes podían quedar al final del contenido, fuera de la vista).
+
 ## 2.1.0
 - **Inicio de sesión con Active Directory** (LDAP/LDAPS o StartTLS): las personas entran con su usuario y contraseña de la red en
   el mismo formulario. Su rol (administrador, operador o lector) sale de los grupos del directorio, también anidados; la cuenta se

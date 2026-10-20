@@ -275,6 +275,34 @@ templates.env.filters["cron_text"] = cronutil.describe
 templates.env.filters["ymd"] = lambda d: d.strftime("%Y-%m-%d") if d else "—"
 
 
+def donate_links() -> list[dict]:
+    """Formas de donar con enlace configurado, en el orden del prototipo."""
+    from .config import DONATE_LINKS
+    meta = {"github": (i18n.N_("GitHub Sponsors"), "github"), "kofi": (i18n.N_("Invitar un café (Ko-fi)"), "coffee"),
+            "opencollective": (i18n.N_("Open Collective"), "users")}
+    return [{"key": k, "url": url, "label": i18n._(meta[k][0]), "icon": meta[k][1]} for k, url in DONATE_LINKS
+            if url and url.startswith("https://")]
+
+
+templates.env.globals["donate_links"] = donate_links
+
+
+def _donate_toast(request: Request, user) -> str | None:
+    """Tras actualizar a una versión nueva, el primer administrador que entra ve una vez el aviso «Apoya OpenNCCM»."""
+    from . import __version__
+    from .db import get_setting, set_setting
+    if user is None or user.role != "admin" or not donate_links():
+        return None
+    # solo en una página que se abre de verdad, no en un panel lateral ni en otra petición de fondo
+    if request.headers.get("sec-fetch-mode", "navigate") != "navigate" or request.headers.get("x-sheet"):
+        return None
+    if get_setting("donate_pending", "") != __version__:
+        return None
+    set_setting("donate_pending", "")  # una sola vez por versión
+    set_setting("donate_shown", __version__)
+    return __version__
+
+
 def render(request: Request, name: str, user, **ctx):
     flashes = request.session.pop("flash", [])
     undo = request.session.pop("undo", None)  # acción reversible: el aviso ofrece «Deshacer»
@@ -285,6 +313,7 @@ def render(request: Request, name: str, user, **ctx):
         if st["available"] and not st["running"] and request.session.get("upd_dismissed") != st["latest"]:
             popup = st
     counts = _nav_counts(user) if user is not None and not ctx.get("compact") else {}
+    ctx.setdefault("donate_toast", _donate_toast(request, user) if not ctx.get("compact") else None)
     return templates.TemplateResponse(request, name, {"user": user, "flashes": flashes, "undo": undo, "update_popup": popup,
                                                       "nav_counts": counts,
                                                       "profiles": PROFILES, "profile_map": PROFILE_MAP, **ctx})

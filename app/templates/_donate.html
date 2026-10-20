@@ -1,0 +1,13 @@
+{# «Apoya OpenNCCM» (prototipo): contenido del desplegable / diálogo y tarjeta de Acerca de y Sistema.
+   Los enlaces solo se abren si se pulsan, en una pestaña nueva, sin enviar datos del servidor. #}
+{% macro donate_body(links) %}
+<div class="row nowrap" style="gap:10px"><span class="qi" style="background:var(--rail);color:var(--signal);width:36px;height:36px">{{ icon('heart') }}</span><b style="font-size:15px">Apoya OpenNCCM</b></div>
+<p class="muted sm" style="margin:10px 0 4px;line-height:1.55;white-space:normal">OpenNCCM es libre y gratis (GPL-3.0). Tu aporte paga horas de desarrollo y pruebas con equipos reales. Se abre en una pestaña nueva y no se envía ningún dato de tu servidor.</p>
+{% for l in links if l.key != 'opencollective' %}<a class="btn dopt" style="width:100%;justify-content:flex-start" href="{{ l.url }}" target="_blank" rel="noopener noreferrer">{{ icon(l.icon, 's') }}{{ l.label }}<span class="grow"></span>{{ icon('right', 's') }}</a>{% endfor %}
+{% endmacro %}
+
+{% macro donate_card(links, cls='') %}
+<section class="card {{ cls }}" id="apoya"><div class="row nowrap" style="gap:14px;align-items:flex-start"><span class="qi" style="background:var(--rail);color:var(--signal)">{{ icon('heart') }}</span>
+  <div class="grow"><h2>Apoya OpenNCCM</h2><p class="muted" style="margin:4px 0 14px;max-width:640px">OpenNCCM es software libre (GPL-3.0) y gratis. Tu aporte paga horas de desarrollo y pruebas con equipos reales de distintos fabricantes. Los enlaces se abren en una pestaña nueva y no se envía ningún dato de tu servidor.</p>
+    <div class="row">{% for l in links %}<a class="btn" href="{{ l.url }}" target="_blank" rel="noopener noreferrer">{{ icon(l.icon, 's') }}{{ l.label }}</a>{% endfor %}</div></div></div></section>
+{% endmacro %}

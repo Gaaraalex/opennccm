@@ -57,6 +57,9 @@
 <header class="top" id="top">
   <button type="button" class="tbtn menu-btn" data-drawer aria-label="Abrir menú">{{ icon('menu') }}</button>
   <div class="crumbs grow">{% block crumbs %}<b>{{ self.title() }}</b>{% endblock %}</div>
+  {% set DL = donate_links() %}{% from "_donate.html" import donate_body %}
+  {% if user.role == 'admin' and DL %}<span class="dropw"><button type="button" class="donate" data-drop="don-pop" aria-haspopup="true" aria-expanded="false" aria-label="{{ _('Apoya OpenNCCM: donar') }}" title="{{ _('Apoya OpenNCCM') }}">{{ icon('heart') }}<span class="dt"><b>Apoya OpenNCCM</b><small>Libre y gratis gracias a ti</small></span><span class="dbtn">Donar</span></button>
+    <div class="drop don-pop" id="don-pop" hidden>{{ donate_body(DL) }}</div></span>{% endif %}
   <button type="button" class="search-top" data-palette aria-label="Buscar">{{ icon('search', 's') }}<span>Buscar equipo, IP o texto…</span><kbd>Ctrl K</kbd></button>
   {% set th = user.theme or 'auto' %}
   <span class="dropw"><button type="button" class="tbtn" data-drop="theme-menu" aria-haspopup="true" aria-expanded="false" aria-label="Tema y color" title="Tema y color">{{ icon('moon' if th == 'oscuro' else 'sun' if th == 'claro' else 'eye' if th == 'contraste' else 'monitor') }}</button>
@@ -80,9 +83,15 @@
 {% endif %}
 <main id="contenido" tabindex="-1" class="{{ 'view' if user and not compact }}">
 {% block flashes %}<div class="toasts" role="status" aria-live="polite">{% for kind, msg in flashes %}<div class="flash {{ kind }}">{{ msg }}</div>{% endfor %}
-{% if undo %}<form class="undo-form" method="post" action="{{ undo.url }}" hidden><input type="hidden" name="ids" value="{{ undo.ids }}"><button class="lnk">Deshacer</button></form>{% endif %}</div>{% endblock %}
+{% if undo %}<form class="undo-form" method="post" action="{{ undo.url }}" hidden><input type="hidden" name="ids" value="{{ undo.ids }}"><button class="lnk">Deshacer</button></form>{% endif %}
+{% if donate_toast %}<div class="toast" role="status" id="don-toast"><span class="bd">{{ icon('heart', 's') }}</span><div><b>{{ _f('OpenNCCM {0} instalado', donate_toast) }}</b>
+  <div class="s">¿Te ahorra trabajo? Ayúdanos a seguir. <button type="button" class="lnk" data-donate>Donar</button> · <button type="button" class="lnk" style="color:var(--rail-ink);text-decoration:underline" data-dismiss-toast>Ahora no</button></div></div>
+  <button type="button" aria-label="{{ _('Cerrar') }}" data-dismiss-toast>{{ icon('x', 's') }}</button></div>{% endif %}</div>{% endblock %}
 {% block content %}{% endblock %}
 </main>
+{% if user and user.role == 'admin' and donate_links() and not compact %}{% from "_donate.html" import donate_body %}<dialog class="dlg" id="don-dlg" aria-label="{{ _('Apoya OpenNCCM') }}" style="width:min(340px,100%)">
+  <div class="row"><span class="grow"></span><button type="button" class="tbtn" data-close aria-label="{{ _('Cerrar') }}">{{ icon('x') }}</button></div>
+  <div style="margin-top:-30px">{{ donate_body(donate_links()) }}</div></dialog>{% endif %}
 {% if user and not compact %}
 </div>
 </div>

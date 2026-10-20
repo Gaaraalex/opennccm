@@ -38,8 +38,28 @@ log = logging.getLogger("opennccm")
 
 
 @asynccontextmanager
+def _note_version():
+    """Recuerda la versión instalada. Si cambió respecto a la anterior (una actualización, no una instalación nueva),
+    deja pendiente el aviso «Apoya OpenNCCM» para el primer administrador que entre."""
+    from datetime import timedelta
+
+    from . import __version__
+    prev = get_setting("installed_version", "")
+    if prev == __version__:
+        return
+    with SessionLocal() as db:  # instalaciones anteriores a este ajuste: si hay actividad de hace tiempo, es una actualización
+        old = db.scalar(select(func.count(AuditLog.id)).where(AuditLog.created_at < now() - timedelta(hours=1))) or 0
+    if (prev or old) and get_setting("donate_shown", "") != __version__:
+        set_setting("donate_pending", __version__)
+    set_setting("installed_version", __version__)
+
+
 async def lifespan(_app):
     init_db()
+    try:
+        _note_version()
+    except Exception:  # noqa: BLE001 — un aviso no debe impedir que arranque
+        log.exception("No se pudo registrar la versión instalada")
     try:
         n = services.refresh_inventory_from_raw()
         if n:

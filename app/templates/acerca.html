@@ -32,6 +32,7 @@
     <li><b>GitHub:</b> si está activado en Ajustes, se consulta una vez al día si hay versiones nuevas de OpenNCCM.</li>
     <li><b>Correo, Telegram o webhook:</b> si se configuran, se envían allí las alertas y los informes.</li>
     <li><b>SFTP:</b> si se configura, se envían allí las copias de recuperación.</li>
+    <li><b>Donaciones:</b> los enlaces de «Apoya OpenNCCM» solo se abren si alguien los pulsa, en una pestaña nueva; no se envía ningún dato de este servidor ni se rastrea nada.</li>
   </ul>
 
   <h2 id="cookies">Cookies</h2>
@@ -79,4 +80,5 @@
   letra del navegador e incluye un tema de <b>alto contraste</b> (Mi cuenta → Apariencia). Si encuentra una barrera de accesibilidad,
   comuníquelo a {{ org.contact or _('su administrador') }}.</p>
 </div></section>
+{% if donate_links() %}{% from "_donate.html" import donate_card %}{{ donate_card(donate_links()) }}{% endif %}
 {% endblock %}
