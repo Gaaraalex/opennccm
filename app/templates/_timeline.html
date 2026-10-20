@@ -10,6 +10,6 @@
     <a class="btn icon s ghost open" href="/versions/{{ v.id }}" data-sheet data-wide aria-label="{{ _f('Abrir versión {0}', v.n) }}" title="Ver, descargar, etiquetar…">{{ icon('right', 's') }}</a></span>
 </li>
 {% else %}
-<li class="tl-empty" style="cursor:default">{{ empty_art('plus') }}<span class="muted">Aún no se ha podido respaldar este equipo.</span></li>
+<li class="tl-empty"><div class="empty" style="padding:20px">{{ empty_art('plus') }}<h2>Sin versiones</h2><p>Aún no se ha podido respaldar este equipo.</p></div></li>
 {% endfor %}
 </ol>
