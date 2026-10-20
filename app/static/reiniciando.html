@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="refresh" content="4">
+<title>OpenNCCM se está reiniciando</title>
+<!-- Página que muestra nginx (error 502/503/504) mientras OpenNCCM se reinicia: tras cambiar la zona horaria,
+     al actualizar o al reiniciar el servicio. Se recarga sola; sin dependencias porque la aplicación no responde. -->
+<style>
+  :root{color-scheme:light dark;--bg:#eef1f5;--card:#fff;--ink:#0f1524;--muted:#5b6675;--line:#dfe3ea;--sig:#c8f560}
+  @media (prefers-color-scheme:dark){:root{--bg:#090c13;--card:#111723;--ink:#e8edf6;--muted:#93a0b8;--line:#252f42}}
+  body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--ink);
+       font:15px/1.55 "Segoe UI",system-ui,-apple-system,sans-serif}
+  .c{max-width:440px;margin:16px;padding:28px;border:1px solid var(--line);border-radius:20px;background:var(--card);text-align:center}
+  h1{font-size:21px;margin:14px 0 6px}
+  p{color:var(--muted);margin:0 0 6px}
+  .dot{width:14px;height:14px;border-radius:50%;background:var(--sig);display:inline-block;animation:p 1.2s ease-in-out infinite}
+  @keyframes p{50%{opacity:.35;transform:scale(.8)}}
+  @media (prefers-reduced-motion:reduce){.dot{animation:none}}
+  a{color:inherit}
+</style>
+</head>
+<body>
+<main class="c" role="status" aria-live="polite">
+  <span class="dot" aria-hidden="true"></span>
+  <h1>OpenNCCM se está reiniciando</h1>
+  <p>Vuelve solo en unos segundos; esta página se recarga sola.</p>
+  <p lang="en">OpenNCCM is restarting. This page reloads by itself.</p>
+  <p><a href="javascript:location.reload()">Recargar ahora</a></p>
+</main>
+</body>
+</html>

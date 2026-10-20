@@ -387,7 +387,8 @@ async def system_time(request: Request):
             flash(request, _f("Zona horaria cambiada a {0}. Las tareas programadas ya usan la nueva hora.", tz))
             systime.restart_soon()
             # página de espera: el servicio se reinicia unos segundos para aplicar la zona
-            return render(request, "restarting.html", user, tz=tz)
+            from .main import STARTED
+            return render(request, "restarting.html", user, tz=tz, started=STARTED)
         elif action == "ntp":
             on = form.get("ntp") == "on"
             systime.set_ntp(on)

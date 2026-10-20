@@ -724,6 +724,9 @@ server {
   client_max_body_size 4g;   # imágenes de firmware
   client_body_timeout 900s;
   add_header Strict-Transport-Security "max-age=31536000" always;
+  # mientras OpenNCCM se reinicia (zona horaria, actualización): página que se recarga sola en lugar de «502 Bad Gateway»
+  error_page 502 503 504 /_reiniciando.html;
+  location = /_reiniciando.html { root $APP_DIR/app/static; try_files /reiniciando.html =404; internal; add_header Cache-Control "no-store" always; }
   location / {
     proxy_pass http://127.0.0.1:8000;
     proxy_http_version 1.1;
