@@ -1,151 +1,93 @@
 {% extends "base.html" %}{% block title %}Sistema{% endblock %}
+{% block crumbs %}<b>Administración</b>{% endblock %}
 {% block content %}
 {% include "_admin_tabs.html" %}
-<h1>Sistema y recuperación ante desastres</h1>
-{% if server %}
-<section id="servidor">
-<h2>Rendimiento del servidor de OpenNCCM</h2>
-<div class="kpis">
-  <div class="kpi"><small>CPU ahora</small><b>{{ '%.0f' % server.snap.cpu }}%</b><span class="delta">{{ server.snap.cpus }} núcleos · carga {{ server.load }}</span></div>
-  <div class="kpi{{ ' alert' if server.snap.mem_pct >= 90 }}"><small>Memoria RAM</small><b>{{ '%.0f' % server.snap.mem_pct }}%</b><span class="delta">OpenNCCM usa {{ server.app_rss }}</span></div>
-  <div class="kpi{{ ' alert' if server.snap.disk_pct >= 90 }}"><small>Disco usado</small><b>{{ '%.0f' % server.snap.disk_pct }}%</b><span class="delta">datos de OpenNCCM: {{ server.data_size }}</span></div>
-  <div class="kpi"><small>Encendido desde hace</small><b class="kpi-sm">{{ server.uptime }}</b></div>
-</div>
-<div class="charts">
-<div class="card viz-card"><h3>Uso de CPU (%), últimas 24 h</h3>{{ server.cpu_chart|safe }}</div>
-<div class="card viz-card"><h3>Uso de memoria RAM (%), últimas 24 h</h3>{{ server.mem_chart|safe }}</div>
-</div>
-<div class="card">
-  <h3 style="margin-top:0">Espacio y memoria</h3>
-  {{ server.disk_meter|safe }}
-  {{ server.mem_meter|safe }}
-  {{ server.swap_meter|safe }}
-  <p class="small muted" style="margin-bottom:0">Se mide cada minuto y se conservan 24 horas (se reinicia al reiniciar el servicio). Pase el ratón sobre la gráfica para ver cada valor.</p>
-</div>
-</section>
+<div class="bento">
+{% if server %}{% set sn = server.snap %}
+  <h2 class="vh">Rendimiento del servidor de OpenNCCM</h2>
+  <div class="c3"><div class="kpi static"><span class="label">CPU ahora</span><span class="v">{{ '%.0f'|format(sn.cpu) }}%</span><span class="d">{{ _f('{0} núcleos · carga {1}', sn.cpus, server.load) }}</span></div></div>
+  <div class="c3"><div class="kpi static {{ 'alert' if sn.mem_pct >= 90 }}"><span class="label">Memoria RAM</span><span class="v">{{ '%.0f'|format(sn.mem_pct) }}%</span><span class="d">{{ _f('OpenNCCM usa {0}', server.app_rss) }}</span></div></div>
+  <div class="c3"><div class="kpi static {{ 'alert' if sn.disk_pct >= 90 }}"><span class="label">Disco usado</span><span class="v">{{ '%.0f'|format(sn.disk_pct) }}%</span><span class="d">{{ _f('datos de OpenNCCM: {0}', server.data_size) }}</span></div></div>
+  <div class="c3"><div class="kpi static"><span class="label">Encendido desde hace</span><span class="v">{{ server.uptime }}</span><span class="d">{{ _('desde el último reinicio del servidor') }}</span></div></div>
+  <section class="card c6"><div class="card-h"><h2>CPU, últimas 24 h</h2></div>{{ area(server.cpu_vals, _('Uso de CPU')) }}</section>
+  <section class="card c6"><div class="card-h"><h2>Memoria RAM, últimas 24 h</h2></div>{{ area(server.mem_vals, _('Uso de RAM')) }}</section>
+  <section class="card c6"><div class="card-h"><h2>Espacio</h2></div><div class="stack" style="gap:14px">
+    {% for name, txt, pct in server.space %}<div><div class="row between"><b class="sm">{{ name }}</b><span class="num sm">{{ '%.0f'|format(pct) }}%</span></div>
+      <div class="meter {{ 'crit' if pct >= 90 else 'warn' if pct >= 75 else '' }}" style="margin-top:6px" role="meter" aria-label="{{ name }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ '%.0f'|format(pct) }}"><i style="width:{{ [pct, 1]|max }}%"></i></div><div class="muted sm" style="margin-top:4px">{{ txt }}</div></div>{% endfor %}
+    <p class="muted sm">Se mide cada minuto y se conservan 24 horas (se reinicia al reiniciar el servicio).</p></div></section>
 {% endif %}
-<div class="card">
-  <dl class="kv">
-    <dt>Base de datos</dt><dd><code>{{ db_url }}</code></dd>
-    <dt>Clave de cifrado</dt><dd><code>{{ key_file }}</code></dd>
-    <dt>Plataformas soportadas</dt><dd><a href="/vendors">{{ profiles_count }} plataformas de {{ vendors_count }} fabricantes</a>
-      {% if unknown %}<span class="badge b-warning">la versión de Netmiko instalada no conoce: {{ unknown|join(', ') }}</span>{% endif %}</dd>
-  </dl>
+  <section class="card {{ 'c6' if server else 'c12' }}" id="actualizaciones"><div class="card-h"><h2>Actualizaciones</h2><form method="post" action="/system/update/check" style="margin:0"><button class="btn s">{{ icon('refresh', 's') }}Buscar ahora</button></form></div>
+    <div class="summ">{{ icon('spark') }}<div class="grow">
+      {% if upd.available %}<b>{{ _f('Disponible: versión {0}', upd.latest) }}</b> <span class="pill warn">actualización disponible</span>{% elif upd.latest %}<b>{{ _f('OpenNCCM {0} está al día', upd.current) }}</b>{% else %}<b>{{ _('Aún no se ha comprobado') }}</b>{% endif %}
+      <div class="muted sm">{{ _f('Instalada: {0}', upd.current) }}{% if upd.checked_at %} · {{ _f('comprobado {0}', upd.checked_at) }}{% endif %}</div>
+      {% if upd.available and upd.notes %}<div class="notes sm" style="margin-top:8px">{{ latest_notes|safe }}</div>{% endif %}
+      {% if upd.error %}<p class="sm" style="color:var(--crit);margin-top:6px">{{ upd.error }}</p>{% endif %}</div></div>
+    <div class="row" style="margin-top:14px">
+      {% if upd.running %}<a class="btn pri" href="/system/updating">Ver la actualización en curso</a>
+      {% elif upd.web_update %}<button type="button" class="btn {{ 'pri' if upd.available }}" data-dialog="upd-dlg">{{ _('Actualizar ahora') if upd.available else _('Reinstalar la última versión') }}</button>{% endif %}
+      <button type="button" class="btn ghost" id="ver-novedades">Novedades de cada versión</button>
+      <a class="btn ghost" href="{{ releases_url }}" target="_blank" rel="noopener">Todas las versiones en GitHub</a></div>
+    {% if not upd.web_update %}<p class="muted sm" style="margin-top:10px">Para actualizar desde aquí, actualiza una vez desde la consola del servidor: <code>sudo opennccm update</code>. Esa actualización instala el servicio que permite hacerlo con este botón.</p>{% endif %}
+    <p class="muted sm" style="margin-top:10px">La búsqueda diaria y el aviso a los administradores se activan en <a href="/settings#actualizaciones">Ajustes</a>.</p></section>
+
+  <section class="card c7"><div class="card-h"><h2>Copias de recuperación</h2><button type="button" class="btn s pri" data-dialog="bk-dlg">{{ icon('db', 's') }}Crear copia ahora</button></div>
+    <p class="muted sm" style="margin:-6px 0 12px">Guardan la base de datos (configuraciones, historial, usuarios, políticas). Las configuraciones y contraseñas van cifradas: para restaurar en otro servidor necesitas también <code>secret.key</code>, o incluirla en la copia protegida con contraseña. Programa copias diarias en <a href="/schedules">Tareas</a> y la copia remota en <a href="/settings#recuperacion">Ajustes</a>.</p>
+    <div class="stack t">{% for name, size, mtime in backups %}
+      <div class="row nowrap" style="padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-md)"><span class="qi mut" style="width:32px;height:32px">{{ icon('lock' if name.endswith('.enc') else 'db', 's') }}</span>
+        <div class="grow" style="min-width:0"><div class="mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><code>{{ name }}</code></div><div class="muted sm">{{ mtime|cuando_ts }} · {{ size|filesizeformat }}</div></div>
+        <a class="btn s icon ghost" href="/system/backups/{{ name }}" aria-label="{{ _f('Descargar {0}', name) }}" title="Descargar">{{ icon('dl', 's') }}</a>
+        <button type="button" class="btn s" data-dialog="restore-dlg">Restaurar…</button>
+        <form method="post" action="/system/backups/{{ name }}/delete" style="margin:0"><button class="btn s icon ghost" aria-label="{{ _f('Eliminar {0}', name) }}" title="Eliminar">{{ icon('trash', 's') }}</button></form></div>
+    {% else %}<div class="empty" style="padding:20px">{{ empty_art('plus') }}<h2>Aún no hay copias de recuperación</h2><p>Crea la primera ahora o programa una copia periódica en Tareas.</p></div>{% endfor %}</div></section>
+
+  <section class="card c5" id="hora"><div class="card-h"><h2>Fecha, hora y zona horaria</h2></div>
+    {% if not clock.available %}<p class="muted">No disponible en este sistema (requiere Ubuntu con systemd).</p>
+    {% else %}<div class="stack">
+      <div class="summ">{{ icon('clock') }}<div><b class="num">{{ clock.now.strftime('%Y-%m-%d %H:%M:%S') }}</b><div class="muted sm">{{ _('Sincronizada por NTP') if clock.ntp and clock.synced else _('NTP activo, aún sin sincronizar') if clock.ntp else _('Hora fijada a mano') }} · {{ clock.timezone }}</div></div></div>
+      <form method="post" action="/system/time" class="stack t"><input type="hidden" name="action" value="timezone">
+        <div class="field"><label for="tz">Zona horaria</label><div class="input"><select id="tz" name="timezone">{% for region, items in zones.items() %}<optgroup label="{{ region }}">{% for z in items %}<option {{ 'selected' if z == clock.timezone }}>{{ z }}</option>{% endfor %}</optgroup>{% endfor %}</select></div><span class="help">Al cambiarla, el servicio se reinicia (unos segundos).</span></div>
+        <div class="row"><button class="btn">Cambiar zona</button></div></form>
+      <form method="post" action="/system/time" id="ntpf"><input type="hidden" name="action" value="ntp">
+        <label class="swrow"><span><b>Sincronizar con NTP</b><div class="muted sm">Si lo desactivas, puedes fijar la fecha y hora a mano.</div></span><input type="checkbox" class="sw" name="ntp" {{ 'checked' if clock.ntp }} onchange="this.form.submit()"></label></form>
+      {% if not clock.ntp %}<form method="post" action="/system/time" class="stack t"><input type="hidden" name="action" value="manual">
+        <div class="f2"><div class="field"><label for="mdate">Fecha</label><div class="input"><input id="mdate" type="date" name="date" required value="{{ clock.now.strftime('%Y-%m-%d') }}"></div></div>
+          <div class="field"><label for="mtime">Hora</label><div class="input"><input id="mtime" type="time" name="time" required step="1" value="{{ clock.now.strftime('%H:%M:%S') }}"></div></div></div>
+        <div><button class="btn">Fijar</button></div></form>{% endif %}
+    </div>{% endif %}</section>
+
+  <section class="card c12"><dl class="kv">
+    <dt>Base de datos</dt><dd><code>{{ db_url }}</code></dd><dt>Clave de cifrado</dt><dd><code>{{ key_file }}</code></dd>
+    <dt>Plataformas</dt><dd><a href="/vendors">{{ _f('{0} plataformas de {1} fabricantes', profiles_count, vendors_count) }}</a>
+      {% if unknown %} <span class="pill warn">{{ _f('la versión de Netmiko instalada no conoce: {0}', unknown|join(', ')) }}</span>{% endif %}</dd></dl></section>
 </div>
-<div class="card" id="actualizaciones">
-  <h2 style="margin-top:0">Actualizaciones</h2>
-  <dl class="kv">
-    <dt>Versión instalada</dt><dd><b>{{ upd.current }}</b></dd>
-    <dt>Última publicada</dt><dd>{% if upd.latest %}<b>{{ upd.latest }}</b>{% if upd.available %} <span class="badge b-warning">actualización disponible</span>{% else %} <span class="badge b-ok">está al día</span>{% endif %}{% else %}—{% endif %}
-      <span class="small muted">{% if upd.checked_at %}(comprobado {{ upd.checked_at }}){% endif %}</span></dd>
-  </dl>
-  {% if upd.error %}<p class="small" style="color:var(--t-crit)">{{ upd.error }}</p>{% endif %}
-  {% if upd.available and upd.notes %}<details open><summary>Novedades de la versión {{ upd.latest }}</summary>
-    <div class="notes">{{ latest_notes|safe }}</div>{% if upd.url %}<p class="small"><a href="{{ upd.url }}" target="_blank" rel="noopener">Ver la versión {{ upd.latest }} en GitHub ↗</a></p>{% endif %}</details>{% endif %}
-  <div class="row">
-    <button type="button" class="sec" id="ver-novedades">Novedades de cada versión</button>
-    <a class="btn sec" href="{{ releases_url }}" target="_blank" rel="noopener">Todas las versiones en GitHub ↗</a>
-    <form method="post" action="/system/update/check"><button class="sec">Buscar actualizaciones ahora</button></form>
-    {% if upd.running %}
-    <a class="btn" href="/system/updating">Ver la actualización en curso</a>
-    {% elif upd.web_update %}
-    <form method="post" action="/system/update" onsubmit="return confirm('Se hará una copia previa y OpenNCCM se detendrá 1-2 minutos. Si la versión nueva no arranca, se vuelve sola a la anterior. ¿Actualizar ahora?')">
-      <button {{ '' if upd.available else 'class=sec' }}>{{ _f('Actualizar a la versión {0}', upd.latest) if upd.available else _('Actualizar (reinstalar la última versión)') }}</button></form>
-    {% endif %}
-  </div>
-  {% if not upd.web_update %}<p class="small muted">Para actualizar desde aquí, actualice una vez desde la consola del servidor:
-  <code>sudo opennccm update</code>. Esa actualización instala el servicio que permite hacerlo con este botón.</p>{% endif %}
-  <p class="small muted">La búsqueda diaria y el aviso a los administradores se activan o desactivan en <a href="/settings#seguridad">Ajustes</a>.</p>
-</div>
-<dialog id="novedades" aria-labelledby="nov-title" style="max-width:860px">
-  <h2 id="nov-title" style="margin-top:0">Novedades de OpenNCCM</h2>
-  {% if upd.available and upd.notes %}
-  <h3>Disponible: versión {{ upd.latest }} <span class="badge b-warning">nueva</span></h3>
-  <div class="notes">{{ latest_notes|safe }}</div>
-  {% endif %}
-  {% for v, html in changelog %}
-  <details {{ 'open' if loop.first }}><summary><b>Versión {{ v }}</b>{% if v == upd.current %} <span class="badge b-ok">instalada</span>{% endif %}</summary>
-    <div class="notes">{{ html|safe }}</div></details>
+
+<dialog class="dlg" id="bk-dlg"><form method="post" action="/system/backup" class="stack">
+  <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi info">{{ icon('db') }}</span><div><h2>Crear copia de recuperación</h2><p class="muted" style="margin-top:6px">Copia consistente de la base de datos. Se guarda en el servidor y puedes descargarla.</p></div></div>
+  <label class="ck"><input type="checkbox" name="include_key" id="inc-key"> Incluir la clave de cifrado (copia protegida con contraseña)</label>
+  <div class="f2" id="key-pass" hidden><div class="field"><label for="bk-pass">Contraseña de la copia (mínimo 12)</label><div class="input"><input id="bk-pass" name="passphrase" type="password" minlength="12" autocomplete="new-password"></div></div>
+    <div class="field"><label for="bk-pass2">Repítela</label><div class="input"><input id="bk-pass2" name="passphrase2" type="password" minlength="12" autocomplete="new-password"></div></div></div>
+  <div class="row end"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn pri">{{ icon('db', 's') }}Crear copia</button></div></form></dialog>
+<dialog class="dlg" id="restore-dlg"><div class="stack">
+  <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi warn">{{ icon('undo') }}</span><div><h2>Restaurar una copia</h2><p class="muted" style="margin-top:6px">La restauración sustituye todos los datos actuales, así que se hace desde la consola del servidor:</p></div></div>
+  <pre class="cv" style="padding:10px 12px;white-space:pre-wrap">sudo opennccm restore /var/lib/opennccm/system-backups/opennccm-AAAAMMDD-HHMMSS.tar.gz</pre>
+  <p class="muted sm">Las copias terminadas en <code>.enc</code> incluyen la clave de cifrado y piden su contraseña al restaurar. Volver a la versión anterior de OpenNCCM: <code>sudo opennccm rollback</code>.</p>
+  <div class="row end"><button type="button" class="btn" data-close>Cerrar</button></div></div></dialog>
+{% if upd.web_update and not upd.running %}<dialog class="dlg" id="upd-dlg"><form method="post" action="/system/update">
+  <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi info">{{ icon('spark') }}</span><div><h2>{{ _f('¿Actualizar a la versión {0}?', upd.latest) if upd.available else _('¿Reinstalar la última versión?') }}</h2><p class="muted" style="margin-top:6px">Se hará una copia previa y OpenNCCM se detendrá 1-2 minutos. Si la versión nueva no arranca, se vuelve sola a la anterior.</p></div></div>
+  <div class="row end"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn pri">Actualizar ahora</button></div></form></dialog>{% endif %}
+<dialog class="dlg" id="novedades" aria-labelledby="nov-title" style="max-width:860px">
+  <h2 id="nov-title">Novedades de OpenNCCM</h2>
+  {% if upd.available and upd.notes %}<h3>{{ _f('Disponible: versión {0}', upd.latest) }} <span class="pill warn">nueva</span></h3><div class="notes">{{ latest_notes|safe }}</div>{% endif %}
+  {% for v, html in changelog %}<details {{ 'open' if loop.first }}><summary><b>{{ _f('Versión {0}', v) }}</b>{% if v == upd.current %} <span class="pill ok">instalada</span>{% endif %}</summary><div class="notes">{{ html|safe }}</div></details>
   {% else %}<p class="muted">No se encontró el historial de versiones en esta instalación.</p>{% endfor %}
-  <p class="row"><a class="btn sec" href="{{ releases_url }}" target="_blank" rel="noopener">Ver todas las versiones en GitHub ↗</a>
-    <button type="button" id="cerrar-novedades">Cerrar</button></p>
+  <div class="row end"><a class="btn ghost" href="{{ releases_url }}" target="_blank" rel="noopener">Ver todas las versiones en GitHub</a><button type="button" class="btn" data-close>Cerrar</button></div>
 </dialog>
 <script>
 (function () {
   const d = document.getElementById('novedades');
   document.getElementById('ver-novedades').addEventListener('click', () => d.showModal());
-  document.getElementById('cerrar-novedades').addEventListener('click', () => d.close());
+  const c = document.getElementById('inc-key'), box = document.getElementById('key-pass');
+  c.addEventListener('change', () => { box.hidden = !c.checked; box.querySelectorAll('input').forEach(i => i.required = c.checked); });
 })();
 </script>
-<div class="card" id="hora">
-  <h2 style="margin-top:0">Fecha, hora y zona horaria del servidor</h2>
-  {% if not clock.available %}
-  <p class="muted">No disponible en este sistema (requiere Ubuntu con systemd).</p>
-  {% else %}
-  <dl class="kv">
-    <dt>Hora actual</dt><dd><b>{{ clock.now.strftime('%Y-%m-%d %H:%M:%S') }}</b></dd>
-    <dt>Zona horaria</dt><dd>{{ clock.timezone }}</dd>
-    <dt>Sincronización NTP</dt><dd>{% if clock.ntp %}<span class="badge b-ok">activa</span>{% if clock.synced %} sincronizada{% else %} <span class="small muted">(aún sin sincronizar)</span>{% endif %}{% else %}<span class="badge b-warning">desactivada</span>{% endif %}</dd>
-  </dl>
-  <div class="row" style="align-items:start;margin-top:10px">
-    <form method="post" action="/system/time" class="row" style="flex:1 1 380px">
-      <input type="hidden" name="action" value="timezone">
-      <div style="flex:1"><label>Zona horaria</label>
-        <select name="timezone" style="width:100%">
-          {% for region, items in zones.items() %}<optgroup label="{{ region }}">
-          {% for z in items %}<option {{ 'selected' if z == clock.timezone }}>{{ z }}</option>{% endfor %}</optgroup>{% endfor %}
-        </select></div>
-      <button onclick="return confirm('¿Cambiar la zona horaria? OpenNCCM se reiniciará unos segundos.')">Cambiar zona</button>
-    </form>
-    <form method="post" action="/system/time" class="row" style="flex:0 1 auto">
-      <input type="hidden" name="action" value="ntp">
-      <label class="chk"><input type="checkbox" name="ntp" {{ 'checked' if clock.ntp }}> Sincronizar la hora automáticamente (NTP)</label>
-      <button class="sec">Aplicar</button>
-    </form>
-  </div>
-  <details style="margin-top:10px"><summary class="small">Fijar fecha y hora a mano (desactiva NTP)</summary>
-    <form method="post" action="/system/time" class="row" style="margin-top:8px">
-      <input type="hidden" name="action" value="manual">
-      <div><label>Fecha</label><input type="date" name="date" required value="{{ clock.now.strftime('%Y-%m-%d') }}"></div>
-      <div><label>Hora</label><input type="time" name="time" required step="1" value="{{ clock.now.strftime('%H:%M:%S') }}"></div>
-      <button class="sec" onclick="return confirm('¿Fijar la hora a mano? Se desactivará la sincronización NTP.')">Fijar</button>
-    </form>
-    <p class="small muted">Recomendado: mantener NTP activo. La hora exacta es importante para el historial de cambios, las tareas programadas y la verificación de certificados.</p>
-  </details>
-  {% endif %}
-</div>
-
-<div class="card">
-  <h2 style="margin-top:0">Copias de recuperación</h2>
-  <p class="small muted">Copia consistente de la base de datos (configuraciones, historial, usuarios, políticas). Las configuraciones y contraseñas
-  van cifradas: para restaurar en otro servidor necesita también <code>secret.key</code>. Guárdela aparte, o inclúyala en la copia:
-  en ese caso el archivo completo se cifra con una contraseña que usted elige (sin ella no se puede restaurar). Programe copias
-  diarias en <a href="/schedules">Tareas</a> y configure la copia remota en <a href="/settings">Ajustes</a>.</p>
-  <form method="post" action="/system/backup">
-    <p><label class="chk"><input type="checkbox" name="include_key" id="inc-key"> Incluir la clave de cifrado (copia protegida con contraseña)</label></p>
-    <div class="row" id="key-pass" hidden>
-      <div><label for="bk-pass">Contraseña de la copia (mínimo 12 caracteres)</label><input id="bk-pass" name="passphrase" type="password" minlength="12" autocomplete="new-password"></div>
-      <div><label for="bk-pass2">Repítala</label><input id="bk-pass2" name="passphrase2" type="password" minlength="12" autocomplete="new-password"></div>
-    </div>
-    <p><button>Crear copia ahora</button></p>
-  </form>
-  <script>
-  (function () {
-    const c = document.getElementById('inc-key'), box = document.getElementById('key-pass');
-    c.addEventListener('change', () => { box.hidden = !c.checked;
-      box.querySelectorAll('input').forEach(i => i.required = c.checked); });
-  })();
-  </script>
-  <table style="margin-top:12px"><tr><th>Archivo</th><th>Tamaño</th><th></th></tr>
-  {% for name, size, mtime in backups %}
-  <tr><td><code>{{ name }}</code></td><td>{{ '{:,}'.format(size) }} B</td>
-  <td><a class="btn sm sec" href="/system/backups/{{ name }}">Descargar</a>
-  <form class="inline" method="post" action="/system/backups/{{ name }}/delete" onsubmit="return confirm('¿Eliminar copia?')"><button class="sm danger">×</button></form></td></tr>
-  {% else %}<tr class="empty-row"><td colspan="3"><div class="empty">{{ empty_art('plus') }}<h3>Aún no hay copias de recuperación</h3><p class="muted">Cree la primera ahora o programe una copia periódica en Tareas.</p></div></td></tr>{% endfor %}
-  </table>
-  <h2>Restaurar</h2>
-  <pre>sudo opennccm restore /var/lib/opennccm/system-backups/opennccm-AAAAMMDD-HHMMSS.tar.gz</pre>
-  <p class="small muted">Las copias terminadas en <code>.enc</code> incluyen la clave de cifrado y piden su contraseña al restaurar.</p>
-  <p class="small muted">Actualizar a la última versión: <code>sudo opennccm update</code> · volver a la anterior: <code>sudo opennccm rollback</code>.</p>
-</div>
 {% endblock %}

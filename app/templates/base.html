@@ -1,118 +1,130 @@
 <!doctype html>
-<html lang="{{ get_lang() }}" data-theme="{{ (user.theme if user and user.theme else 'auto') }}" data-accent="{{ (user.accent if user and user.accent else 'cobalto') }}">
+<html lang="{{ get_lang() }}" data-theme="{{ (user.theme if user and user.theme else 'auto') }}" data-accent="{{ (user.accent if user and user.accent else 'cobalto') }}" data-density="{{ (user.density if user and user.density else 'comfy') }}">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>{% block title %}OpenNCCM{% endblock %} · OpenNCCM</title>
 <link rel="icon" href="/static/icon.svg?v={{ VERSION }}" type="image/svg+xml">
 <link rel="icon" href="/favicon.ico?v={{ VERSION }}" sizes="any">
 <link rel="apple-touch-icon" href="/static/icon-180.png?v={{ VERSION }}">
-<meta name="theme-color" content="#101626">
+<meta name="theme-color" content="#0f1524">
 <link rel="preload" href="/static/fonts/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/style.css?v={{ VERSION }}-{{ CSS_HASH }}">
+<link rel="stylesheet" href="/static/senal.css?v={{ VERSION }}-{{ SENAL_HASH }}">
 </head>
 <body{% block body_attr %}{% endblock %}>
 <a class="skip" href="#contenido">Saltar al contenido</a>
 {% if user and not compact %}
 {% set navp = request.url.path %}
-{% set admin_on = navp.startswith(('/users', '/credentials', '/audit', '/system', '/settings')) or (navp.startswith('/vendors') and user.role == 'admin') %}
-<div class="shell" id="shell">
-<script>try { if (localStorage.getItem('oc-rail') === 'mini') document.getElementById('shell').classList.add('mini'); } catch (e) {}</script>
+{% set admin_on = navp.startswith(('/users', '/credentials', '/audit', '/system', '/settings', '/vendors')) %}
+{% set role_name = _({'admin': 'Administrador', 'operator': 'Operador', 'viewer': 'Lector'}.get(user.role, user.role)) %}
+<div class="app" id="app">
+<script>try { if (localStorage.getItem('oc-rail') === 'mini') document.getElementById('app').classList.add('mini'); } catch (e) {}</script>
 <nav class="rail" id="rail" aria-label="Menú principal">
-  <div class="rail-head">
-    <a class="brand" href="/" aria-label="OpenNCCM, ir al panel"><img src="/static/icon.svg?v={{ VERSION }}" alt=""><span class="txt">Open<em>NCCM</em></span></a>
-    <button type="button" class="rail-btn collapse" id="rail-toggle" aria-controls="rail" aria-expanded="true" title="Plegar o desplegar el menú">{{ icon('panel') }}</button>
-  </div>
-  <button type="button" class="find" data-palette title="Buscar o ir a… (Ctrl K)">{{ icon('search', 'sm') }}<span class="txt">Buscar o ir a…</span><kbd class="txt">Ctrl K</kbd></button>
+  <div class="brand"><a class="brand-link" href="/" aria-label="OpenNCCM, ir al panel">{{ logo() }}<span class="txt">Open<em>NCCM</em></span></a>
+    <button type="button" class="collapse" data-mini aria-label="Plegar menú" title="Plegar menú">{{ icon('panel', 's') }}</button></div>
+  <button type="button" class="find" data-palette>{{ icon('search', 's') }}<span>Buscar o ir a…</span><kbd>Ctrl K</kbd></button>
   <div class="grp">
-    <a href="/" class="nav {{ 'on' if navp == '/' }}" {{ 'aria-current="page"'|safe if navp == '/' }} title="Panel">{{ icon('grid') }}<span class="txt">Panel</span></a>
-    <a href="/devices" class="nav {{ 'on' if navp.startswith('/devices') or navp.startswith('/versions') or navp.startswith('/diff') }}" title="Dispositivos">{{ icon('server') }}<span class="txt">Dispositivos</span></a>
-    <a href="/search" class="nav {{ 'on' if navp.startswith('/search') }}" title="Buscar en configuraciones">{{ icon('code') }}<span class="txt">Buscar en configuraciones</span></a>
+    <a href="/" class="nav {{ 'on' if navp == '/' }}" title="Panel">{{ icon('grid') }}<span class="txt">Panel</span></a>
+    <a href="/devices" class="nav {{ 'on' if navp.startswith(('/devices', '/versions')) }}" title="Dispositivos">{{ icon('server') }}<span class="txt">Dispositivos</span></a>
+    <a href="/search" class="nav {{ 'on' if navp.startswith(('/search', '/diff')) }}" title="Buscar en configs">{{ icon('search') }}<span class="txt">Buscar en configs</span></a>
   </div>
   <div class="grp"><span class="label">Operar</span>
-    <a href="/changes" class="nav {{ 'on' if navp.startswith('/changes') }}" title="Cambios">{{ icon('branch') }}<span class="txt">Cambios</span>{% if nav_counts.pending %}<span class="cnt" title="Por aprobar">{{ nav_counts.pending }}</span><i class="dotc"></i>{% endif %}</a>
-    <a href="/configlets" class="nav {{ 'on' if navp.startswith('/configlets') }}" title="Configlets">{{ icon('term') }}<span class="txt">Configlets</span></a>
-    <a href="/schedules" class="nav {{ 'on' if navp.startswith('/schedules') }}" title="Tareas">{{ icon('cal') }}<span class="txt">Tareas</span></a>
+    <a href="/changes" class="nav {{ 'on' if navp.startswith('/changes') }}" title="Cambios">{{ icon('branch') }}<span class="txt">Cambios</span>{% if nav_counts.pending %}<span class="cnt">{{ nav_counts.pending }}</span><span class="dotc"></span>{% endif %}</a>
+    <a href="/configlets" class="nav {{ 'on' if navp.startswith('/configlets') }}" title="Configlets y scripts">{{ icon('code') }}<span class="txt">Configlets y scripts</span></a>
+    <a href="/schedules" class="nav {{ 'on' if navp.startswith('/schedules') }}" title="Tareas programadas">{{ icon('cal') }}<span class="txt">Tareas programadas</span></a>
   </div>
   <div class="grp"><span class="label">Proteger</span>
     <a href="/compliance" class="nav {{ 'on' if navp.startswith('/compliance') }}" title="Cumplimiento">{{ icon('shield') }}<span class="txt">Cumplimiento</span></a>
     <a href="/vulns" class="nav {{ 'on' if navp.startswith('/vulns') }}" title="Vulnerabilidades">{{ icon('bug') }}<span class="txt">Vulnerabilidades</span></a>
-    <a href="/firmware" class="nav {{ 'on' if navp.startswith('/firmware') or navp.startswith('/eol') }}" title="Firmware y ciclo de vida">{{ icon('chip') }}<span class="txt">Firmware y ciclo de vida</span></a>
+    <a href="/firmware" class="nav {{ 'on' if navp.startswith(('/firmware', '/eol')) }}" title="Firmware y ciclo de vida">{{ icon('chip') }}<span class="txt">Firmware y ciclo de vida</span></a>
   </div>
   <div class="grp"><span class="label">Observar</span>
-    <a href="/events" class="nav {{ 'on' if navp.startswith('/events') }}" title="Alarmas">{{ icon('bell') }}<span class="txt">Alarmas</span>{% if nav_counts.alarms %}<span class="cnt" title="Abiertas">{{ nav_counts.alarms }}</span><i class="dotc"></i>{% endif %}</a>
+    <a href="/events" class="nav {{ 'on' if navp.startswith('/events') }}" title="Alarmas">{{ icon('bell') }}<span class="txt">Alarmas</span>{% if nav_counts.alarms %}<span class="cnt">{{ nav_counts.alarms }}</span><span class="dotc"></span>{% endif %}</a>
     <a href="/analytics" class="nav {{ 'on' if navp.startswith('/analytics') }}" title="Análisis">{{ icon('chart') }}<span class="txt">Análisis</span></a>
     <a href="/reports" class="nav {{ 'on' if navp.startswith('/reports') }}" title="Informes">{{ icon('file') }}<span class="txt">Informes</span></a>
   </div>
+  {% if user.role == 'admin' %}
   <div class="grp"><span class="label">Administrar</span>
-    {% if user.role == 'admin' %}
     <a href="/users" class="nav {{ 'on' if admin_on }}" title="Administración">{{ icon('cog') }}<span class="txt">Administración</span></a>
-    {% else %}
-    <a href="/vendors" class="nav {{ 'on' if navp.startswith('/vendors') }}" title="Plataformas">{{ icon('db') }}<span class="txt">Plataformas</span></a>
-    {% endif %}
   </div>
-  <details class="me">
-    <summary title="Mi cuenta">
-      <span class="av" aria-hidden="true">{{ user.username[:2]|upper }}</span>
-      <span class="txt"><b>{{ user.username }}</b><small>{{ _({'admin': 'administrador', 'operator': 'operador', 'viewer': 'lector'}.get(user.role, user.role)) }}</small></span>
-    </summary>
-    <div class="me-menu">
-      <a href="/account">{{ icon('user', 'sm') }} Mi cuenta y tema</a>
-      <a href="/account#clave">{{ icon('key', 'sm') }} Cambiar contraseña</a>
-      <a href="/logout">{{ icon('logout', 'sm') }} Salir</a>
-    </div>
-  </details>
-  <p class="railfoot txt"><a href="/acerca">Privacidad y licencias</a> · <a href="/certificado">Certificado</a></p>
+  {% endif %}
+  <button type="button" class="collapse expand" data-mini aria-label="Desplegar menú" title="Desplegar menú">{{ icon('right', 's') }}</button>
+  <a class="me" href="/account" title="Mi cuenta"><span class="av">{{ user.username[:2]|upper }}</span><div><b>{{ user.username }}</b><small>{{ role_name }} · v{{ VERSION }}</small></div></a>
+  <div class="railfoot"><a href="/acerca">Privacidad y licencias</a><a href="/certificado">Certificado</a></div>
 </nav>
 <div class="scrim-rail" id="rail-scrim" hidden></div>
-<div class="content">
-<header class="top">
-  <button type="button" class="rail-btn menu-btn" id="menu-btn" aria-controls="rail" aria-expanded="false" title="Menú">{{ icon('menu') }}</button>
-  <div class="crumbs"><b>{% block crumbs %}{{ self.title() }}{% endblock %}</b></div>
-  <button type="button" class="search-top" data-palette title="Buscar o ir a… (Ctrl K)">{{ icon('search', 'sm') }}<span>Buscar equipos, páginas…</span><kbd>Ctrl K</kbd></button>
-  <a class="rail-btn top-me" href="/account" title="Mi cuenta y tema"><span class="av sm" aria-hidden="true">{{ user.username[:2]|upper }}</span></a>
+<div class="main">
+<header class="top" id="top">
+  <button type="button" class="tbtn menu-btn" data-drawer aria-label="Abrir menú">{{ icon('menu') }}</button>
+  <div class="crumbs grow">{% block crumbs %}<b>{{ self.title() }}</b>{% endblock %}</div>
+  <button type="button" class="search-top" data-palette aria-label="Buscar">{{ icon('search', 's') }}<span>Buscar equipo, IP o texto…</span><kbd>Ctrl K</kbd></button>
+  {% set th = user.theme or 'auto' %}
+  <span class="dropw"><button type="button" class="tbtn" data-drop="theme-menu" aria-haspopup="true" aria-expanded="false" aria-label="Tema y color" title="Tema y color">{{ icon('moon' if th == 'oscuro' else 'sun' if th == 'claro' else 'eye' if th == 'contraste' else 'monitor') }}</button>
+    <div class="drop" id="theme-menu" hidden>
+      <div class="label" style="padding:8px 10px 4px">Tema</div>
+      {% for k, ic, l in [('auto', 'monitor', _('Automático')), ('claro', 'sun', _('Claro')), ('oscuro', 'moon', _('Sala de control')), ('contraste', 'eye', _('Alto contraste'))] %}
+      <button type="button" data-set-theme="{{ k }}">{{ icon(ic, 's') }}{{ l }}{% if th == k %}<span style="margin-left:auto;color:var(--brand)">{{ icon('check', 's') }}</span>{% endif %}</button>
+      {% endfor %}
+      <hr><div class="label" style="padding:4px 10px 8px">Acento</div>
+      <div class="accs" style="padding:0 10px 10px;gap:8px">{% for k, v in ACCENT_SWATCHES.items() %}<button type="button" class="acc {{ 'on' if (user.accent or 'cobalto') == k }}" style="width:26px;height:26px;border-width:2px;background:{{ v[0] }}" data-set-accent="{{ k }}" data-l="{{ v[0] }}" data-d="{{ v[1] }}" aria-label="{{ _(ACCENT_NAMES[k]) }}" title="{{ _(ACCENT_NAMES[k]) }}"></button>{% endfor %}</div>
+    </div></span>
+  <span class="dropw"><button type="button" class="tbtn" data-drop="notif-menu" aria-haspopup="true" aria-expanded="false" aria-label="Notificaciones" title="Notificaciones">{{ icon('bell') }}{% if nav_counts.alarms %}<span class="pip"></span>{% endif %}</button>
+    <div class="drop notif" id="notif-menu" hidden>
+      <div class="row" style="padding:8px 10px"><b class="grow">Notificaciones</b><a href="/events?unack=1" class="sm">Ver todas</a></div>
+      {% for n in nav_counts.recent or [] %}
+      <a class="ni" href="{{ '/devices/%d#activity'|format(n.device_id) if n.device_id else '/events?unack=1' }}"><span class="qi {{ n.sev }}" style="width:30px;height:30px">{{ icon('alert' if n.sev == 'crit' else 'bell', 's') }}</span><span><b>{{ n.title }}</b><div class="muted">{{ n.when|ago }}</div></span></a>
+      {% else %}<p class="muted sm" style="padding:10px">Nada nuevo.</p>{% endfor %}
+    </div></span>
+  <button type="button" class="tbtn kb" data-help aria-label="Atajos de teclado" title="Atajos de teclado (?)">{{ icon('kbd') }}</button>
 </header>
 {% endif %}
-<main id="contenido" tabindex="-1">
+<main id="contenido" tabindex="-1" class="{{ 'view' if user and not compact }}">
 {% block flashes %}<div class="toasts" role="status" aria-live="polite">{% for kind, msg in flashes %}<div class="flash {{ kind }}">{{ msg }}</div>{% endfor %}
-{% if undo %}<form class="undo-form" method="post" action="{{ undo.url }}" hidden><input type="hidden" name="ids" value="{{ undo.ids }}"><button class="undo">Deshacer</button></form>{% endif %}</div>{% endblock %}
+{% if undo %}<form class="undo-form" method="post" action="{{ undo.url }}" hidden><input type="hidden" name="ids" value="{{ undo.ids }}"><button class="lnk">Deshacer</button></form>{% endif %}</div>{% endblock %}
 {% block content %}{% endblock %}
-{% if user and not compact %}<p class="small muted page-foot">OpenNCCM v{{ VERSION }} ·
-  <a href="/acerca">Privacidad, cookies y licencias</a></p>{% endif %}
 </main>
 {% if user and not compact %}
 </div>
 </div>
 <nav class="mobnav" aria-label="Accesos rápidos">
-  <a href="/" class="{{ 'on' if navp == '/' }}">{{ icon('grid') }}<span>Panel</span></a>
-  <a href="/devices" class="{{ 'on' if navp.startswith('/devices') }}">{{ icon('server') }}<span>Equipos</span></a>
-  <a href="/changes" class="{{ 'on' if navp.startswith('/changes') }}">{{ icon('branch') }}<span>Cambios</span></a>
-  <a href="/events" class="{{ 'on' if navp.startswith('/events') }}">{{ icon('bell') }}<span>Alarmas</span></a>
-  <button type="button" id="mob-more" aria-controls="rail">{{ icon('menu') }}<span>Más</span></button>
+  <a href="/" class="{{ 'on' if navp == '/' }}">{{ icon('grid') }}Panel</a>
+  <a href="/devices" class="{{ 'on' if navp.startswith('/devices') }}">{{ icon('server') }}Equipos</a>
+  <a href="/changes" class="{{ 'on' if navp.startswith('/changes') }}">{{ icon('branch') }}Cambios</a>
+  <a href="/events" class="{{ 'on' if navp.startswith('/events') }}">{{ icon('bell') }}Alarmas</a>
+  <button type="button" data-drawer>{{ icon('menu') }}Más</button>
 </nav>
-<div class="pal-wrap" id="palette" hidden>
-  <div class="pal" role="dialog" aria-modal="true" aria-label="Buscar o ir a">
-    <div class="q">{{ icon('search') }}<input id="pal-q" type="text" autocomplete="off" spellcheck="false" placeholder="Buscar equipos, páginas y acciones…" aria-controls="pal-res" aria-autocomplete="list" role="combobox" aria-expanded="true"><kbd>Esc</kbd></div>
-    <div class="res" id="pal-res" role="listbox" aria-label="Resultados"></div>
-    <div class="ft"><span><kbd>↑</kbd> <kbd>↓</kbd> moverse</span><span><kbd>↵</kbd> abrir</span><span><kbd>Esc</kbd> cerrar</span>
-      <a href="/search">Búsqueda avanzada con expresiones regulares</a></div>
-  </div>
-</div>
-<script>window.OC = {{ {'admin': user.role == 'admin',
+<template id="help-tpl"><div class="row"><h2 class="grow">Atajos de teclado</h2><button type="button" class="tbtn" data-close aria-label="Cerrar">{{ icon('x') }}</button></div>
+  <dl class="kv">{% for k, d in [('Ctrl K', _('Buscar o ir a cualquier sitio')), ('/', _('También abre la búsqueda')), ('g p', _('Ir al Panel')), ('g d', _('Ir a Dispositivos')), ('g c', _('Ir a Cambios')), ('g a', _('Ir a Alarmas')), ('n / p', _('Cambio siguiente o anterior en una comparación')), ('Esc', _('Cerrar panel o diálogo')), ('?', _('Esta ayuda'))] %}<dt><kbd>{{ k }}</kbd></dt><dd>{{ d }}</dd>{% endfor %}</dl></template>
+<script>window.OC = {{ {'admin': user.role == 'admin', 'op': user.role != 'viewer',
   't': {'pages': _('Páginas'), 'devices': _('Equipos'), 'actions': _('Acciones'), 'configs': _('En configuraciones'),
-        'search_in': _('Buscar «{0}» en las configuraciones'), 'none': _('Sin resultados'), 'close': _('Cerrar'),
-        'new_device': _('Nuevo dispositivo'), 'account': _('Mi cuenta y tema'), 'run_backup': _('Ver todos los equipos'),
-        'expand': _('Desplegar el menú'), 'collapse': _('Plegar el menú'), 'loading': _('Cargando…'),
-        'error': _('Error'), 'done': _('Hecho'), 'dirty': _('Tienes cambios sin guardar'), 'discard': _('Descartar')}}|tojson }};</script>
-<script src="/static/shell.js?v={{ VERSION }}" defer></script>
+        'search_in': _('Buscar «{0}» en las configuraciones'), 'none': _('Nada coincide con «{0}».'), 'close': _('Cerrar'),
+        'go': _('Ir a'), 'device': _('Equipo'), 'config': _('Configuración'), 'line': _('línea {0}'),
+        'ph': _('Equipos, IPs, texto en configuraciones, páginas o acciones…'), 'move': _('moverse'), 'open': _('abrir'),
+        'adv': _('Búsqueda avanzada en configuraciones'), 'expand': _('Desplegar menú'), 'collapse': _('Plegar menú'),
+        'loading': _('Cargando…'), 'error': _('Error'), 'done': _('Hecho'), 'dirty': _('Tienes cambios sin guardar'),
+        'discard': _('Descartar'), 'working': _('Trabajando…')},
+  'pages': [[_('Mi cuenta'), '/account', 'user'], [_('Cambiar mi contraseña'), '/account#clave', 'key'],
+            [_('Comparar configuraciones'), '/diff', 'branch'], [_('Instalar el certificado'), '/certificado', 'cert'],
+            [_('Privacidad y licencias'), '/acerca', 'info']]
+           + ([[_('Administración › Usuarios'), '/users', 'cog'], [_('Administración › Credenciales'), '/credentials', 'cog'],
+               [_('Administración › Grupos'), '/credentials#groups', 'cog'], [_('Administración › Plataformas'), '/vendors', 'cog'],
+               [_('Administración › Auditoría'), '/audit', 'cog'], [_('Administración › Sistema'), '/system', 'cog'],
+               [_('Administración › Ajustes'), '/settings', 'cog']] if user.role == 'admin' else []),
+  'actions': ([[_('Respaldar todos los equipos'), '/backup/all', 'dl', 'post'], [_('Auditar cumplimiento de todos'), '/compliance/run', 'shield', 'post']] if user.role != 'viewer' else [])
+             + ([[_('Agregar equipo'), '/devices/new', 'plus', 'sheet']] if user.role == 'admin' else [])
+             + [[_('Revisar cambios por aprobar'), '/changes', 'check', ''],
+                [_('Cambiar a tema oscuro'), 'oscuro', 'moon', 'theme'], [_('Cambiar a tema claro'), 'claro', 'sun', 'theme'],
+                [_('Ver atajos de teclado'), '', 'kbd', 'help'], [_('Cerrar sesión'), '/logout', 'logout', '']]}|tojson }};</script>
+<script src="/static/shell.js?v={{ VERSION }}-{{ SHELL_HASH }}" defer></script>
 {% endif %}
 {% if update_popup %}
-<dialog id="upd-popup" aria-labelledby="upd-title">
-  <h2 id="upd-title" style="margin-top:0">Actualización disponible</h2>
+<dialog class="dlg" id="upd-popup" aria-labelledby="upd-title">
+  <div class="row"><span class="qi info">{{ icon('spark') }}</span><h2 class="grow" id="upd-title">Actualización disponible</h2></div>
   <p>Hay una versión nueva de OpenNCCM: <b>{{ update_popup.latest }}</b> (instalada: {{ update_popup.current }}).</p>
-  {% if update_popup.notes %}<pre style="max-height:220px;overflow:auto;white-space:pre-wrap">{{ update_popup.notes[:1500] }}</pre>{% endif %}
-  <p class="row"><a class="btn" href="/system#actualizaciones">Ver y actualizar</a>
-    {% if update_popup.url %}<a class="btn sec" href="{{ update_popup.url }}" target="_blank" rel="noopener">Novedades en GitHub ↗</a>{% endif %}
-    <button type="button" class="sec" id="upd-later">Más tarde</button></p>
+  {% if update_popup.notes %}<pre class="cv" style="padding:10px 12px;white-space:pre-wrap;max-height:220px">{{ update_popup.notes[:1500] }}</pre>{% endif %}
+  <div class="row end"><button type="button" class="btn ghost" id="upd-later">Más tarde</button>
+    {% if update_popup.url %}<a class="btn" href="{{ update_popup.url }}" target="_blank" rel="noopener">Novedades en GitHub</a>{% endif %}
+    <a class="btn pri" href="/system#actualizaciones">Ver y actualizar</a></div>
 </dialog>
 <script>
 (function () {

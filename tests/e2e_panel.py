@@ -37,14 +37,15 @@ check("Sistema: gráficas de CPU y memoria (o aviso de que reúnen datos)",
       sysp0.count("últimas 24 h") >= 2 and ("<svg" in sysp0 or "Reuniendo datos" in sysp0))
 
 # --- Panel «Señal»: salud, 4 indicadores, bandeja de atención y actividad
-check("panel: puntuación de salud de 0 a 100", "Salud de la red" in html and 'class="health-ring"' in html
+check("panel: puntuación de salud de 0 a 100", "Salud de la red" in html and 'class="ring"' in html
       and any(f in html for f in ("Tu red está bien", "Casi todo en orden", "Hay trabajo pendiente", "Tu red necesita atención")))
-check("panel: 4 indicadores", len(re.findall(r'class="kpi(?: alert)?"', html)) == 4)
+check("panel: 8 indicadores", len(re.findall(r'class="kpi[ "]', html)) == 8)
 check("panel: bandeja de atención con una acción por fila (o celebración)",
-      "Qué hacer ahora" in html and ('class="queue"' in html or "Nada pendiente" in html))
-check("panel: como máximo 6 filas en la bandeja", html.count('<li class="q-') <= 6)
-check("panel: actividad reciente con tiempo relativo", "Actividad reciente" in html and ("hace " in html or "ahora mismo" in html))
-check("panel: gráfica de cambios por día", '<svg class="viz"' in html)
+      "Necesita tu atención" in html and ('class="queue"' in html or "Nada pendiente" in html))
+cola = html[html.find('id="cola-t"'):html.find('</section>', html.find('id="cola-t"'))]
+check("panel: como máximo 5 filas en la bandeja", cola.count('<span class="qi ') <= 5)
+check("panel: últimos cambios con tiempo relativo", "Últimos cambios" in html and ("hace " in html or "ahora mismo" in html))
+check("panel: gráfica de cambios por día", 'class="vbars"' in html)
 
 adm.post(B + "/users", data={"username": "lector9", "role": "viewer", "password": "Lector-2026xy",
                              "password2": "Lector-2026xy"})
@@ -52,7 +53,7 @@ lec = login("lector9", "Lector-2026xy")
 lp = lec.get(B + "/").text
 check("un lector ve el Panel sin botones de acción", "Salud de la red" in lp and "/backup/all" not in lp)
 dev = adm.get(B + "/devices/1").text
-check("equipo: eventos con desplazamiento (3 visibles)", 'class="scrollbox" data-rows="3"' in dev)
+check("equipo: pestaña Eventos con las alarmas del equipo", 'id="activity"' in dev and "Alarmas del equipo" in dev)
 check("un lector no ve Sistema", lec.get(B + "/system").status_code == 403)
 
 # --- Dispositivos: chips de estado, selección múltiple y acciones masivas
@@ -64,8 +65,8 @@ def flashes(text):
 
 
 dl = adm.get(B + "/devices").text
-check("lista: chips de estado con recuento", 'class="chip on"' in dl and re.search(r'Todos <span class="num">\d+</span>', dl))
-check("lista: casillas para selección múltiple", 'name="ids"' in dl and 'id="sel-all"' in dl)
+check("lista: chips de estado con recuento", 'class="chip on"' in dl and re.search(r'Todos <span class="n">\d+</span>', dl))
+check("lista: casillas para selección múltiple", 'name="ids"' in dl and 'id="selall"' in dl)
 check("lista: barra de acciones masivas", 'action="/devices/bulk"' in dl and 'value="backup"' in dl and 'value="move"' in dl)
 check("lista: «Agregar» ofrece importar CSV en un panel lateral", 'href="/devices/import" data-sheet' in dl and 'id="importar"' not in dl)
 imp = adm.get(B + "/devices/import").text
@@ -106,7 +107,7 @@ sysp = adm.get(B + "/system").text
 check("Sistema: tarjeta de actualizaciones", "actualización disponible" in sysp and "Novedades de prueba" in sysp)
 check("Sistema: botón para buscar actualizaciones", "/system/update/check" in sysp)
 check("Sistema: ventana «Novedades de cada versión» con el historial", 'id="novedades"' in sysp
-      and "Versión 1.6.0" in sysp and "<b>Consola SSH web</b>" in sysp)
+      and "Versión 1.8.0" in sysp and "<b>Interfaz en español e inglés</b>" in sysp)
 check("Sistema: enlace a todas las versiones en GitHub", "github.com/Gaaraalex/opennccm/releases" in sysp)
 r = adm.post(B + "/system/update")
 if "/system/updating" in r.url:  # servidor con el servicio de actualización web (systemd)
@@ -125,15 +126,15 @@ time.sleep(4)
 dev = adm.get(f"{B}/devices/{dev_id}").text
 check("ficha: pestañas Resumen, Versiones, Cumplimiento y Actividad",
       all(f'href="#{t}"' in dev for t in ("resumen", "versions", "compliance", "activity")) and "data-tabs" in dev)
-check("ficha: línea de tiempo con selección A/B", "data-timeline" in dev and 'name="a"' in dev and 'name="b"' in dev)
+check("ficha: línea de tiempo con selección A/B", 'data-tl=' in dev and '<span class="ab">A</span>' in dev and '<span class="ab">B</span>' in dev)
 check("ficha: borrar exige escribir el nombre del equipo", 'data-expect="R1"' in dev)
 vers = re.findall(r'href="/versions/(\d+)"', dev)
 if len(set(vers)) >= 2:
     a, b = sorted(set(vers), key=int)[:2]
     d = adm.get(f"{B}/diff?a={a}&b={b}&view=side&ctx=3").text
     check("comparación: resumen en palabras o configuraciones idénticas",
-          "Qué cambió" in d or "Las configuraciones son idénticas" in d)
-    check("comparación: navegación n/p y minibarra", "data-diff-next" in d and 'class="diff-map"' in d)
+          "líneas distintas" in d or "línea distinta" in d or "Idénticas" in d)
+    check("comparación: selectores de equipo y versión, e intercambiar A y B", 'data-role="ver"' in d and "Intercambiar A y B" in d)
 pol = re.search(r'name="policy_id" value="(\d+)"', dev)
 check("ficha: «Corregir N» por política con infracciones corregibles", pol is not None)
 if pol:
@@ -149,8 +150,8 @@ if pol:
         adm.post(f"{B}/changes/{cr.group(1)}/review", data={"decision": "reject", "comment": "prueba"})
     pp = adm.get(f"{B}/compliance/policies/{pol.group(1)}").text
     check("política: el título muestra el nombre de la política",
-          re.search(r'<h1><a href="/compliance">Cumplimiento</a> / [^<]+</h1>', pp) is not None)
-    check("política: panel para probar la regla", 'id="rule-test"' in pp and 'id="rt-go"' in pp)
+          re.search(r'<a href="/compliance">Cumplimiento</a>.*?<b>[^<]+</b>', pp, re.S) is not None and "<h1>Editar política</h1>" in pp)
+    check("política: panel para probar la regla", 'id="rt-dev"' in pp and 'class="rres"' in pp)
 t = adm.post(B + "/compliance/rules/test", data={"device_id": dev_id, "pattern": "^hostname", "kind": "must_contain"}).json()
 check("prueba de regla: se cumple y devuelve las líneas", t.get("passed") is True and any("hostname" in x for x in t.get("lines", [])), str(t))
 t = adm.post(B + "/compliance/rules/test", data={"device_id": dev_id, "pattern": "^hostname", "kind": "must_not_contain"}).json()

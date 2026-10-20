@@ -1,18 +1,15 @@
 {% extends "_auth.html" %}{% block title %}Ingresar{% endblock %}
 {% block auth_form %}
-<h1>Iniciar sesión</h1>
-<p class="muted">Ingrese con su usuario de OpenNCCM.</p>
-<form method="post" action="/login" id="login-form">
-  <label for="username">Usuario</label>
-  <div class="field">{{ icon('user', 'lead') }}
-    <input id="username" name="username" autofocus required autocomplete="username" autocapitalize="none" spellcheck="false"></div>
-  <label for="password">Contraseña</label>
-  <div class="field">{{ icon('lock', 'lead') }}
-    <input id="password" name="password" type="password" required autocomplete="current-password">
-    <button type="button" class="peek" id="peek" aria-controls="password" aria-pressed="false"
-            aria-label="Mostrar la contraseña" title="Mostrar la contraseña">{{ icon('eye') }}</button></div>
-  <p class="caps" id="caps" hidden role="alert">⚠ Bloq Mayús está activado</p>
-  <button type="submit" class="auth-submit">Ingresar</button>
+<div><h1>Iniciar sesión</h1><p class="muted" style="margin-top:4px">Entra con tu usuario de OpenNCCM.</p></div>
+<form method="post" action="/login" id="login-form" class="stack">
+  <div class="field"><label for="username">Usuario</label>
+    <div class="input">{{ icon('user', 's') }}<input id="username" name="username" autofocus required autocomplete="username" autocapitalize="none" spellcheck="false"></div></div>
+  <div class="field"><label for="password">Contraseña</label>
+    <div class="input">{{ icon('lock', 's') }}<input id="password" name="password" type="password" required autocomplete="current-password">
+      <button type="button" class="tbtn" style="width:30px;height:30px" id="peek" aria-controls="password" aria-pressed="false"
+              aria-label="Mostrar la contraseña" title="Mostrar la contraseña">{{ icon('eye', 's') }}</button></div>
+    <span class="help" id="caps" hidden role="alert" style="color:var(--warn)">Bloq Mayús está activado</span></div>
+  <button type="submit" class="btn pri" style="height:46px;font-size:15px">Entrar</button>
 </form>
 <script>
 (function () {
@@ -30,4 +27,4 @@
 })();
 </script>
 {% endblock %}
-{% block auth_links %}{% if ca_available %}<a href="/certificado">¿El navegador dice «No es seguro» o no ofrece guardar la contraseña?</a><br>{% endif %}{% endblock %}
+{% block auth_links %}{% if ca_available %}<a href="/certificado">¿El navegador muestra un aviso? Instala el certificado</a> · {% endif %}{% endblock %}

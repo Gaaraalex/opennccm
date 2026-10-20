@@ -1,35 +1,36 @@
-{% extends "base.html" %}{% block title %}Ejecutar {{ c.name }}{% endblock %}
+{% extends "base.html" %}{% block title %}{{ _f('Ejecutar «{0}»', c.name) }}{% endblock %}
 {% block content %}
-<h1>Ejecutar: {{ c.name }} <span class="badge b-{{ 'major' if c.kind == 'config' else 'info' }}">{{ c.kind }}</span></h1>
-<form method="post">
-<div class="row" style="align-items:start">
-<div class="card" style="flex:1 1 420px">
-  <label>Comandos</label><pre>{{ c.body }}</pre>
-  {% if c.kind == 'config' %}<label>Título de la solicitud de cambio</label><input name="title" style="width:100%" value="Configlet: {{ c.name }}">{% endif %}
-  <label>Variables (una por línea: nombre=valor)</label>
-  <textarea name="variables" rows="5">{% for v in found_vars %}{{ v }}=
-{% endfor %}</textarea>
-  <p>
-  {% if c.kind == 'config' %}<button>Crear solicitud de cambio</button>
-  <span class="small muted">Un administrador debe aprobarla antes de aplicarse (configurable en Ajustes).</span>
-  {% else %}<button>Ejecutar ahora</button>{% endif %}
-  </p>
-</div>
-<div class="card" style="flex:1 1 420px">
-  <label>Dispositivos ({{ devices|length }} compatibles)</label>
-  <div class="toolbar">
-    <button type="button" class="sm sec" onclick="document.querySelectorAll('.dv').forEach(x=>x.checked=true)">Todos</button>
-    <button type="button" class="sm sec" onclick="document.querySelectorAll('.dv').forEach(x=>x.checked=false)">Ninguno</button>
-    <select onchange="document.querySelectorAll('.dv').forEach(x=>x.checked=(this.value!=='' && x.dataset.g===this.value))">
-      <option value="">Seleccionar grupo…</option>{% for g in groups %}<option>{{ g.name }}</option>{% endfor %}</select>
-  </div>
-  <div style="max-height:420px;overflow:auto">
-  {% for d in devices %}
-  <label class="chk" style="display:flex"><input type="checkbox" class="dv" name="device_ids" value="{{ d.id }}" data-g="{{ d.group.name if d.group else '' }}">
-    {{ d.name }} <span class="muted small">{{ d.host }} · {{ d.device_type }}</span></label>
-  {% else %}<p class="muted">No hay equipos compatibles con el filtro <code>{{ c.device_type_filter }}</code>.</p>{% endfor %}
-  </div>
-</div>
-</div>
+{% set script = c.kind == 'exec' %}
+<div data-sheet-wide></div>
+<h1>{{ _f('Ejecutar «{0}»', c.name) }}</h1>
+<p class="muted sm" data-sheet-sub>{% if script %}Solo lectura: no cambia la configuración.{% else %}Se creará una solicitud de cambio{% if require_approval %} para que un administrador la apruebe{% endif %}.{% endif %}</p>
+<form method="post" action="/configlets/{{ c.id }}/run" class="stack" id="runf">
+  <div class="field"><div class="row between"><span class="fl">{{ _f('Equipos ({0} compatibles)', devices|length) }}</span><span class="row"><button type="button" class="btn s ghost" data-ck="1">Todos</button><button type="button" class="btn s ghost" data-ck="0">Ninguno</button>
+    {% if groups %}<div class="input" style="min-height:30px"><select id="ckgrp" aria-label="Seleccionar un grupo" style="height:28px;font-size:12.5px"><option value="">Seleccionar grupo…</option>{% for g in groups %}<option>{{ g.name }}</option>{% endfor %}</select></div>{% endif %}</span></div>
+    {% if devices %}<div class="cklist">{% for d in devices %}<label class="ck"><input type="checkbox" class="rdev" name="device_ids" value="{{ d.id }}" data-g="{{ d.group.name if d.group else '' }}" {{ 'checked' if loop.first }}> {{ d.name }}</label>{% endfor %}</div>
+    {% else %}<p class="muted">{{ _f('No hay equipos compatibles con el filtro {0}.', c.device_type_filter or '') }}</p>{% endif %}</div>
+  {% if found_vars %}<div class="f2">{% for v in found_vars %}<div class="field"><label for="v_{{ v }}">{{ v }}</label><div class="input mono"><input id="v_{{ v }}" name="var_{{ v }}" data-var="{{ v }}"></div></div>{% endfor %}</div>{% endif %}
+  {% if not script %}<div class="field"><label for="rtitle">Título de la solicitud de cambio</label><div class="input"><input id="rtitle" name="title" value="{{ c.name }}"></div></div>{% endif %}
+  <div class="field"><span class="fl">Vista previa de comandos</span><pre class="term" id="cpv" style="min-height:0">{{ c.body }}</pre></div>
+  <div class="row" data-sheet-foot><span class="muted sm grow" id="rcount"></span><a class="btn ghost" href="/configlets" data-cancel>Cancelar</a>
+    {% if script %}<button class="btn pri">{{ icon('play', 's') }}Ejecutar ahora</button>{% else %}<button class="btn pri">Crear solicitud de cambio</button>{% endif %}</div>
 </form>
+<script>
+(function () {
+  const f = document.getElementById('runf'), body = {{ c.body|tojson }}, T = {{ {'one': _('1 equipo'), 'many': _('{0} equipos')}|tojson }};
+  const pv = document.getElementById('cpv'), cnt = document.getElementById('rcount');
+  function upd() {
+    let t = body;
+    f.querySelectorAll('[data-var]').forEach(x => { t = t.split(new RegExp('\\{\\{\\s*' + x.dataset.var + '\\s*\\}\\}')).join(x.value || '{{ ' + x.dataset.var + ' }}'); });
+    pv.textContent = t;
+    const n = f.querySelectorAll('.rdev:checked').length;
+    cnt.textContent = n === 1 ? T.one : T.many.replace('{0}', n);
+  }
+  f.addEventListener('input', upd); f.addEventListener('change', upd);
+  f.querySelectorAll('[data-ck]').forEach(b => b.addEventListener('click', () => { f.querySelectorAll('.rdev').forEach(c => { c.checked = b.dataset.ck === '1'; }); upd(); }));
+  const g = document.getElementById('ckgrp');
+  if (g) g.addEventListener('change', () => { f.querySelectorAll('.rdev').forEach(c => { c.checked = g.value !== '' && c.dataset.g === g.value; }); upd(); });
+  upd();
+})();
+</script>
 {% endblock %}

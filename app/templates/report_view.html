@@ -1,18 +1,17 @@
 {% extends "base.html" %}{% block title %}{{ _(title) }}{% endblock %}
+{% block crumbs %}<a href="/reports">Informes</a>{{ icon('right', 's') }}<b>{{ _(title) }}</b>{% endblock %}
 {% block content %}
-<h1><a href="/reports">Informes</a> / {{ _(title) }} <span class="muted small">({{ rows|length }} filas)</span></h1>
-<div class="toolbar">
-  {% if kind in ('changes', 'audit') %}
-  <form class="row" method="get"><select name="days">{% for d in [1, 7, 30, 90, 365] %}<option value="{{ d }}" {{ 'selected' if d == days }}>{{ d }} días</option>{% endfor %}</select><button class="sec">Aplicar</button></form>
-  {% endif %}
-  <a class="btn" href="/reports/{{ kind }}.csv?days={{ days }}">Descargar CSV</a>
-</div>
-<div class="card">
-<table>
-  <tr>{% for h in header %}<th>{{ _(h) }}</th>{% endfor %}</tr>
-  {% for r in rows[:2000] %}<tr>{% for c in r %}<td class="small">{{ c|dt if c.__class__.__name__ == 'datetime' else (c if c is not none else '') }}</td>{% endfor %}</tr>
-  {% else %}<tr><td colspan="{{ header|length }}" class="muted">Sin datos.</td></tr>{% endfor %}
-</table>
-{% if rows|length > 2000 %}<p class="muted">Se muestran 2000 filas; descargue el CSV para verlas todas.</p>{% endif %}
-</div>
+<div class="ph"><div class="grow"><h1>{{ _(title) }}</h1><div class="sub">{% set D = {
+  'inventory': _('Modelo, serie, firmware, grupo y ubicación de cada equipo'), 'changes': _('Cada versión: equipo, tipo, origen, usuario y líneas'),
+  'compliance': _('Resultado de cada regla por equipo, para auditores'), 'vulns': _('CVE por equipo con su CVSS y solución'),
+  'audit': _('Inicios de sesión y acciones de cada usuario'), 'changes_requests': _('Quién pidió, quién aprobó y cuándo se ejecutó'),
+  'conflicts': _('Equipos con cambios sin guardar en la memoria de arranque'), 'baseline': _('Equipos cuya configuración difiere de su línea base'),
+  'eol': _('Fechas de fin de venta y de soporte de cada equipo')} %}{% if kind in D %}{{ D[kind] }} · {% endif %}{{ _('1 fila') if rows|length == 1 else _f('{0} filas', rows|length) }}</div></div>
+  {% if kind in ('changes', 'audit', 'changes_requests') %}<div class="seg">{% for d in [7, 30, 90, 365] %}<a class="{{ 'on' if d == days }}" href="?days={{ d }}">{{ _('1 año') if d == 365 else _f('{0} días', d) }}</a>{% endfor %}</div>{% endif %}
+  <a class="btn pri" href="/reports/{{ kind }}.csv?days={{ days }}">{{ icon('dl', 's') }}Descargar CSV</a></div>
+<section class="card flush">{% if rows %}<div class="tw"><table class="t"><thead><tr>{% for h in header %}<th>{{ _(h) }}</th>{% endfor %}</tr></thead><tbody>
+  {% for r in rows[:2000] %}<tr>{% for c in r %}{% set v = c|dt if c.__class__.__name__ == 'datetime' else (c if c is not none else '—') %}<td class="{{ 'num' if v is number }} {{ 'b' if loop.first }}">{{ v }}</td>{% endfor %}</tr>{% endfor %}
+</tbody></table></div>
+{% if rows|length > 2000 %}<p class="muted sm" style="padding:12px 16px">Se muestran 2000 filas; descarga el CSV para verlas todas.</p>{% endif %}
+{% else %}<table hidden><tr>{% for h in header %}<th>{{ _(h) }}</th>{% endfor %}</tr></table><div class="empty">{{ empty_art('check') }}<h2>Sin datos</h2><p>No hay filas para este informe{% if kind in ('changes', 'audit', 'changes_requests') %} en el periodo elegido{% endif %}.</p></div>{% endif %}</section>
 {% endblock %}

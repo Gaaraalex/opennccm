@@ -18,6 +18,18 @@ templates.env.globals["VERSION"] = __version__
 # huella del CSS: fuerza a los navegadores a recargarlo tras cada actualización
 templates.env.globals["CSS_HASH"] = __import__("hashlib").md5(
     (BASE_DIR / "static" / "style.css").read_bytes()).hexdigest()[:8]
+templates.env.globals["SENAL_HASH"] = __import__("hashlib").md5(
+    (BASE_DIR / "static" / "senal.css").read_bytes()).hexdigest()[:8]
+templates.env.globals["SHELL_HASH"] = __import__("hashlib").md5(
+    (BASE_DIR / "static" / "shell.js").read_bytes()).hexdigest()[:8]
+# muestras del selector de acento de la barra superior: (claro, oscuro), los mismos valores que senal.css
+templates.env.globals["ACCENT_SWATCHES"] = {
+    "cobalto": ("#2347e8", "#7c96ff"), "bosque": ("#1f7a4d", "#5fd09a"), "oceano": ("#0b7f86", "#3cc6c0"),
+    "lavanda": ("#6a3fc2", "#b39bff"), "atardecer": ("#c2410c", "#ff8c5a"), "arena": ("#8f5410", "#e0b46a"),
+    "grafito": ("#3b4452", "#c9d1d9")}
+templates.env.globals["ACCENT_NAMES"] = {"cobalto": i18n.N_("Cobalto"), "bosque": i18n.N_("Bosque"), "oceano": i18n.N_("Océano"),
+                                         "lavanda": i18n.N_("Lavanda"), "atardecer": i18n.N_("Atardecer"),
+                                         "arena": i18n.N_("Arena"), "grafito": i18n.N_("Grafito")}
 
 
 def icon(name: str, cls: str = "", label: str = ""):
@@ -42,11 +54,174 @@ def ago(d) -> str:
     if secs < 86400:
         return _f("hace {0} h", int(secs // 3600))
     if secs < 7 * 86400:
-        return _f("hace {0} d", int(secs // 86400))
+        n = int(secs // 86400)
+        return _("ayer") if n == 1 else _f("hace {0} días", n)
     return d.strftime("%Y-%m-%d")
 
 
 templates.env.globals["icon"] = icon
+
+
+def logo(size: int = 30):
+    """Marca de OpenNCCM dibujada con los colores del tema (cambia con el acento), como en el prototipo."""
+    from markupsafe import Markup
+    return Markup(f'<svg viewBox="0 0 32 32" width="{size}" height="{size}" aria-hidden="true" class="logo">'
+                  '<rect width="32" height="32" rx="9" fill="var(--brand)"/><path d="M10 10H22M10 10l6 11.5M22 10l-6 11.5" '
+                  'stroke="var(--on-brand)" stroke-width="2.4" stroke-linecap="round"/><circle cx="10" cy="10" r="3.6" '
+                  'fill="var(--on-brand)"/><circle cx="22" cy="10" r="3.6" fill="var(--on-brand)"/><circle cx="16" cy="21.5" '
+                  'r="5" fill="var(--signal)"/></svg>')
+
+
+templates.env.globals["logo"] = logo
+
+
+def spark(pts, w: int = 90, h: int = 36):
+    """Minigráfica de tendencia de los indicadores (la misma que el prototipo): línea, área y punto final."""
+    from markupsafe import Markup
+    pts = [float(p) for p in pts] or [0.0]
+    if len(pts) == 1:
+        pts = pts * 2
+    mx, mn = max(pts), min(pts)
+    sx = w / (len(pts) - 1)
+
+    def y(v):
+        return h - 4 - (v - mn) / ((mx - mn) or 1) * (h - 8)
+    d = " ".join(f"{'L' if i else 'M'}{i * sx:.1f} {y(v):.1f}" for i, v in enumerate(pts))
+    return Markup(f'<svg class="spark" viewBox="0 0 {w} {h}" preserveAspectRatio="none" aria-hidden="true">'
+                  f'<path class="ar" d="{d} L{w} {h} L0 {h}Z"/><path class="ln" d="{d}"/>'
+                  f'<circle class="pt" cx="{w}" cy="{y(pts[-1]):.1f}" r="3"/></svg>')
+
+
+templates.env.globals["spark"] = spark
+
+_MESES = [i18n.N_("ene"), i18n.N_("feb"), i18n.N_("mar"), i18n.N_("abr"), i18n.N_("may"), i18n.N_("jun"),
+          i18n.N_("jul"), i18n.N_("ago"), i18n.N_("sep"), i18n.N_("oct"), i18n.N_("nov"), i18n.N_("dic")]
+
+
+def fecha(d) -> str:
+    """Fecha corta legible, como en el prototipo: «31 dic 2022»."""
+    if not d:
+        return "—"
+    return f"{d.day} {i18n._(_MESES[d.month - 1])} {d.year}"
+
+
+templates.env.filters["fecha"] = fecha
+_DIAS = [i18n.N_("lunes"), i18n.N_("martes"), i18n.N_("miércoles"), i18n.N_("jueves"), i18n.N_("viernes"),
+         i18n.N_("sábado"), i18n.N_("domingo")]
+
+
+def cuando(d) -> str:
+    """Próxima ejecución legible, como en el prototipo: «hoy 06:00», «mañana 03:00», «lun 07:00», «1 nov 22:00»."""
+    if not d:
+        return "—"
+    from datetime import datetime
+    days = (d.date() - datetime.now(d.tzinfo).date()).days
+    hm = d.strftime("%H:%M")
+    if days == 0:
+        return i18n._f("hoy {0}", hm)
+    if days == 1:
+        return i18n._f("mañana {0}", hm)
+    if 1 < days < 7:
+        return f"{i18n._(_DIAS[d.weekday()])[:3]} {hm}"
+    return f"{d.day} {i18n._(_MESES[d.month - 1])} {hm}"
+
+
+templates.env.filters["cuando"] = cuando
+templates.env.filters["cuando_ts"] = lambda ts: cuando(__import__("datetime").datetime.fromtimestamp(ts)) if ts else "—"
+
+
+def area(pts, label: str = ""):
+    """Gráfica de área de 24 h del prototipo (Sistema): 0-100 %, líneas a 0/50/100 y «hace 24 h · ahora»."""
+    from markupsafe import Markup, escape
+    pts = [max(0.0, min(100.0, float(p))) for p in pts] or [0.0, 0.0]
+    if len(pts) == 1:
+        pts = pts * 2
+    W, H, pl, pb = 600, 140, 34, 20
+    sx = (W - pl) / (len(pts) - 1)
+    y = lambda v: H - pb - v / 100 * (H - pb - 8)  # noqa: E731
+    d = " ".join(f"{'L' if i else 'M'}{pl + i * sx:.1f} {y(v):.1f}" for i, v in enumerate(pts))
+    grid = "".join(f'<line class="g" x1="{pl}" x2="{W}" y1="{y(v):.1f}" y2="{y(v):.1f}"/><text x="0" y="{y(v) + 4:.1f}">{v}%</text>'
+                   for v in (0, 50, 100))
+    return Markup(f'<svg class="areachart" viewBox="0 0 {W} {H}" preserveAspectRatio="none" role="img" aria-label="{escape(label)}">'
+                  f'{grid}<path class="ar" d="{d} L{W} {H - pb} L{pl} {H - pb}Z"/><path class="ln" d="{d}"/>'
+                  f'<text x="{pl}" y="{H - 4}">{escape(i18n._("hace 24 h"))}</text>'
+                  f'<text x="{W - 36}" y="{H - 4}">{escape(i18n._("ahora"))}</text></svg>')
+
+
+templates.env.globals["area"] = area
+
+
+def admin_counts() -> dict:
+    """Recuentos de las pestañas de Administración (prototipo)."""
+    from sqlalchemy import func, select
+
+    from .db import Credential, DeviceGroup, SessionLocal, User
+    from .drivers import PROFILES
+    with SessionLocal() as db:
+        return {"users": db.scalar(select(func.count(User.id))) or 0,
+                "creds": db.scalar(select(func.count(Credential.id))) or 0,
+                "groups": db.scalar(select(func.count(DeviceGroup.id))) or 0, "platforms": len(PROFILES)}
+
+
+templates.env.globals["admin_counts"] = admin_counts
+
+
+def mark(line: str, q: str, regex: int = 0, cs: int = 0):
+    """Resalta las coincidencias de la búsqueda en una línea (texto escapado; solo se añade <mark>)."""
+    import re as _re
+
+    from markupsafe import Markup, escape
+    try:
+        pat = _re.compile(q if regex else _re.escape(q), 0 if cs else _re.IGNORECASE)
+    except _re.error:
+        return escape(line)
+    out, last = [], 0
+    for m in pat.finditer(line):
+        if not m.group(0):
+            continue
+        out.append(str(escape(line[last:m.start()])) + "<mark>" + str(escape(m.group(0))) + "</mark>")
+        last = m.end()
+    out.append(str(escape(line[last:])))
+    return Markup("".join(out))
+
+
+templates.env.filters["mark"] = mark
+
+
+def varmark(text: str):
+    """Plantilla de configlet con sus variables {{ x }} resaltadas en el color de acento (tarjetas del prototipo)."""
+    import re as _re
+
+    from markupsafe import Markup, escape
+    return Markup(_re.sub(r"\{\{\s*(\w+)\s*\}\}", r'<b style="color:var(--brand)">{{ \1 }}</b>', str(escape(text or ""))))
+
+
+templates.env.filters["varmark"] = varmark
+
+
+def unified_rows(rows):
+    """Filas de services.side_by_side → vista unificada: en cada bloque de cambios, primero lo quitado y luego lo
+    agregado (como el prototipo). Devuelve (tipo, nº A, nº B, texto) con tipo e | d | a | s."""
+    out, dels, adds = [], [], []
+
+    def flush():
+        out.extend(dels + adds)
+        dels.clear()
+        adds.clear()
+    for kind, na, ta, nb, tb in rows:
+        if kind in ("c", "d", "a"):
+            if kind in ("c", "d"):
+                dels.append(("d", na, None, ta))
+            if kind in ("c", "a"):
+                adds.append(("a", None, nb, tb))
+            continue
+        flush()
+        out.append(("s", None, None, ta) if kind == "s" else ("e", na, nb, ta))
+    flush()
+    return out
+
+
+templates.env.globals["unified_rows"] = unified_rows
 
 # severidad -> forma y texto traducido (nunca el valor crudo de la base de datos)
 SEV_CLASS = {"critical": "crit", "major": "major", "error": "major", "minor": "minor", "warning": "warn",
@@ -115,6 +290,15 @@ def render(request: Request, name: str, user, **ctx):
                                                       "profiles": PROFILES, "profile_map": PROFILE_MAP, **ctx})
 
 
+def _event_title(e) -> str:
+    """Título corto de una alarma: su primera línea o, si solo dice «equipo:», el tipo de alarma y el equipo."""
+    first = (e.message or "").splitlines()[0].strip() if e.message else ""
+    if len(first) < 12 or first.endswith(":"):
+        dev = e.device.name if e.device else ""
+        return (i18n._(e.category) + (" · " + dev if dev else ""))[:90]
+    return first[:90]
+
+
 def _nav_counts(user) -> dict:
     """Contadores de la barra lateral: solicitudes de cambio por aprobar y alarmas abiertas (de sus equipos)."""
     from sqlalchemy import func, select
@@ -127,8 +311,16 @@ def _nav_counts(user) -> dict:
             stmt = select(func.count(Event.id)).where(Event.acknowledged.is_(False), Event.severity != "info")
             if scope is not None:
                 stmt = stmt.where(Event.device_id.in_(scope))
+            recent = select(Event).where(Event.acknowledged.is_(False), Event.severity != "info")
+            if scope is not None:
+                recent = recent.where(Event.device_id.in_(scope))
+            sevc = {"critical": "crit", "major": "major", "warning": "minor", "minor": "minor"}
             return {"alarms": db.scalar(stmt) or 0,
-                    "pending": db.scalar(select(func.count(ChangeRequest.id)).where(ChangeRequest.status == "pending")) or 0}
+                    "pending": db.scalar(select(func.count(ChangeRequest.id)).where(ChangeRequest.status == "pending")) or 0,
+                    # campana de la barra superior: las 5 alarmas abiertas más recientes
+                    "recent": [{"sev": sevc.get(e.severity, "info"), "title": _event_title(e),
+                                "device_id": e.device_id, "when": e.created_at}
+                               for e in db.scalars(recent.order_by(Event.created_at.desc()).limit(5))]}
     except Exception:  # noqa: BLE001 - un contador nunca debe impedir mostrar la página
         return {}
 

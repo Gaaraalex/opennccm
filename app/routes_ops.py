@@ -8,7 +8,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy import select
 
-from . import __version__, charts, cronutil, eol, firmware, reports, sysbackup, updates
+from . import __version__, cronutil, eol, firmware, reports, sysbackup, updates
 from .config import UPDATE_REPO
 from .auth import Forbidden, device_scope, filter_ids, require
 from .db import Device, DeviceGroup, EolEntry, FirmwareImage, SessionLocal
@@ -20,19 +20,78 @@ router = APIRouter()
 
 
 # --------------------------------------------------------------------------- firmware
-@router.get("/firmware")
-def firmware_page(request: Request):
+def _mes(d) -> str:
+    from .web import _MESES
+    return f"{_(_MESES[d.month - 1])} {d.year}"
+
+
+def _life(d, e, st) -> dict:
+    """Fila de «Tus equipos»: cuánto soporte del fabricante le queda (barra) y el texto del prototipo."""
+    from datetime import datetime
+    sup, sale = (e.end_of_support if e else None), (e.end_of_sale if e else None)
+    pct = 100
+    if sup:
+        pct = max(0, min(100, round((sup - datetime.now()).days / (5 * 365) * 100)))
+    if st == "sin_soporte":
+        txt, cls = (_f("Sin soporte desde {0}", _mes(sup)) if sup else _("Sin soporte")), "crit"
+    elif st == "fin_mantenimiento":
+        txt, cls = (_f("Sin parches de software · soporte hasta {0}", _mes(sup)) if sup else _("Sin parches de software")), "warn"
+    elif st in ("fin_venta", "proximo"):
+        txt = (_f("Fin de venta {0} · soporte hasta {1}", sale.year, _mes(sup)) if sale and sup
+               else _f("Soporte hasta {0}", _mes(sup)) if sup else _("Fin de venta"))
+        cls = "warn"
+    else:
+        txt, cls = (_f("Soporte hasta {0}", sup.year) if sup else _("Vigente")), "ok"
+    return {"d": d, "e": e, "st": st, "pct": pct, "txt": txt, "cls": cls}
+
+
+def _fw_page(request: Request, tab: str, status: str = "", img: int = 0, vend: str = ""):
     user = require(request)
     scope = device_scope(user)
     with SessionLocal() as db:
-        devs = [d for d in db.scalars(select(Device).order_by(Device.name))
-                if (scope is None or d.id in scope) and firmware.supports_upgrade(d.device_type)]
+        alldevs = [d for d in db.scalars(select(Device).order_by(Device.name)) if scope is None or d.id in scope]
+        devs = [d for d in alldevs if firmware.supports_upgrade(d.device_type)]
         for d in devs:
             d.group.name if d.group else None  # carga la relación antes de cerrar la sesión
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
-    return render(request, "firmware.html", user, images=firmware.list_images(), devices=devs, groups=groups,
-                  supported=sorted({p for p in ("cisco_ios", "cisco_xe", "cisco_nxos", "cisco_asa", "arista_eos",
-                                                "juniper_junos")}))
+        entries = db.scalars(select(EolEntry).order_by(EolEntry.vendor, EolEntry.model_pattern)).all()
+    images = firmware.list_images()
+    compat = {}
+    for i in images:
+        try:
+            rx = re.compile(i.device_type_filter) if i.device_type_filter else None
+        except re.error:
+            rx = None
+        compat[i.id] = [d.name for d in alldevs if rx is None or rx.search(d.device_type)]
+    rows = eol.report(scope)
+    counts = {}
+    for _a, _b, st in rows:
+        counts[st] = counts.get(st, 0) + 1
+    if status:
+        rows = [r for r in rows if r[2] == status]
+    life = [_life(d, e, st) for d, e, st in rows if e is not None]
+    life.sort(key=lambda r: r["pct"])
+    vendors = sorted({e.vendor for e in entries if e.vendor})
+    if vend:
+        entries = [e for e in entries if e.vendor == vend]
+    from datetime import datetime
+    return render(request, "firmware.html", user, tab=tab, images=images, devices=devs, groups=groups, compat=compat,
+                  life=life, no_data=sum(1 for r in rows if r[1] is None), rows=rows, entries=entries,
+                  counts=counts, status=status, labels=eol.STATUS_LABEL, sev=eol.STATUS_SEV, sel_img=img,
+                  vendors=vendors, vend=vend, today=datetime.now(),
+                  n_entries=len(entries) if not vend else None)
+
+
+@router.get("/firmware")
+def firmware_page(request: Request, img: int = 0):
+    return _fw_page(request, "imagenes", img=img)
+
+
+@router.get("/firmware/new")
+def firmware_new(request: Request):
+    """«Cargar imagen» en un panel lateral (prototipo)."""
+    user = require(request, "admin")
+    return render(request, "fw_upload.html", user)
 
 
 @router.post("/firmware/upload")
@@ -89,18 +148,35 @@ async def firmware_upgrade(request: Request):
 
 # --------------------------------------------------------------------------- EOL / EOS
 @router.get("/eol")
-def eol_page(request: Request, status: str = ""):
-    user = require(request)
-    rows = eol.report(device_scope(user))
-    counts = {}
-    for _a, _b, st in rows:
-        counts[st] = counts.get(st, 0) + 1
-    if status:
-        rows = [r for r in rows if r[2] == status]
+def eol_page(request: Request, status: str = "", vend: str = ""):
+    return _fw_page(request, "eol", status=status, vend=vend)
+
+
+def _models() -> dict:
     with SessionLocal() as db:
-        entries = db.scalars(select(EolEntry).order_by(EolEntry.vendor, EolEntry.model_pattern)).all()
-    return render(request, "eol.html", user, rows=rows, entries=entries, counts=counts, status=status,
-                  labels=eol.STATUS_LABEL, sev=eol.STATUS_SEV)
+        return {d.name: d.model or "" for d in db.scalars(select(Device).order_by(Device.name))}
+
+
+@router.get("/eol/new")
+def eol_new(request: Request):
+    user = require(request, "admin")
+    return render(request, "eol_form.html", user, e=None, models=_models())
+
+
+@router.get("/eol/import")
+def eol_import_form(request: Request):
+    user = require(request, "admin")
+    return render(request, "eol_import.html", user)
+
+
+@router.get("/eol/entries/{eid}")
+def eol_edit(request: Request, eid: int):
+    user = require(request, "admin")
+    with SessionLocal() as db:
+        e = db.get(EolEntry, eid)
+    if e is None:
+        return go("/eol")
+    return render(request, "eol_form.html", user, e=e, models=_models())
 
 
 @router.post("/eol/entries")
@@ -110,17 +186,21 @@ async def eol_add(request: Request):
     try:
         re.compile(form["model_pattern"])
         with SessionLocal() as db:
-            db.add(EolEntry(vendor=form.get("vendor") or None, model_pattern=form["model_pattern"].strip(),
-                            end_of_sale=eol._date(form.get("end_of_sale")),
-                            end_of_sw_maintenance=eol._date(form.get("end_of_sw_maintenance")),
-                            end_of_support=eol._date(form.get("end_of_support")),
-                            replacement=form.get("replacement") or None, url=form.get("url") or None))
+            e = db.get(EolEntry, int(form["id"])) if form.get("id") else None
+            if e is None:
+                e = EolEntry()
+                db.add(e)
+            e.vendor, e.model_pattern = form.get("vendor") or None, form["model_pattern"].strip()
+            e.end_of_sale = eol._date(form.get("end_of_sale"))
+            e.end_of_sw_maintenance = eol._date(form.get("end_of_sw_maintenance"))
+            e.end_of_support = eol._date(form.get("end_of_support"))
+            e.replacement, e.url = form.get("replacement") or None, form.get("url") or None
             db.commit()
     except (re.error, ValueError) as e:
         flash(request, _f("No se pudo guardar: {0}", e), "error")
         return go("/eol")
     log_action(request, user, "eol_add", form["model_pattern"])
-    flash(request, _("Entrada EOL agregada"))
+    flash(request, _("Entrada EOL guardada") if form.get("id") else _("Entrada EOL agregada"))
     return go("/eol")
 
 
@@ -165,33 +245,51 @@ def eol_cisco_sync(request: Request):
 # --------------------------------------------------------------------------- análisis
 @router.get("/analytics")
 def analytics_page(request: Request, days: int = 30):
+    """Análisis (prototipo): indicadores, mapa de calor, origen de los cambios y barras horizontales."""
+    from datetime import timedelta
+    from .db import ChangeRequest, now
     user = require(request)
     days = max(7, min(days, 365))
-    data = reports.analytics(device_scope(user), days)
-    label_every = max(1, days // 6)
-    # identidad: cada origen conserva su color en todas las gráficas (orden fijo, nunca por ranking)
-    slot = {t: f"c{i + 1}" for i, t in enumerate(TRIGGER_ORDER)}
-    origin = [(_(TRIGGER_LABELS.get(t, t)), slot.get(t, "c4"), vals) for t, vals in data["by_day_trigger"]]
-    weekdays = [_(name).capitalize() for _k, name in cronutil.DAYS]
-    delta = data["changes"] - data["prev_changes"]
-    return render(request, "analytics.html", user, data=data, days=days, delta=delta,
-                  legend=[(lbl, cls) for lbl, cls, _v in origin],
-                  spark=charts.sparkline([v for _d, v in data["per_day"]]),
-                  ring=charts.ring(data["compliance_pct"]),
-                  ring_status=charts.status_of(data["compliance_pct"]) if data["compliance_pct"] is not None else None,
-                  c_activity=charts.stacked_columns(data["day_axis"], origin, label_every=label_every),
-                  c_origin=charts.donut([(lbl, cls, sum(vals)) for lbl, cls, vals in origin], _("cambios")),
-                  c_heat=charts.heatmap(data["heat"], weekdays),
-                  c_device=charts.bars(data["by_device"], " cambios",
-                                       link=[f"/devices?q={quote(n)}" for n, _v in data["by_device"]]),
-                  c_user=charts.bars(data["by_user"], " cambios"),
-                  c_vendor=charts.bars(data["by_vendor"], " equipos"),
-                  c_version=charts.bars(data["by_version"], " equipos"),
-                  c_comp=charts.bars([(n, v) for n, v, _z in data["compliance"]], "%", vmax=100, status=True,
-                                     link=[f"/compliance/policies/{p}" for _a, _b, p in data["compliance"]]),
-                  c_eol=charts.segmented([(_(eol.STATUS_LABEL[k]), EOL_CLASS.get(k, "c4"), n)
-                                          for k, n in sorted(data["eol_status"], key=lambda kv: EOL_ORDER.index(kv[0])
-                                                             if kv[0] in EOL_ORDER else 99)]))
+    scope = device_scope(user)
+    data = reports.analytics(scope, days)
+    with SessionLocal() as db:
+        since = now() - timedelta(days=days)
+        reverted = sum(1 for cr in db.scalars(select(ChangeRequest).where(ChangeRequest.created_at >= since,
+                                                                           ChangeRequest.is_rollback.is_(True),
+                                                                           ChangeRequest.status == "done")))
+    prev, cur = data["prev_changes"], data["changes"]
+    delta = round((cur - prev) / prev * 100) if prev else None
+    heat = data["heat"]
+    hmax = max((v for row in heat for v in row), default=0)
+    colors = {"scheduled": "var(--brand)", "syslog": "var(--cat-2)", "manual": "var(--cat-3)", "push": "var(--cat-4)"}
+    total = sum(n for _t, n in data["by_trigger"]) or 1
+    src, acc = [], 0.0
+    circ = 2 * 3.14159265 * 46
+    for t in TRIGGER_ORDER + [t for t, _n in data["by_trigger"] if t not in TRIGGER_ORDER]:
+        n = dict(data["by_trigger"]).get(t, 0)
+        if not n:
+            continue
+        ln = n / total * circ
+        src.append({"label": _(TRIGGER_LABELS.get(t, t)), "pct": round(n / total * 100), "n": n,
+                    "color": colors.get(t, "var(--muted)"), "dash": f"{max(ln - 2, 0.5):.1f} {circ - ln + 2:.1f}",
+                    "off": f"{-acc:.1f}"})
+        acc += ln
+    life = {}
+    for k, n in data["eol_status"]:
+        key = {"vigente": N_("Con soporte"), "proximo": N_("Con soporte"), "fin_venta": N_("Fin de venta"),
+               "fin_mantenimiento": N_("Sin parches de software"), "sin_soporte": N_("Sin soporte"),
+               "desconocido": N_("Sin datos")}.get(k, k)
+        life[key] = life.get(key, 0) + n
+    life_rows = [(_(k), life[k]) for k in (N_("Con soporte"), N_("Fin de venta"), N_("Sin parches de software"),
+                                           N_("Sin soporte"), N_("Sin datos")) if life.get(k)]
+    by_user = [(_("en el equipo (syslog)") if u == "—" else u, n) for u, n in data["by_user"]]
+    weekdays = [_(name).capitalize()[:3] for _k, name in cronutil.DAYS]
+    return render(request, "analytics.html", user, data=data, days=days, delta=delta, reverted=reverted,
+                  heat=heat, hmax=hmax, weekdays=weekdays, src=src, life_rows=life_rows, by_user=by_user,
+                  spark_pts=data["per_week"], syslog_n=dict(data["by_trigger"]).get("syslog", 0),
+                  dev_links=[f"/devices?q={quote(n)}" for n, _v in data["by_device"][:5]],
+                  comp_rows=[(n, v) for n, v, _p in data["compliance"]],
+                  comp_links=[f"/compliance/policies/{p}" for _n, _v, p in data["compliance"]])
 
 
 TRIGGER_ORDER = ["manual", "scheduled", "syslog", "push"]

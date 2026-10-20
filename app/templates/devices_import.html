@@ -1,38 +1,28 @@
-{% extends "base.html" %}{% block title %}Importar dispositivos{% endblock %}
+{% extends "base.html" %}{% block title %}Importar equipos desde CSV{% endblock %}
 {% block content %}
-<h1>Importar dispositivos desde CSV</h1>
-<div class="card imp" style="max-width:760px">
-<p class="small muted">Una fila por equipo, con estas columnas en la primera línea. Solo <code>name</code>, <code>host</code> y
-  <code>device_type</code> son obligatorias.</p>
-<table class="imp-cols">
-  <tr><td><code>name</code></td><td>Nombre del equipo</td></tr>
-  <tr><td><code>host</code></td><td>IP o nombre DNS</td></tr>
-  <tr><td><code>device_type</code></td><td>Plataforma (ver la <a href="/vendors">lista de {{ types|length }} plataformas</a>), p. ej. <code>cisco_ios</code></td></tr>
-  <tr><td><code>credential</code></td><td>Nombre de una credencial existente</td></tr>
-  <tr><td><code>group</code></td><td>Grupo; si no existe, se crea</td></tr>
-  <tr><td><code>port</code>, <code>protocol</code></td><td><code>ssh</code> (22) o <code>telnet</code> (23)</td></tr>
-  <tr><td><code>location</code></td><td>Ubicación (opcional)</td></tr>
-</table>
-<p class="small"><a href="#" id="imp-tpl" download="dispositivos.csv">{{ icon('dl', 'sm') }} Descargar una plantilla</a></p>
-<form method="post" action="/devices/import" enctype="multipart/form-data" id="imp-form">
-  <label for="imp-file">Archivo CSV</label>
-  <input type="file" name="file" id="imp-file" accept=".csv,text/csv" required>
-  <div id="imp-prev" class="imp-prev" aria-live="polite" hidden></div>
-  <p class="form-actions"><button id="imp-go">{{ icon('ul', 'sm') }} Importar</button> <a class="btn sec" href="/devices">Cancelar</a></p>
+<h1>Importar equipos desde CSV</h1>
+<form method="post" action="/devices/import" enctype="multipart/form-data" id="imp-form" class="stack" style="gap:18px">
+  <label class="drop-zone" for="imp-file" id="dz">{{ icon('ul') }}<b>Arrastra el archivo CSV aquí</b><span class="sm">o haz clic para elegirlo</span></label>
+  <input type="file" name="file" id="imp-file" accept=".csv,text/csv" required class="vh">
+  <div class="field"><span class="fl">Columnas</span><pre class="cv" style="padding:10px 12px">name,host,device_type,credential,group,port,protocol,location</pre>
+    <span class="help"><b>credential</b> es el nombre de una credencial existente. Los grupos que no existan se crean. Solo <b>name</b>, <b>host</b> y <b>device_type</b> son obligatorias
+      (ver la <a href="/vendors">lista de {{ types|length }} plataformas</a>).</span></div>
+  <div id="imp-prev" class="imp-prev" aria-live="polite"><a class="btn s ghost" href="#" id="imp-tpl" download="equipos.csv">{{ icon('dl', 's') }}Descargar una plantilla</a></div>
+  <div class="row" data-sheet-foot><span class="grow"></span><a class="btn ghost" href="/devices" data-cancel>Cancelar</a><button class="btn pri" id="imp-go" disabled>Importar</button></div>
 </form>
-</div>
 <script>
 (function () {
-  const T = {{ {'ok': _('válida'), 'line': _('Línea'), 'name': _('Nombre'), 'state': _('Estado'),
-                'sum': _('{0} filas válidas · {1} con error'), 'more': _('y {0} filas más'),
+  const T = {{ {'sum': _('{0} filas válidas · {1} con error'), 'more': _('y {0} filas más'),
                 'none': _('El archivo no tiene filas de equipos.'), 'cols': _('Faltan columnas: {0}'),
-                'req': _('falta «{0}»'), 'type': _('plataforma desconocida «{0}»'), 'cred': _('la credencial «{0}» no existe'),
+                'req': _('falta «{0}»'), 'type': _('device_type desconocido «{0}»'), 'cred': _('la credencial «{0}» no existe'),
                 'port': _('puerto no válido'), 'proto': _('protocolo no válido «{0}»'), 'dup': _('nombre repetido en el archivo'),
-                'skip': _('Las filas con error se omiten; las válidas se importan.')}|tojson }};
-  const TYPES = new Set({{ types|tojson }}), CREDS = new Set({{ creds|tojson }});
+                'newg': _('grupo nuevo'), 'skip': _('Las filas con error se omiten; las válidas se importan.')}|tojson }};
+  const TYPES = new Set({{ types|tojson }}), CREDS = new Set({{ creds|tojson }}), GROUPS = new Set({{ groups|tojson }});
   const COLS = ['name', 'host', 'device_type', 'credential', 'group', 'port', 'protocol', 'location'];
-  const file = document.getElementById('imp-file'), prev = document.getElementById('imp-prev');
-  const tpl = document.getElementById('imp-tpl');
+  const file = document.getElementById('imp-file'), prev = document.getElementById('imp-prev'), dz = document.getElementById('dz');
+  const go = document.getElementById('imp-go'), tpl = document.getElementById('imp-tpl');
+  const ic = (n) => window.ocIcon ? window.ocIcon(n, 's') : '';
+  const icL = (n) => window.ocIcon ? window.ocIcon(n) : '';
   tpl.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(COLS.join(',') + '\nR1,192.0.2.1,cisco_ios,' + {{ (creds[0] if creds else '')|tojson }} + ',Core,22,ssh,CPD\n');
   const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
   function parse(text) {  // CSV con comillas («"a,b"» y «""»)
@@ -60,29 +50,35 @@
     seen.add(r.name.trim());
     return '';
   }
-  file.addEventListener('change', () => {
-    const f = file.files[0];
-    if (!f) { prev.hidden = true; return; }
+  function show(f) {
     f.text().then(text => {
       const rows = parse(text.replace(/^﻿/, ''));
-      prev.hidden = false;
       const head = (rows.shift() || []).map(h => h.trim());
       const miss = ['name', 'host', 'device_type'].filter(c => !head.includes(c));
-      if (miss.length) { prev.innerHTML = '<p class="flash error">' + esc(T.cols.replace('{0}', miss.join(', '))) + '</p>'; return; }
-      if (!rows.length) { prev.innerHTML = '<p class="muted">' + esc(T.none) + '</p>'; return; }
+      go.disabled = true;
+      if (miss.length) { dz.innerHTML = icL('x') + '<b>' + esc(f.name) + '</b><span class="sm">' + esc(T.cols.replace('{0}', miss.join(', '))) + '</span>'; prev.innerHTML = ''; return; }
+      if (!rows.length) { dz.innerHTML = icL('x') + '<b>' + esc(f.name) + '</b><span class="sm">' + esc(T.none) + '</span>'; prev.innerHTML = ''; return; }
       const seen = new Set(); let ok = 0, bad = 0;
-      const out = rows.map((cells, i) => {
-        const r = {}; head.forEach((h, j) => { r[h] = cells[j] || ''; });
+      const out = rows.map(cells => {
+        const r = {}; head.forEach((h, j) => { r[h] = (cells[j] || '').trim(); });
         const err = check(r, seen); err ? bad++ : ok++;
-        return '<tr class="' + (err ? 'bad' : 'ok') + '"><td class="mono">' + (i + 2) + '</td><td>' + esc(r.name) + '</td><td class="mono">' +
-          esc(r.host) + '</td><td>' + (err ? '<span class="sev crit">' + esc(err) + '</span>' : '<span class="sev ok">' + esc(T.ok) + '</span>') + '</td></tr>';
+        const g = r.group ? esc(r.group) + (GROUPS.has(r.group) ? '' : ' <span class="tag info">' + esc(T.newg) + '</span>') : '—';
+        return '<tr' + (err ? ' style="color:var(--crit)"' : '') + '><td>' + ic(err ? 'x' : 'check') + '</td><td>' + esc(r.name) + '</td><td class="mono">' + esc(r.host) +
+          '</td><td class="mono">' + esc(r.device_type) + '</td><td>' + (err ? esc(err) : g) + '</td></tr>';
       });
-      prev.innerHTML = '<p><b>' + esc(T.sum.replace('{0}', ok).replace('{1}', bad)) + '</b>' + (bad ? ' <span class="small muted">' + esc(T.skip) + '</span>' : '') + '</p>' +
-        '<div class="scrollbox"><table><thead><tr><th>' + esc(T.line) + '</th><th>' + esc(T.name) + '</th><th>Host</th><th>' + esc(T.state) +
-        '</th></tr></thead><tbody>' + out.slice(0, 200).join('') + '</tbody></table></div>' +
-        (out.length > 200 ? '<p class="small muted">' + esc(T.more.replace('{0}', out.length - 200)) + '</p>' : '');
-      document.getElementById('imp-go').disabled = ok === 0;
+      dz.innerHTML = icL('check') + '<b>' + esc(f.name) + '</b><span class="sm">' + esc(T.sum.replace('{0}', ok).replace('{1}', bad)) + '</span>';
+      prev.innerHTML = '<div class="card flush"><div class="tw"><table class="t"><thead><tr><th></th><th>name</th><th>host</th><th>device_type</th><th>group</th></tr></thead><tbody>' +
+        out.slice(0, 200).join('') + '</tbody></table></div></div>' + (out.length > 200 ? '<p class="small muted">' + esc(T.more.replace('{0}', out.length - 200)) + '</p>' : '') +
+        (bad ? '<p class="muted sm" style="margin-top:8px">' + esc(T.skip) + '</p>' : '');
+      go.disabled = ok === 0;
     });
+  }
+  file.addEventListener('change', () => { if (file.files[0]) show(file.files[0]); });
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('on'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('on'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault(); dz.classList.remove('on');
+    if (e.dataTransfer.files[0]) { file.files = e.dataTransfer.files; show(file.files[0]); }
   });
 })();
 </script>

@@ -23,7 +23,7 @@ def check(name, cond, extra=""):
 
 def cred(name, secret=""):
     s.post(B + "/credentials", data={"name": name, "username": "admin", "password": "cisco", "secret": secret})
-    return re.search(rf'<option value="(\d+)">{name}</option>', s.get(B + "/credentials").text).group(1)
+    return re.search(rf'data-cred="(\d+)" data-name="{name}"', s.get(B + "/credentials").text).group(1)
 
 
 def device(name, port, cred_id, dtype="ubiquiti_edgeswitch"):

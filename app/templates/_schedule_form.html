@@ -1,68 +1,68 @@
-{# Formulario de tarea programada (crear y editar). Variables: sf (valores), form_action, submit_label #}
-<form method="post" action="{{ form_action }}" id="sched">
-  <div class="row">
-    <div><label for="t-name">Nombre</label><input id="t-name" name="name" required value="{{ sf.name }}"></div>
-    <div><label for="action">Acción</label><select name="action" id="action">
-      {% for k, v in [('backup', _('Respaldo de configuración')), ('compliance', _('Auditoría de cumplimiento')), ('cve', _('Escaneo de vulnerabilidades (NVD)')), ('configlet', _('Ejecutar configlet')), ('report_email', _('Enviar informes por correo')), ('system_backup', _('Copia de recuperación de OpenNCCM'))] %}
-      <option value="{{ k }}" {{ 'selected' if sf.action == k }}>{{ v }}</option>{% endfor %}</select></div>
-    <div><label for="t-group">Equipos</label><select id="t-group" name="group_id"><option value="">Todos los grupos</option>{% for g in groups %}<option value="{{ g.id }}" {{ 'selected' if sf.group_id == g.id }}>Grupo: {{ g.name }}</option>{% endfor %}</select></div>
-    <div data-for="configlet"><label for="t-cl">Configlet</label><select id="t-cl" name="configlet_id"><option value="">—</option>{% for c in configlets %}<option value="{{ c.id }}" {{ 'selected' if sf.configlet_id == c.id }}>{{ c.name }}</option>{% endfor %}</select></div>
+{# Formulario de tarea programada (crear y editar), como el panel del prototipo. Variables: sf, form_action, sid #}
+<form method="post" action="{{ form_action }}" id="sched" class="stack">
+  <div class="field"><label for="t-name">Nombre</label><div class="input"><input id="t-name" name="name" required value="{{ sf.name }}" placeholder="Respaldo nocturno"></div></div>
+  <div class="field"><label for="action">Acción</label><div class="input"><select name="action" id="action">
+    {% for k, v in [('backup', _('Respaldar configuración')), ('compliance', _('Auditar cumplimiento')), ('cve', _('Buscar CVE de firmware')), ('configlet', _('Ejecutar un configlet')), ('report_email', _('Enviar informes por correo')), ('system_backup', _('Copia de recuperación del sistema'))] %}
+    <option value="{{ k }}" {{ 'selected' if sf.action == k }}>{{ v }}</option>{% endfor %}</select></div></div>
+  <div class="field" data-for="configlet"><label for="t-cl">Configlet</label><div class="input"><select id="t-cl" name="configlet_id"><option value="">—</option>{% for c in configlets if c.kind == 'config' %}<option value="{{ c.id }}" {{ 'selected' if sf.configlet_id == c.id }}>{{ c.name }}</option>{% endfor %}</select></div></div>
+  <div class="field" data-for="backup compliance cve configlet"><label for="t-group">Equipos</label><div class="input"><select id="t-group" name="group_id"><option value="">Todos los equipos</option>{% for g in groups %}<option value="{{ g.id }}" {{ 'selected' if sf.group_id == g.id }}>{{ _f('Grupo: {0}', g.name) }}</option>{% endfor %}</select></div></div>
+  <div class="sec"><h3>¿Cuándo se ejecuta?</h3>
+    <div class="field"><label for="freq">Frecuencia</label><div class="input"><select name="freq" id="freq">{% for k, v in FREQS %}<option value="{{ k }}" {{ 'selected' if sf.freq == k }}>{{ _(v) }}</option>{% endfor %}</select></div></div>
+    <div class="f3">
+      <div class="field" data-freq="minutes"><label for="every">Cada</label><div class="input"><select name="every" id="every">{% for m in (5, 10, 15, 20, 30) %}<option value="{{ m }}" {{ 'selected' if sf.every == m }}>{{ _f('{0} minutos', m) }}</option>{% endfor %}</select></div></div>
+      <div class="field" data-freq="hourly"><label for="minute">En el minuto</label><div class="input"><select name="minute" id="minute">{% for m in range(0, 60, 5) %}<option value="{{ m }}" {{ 'selected' if sf.minute == m }}>{{ '%02d' % m }}</option>{% endfor %}</select></div></div>
+      <div class="field" data-freq="monthly"><label for="dom">Día del mes</label><div class="input"><select name="dom" id="dom">{% for d in range(1, 29) %}<option {{ 'selected' if sf.dom == d }}>{{ d }}</option>{% endfor %}</select></div></div>
+      <div class="field" data-freq="daily weekly monthly"><label for="time">Hora</label><div class="input"><input type="time" name="time" id="time" value="{{ sf.time }}" required></div></div>
+    </div>
+    <div class="field" data-freq="weekly"><span class="fl">Días de la semana</span><div class="row">{% for k, v in DAYS %}<label class="chip day"><input type="checkbox" name="days" value="{{ k }}" {{ 'checked' if k in sf.days }} class="vh"><span>{{ _(v)[:1]|upper if k != 'wed' else _('X') }}</span></label>{% endfor %}
+      <span class="sm muted"><a href="#" data-days="mon,tue,wed,thu,fri">lunes a viernes</a> · <a href="#" data-days="sat,sun">fin de semana</a></span></div></div>
+    <div class="field" data-freq="cron"><label for="cron">Expresión cron</label><div class="input mono"><input name="cron" id="cron" placeholder="0 2 * * *" value="{{ sf.cron if sf.freq == 'cron' else '' }}"></div><span class="help">minuto · hora · día del mes · mes · día de la semana</span></div>
+    <div class="summ">{{ icon('clock') }}<span id="resumen" aria-live="polite"></span></div>
+    <p class="sm muted">La hora es la del servidor (Sistema → Fecha, hora y zona horaria). Los configlets programados se consideran aprobados por el administrador que crea la tarea.</p>
   </div>
-  <h3>¿Cuándo se ejecuta?</h3>
-  <div class="row">
-    <div><label for="freq">Frecuencia</label><select name="freq" id="freq">{% for k, v in FREQS %}<option value="{{ k }}" {{ 'selected' if sf.freq == k }}>{{ _(v) }}</option>{% endfor %}</select></div>
-    <div data-freq="daily weekly monthly"><label for="time">Hora</label><input type="time" name="time" id="time" value="{{ sf.time }}" required></div>
-    <div data-freq="monthly"><label for="dom">Día del mes</label><select name="dom" id="dom">{% for d in range(1, 29) %}<option {{ 'selected' if sf.dom == d }}>{{ d }}</option>{% endfor %}</select></div>
-    <div data-freq="hourly"><label for="minute">En el minuto</label><select name="minute" id="minute">{% for m in range(0, 60, 5) %}<option value="{{ m }}" {{ 'selected' if sf.minute == m }}>{{ '%02d' % m }}</option>{% endfor %}</select></div>
-    <div data-freq="minutes"><label for="every">Cada</label><select name="every" id="every">{% for m in (5, 10, 15, 20, 30) %}<option value="{{ m }}" {{ 'selected' if sf.every == m }}>{{ m }} minutos</option>{% endfor %}</select></div>
-    <div data-freq="cron"><label for="cron">Expresión cron</label><input name="cron" id="cron" placeholder="0 2 * * *" value="{{ sf.cron if sf.freq == 'cron' else '' }}"></div>
-  </div>
-  <fieldset data-freq="weekly" style="margin-top:8px;border:0;padding:0"><legend class="vh">Días de la semana</legend>
-    {% for k, v in DAYS %}<label class="chk"><input type="checkbox" name="days" value="{{ k }}" {{ 'checked' if k in sf.days }}> {{ _(v)|capitalize }}</label>{% endfor %}
-    <span class="small"><a href="#" data-days="mon,tue,wed,thu,fri">lunes a viernes</a> · <a href="#" data-days="sat,sun">fin de semana</a> · <a href="#" data-days="">ninguno</a></span></fieldset>
-  <p data-freq="cron" class="small muted">Formato: minuto hora día-del-mes mes día-de-la-semana (0 o 7 = domingo, 1 = lunes). Ej.: <code>0 6 * * 1-5</code> de lunes a viernes a las 06:00.</p>
-  <p class="flash" id="resumen" style="margin:12px 0" aria-live="polite"></p>
-  <p class="small muted">La hora es la del servidor (Sistema → Fecha, hora y zona horaria). Los configlets programados se consideran aprobados por el administrador que crea la tarea.</p>
-  <p><button>{{ submit_label }}</button>{% if cancel_url %} <a class="btn sec" href="{{ cancel_url }}">Cancelar</a>{% endif %}</p>
+  <div class="row" data-sheet-foot>
+    {% if sid %}<button type="button" class="btn dz" data-dialog="job-del">{{ icon('trash', 's') }}Eliminar</button>{% endif %}
+    <span class="grow"></span><a class="btn ghost" href="/schedules" data-cancel>Cancelar</a><button class="btn pri">{{ _('Guardar') }}</button></div>
 </form>
+{% if sid %}<dialog class="dlg" id="job-del"><form method="post" action="/schedules/{{ sid }}/delete">
+  <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi crit">{{ icon('trash') }}</span><div><h2>{{ _f('¿Eliminar la tarea «{0}»?', sf.name) }}</h2><p class="muted" style="margin-top:6px">Dejará de ejecutarse. Lo que ya hizo no se deshace.</p></div></div>
+  <div class="row end"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn dzf">Eliminar</button></div></form></dialog>{% endif %}
 <script>
 (function () {
   const f = document.getElementById('sched'), $ = id => document.getElementById(id);
   const DAYS = {{ DAYS|tr_pairs|tojson }};
-  const L = {{ {'and': _('{0} y {1}'), 'daily': _('Todos los días a las {0}'), 'every_day': _('Todos los días'),
+  const L = {{ {'and': _('{0} y {1}'), 'daily': _('Cada día a las {0}'), 'every_day': _('Todos los días'),
                 'weekdays': _('De lunes a viernes'), 'each': _('Cada {0}'), 'at': _('{0} a las {1}'),
-                'pick': _('⚠ Elija al menos un día'), 'monthly': _('El día {0} de cada mes a las {1}'),
+                'pick': _('Elige al menos un día'), 'monthly': _('El día {0} de cada mes a las {1}'),
                 'hourly': _('Cada hora, en el minuto {0}'), 'minutes': _('Cada {0} minutos'),
-                'cron': _('Expresión personalizada: {0}'), 'empty': _('(vacía)'),
-                'runs': _('Se ejecutará: {0}')}|tojson }};
+                'cron': _('Cron: {0}'), 'empty': '—'}|tojson }};
   const fmt = (s, ...a) => a.reduce((r, v, i) => r.replace('{' + i + '}', v), s);
-  function list(a) { return a.length < 2 ? a.join('') : fmt(L.and, a.slice(0, -1).join(', '), a[a.length - 1]); }
+  const list = a => a.length < 2 ? a.join('') : fmt(L.and, a.slice(0, -1).join(', '), a[a.length - 1]);
   function update() {
-    const q = $('freq').value, t = $('time').value || '--:--';
+    const q = $('freq').value, t = $('time').value || '--:--', act = $('action').value;
     f.querySelectorAll('[data-freq]').forEach(el => {
       const on = el.dataset.freq.split(' ').includes(q);
-      el.style.display = on ? '' : 'none';
-      el.querySelectorAll('input,select').forEach(i => i.disabled = !on);
+      el.hidden = !on;
+      el.querySelectorAll('input,select').forEach(i => { if (i.name !== 'days') i.disabled = !on; });
     });
-    f.querySelectorAll('[data-for]').forEach(el => el.style.display = $('action').value === el.dataset.for ? '' : 'none');
+    f.querySelectorAll('[data-for]').forEach(el => { el.hidden = !el.dataset.for.split(' ').includes(act); });
+    f.querySelectorAll('.chip.day').forEach(c => c.classList.toggle('on', c.querySelector('input').checked));
     const sel = DAYS.filter(d => f.querySelector('input[name=days][value=' + d[0] + ']').checked);
     const days = sel.map(d => d[1]), keys = sel.map(d => d[0]);
-    let txt = {
+    const txt = {
       daily: fmt(L.daily, t),
       weekly: days.length ? fmt(L.at, days.length === 7 ? L.every_day : days.length === 5 && !keys.includes('sat') && !keys.includes('sun') ? L.weekdays : fmt(L.each, list(days)), t) : L.pick,
-      monthly: fmt(L.monthly, $('dom').value, t),
-      hourly: fmt(L.hourly, $('minute').value),
-      minutes: fmt(L.minutes, $('every').value),
-      cron: fmt(L.cron, $('cron').value || L.empty)
+      monthly: fmt(L.monthly, $('dom').value, t), hourly: fmt(L.hourly, $('minute').value),
+      minutes: fmt(L.minutes, $('every').value), cron: fmt(L.cron, $('cron').value || L.empty)
     }[q];
-    $('resumen').textContent = fmt(L.runs, txt);
+    $('resumen').innerHTML = '<b></b>'; $('resumen').firstChild.textContent = txt;
     $('cron').required = q === 'cron';
   }
   f.addEventListener('input', update); f.addEventListener('change', update);
   f.querySelectorAll('[data-days]').forEach(a => a.addEventListener('click', e => {
     e.preventDefault();
     const want = a.dataset.days.split(',');
-    f.querySelectorAll('input[name=days]').forEach(c => c.checked = want.includes(c.value));
+    f.querySelectorAll('input[name=days]').forEach(c => { c.checked = want.includes(c.value); });
     update();
   }));
   update();

@@ -664,7 +664,47 @@ def _cpe_escape(v: str) -> str:
     return re.sub(r"([()\\!\"#$%&'*+,/:;<=>?@\[\]^`{|}~])", r"\\\1", v.lower())
 
 
+KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+_kev_cache: tuple[float, frozenset] = (0.0, frozenset())
+
+
+def _kev_file():
+    from .config import DATA_DIR
+    return DATA_DIR / "kev.json"
+
+
+def refresh_kev(max_age: int = 86400) -> None:
+    """Descarga (como mucho una vez al día) el catálogo KEV de CISA: CVE explotados activamente."""
+    f = _kev_file()
+    try:
+        if f.exists() and time.time() - f.stat().st_mtime < max_age:
+            return
+        r = requests.get(KEV_URL, timeout=30)
+        r.raise_for_status()
+        ids = sorted({v["cveID"] for v in r.json().get("vulnerabilities", []) if v.get("cveID")})
+        f.write_text(json.dumps(ids), encoding="utf-8")
+    except Exception as e:  # noqa: BLE001 — sin conexión: se usa la copia anterior (o ninguna)
+        log.info("No se pudo actualizar el catálogo KEV de CISA: %s", e)
+
+
+def kev_ids() -> frozenset:
+    """CVE del catálogo KEV guardado (vacío si nunca se pudo descargar)."""
+    global _kev_cache
+    f = _kev_file()
+    try:
+        mt = f.stat().st_mtime
+    except OSError:
+        return frozenset()
+    if mt != _kev_cache[0]:
+        try:
+            _kev_cache = (mt, frozenset(json.loads(f.read_text(encoding="utf-8"))))
+        except (OSError, ValueError):
+            return frozenset()
+    return _kev_cache[1]
+
+
 def scan_cves(device_id: int) -> int:
+    refresh_kev()
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
         prof = get_profile(dev.device_type)

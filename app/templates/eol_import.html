@@ -1,0 +1,29 @@
+{% extends "base.html" %}{% block title %}Importar ciclo de vida desde CSV{% endblock %}
+{% block content %}
+<h1>Importar ciclo de vida desde CSV</h1>
+<form method="post" action="/eol/import" enctype="multipart/form-data" class="stack" style="gap:18px">
+  <label class="drop-zone" for="csvf" id="dz">{{ icon('ul') }}<b>Arrastra el archivo CSV aquí</b><span class="sm">o haz clic para elegirlo</span></label>
+  <input type="file" name="file" id="csvf" accept=".csv,text/csv" required class="vh">
+  <div class="field"><span class="fl">Columnas</span><pre class="cv" style="padding:10px 12px">vendor,model_pattern,end_of_sale,end_of_sw_maintenance,end_of_support,replacement,url</pre>
+    <span class="help">Las fechas en formato AAAA-MM-DD. Copia las fechas de los boletines del fabricante.</span></div>
+  <div><a class="btn s ghost" id="tpl" download="ciclo-de-vida.csv" href="data:text/csv;charset=utf-8,vendor%2Cmodel_pattern%2Cend_of_sale%2Cend_of_sw_maintenance%2Cend_of_support%2Creplacement%2Curl%0ACisco%2C%5EWS-C2960-%2C2016-10-30%2C2019-10-30%2C2021-10-31%2CC9200L%2C%0A">{{ icon('dl', 's') }}Descargar una plantilla</a></div>
+  <div class="row" data-sheet-foot><span class="grow"></span><a class="btn ghost" href="/eol" data-cancel>Cancelar</a><button class="btn pri" id="csvgo" disabled>Importar</button></div>
+</form>
+<script>
+(function () {
+  const f = document.getElementById('csvf'), dz = document.getElementById('dz'), go = document.getElementById('csvgo');
+  const T = {{ {'rows': _('{0} filas')}|tojson }};
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  async function show() {
+    const x = f.files[0]; if (!x) return;
+    const n = (await x.text()).split(/\r?\n/).filter(l => l.trim()).length - 1;
+    dz.innerHTML = (window.ocIcon ? window.ocIcon('check') : '') + '<b>' + esc(x.name) + '</b><span class="sm">' + T.rows.replace('{0}', Math.max(n, 0)) + '</span>';
+    go.disabled = false;
+  }
+  f.addEventListener('change', show);
+  ['dragover', 'dragenter'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, () => dz.classList.remove('over')));
+  dz.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files.length) { f.files = e.dataTransfer.files; show(); } });
+})();
+</script>
+{% endblock %}

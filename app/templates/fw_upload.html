@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% block title %}Cargar imagen de firmware{% endblock %}
+{% block content %}
+<h1>Cargar imagen de firmware</h1>
+<form method="post" action="/firmware/upload" enctype="multipart/form-data" class="stack" style="gap:18px">
+  <label class="drop-zone" for="imgf" id="imgdz">{{ icon('ul') }}<b>Arrastra la imagen aquí</b><span class="sm">.bin, .tgz, .tar… o haz clic para elegirla</span></label>
+  <input type="file" name="file" id="imgf" required class="vh">
+  <div class="field"><label for="iv">Versión</label><div class="input mono"><input id="iv" name="version" required placeholder="15.7(3)M8"></div></div>
+  <div class="field"><label for="ire">Para tipo de equipo (regex)</label><div class="input mono"><input id="ire" name="device_type_filter" value="cisco_ios"></div><span class="help">Se ofrecerá solo a los equipos que coincidan. Al cargarla se calcula el MD5.</span></div>
+  <div class="row" data-sheet-foot><span class="grow"></span><a class="btn ghost" href="/firmware" data-cancel>Cancelar</a><button class="btn pri">{{ icon('ul', 's') }}Cargar</button></div>
+</form>
+<script>
+(function () {
+  const f = document.getElementById('imgf'), dz = document.getElementById('imgdz');
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  function show() { if (f.files[0]) dz.innerHTML = (window.ocIcon ? window.ocIcon('check') : '') + '<b>' + esc(f.files[0].name) + '</b>'; }
+  f.addEventListener('change', show);
+  ['dragover', 'dragenter'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, () => dz.classList.remove('over')));
+  dz.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files.length) { f.files = e.dataTransfer.files; show(); } });
+})();
+</script>
+{% endblock %}

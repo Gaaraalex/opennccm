@@ -35,7 +35,7 @@ def backup(dev_id):
 
 def versions(dev_id):
     page = s.get(f"{B}/devices/{dev_id}").text
-    return [int(x) for x in dict.fromkeys(re.findall(r'class="tl-row[^"]*" data-id="(\d+)"', page))]  # más reciente primero
+    return [int(x) for x in dict.fromkeys(re.findall(r'<li class="[^"]*" data-id="(\d+)"', page))]  # más reciente primero
 
 
 def wait_cr(cr_id):
@@ -53,7 +53,7 @@ try:
     time.sleep(3)
     s.post(B + "/login", data={"username": "admin", "password": "Admin12345"})
     s.post(B + "/credentials", data={"name": "edge", "username": "admin", "password": "cisco"})
-    cred = re.search(r'<option value="(\d+)">edge</option>', s.get(B + "/credentials").text).group(1)
+    cred = re.search(r'data-cred="(\d+)" data-name="edge"', s.get(B + "/credentials").text).group(1)
     r = s.post(B + "/devices/new", data={"name": "EdgeSW16", "host": "127.0.0.1", "device_type": "ubiquiti_edgeswitch",
                                          "protocol": "ssh", "port": str(PORT), "credential_id": cred,
                                          "new_group": "Oficina principal", "enabled": "on"})
@@ -91,13 +91,13 @@ try:
     cr = re.search(r"/changes/(\d+)", r.url).group(1)
     body = htmlmod.unescape(r.text)
     check("reversión: «vlan database» fuera de configure", re.search(r"exit\s+vlan database[\s\S]*?configure", body)
-          is not None, re.findall(r"<pre>([\s\S]*?)</pre>", body)[:1])
-    check("reversión: no toca la IP de gestión", "network parms" not in re.findall(r"<pre>([\s\S]*?)</pre>", body)[0])
+          is not None, re.findall(r"<pre[^>]*>([\s\S]*?)</pre>", body)[:1])
+    check("reversión: no toca la IP de gestión", "network parms" not in re.findall(r"<pre[^>]*>([\s\S]*?)</pre>", body)[0])
     r = s.post(f"{B}/changes/{cr}/review", data={"decision": "approve"})
     check("el administrador aprueba su propia reversión", "No puede aprobar" not in r.text)
     t = wait_cr(cr)
     check("reversión ejecutada sin errores en el EdgeSwitch", "badge b-done" in t,
-          htmlmod.unescape(re.findall(r"<pre>([\s\S]*?)</pre>", t)[-1])[-800:] if "<pre>" in t else t[-500:])
+          htmlmod.unescape(re.findall(r"<pre[^>]*>([\s\S]*?)</pre>", t)[-1])[-800:] if "<pre" in t else t[-500:])
     time.sleep(3)
     backup(dev)
     raw_v1 = s.get(f"{B}/versions/{v1}?raw=1").text
@@ -118,7 +118,7 @@ try:
     t = htmlmod.unescape(wait_cr(crf))
     check("«Failed to set VLAN participation» marca la solicitud como fallida", "badge b-failed" in t)
     check("se detiene en el comando rechazado y dice que no se guardó",
-          "vlan participation include 99" in t and "NO se guardó" in t, t[t.find("<pre>"):][:600])
+          "vlan participation include 99" in t and "NO se guardó" in t, t[t.find("<pre"):][:600])
     time.sleep(4)
     raw_now = s.get(f"{B}/versions/{versions(dev)[0]}?raw=1").text
     check("los comandos posteriores al error no se aplicaron", "NO-DEBE-APLICARSE" not in raw_now)
@@ -143,7 +143,7 @@ try:
     crt = re.search(r"/changes/(\d+)", r.url)
     check("confirmando sí se crea (para revisarla)", crt is not None, r.url)
     if crt:
-        s.post(f"{B}/changes/{crt.group(1)}/review", data={"decision": "reject"})
+        s.post(f"{B}/changes/{crt.group(1)}/review", data={"decision": "reject", "comment": "prueba"})
 
     s.post(f"{B}/devices/{dev}/delete")
 finally:

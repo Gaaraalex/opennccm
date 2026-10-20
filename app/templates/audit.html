@@ -1,16 +1,12 @@
 {% extends "base.html" %}{% block title %}Auditoría{% endblock %}
+{% block crumbs %}<b>Administración</b>{% endblock %}
 {% block content %}
 {% include "_admin_tabs.html" %}
-<h1>Actividad de usuarios</h1>
-<div class="toolbar">
-  <form class="row" method="get"><input name="q" value="{{ q }}" placeholder="Usuario, acción o detalle"><button class="sec">Buscar</button></form>
-  <a class="btn sec" href="/reports/audit.csv?days=90">Exportar 90 días</a>
-</div>
-<div class="card">
-<table><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Detalle</th><th>IP</th></tr>
-{% for a in items %}
-<tr><td class="small">{{ a.created_at|dt }}</td><td>{{ a.username }}</td><td><code>{{ a.action }}</code></td><td class="small">{{ a.detail or '' }}</td><td class="small">{{ a.ip or '' }}</td></tr>
-{% else %}<tr class="empty-row"><td colspan="5"><div class="empty">{{ empty_art('search') }}<h3>Sin registros</h3><p class="muted">No hay acciones que coincidan con la búsqueda.</p></div></td></tr>{% endfor %}
-</table>
-</div>
+<div class="row"><form method="get" class="grow" style="max-width:360px"><label class="input" for="audq">{{ icon('search', 's') }}<input id="audq" name="q" value="{{ q }}" placeholder="{{ _('Buscar usuario, acción o IP') }}"></label></form>
+  <span class="grow"></span><a class="btn" href="/reports/audit.csv?days=90">{{ icon('dl', 's') }}Exportar 90 días</a></div>
+<section class="card flush"><div class="tw"><table class="t"><thead><tr><th>Cuándo</th><th>Usuario</th><th>Acción</th><th>Desde</th></tr></thead><tbody>
+{% for a in items %}<tr><td class="muted" style="white-space:nowrap" title="{{ a.created_at|dt }}">{{ a.created_at|ago }}</td><td>{{ a.username }}</td>
+  <td><code>{{ a.action }}</code>{% if a.detail %} <span class="sm">{{ a.detail|truncate(160) }}</span>{% endif %}</td><td class="mono">{{ a.ip or '—' }}</td></tr>
+{% else %}<tr><td colspan="4"><div class="empty">{{ empty_art('search') }}<h2>Sin resultados</h2><p>Nada coincide con la búsqueda.</p></div></td></tr>{% endfor %}
+</tbody></table></div></section>
 {% endblock %}

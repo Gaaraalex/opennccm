@@ -1,0 +1,29 @@
+{% extends "base.html" %}{% block title %}{{ _('Editar entrada') if e else _('Agregar entrada de ciclo de vida') }}{% endblock %}
+{% block content %}
+<h1>{{ _('Editar entrada') if e else _('Agregar entrada de ciclo de vida') }}</h1>
+<p class="muted sm" data-sheet-sub>Se aplica a todos los equipos cuyo modelo coincida con el patrón.</p>
+<form method="post" action="/eol/entries" class="stack" id="eolf">
+  {% if e %}<input type="hidden" name="id" value="{{ e.id }}">{% endif %}
+  <div class="f2"><div class="field"><label for="ep">Patrón de modelo (regex)</label><div class="input mono"><input id="ep" name="model_pattern" required value="{{ e.model_pattern if e else '' }}" placeholder="C2960X?-.*"></div><span class="help" id="epm"></span></div>
+    <div class="field"><label for="evn">Fabricante</label><div class="input"><input id="evn" name="vendor" value="{{ (e.vendor or '') if e else 'Cisco' }}"></div></div></div>
+  <div class="f3"><div class="field"><label for="eeos">Fin de venta</label><div class="input"><input id="eeos" name="end_of_sale" type="date" value="{{ e.end_of_sale|ymd if e and e.end_of_sale }}"></div></div>
+    <div class="field"><label for="eeop">Fin de parches</label><div class="input"><input id="eeop" name="end_of_sw_maintenance" type="date" value="{{ e.end_of_sw_maintenance|ymd if e and e.end_of_sw_maintenance }}"></div></div>
+    <div class="field"><label for="eeol">Fin de soporte</label><div class="input"><input id="eeol" name="end_of_support" type="date" value="{{ e.end_of_support|ymd if e and e.end_of_support }}"></div></div></div>
+  <div class="field"><label for="erep">Reemplazo recomendado</label><div class="input"><input id="erep" name="replacement" value="{{ (e.replacement or '') if e }}"></div></div>
+  <div class="field"><label for="eurl">URL del boletín</label><div class="input mono"><input id="eurl" name="url" type="url" value="{{ (e.url or '') if e }}" placeholder="https://…"></div></div>
+  <div class="row" data-sheet-foot><span class="grow"></span><a class="btn ghost" href="/eol" data-cancel>Cancelar</a><button class="btn pri">Guardar</button></div>
+</form>
+<script>
+(function () {
+  const M = {{ models|tojson }}, T = {{ {'bad': _('Expresión no válida'), 'hit': _('Coincide con: {0}'), 'none': _('No coincide con ningún equipo actual')}|tojson }};
+  const ep = document.getElementById('ep'), out = document.getElementById('epm');
+  function m() {
+    let rx = null; try { rx = ep.value ? new RegExp(ep.value, 'i') : null; } catch (x) { out.textContent = T.bad; out.style.color = 'var(--crit)'; return; }
+    out.style.color = '';
+    const n = rx ? Object.keys(M).filter(k => M[k] && rx.test(M[k])) : [];
+    out.textContent = n.length ? T.hit.replace('{0}', n.join(', ')) : (ep.value ? T.none : '');
+  }
+  ep.addEventListener('input', m); m();
+})();
+</script>
+{% endblock %}

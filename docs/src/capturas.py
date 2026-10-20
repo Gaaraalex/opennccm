@@ -46,8 +46,8 @@ def get(path):
 
 def tl_ids(page, kind=None):
     """Ids de la línea de tiempo de versiones de la ficha (más reciente primero)."""
-    rows = re.findall(r'class="tl-row[^"]*" data-id="(\d+)"(?:(?!data-id=).)*?class="tl-kind">(\w+)<', page, re.S)
-    return list(dict.fromkeys(i for i, k in rows if kind is None or k == kind))
+    rows = re.findall(r'<li class="([^"]*)" data-id="(\d+)"', page)
+    return list(dict.fromkeys(i for c, i in rows if kind is None or (("startup" in c.split()) == (kind == "startup"))))
 
 
 pw = sync_playwright().start()
@@ -96,7 +96,7 @@ r = s.post(f"{B}/configlets/{vlan}/run", data={"device_ids": "1", "variables": "
                                                 "title": "Agregar VLAN 30 de cámaras"})
 pending_cr = re.search(r"/changes/(\d+)", r.url).group(1)
 comp = get("/compliance")
-pci = re.search(r'/compliance/policies/(\d+)"[^>]*>PCI DSS 4.0 \(IOS\)', comp).group(1)
+pci = re.search(r'<div class="nm">PCI DSS 4\.0 \(IOS\).*?/compliance/policies/(\d+)"', comp, re.S).group(1)
 
 save("01-login", "/login", 1280, 800, anon=True, full=False)
 save("02-panel", "/")
@@ -127,6 +127,7 @@ save("22-analisis", "/analytics")
 save("23-informes", "/reports")
 save("24-informe-inventario", "/reports/view/inventory")
 save("25-credenciales", "/credentials")
+save("25b-grupos", "/groups")
 save("26-usuarios", "/users")
 save("27-auditoria", "/audit", height=1400, full=False)
 save("28-sistema", "/system")

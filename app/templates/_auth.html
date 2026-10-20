@@ -1,49 +1,29 @@
-{# Diseño de las pantallas de acceso (ingreso y verificación en dos pasos): panel de marca + tarjeta del formulario #}
+{# Pantallas de acceso (ingreso y verificación en dos pasos), igual que el prototipo: panel de marca con la red animada
+   a la izquierda y el formulario a la derecha. En el móvil solo se ve el formulario. #}
 {% extends "base.html" %}
-{% block body_attr %} class="auth"{% endblock %}
 {% block flashes %}{% endblock %}
 {% block content %}
-<div class="auth-wrap">
-  <section class="auth-brand" aria-hidden="true">
-    <svg class="auth-net" viewBox="0 0 600 700" preserveAspectRatio="xMidYMid slice">
-      <g class="links">
-        <line x1="90" y1="120" x2="260" y2="210"/><line x1="260" y1="210" x2="470" y2="140"/>
-        <line x1="260" y1="210" x2="330" y2="390"/><line x1="330" y1="390" x2="140" y2="470"/>
-        <line x1="330" y1="390" x2="520" y2="460"/><line x1="140" y1="470" x2="230" y2="620"/>
-        <line x1="520" y1="460" x2="430" y2="640"/><line x1="470" y1="140" x2="540" y2="300"/>
-        <line x1="540" y1="300" x2="520" y2="460"/><line x1="90" y1="120" x2="60" y2="330"/>
-        <line x1="60" y1="330" x2="140" y2="470"/>
-      </g>
-      <g class="nodes">
-        <circle cx="90" cy="120" r="7"/><circle cx="260" cy="210" r="11"/><circle cx="470" cy="140" r="7"/>
-        <circle cx="330" cy="390" r="13"/><circle cx="140" cy="470" r="8"/><circle cx="520" cy="460" r="8"/>
-        <circle cx="230" cy="620" r="6"/><circle cx="430" cy="640" r="6"/><circle cx="540" cy="300" r="6"/>
-        <circle cx="60" cy="330" r="6"/>
-      </g>
-      <g class="pulse"><circle cx="330" cy="390" r="13"/><circle cx="260" cy="210" r="11"/></g>
-    </svg>
-    <div class="auth-brand-in">
-      <div class="auth-logo"><img src="/static/icon.svg?v={{ VERSION }}" alt=""><span>Open<b>NCCM</b></span></div>
-      <p class="auth-tag">Gestión de configuración, cambios y cumplimiento de red</p>
-      <ul class="auth-feats">
-        <li><i>{{ icon('save') }}</i><span><b>Respaldos y versiones</b> de cada equipo, automáticos y al detectar un cambio.</span></li>
-        <li><i>{{ icon('branch') }}</i><span><b>Comparación y reversión</b> de configuraciones en un clic.</span></li>
-        <li><i>{{ icon('shield') }}</i><span><b>Cumplimiento</b> PCI DSS, HIPAA, SOX y hardening, con corrección.</span></li>
-        <li><i>{{ icon('term') }}</i><span><b>Consola SSH</b> en el navegador, con auditoría.</span></li>
-      </ul>
-      <p class="auth-foot">v{{ VERSION }} · Código abierto (GPL-3.0)</p>
-    </div>
-  </section>
-  <section class="auth-main">
-    <div class="auth-card">
-      <div class="auth-logo sm"><img src="/static/icon.svg?v={{ VERSION }}" alt=""><span>Open<b>NCCM</b></span></div>
-      <div role="status" aria-live="polite">{% for kind, msg in flashes %}<div class="flash {{ kind }}">{{ msg }}</div>{% endfor %}</div>
+<div class="login">
+  <div class="side" aria-hidden="true"><canvas data-net="big"></canvas>
+    <div class="brand" style="font-size:34px;padding:0">{{ logo(48) }}<span>Open<em>NCCM</em></span></div>
+    <div style="font:700 28px/1.2 var(--f-display);max-width:480px;letter-spacing:-.015em">Gestión de configuración, cambios y cumplimiento de red.</div>
+    <div class="feat"><span class="fi">{{ icon('save') }}</span><span><b>Respaldos y versiones</b> de cada equipo, automáticos y al detectar un cambio.</span></div>
+    <div class="feat"><span class="fi">{{ icon('branch') }}</span><span><b>Comparación y reversión</b> de configuraciones en un clic.</span></div>
+    <div class="feat"><span class="fi">{{ icon('shield') }}</span><span><b>Cumplimiento</b> PCI DSS, HIPAA, SOX y hardening, con corrección.</span></div>
+    <div class="feat"><span class="fi">{{ icon('term') }}</span><span><b>Consola SSH</b> en el navegador, con auditoría.</span></div>
+    <div class="sm" style="color:var(--rail-ink)">v{{ VERSION }} · Código abierto (GPL-3.0)</div>
+  </div>
+  <div class="formw">
+    <div class="lc">
+      <div class="brand dark">{{ logo() }}<span>Open<em>NCCM</em></span></div>
+      {% for kind, msg in flashes %}<div class="banner {{ 'crit' if kind == 'error' else 'info' }}" role="{{ 'alert' if kind == 'error' else 'status' }}">{{ icon('alert' if kind == 'error' else 'info') }}<div class="flash {{ kind }} grow">{{ msg }}</div></div>{% endfor %}
       {% block auth_form %}{% endblock %}
+      <div class="row" style="justify-content:center"><div class="seg" role="group" aria-label="Idioma">
+        {% for code, name in LANGS.items() %}<a href="/lang/{{ code }}?next={{ request.url.path }}" lang="{{ code }}" hreflang="{{ code }}" class="{{ 'on' if get_lang() == code }}" {{ 'aria-current="true"'|safe if get_lang() == code }}>{{ name }}</a>{% endfor %}
+      </div></div>
+      <p class="sm" style="text-align:center">{% block auth_links %}{% endblock %}<a href="/acerca">Privacidad</a></p>
     </div>
-    <nav class="auth-langs" aria-label="Idioma">
-      {% for code, name in LANGS.items() %}<a href="/lang/{{ code }}?next={{ request.url.path }}" lang="{{ code }}" hreflang="{{ code }}" {{ 'aria-current="true" class=on'|safe if get_lang() == code }}>{{ name }}</a>{% endfor %}
-    </nav>
-    <p class="auth-links small">{% block auth_links %}{% endblock %}<a href="/acerca">Privacidad, cookies y licencias</a></p>
-  </section>
+  </div>
 </div>
+<script src="/static/net.js?v={{ VERSION }}" defer></script>
 {% endblock %}

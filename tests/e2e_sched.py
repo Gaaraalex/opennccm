@@ -19,12 +19,12 @@ def check(name, cond, extra=""):
 
 
 def row(page, name):
-    m = re.search(rf"<td>{re.escape(name)}</td>([\s\S]*?)</tr>", page)
+    m = re.search(rf"</span>{re.escape(name)}</div></td>([\s\S]*?)</tr>", page)
     return htmlmod.unescape(m.group(1)) if m else ""
 
 
 s.post(B + "/login", data={"username": "admin", "password": "Admin12345"})
-page = s.get(B + "/schedules").text
+page = s.get(B + "/schedules/new").text
 check("formulario con frecuencia, hora y días", 'name="freq"' in page and 'type="time"' in page
       and 'name="days" value="mon"' in page)
 
@@ -52,7 +52,7 @@ check("cron «0 6 * * 1» se ejecuta el LUNES (antes caía en martes)",
 
 # ---- editar una tarea existente
 page = s.get(B + "/schedules").text
-sid = re.search(r"<td>Semanal LJ</td>[\s\S]*?/schedules/(\d+)/edit", page)
+sid = re.search(r"</span>Semanal LJ</div></td>[\s\S]*?/schedules/(\d+)/edit", page)
 check("botón «Editar» en cada tarea", sid is not None)
 if sid:
     form = s.get(f"{B}/schedules/{sid.group(1)}/edit").text
@@ -68,14 +68,14 @@ if sid:
     r = s.post(f"{B}/schedules/{sid.group(1)}/edit", data={"name": "Semanal LJ", "action": "backup",
                                                             "freq": "weekly", "time": "07:15"})
     check("editar valida igual que crear (sin días se rechaza)", "elija al menos un día" in htmlmod.unescape(r.text))
-cid = re.search(r"<td>Cron lunes</td>[\s\S]*?/schedules/(\d+)/edit", s.get(B + "/schedules").text)
+cid = re.search(r"</span>Cron lunes</div></td>[\s\S]*?/schedules/(\d+)/edit", s.get(B + "/schedules").text)
 if cid:
     form = s.get(f"{B}/schedules/{cid.group(1)}/edit").text
     check("una expresión cron numérica se abre como «días de la semana»",
           'value="weekly" selected' in form and 'value="mon" checked' in form)
 
 for name in ("Semanal LJ", "Mensual", "Frecuente", "Cron lunes"):
-    m = re.search(rf"<td>{re.escape(name)}</td>[\s\S]*?/schedules/(\d+)/delete", s.get(B + "/schedules").text)
+    m = re.search(rf"</span>{re.escape(name)}</div></td>[\s\S]*?/schedules/(\d+)/edit", s.get(B + "/schedules").text)
     if m:
         s.post(f"{B}/schedules/{m.group(1)}/delete")
 

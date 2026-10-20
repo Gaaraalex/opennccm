@@ -26,8 +26,8 @@ def want(k):
 
 
 def tl_ids(page, kind=None):
-    rows = re.findall(r'class="tl-row[^"]*" data-id="(\d+)"(?:(?!data-id=).)*?class="tl-kind">(\w+)<', page, re.S)
-    return list(dict.fromkeys(i for i, k in rows if kind is None or k == kind))
+    rows = re.findall(r'<li class="([^"]*)" data-id="(\d+)"', page)
+    return list(dict.fromkeys(i for c, i in rows if kind is None or (("startup" in c.split()) == (kind == "startup"))))
 
 
 with sync_playwright() as p:

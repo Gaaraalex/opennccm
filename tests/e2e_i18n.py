@@ -73,18 +73,17 @@ check("Ajustes: idioma predeterminado", 'name="default_lang"' in st)
 # --- Análisis
 a = adm.get(B + "/analytics?days=30").text
 check("análisis: indicadores con comparación del periodo anterior",
-      "Cambios en 30 días" in a and ("anteriores" in a))
-check("análisis: actividad apilada por origen", 'class="seg c' in a or "Sin datos en este periodo" in a)
-check("análisis: mapa de calor día × hora", 'class="viz heat"' in a or "Sin datos en este periodo" in a)
-check("análisis: anillo de origen con leyenda", 'class="donut"' in a or "Sin datos en este periodo" in a)
-check("análisis: información emergente (data-tip) y viz.js", "data-tip=" in a and "/static/viz.js" in a)
-check("análisis: cumplimiento con icono de estado", re.search(r"[✓⚠✕] \d+%", a) is not None
+      ">Cambios<" in a and ("vs. periodo anterior" in a or "días anteriores" in a))
+check("análisis: mapa de calor día × hora", 'class="heat"' in a or "Sin datos en este periodo" in a)
+check("análisis: anillo de origen con leyenda", 'class="legend grow"' in a or "Sin cambios en este periodo" in a)
+check("análisis: barras horizontales", a.count('class="hbars"') >= 3, a.count('class="hbars"'))
+check("análisis: cumplimiento en porcentaje", re.search(r"<span>\d+%</span>", a) is not None
       or "Sin auditorías" in a)
 for d in (7, 90, 365):
     check(f"análisis de {d} días", adm.get(f"{B}/analytics?days={d}").status_code == 200)
 adm.get(B + "/lang/en")
 a = adm.get(B + "/analytics?days=30").text
-check("análisis en inglés", "Change activity" in a and "When the network changes" in a)
+check("análisis en inglés", "Configuration analytics" in a and "When the network changes" in a)
 adm.get(B + "/lang/es")
 
 print("\nRESULTADO:", "TODO OK" if not fails else f"{len(fails)} fallos: {fails}")
