@@ -52,6 +52,7 @@ class User(Base):
     locked_until: Mapped[datetime | None] = mapped_column(DateTime)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime)
     last_login_ip: Mapped[str | None] = mapped_column(String(64))
+    auth_source: Mapped[str] = mapped_column(String(8), default="local")  # local | ldap (Active Directory) | oidc (Azure)
 
 
 class Credential(Base):
@@ -276,7 +277,7 @@ class Setting(Base):
     value: Mapped[str | None] = mapped_column(Text)
 
 
-SECRET_SETTINGS = {"smtp_password", "cisco_api_secret", "dr_remote_password"}
+SECRET_SETTINGS = {"smtp_password", "cisco_api_secret", "dr_remote_password", "ldap_bind_password", "oidc_client_secret"}
 
 
 def init_db():

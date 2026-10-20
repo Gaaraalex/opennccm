@@ -2,7 +2,7 @@
 {% block crumbs %}<b>Administración</b>{% endblock %}
 {% block content %}
 {% include "_admin_tabs.html" %}
-{% set SECS = [('seguridad', _('Seguridad y acceso'), 'lock'), ('organizacion', _('Organización'), 'users'), ('flujo', _('Flujo de cambios'), 'branch'),
+{% set SECS = [('seguridad', _('Seguridad y acceso'), 'lock'), ('inicio', _('Inicio de sesión'), 'key'), ('organizacion', _('Organización'), 'users'), ('flujo', _('Flujo de cambios'), 'branch'),
                ('notificaciones', _('Notificaciones'), 'bell'), ('eox', _('Fin de vida (Cisco EoX)'), 'clock'), ('recuperacion', _('Recuperación ante desastres'), 'db'),
                ('actualizaciones', _('Actualizaciones'), 'refresh')] %}
 {% macro F(label, id, help='') %}<div class="field"><label for="{{ id }}">{{ label }}</label>{{ caller() }}{% if help %}<span class="help">{{ help }}</span>{% endif %}</div>{% endmacro %}
@@ -18,6 +18,39 @@
       <option value="operator" {{ 'selected' if s.console_access == 'operator' }}>Administradores y operadores (solo sus equipos)</option>
       <option value="off" {{ 'selected' if s.console_access == 'off' }}>Nadie (consola desactivada)</option></select></div>{% endcall %}
     <label class="swrow"><span><b>Entrar en la consola con la credencial del equipo</b><div class="muted sm">Sin esta opción, la consola pide usuario y contraseña del equipo. Con ella, quien pueda abrir la consola entra sin conocer la contraseña.</div></span><input type="checkbox" class="sw" name="console_autologin" {{ 'checked' if s.console_autologin == '1' }}></label>
+  </div></section>
+
+  <section class="card" id="inicio" data-secp><div class="card-h"><h2>Inicio de sesión</h2><span class="muted sm">Las cuentas locales siguen funcionando siempre</span></div><div class="stack">
+    {% set RL = [('', _('Sin acceso (solo con un grupo)')), ('viewer', _('Lector')), ('operator', _('Operador')), ('admin', _('Administrador'))] %}
+    <div class="sec"><h3>{{ icon('server', 's') }}Active Directory (LDAP)</h3>
+      <label class="swrow"><span><b>Permitir el ingreso con cuentas de Active Directory</b><div class="muted sm">Se usa el mismo formulario de usuario y contraseña. La cuenta se crea en OpenNCCM al primer ingreso y su rol sale de sus grupos.</div></span><input type="checkbox" class="sw" name="ldap_enabled" {{ 'checked' if s.ldap_enabled == '1' }}></label>
+      <div class="f2">{% call F(_('Servidor'), 's-lurl', _('ldaps://dc.empresa.local (puerto 636) o ldap://… con StartTLS.')) %}<div class="input mono"><input id="s-lurl" name="ldap_url" value="{{ s.ldap_url }}" placeholder="ldaps://dc01.empresa.local"></div>{% endcall %}
+        {% call F(_('Base de búsqueda (DN)'), 's-lbase') %}<div class="input mono"><input id="s-lbase" name="ldap_base_dn" value="{{ s.ldap_base_dn }}" placeholder="DC=empresa,DC=local"></div>{% endcall %}</div>
+      <div class="row" style="gap:24px"><label class="ck"><input type="checkbox" name="ldap_starttls" {{ 'checked' if s.ldap_starttls == '1' }}> Usar StartTLS (con ldap://)</label>
+        <label class="ck"><input type="checkbox" name="ldap_verify_tls" {{ 'checked' if s.ldap_verify_tls != '0' }}> Verificar el certificado del servidor</label></div>
+      <div class="f2">{% call F(_('Cuenta de servicio (DN o usuario@dominio)'), 's-lbind', _('Solo necesita permiso de lectura en el directorio.')) %}<div class="input mono"><input id="s-lbind" name="ldap_bind_dn" value="{{ s.ldap_bind_dn }}" placeholder="svc-opennccm@empresa.local" autocomplete="off"></div>{% endcall %}
+        {% call F(_('Contraseña de la cuenta de servicio'), 's-lbpw', _('Déjala vacía para no cambiarla.')) %}<div class="input"><input id="s-lbpw" name="ldap_bind_password" type="password" autocomplete="new-password" {% if s.ldap_bind_password_set %}placeholder="{{ _('•••••••• (guardada)') }}"{% endif %}></div>{% endcall %}</div>
+      {% call F(_('Filtro de usuario'), 's-lflt', _('«{username}» se sustituye por lo que se escribe al ingresar. Con userPrincipalName se ingresa como usuario@dominio.')) %}<div class="input mono"><input id="s-lflt" name="ldap_user_filter" value="{{ s.ldap_user_filter }}"></div>{% endcall %}
+      <div class="f3">{% call F(_('Grupo de administradores'), 's-lga') %}<div class="input mono"><input id="s-lga" name="ldap_group_admin" value="{{ s.ldap_group_admin }}" placeholder="CN=NCCM-Admins,OU=Grupos,DC=empresa,DC=local"></div>{% endcall %}
+        {% call F(_('Grupo de operadores'), 's-lgo') %}<div class="input mono"><input id="s-lgo" name="ldap_group_operator" value="{{ s.ldap_group_operator }}" placeholder="CN=NCCM-Operadores,…"></div>{% endcall %}
+        {% call F(_('Grupo de lectores'), 's-lgv') %}<div class="input mono"><input id="s-lgv" name="ldap_group_viewer" value="{{ s.ldap_group_viewer }}" placeholder="CN=NCCM-Lectores,…"></div>{% endcall %}</div>
+      {% call F(_('Rol si no está en ninguno de esos grupos'), 's-ldef', _('Se admiten grupos anidados. Varios grupos por rol: sepáralos con «;».')) %}<div class="input" style="max-width:340px"><select id="s-ldef" name="ldap_default_role">{% for v, l in RL %}<option value="{{ v }}" {{ 'selected' if (s.ldap_default_role or '') == v }}>{{ l }}</option>{% endfor %}</select></div>{% endcall %}
+      <div class="row"><div class="input" style="max-width:240px"><input id="s-ltu" name="test_user" placeholder="{{ _('Usuario de prueba (opcional)') }}" aria-label="{{ _('Usuario de prueba (opcional)') }}" autocomplete="off"></div>
+        <button type="button" class="btn" id="ldap-test">{{ icon('play', 's') }}Probar conexión</button><span class="sm" id="ldap-res" role="status" aria-live="polite"></span></div></div>
+    <div class="sec"><h3>{{ icon('globe', 's') }}Microsoft Entra ID (Azure AD)</h3>
+      <label class="swrow"><span><b>Mostrar «Entrar con Microsoft» en la pantalla de ingreso</b><div class="muted sm">Inicio de sesión único con las cuentas de Microsoft 365 / Azure de la organización (OpenID Connect).</div></span><input type="checkbox" class="sw" name="oidc_enabled" {{ 'checked' if s.oidc_enabled == '1' }}></label>
+      <div class="summ">{{ icon('info') }}<div class="sm">Registre una aplicación en <b>Entra ID › Registros de aplicaciones</b> con esta <b>URI de redirección</b> (Web):<br><code style="user-select:all">{{ s.oidc_redirect or redirect_uri }}</code><br>Para que el rol salga de los grupos, en <b>Configuración del token</b> agregue la notificación <b>groups</b> (o use roles de aplicación).</div></div>
+      <div class="f3">{% call F(_('ID de directorio (tenant)'), 's-otn') %}<div class="input mono"><input id="s-otn" name="oidc_tenant" value="{{ s.oidc_tenant }}" placeholder="00000000-0000-0000-0000-000000000000"></div>{% endcall %}
+        {% call F(_('ID de aplicación (cliente)'), 's-ocid') %}<div class="input mono"><input id="s-ocid" name="oidc_client_id" value="{{ s.oidc_client_id }}" autocomplete="off"></div>{% endcall %}
+        {% call F(_('Secreto de cliente'), 's-ocs', _('Déjalo vacío para no cambiarlo.')) %}<div class="input"><input id="s-ocs" name="oidc_client_secret" type="password" autocomplete="new-password" {% if s.oidc_client_secret_set %}placeholder="{{ _('•••••••• (guardado)') }}"{% endif %}></div>{% endcall %}</div>
+      <div class="f3">{% call F(_('Grupo o rol de administradores'), 's-oga', _('Object ID del grupo o nombre del rol de aplicación.')) %}<div class="input mono"><input id="s-oga" name="oidc_group_admin" value="{{ s.oidc_group_admin }}"></div>{% endcall %}
+        {% call F(_('Grupo o rol de operadores'), 's-ogo') %}<div class="input mono"><input id="s-ogo" name="oidc_group_operator" value="{{ s.oidc_group_operator }}"></div>{% endcall %}
+        {% call F(_('Grupo o rol de lectores'), 's-ogv') %}<div class="input mono"><input id="s-ogv" name="oidc_group_viewer" value="{{ s.oidc_group_viewer }}"></div>{% endcall %}</div>
+      {% call F(_('Rol si no está en ninguno'), 's-odef') %}<div class="input" style="max-width:340px"><select id="s-odef" name="oidc_default_role">{% for v, l in RL %}<option value="{{ v }}" {{ 'selected' if (s.oidc_default_role or '') == v }}>{{ l }}</option>{% endfor %}</select></div>{% endcall %}
+      <details><summary class="sm">Opciones avanzadas (otro proveedor OpenID Connect o un proxy)</summary><div class="stack" style="margin-top:10px">
+        {% call F(_('URL de descubrimiento'), 's-odis', _('Vacío = Entra ID con el tenant indicado. Sirve también para Google Workspace, Keycloak, Okta…')) %}<div class="input mono"><input id="s-odis" name="oidc_discovery" value="{{ s.oidc_discovery }}" placeholder="https://…/.well-known/openid-configuration"></div>{% endcall %}
+        <div class="f2">{% call F(_('Texto del botón'), 's-obtn') %}<div class="input"><input id="s-obtn" name="oidc_button" value="{{ s.oidc_button }}" placeholder="{{ _('Entrar con Microsoft') }}"></div>{% endcall %}
+          {% call F(_('URI de redirección fija'), 's-ored', _('Solo si OpenNCCM está detrás de otro proxy con otra dirección.')) %}<div class="input mono"><input id="s-ored" name="oidc_redirect" value="{{ s.oidc_redirect }}"></div>{% endcall %}</div></div></details></div>
   </div></section>
 
   <section class="card" id="organizacion" data-secp><div class="card-h"><h2>Organización</h2></div><div class="stack">
@@ -86,6 +119,14 @@
   }
   links.forEach(a => a.addEventListener('click', e => { e.preventDefault(); show(a.dataset.sec, true); }));
   window.addEventListener('hashchange', () => show(location.hash.slice(1)));
+  const lt = document.getElementById('ldap-test'), lr = document.getElementById('ldap-res');
+  lt.addEventListener('click', async () => {
+    lr.textContent = {{ _('Probando…')|tojson }}; lr.style.color = '';
+    try {
+      const j = await (await fetch('/settings/ldap-test', {method: 'POST', body: new FormData(document.getElementById('setf')), credentials: 'same-origin'})).json();
+      lr.textContent = j.msg; lr.style.color = j.ok ? 'var(--ok)' : 'var(--crit)';
+    } catch (e) { lr.textContent = {{ _('No se pudo hacer la prueba.')|tojson }}; lr.style.color = 'var(--crit)'; }
+  });
   show(location.hash.slice(1));
 })();
 </script>

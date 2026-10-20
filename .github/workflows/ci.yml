@@ -44,6 +44,19 @@ jobs:
       - name: Equipos antiguos (OpenSSH real con solo ssh-rsa y kex SHA-1)
         run: bash tests/legacy-openssh-test.sh .venv/bin/python
 
+  directories:
+    name: Directorios reales (Samba AD y Keycloak)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencias
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -q --upgrade pip
+          .venv/bin/pip install -q -r requirements.txt
+      - name: Inicio de sesión con Active Directory (Samba AD) y OpenID Connect (Keycloak)
+        run: bash tests/directories-test.sh .venv/bin/python
+
   install:
     name: Instalación y actualización (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -131,7 +144,7 @@ jobs:
   release:
     name: Publicar versión
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [lint, app, install, package, tui]
+    needs: [lint, app, directories, install, package, tui]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

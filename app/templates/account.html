@@ -29,7 +29,9 @@
     <p class="muted sm">{% if user.totp_enabled %}Al entrar se te pide un código de 6 cifras de tu app (Google Authenticator, Microsoft Authenticator, Authy…).{% else %}Protege tu cuenta con un código de tu móvil además de la contraseña: aunque alguien la conozca, no podrá entrar sin él.{% endif %}</p>
     <div style="margin-top:14px">{% if user.totp_enabled %}<button type="button" class="btn dz" data-dialog="tfa-off">Desactivar…</button>{% else %}<a class="btn pri" href="/account/2fa/setup">{{ icon('shield', 's') }}Activar verificación en dos pasos</a>{% endif %}</div></section>
 
-  <section class="card c12" id="clave"><div class="card-h"><h2>Cambiar mi contraseña</h2></div>
+  {% if (user.auth_source or 'local') != 'local' %}<section class="card c12" id="clave"><div class="card-h"><h2>Cambiar mi contraseña</h2></div>
+    <p class="muted">{{ _('Su cuenta es de Active Directory: cambie la contraseña como en el resto de equipos de la red.') if user.auth_source == 'ldap' else _('Su cuenta es de Microsoft: cambie la contraseña en su cuenta de Microsoft 365.') }}</p></section>
+  {% else %}<section class="card c12" id="clave"><div class="card-h"><h2>Cambiar mi contraseña</h2></div>
     <form method="post" action="/account" class="bento" id="pwf"><div class="c6 stack">
       <div class="field"><label for="pw-cur">Contraseña actual</label><div class="input">{{ icon('lock', 's') }}<input id="pw-cur" type="password" name="current" required autocomplete="current-password"></div></div>
       <div class="field"><label for="pw-new">Nueva contraseña</label><div class="input">{{ icon('lock', 's') }}<input id="pw-new" type="password" name="new" required minlength="10" autocomplete="new-password"></div></div>
@@ -38,7 +40,7 @@
       <div class="c6"><div class="summ" style="flex-direction:column;gap:2px"><b>La nueva contraseña debe tener</b><ul class="rules-ok" id="pwrules" aria-live="polite">
         {% for k, t in [('len', _('Al menos 10 caracteres')), ('let', _('Letras')), ('num', _('Números')), ('eq', _('Las dos coinciden'))] %}<li data-r="{{ k }}">{{ icon('x', 's no') }}{{ icon('check', 's yes') }}{{ t }}</li>{% endfor %}</ul></div>
         <p class="muted sm" style="margin-top:12px">Al cambiarla se cierran tus sesiones abiertas en otros equipos. Si la olvidas, un administrador puede cambiarla en Usuarios, o desde la consola del servidor con <code>sudo opennccm reset-password USUARIO 'CLAVE'</code>.</p></div>
-    </form></section>
+    </form></section>{% endif %}
 </div>
 {% if user.totp_enabled %}<dialog class="dlg" id="tfa-off"><form method="post" action="/account/2fa/disable" class="stack">
   <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi warn">{{ icon('shield') }}</span><div><h2>Desactivar la verificación en dos pasos</h2><p class="muted" style="margin-top:6px">Confirma con tu contraseña y un código de la app.</p></div></div>
