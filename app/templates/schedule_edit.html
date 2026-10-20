@@ -1,8 +1,6 @@
-{% extends "base.html" %}{% block title %}Editar tarea{% endblock %}
+{% extends "base.html" %}{% block title %}{{ _('Editar tarea') if sid else _('Nueva tarea') }}{% endblock %}
 {% block content %}
-<h1><a href="/schedules">Tareas programadas</a> / Editar «{{ sf.name }}»</h1>
-<div class="card" style="max-width:900px">
-{% set form_action = "/schedules/" ~ sid ~ "/edit" %}{% set submit_label = _("Guardar cambios") %}{% set cancel_url = "/schedules" %}
+<h1>{{ _('Editar tarea') if sid else _('Nueva tarea') }}</h1>
+{% set form_action = ("/schedules/" ~ sid ~ "/edit") if sid else "/schedules" %}
 {% include "_schedule_form.html" %}
-</div>
 {% endblock %}

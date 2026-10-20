@@ -1,38 +1,23 @@
 {% extends "base.html" %}{% block title %}Usuarios{% endblock %}
+{% block crumbs %}<b>Administración</b>{% endblock %}
 {% block content %}
 {% include "_admin_tabs.html" %}
-<h1>Usuarios y roles</h1>
-<div class="card">
-<table><tr><th>Usuario</th><th>Rol</th><th>Equipos permitidos</th><th>Email</th><th>Estado</th><th>Creado</th><th></th></tr>
-{% for u in items %}
-<tr><td><b>{{ u.username }}</b>{% if u.id == user.id %} <span class="small muted">(usted)</span>{% endif %}</td>
-<td><span class="badge b-{{ 'critical' if u.role == 'admin' else ('major' if u.role == 'operator' else 'info') }}">{{ {'admin': 'administrador', 'operator': 'operador', 'viewer': 'lector'}[u.role] }}</span></td>
-<td>{% if u.role == 'admin' or not user_groups[u.id] %}<span class="muted">todos</span>{% else %}{{ user_groups[u.id]|join(', ') }}{% endif %}</td>
-<td>{{ u.email or '' }}</td><td>{{ 'activo' if u.active else 'bloqueado' }}</td><td class="small">{{ u.created_at|dt }}</td>
-<td style="white-space:nowrap"><a class="btn sm sec" href="/users/{{ u.id }}/edit" data-sheet>Editar</a>
-{% if u.id != user.id %}<form class="inline" method="post" action="/users/{{ u.id }}/delete" onsubmit="return confirm('¿Eliminar al usuario «{{ u.username }}»?')"><button class="sm danger">Eliminar</button></form>{% endif %}</td></tr>
-{% endfor %}
-</table>
-<p class="small muted" style="margin-bottom:0">Para cambiar la contraseña, el rol o los grupos de un usuario use <b>Editar</b> en su fila.
-Cada usuario puede cambiar su propia contraseña con el botón «Cambiar contraseña» de la barra superior.</p>
-</div>
-
-<div class="card" style="max-width:860px">
-<h2 style="margin-top:0">Crear usuario nuevo</h2>
-<form method="post" action="/users" autocomplete="off">
-  <div class="row">
-    <div><label>Nombre de usuario</label><input name="username" required minlength="2" maxlength="64" pattern="[A-Za-z0-9._@\-]+" autocomplete="off"></div>
-    <div><label>Rol</label><select name="role"><option value="viewer">lector — solo consulta</option><option value="operator">operador — respaldos, ejecutar y solicitar cambios</option><option value="admin">administrador — todo, aprueba cambios</option></select></div>
-    <div><label>Email (opcional)</label><input name="email" type="email"></div>
-  </div>
-  <div class="row">
-    <div><label>Contraseña (mínimo 8)</label><input name="password" type="password" required minlength="8" autocomplete="new-password"></div>
-    <div><label>Repita la contraseña</label><input name="password2" type="password" required minlength="8" autocomplete="new-password"></div>
-  </div>
-  <label>Restringir a grupos de dispositivos (ninguno marcado = todos los equipos)</label>
-  <div>{% for g in groups %}<label class="chk"><input type="checkbox" name="group_ids" value="{{ g.id }}"> {{ g.name }}</label>{% else %}<span class="muted small">No hay grupos. Créelos en Credenciales.</span>{% endfor %}</div>
-  <p class="small muted">Los operadores y lectores restringidos solo ven y modifican los equipos de sus grupos. No aplica a administradores.</p>
-  <p><button>Crear usuario</button></p>
-</form>
-</div>
+{% set RN = {'admin': _('Administrador'), 'operator': _('Operador'), 'viewer': _('Lector')} %}
+<section class="card flush"><div class="card-h"><h2>Usuarios y roles</h2><a class="btn s pri" href="/users/new" data-sheet data-title="Crear usuario">{{ icon('plus', 's') }}Crear usuario</a></div>
+  <div class="tw"><table class="t"><thead><tr><th>Usuario</th><th>Rol</th><th>Equipos</th><th>Verificación en dos pasos</th><th>Último acceso</th><th><span class="vh">Acciones</span></th></tr></thead><tbody>
+  {% for u in items %}<tr class="click" data-href="/users/{{ u.id }}/edit">
+    <td><div class="dev"><span class="av {{ '' if u.role == 'admin' else 'alt' }}" style="width:30px;height:30px;font-size:11px">{{ u.username[:2]|upper }}</span><div><b>{{ u.username }}</b>{% if u.id == user.id %} <span class="muted sm" style="font-weight:400">(tú)</span>{% endif %}<div class="muted sm" style="font-weight:400">{{ u.email or _('sin correo') }}</div></div></div></td>
+    <td>{{ RN[u.role] }}{% if not u.active %} <span class="pill crit">bloqueado</span>{% endif %}</td>
+    <td class="sm">{% if u.role == 'admin' or not user_groups[u.id] %}Todos{% else %}{{ _f('Solo {0}', user_groups[u.id]|join(', ')) }}{% endif %}</td>
+    <td>{% if u.totp_enabled %}<span class="pill ok">Activa</span>{% else %}<span class="pill warn">Sin activar</span>{% endif %}</td>
+    <td class="muted">{% if u.last_login_at %}<span title="{{ u.last_login_at|dt }}{% if u.last_login_ip %} · {{ u.last_login_ip }}{% endif %}">{{ u.last_login_at|ago }}</span>{% else %}{{ _('nunca') }}{% endif %}</td>
+    <td><div class="acts"><a class="btn s ghost" href="/users/{{ u.id }}/edit" data-sheet data-title="{{ _f('Editar {0}', u.username) }}">Editar</a></div></td></tr>
+  {% endfor %}</tbody></table></div></section>
+<p class="muted sm">Cada usuario puede cambiar su propia contraseña en <a href="/account">Mi cuenta</a>.</p>
+<script>
+document.querySelectorAll('tr.click[data-href]').forEach(tr => tr.addEventListener('click', e => {
+  if (e.target.closest('a,button')) return;
+  const a = tr.querySelector('a[data-sheet]'); if (a) a.click(); else location.href = tr.dataset.href;
+}));
+</script>
 {% endblock %}

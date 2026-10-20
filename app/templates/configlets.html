@@ -1,17 +1,16 @@
-{% extends "base.html" %}{% block title %}Configlets{% endblock %}
+{% extends "base.html" %}{% block title %}Configlets y scripts{% endblock %}
 {% block content %}
-<h1>Configlets y scripts</h1>
-<p class="muted">Plantillas de comandos (Jinja2) para aplicar cambios masivos (<b>config</b>, pasan por aprobación) o ejecutar comandos de diagnóstico (<b>exec</b>, inmediatos).</p>
-{% if user.role == 'admin' %}<p><a class="btn" href="/configlets/new" data-sheet>+ Nuevo configlet</a></p>{% endif %}
-<div class="card">
-<table><tr><th>Nombre</th><th>Tipo</th><th>Aplica a</th><th>Descripción</th><th></th></tr>
-{% for c in items %}
-<tr><td><b>{{ c.name }}</b></td><td><span class="badge b-{{ 'major' if c.kind == 'config' else 'info' }}">{{ c.kind }}</span></td>
-<td class="small"><code>{{ c.device_type_filter or 'todos' }}</code></td><td class="small">{{ c.description or '' }}</td>
-<td style="white-space:nowrap">{% if ROLES[user.role] >= 1 %}<a class="btn sm" href="/configlets/{{ c.id }}/run">Ejecutar</a>{% endif %}
-{% if user.role == 'admin' %}<a class="btn sm sec" href="/configlets/{{ c.id }}/edit" data-sheet>Editar</a>
-<form class="inline" method="post" action="/configlets/{{ c.id }}/delete" onsubmit="return confirm('¿Eliminar?')"><button class="sm danger">×</button></form>{% endif %}</td></tr>
-{% else %}<tr class="empty-row"><td colspan="5"><div class="empty">{{ empty_art('plus') }}<h3>Aún no hay configlets</h3><p class="muted">Son plantillas de comandos para aplicar a muchos equipos a la vez. Para cargar ejemplos, ejecute <code>opennccm-cli seed</code>.</p></div></td></tr>{% endfor %}
-</table>
-</div>
+{% set can_run = ROLES[user.role] >= 1 %}
+<div class="ph"><div class="grow"><h1>Configlets y scripts</h1><div class="sub">Plantillas con variables <span class="mono">&#123;&#123; nombre &#125;&#125;</span>. Los <b>configlets</b> cambian la configuración; los <b>scripts</b> solo ejecutan comandos de consulta.</div></div>
+  {% if user.role == 'admin' %}<a class="btn pri" href="/configlets/new" data-sheet data-title="Nuevo configlet">{{ icon('plus', 's') }}Nuevo configlet</a>{% endif %}</div>
+{% if items %}
+<div class="bento">{% for c in items %}{% set script = c.kind == 'exec' %}
+  <section class="card c4" style="display:flex;flex-direction:column;gap:12px">
+    <div class="row nowrap"><span class="qi {{ 'mut' if script else 'info' }}">{{ icon('term' if script else 'code') }}</span><div class="grow cfl-name"><b>{{ c.name }}</b><div class="muted sm">{{ c.description or '' }}</div></div><span class="tag">{{ _('Script') if script else _('Configlet') }}</span></div>
+    <pre class="mono" style="margin:0;padding:10px 12px;border-radius:10px;background:var(--surface-2);white-space:pre-wrap;color:var(--ink-2);flex:1;border:0">{{ c.body|varmark }}</pre>
+    <div class="row"><span class="muted sm grow">{{ _('1 equipo compatible') if c.compat == 1 else _f('{0} equipos compatibles', c.compat) }} · {{ _('usado 1 vez') if c.uses == 1 else _f('usado {0} veces', c.uses) }}</span>
+      {% if user.role == 'admin' %}<a class="btn s icon" href="/configlets/{{ c.id }}/edit" data-sheet data-title="{{ _f('Editar «{0}»', c.name) }}" aria-label="Editar" title="Editar">{{ icon('edit', 's') }}</a>{% endif %}
+      {% if can_run %}<a class="btn s pri" href="/configlets/{{ c.id }}/run" data-sheet data-wide data-title="{{ _f('Ejecutar «{0}»', c.name) }}">{{ icon('play', 's') }}Ejecutar</a>{% endif %}</div>
+  </section>{% endfor %}</div>
+{% else %}<section class="card"><div class="empty">{{ empty_art('plus') }}<h2>Aún no hay configlets</h2><p>Son plantillas de comandos para aplicar a muchos equipos a la vez. Para cargar ejemplos, ejecuta <code>opennccm-cli seed</code>.</p></div></section>{% endif %}
 {% endblock %}

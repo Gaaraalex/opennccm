@@ -32,7 +32,7 @@ check("admin ingresa", ok)
 # --- icono y botón de contraseña en la barra
 html = adm.get(B + "/").text
 check("pestaña con icono (favicon)", 'rel="icon"' in html and "/static/icon.svg" in html)
-check("botón «Cambiar contraseña» junto al usuario", "Cambiar contraseña" in html and 'href="/account#clave"' in html)
+check("acceso a Mi cuenta y a cambiar la contraseña", 'href="/account"' in html and 'id="clave"' in adm.get(B + "/account").text)
 fav = adm.get(B + "/favicon.ico")
 check("/favicon.ico responde con una imagen", fav.status_code == 200 and fav.headers["content-type"].startswith("image/"))
 check("/static/icon.svg", adm.get(B + "/static/icon.svg").status_code == 200)
@@ -113,7 +113,7 @@ check("plataformas: sin equipos no se marca", re.search(r"<code>yamaha</code>.*?
 
 # --- fecha y hora
 sysp = adm.get(B + "/system").text
-check("Sistema: sección de fecha, hora y zona horaria", "Fecha, hora y zona horaria del servidor" in sysp)
+check("Sistema: sección de fecha, hora y zona horaria", "Fecha, hora y zona horaria" in sysp and 'id="hora"' in sysp)
 
 # --- borrar usuario y comando de consola
 r = adm.post(f"{B}/users/{ana_id}/delete")

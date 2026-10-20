@@ -24,8 +24,8 @@ fails = []
 
 def tl_ids(page, kind=None):
     """Ids de la línea de tiempo de versiones de la ficha (más reciente primero), opcionalmente de un tipo."""
-    rows = re.findall(r'class="tl-row[^"]*" data-id="(\d+)"(?:(?!data-id=).)*?class="tl-kind">(\w+)<', page, re.S)
-    return list(dict.fromkeys(i for i, k in rows if kind is None or k == kind))
+    rows = re.findall(r'<li class="([^"]*)" data-id="(\d+)"', page)
+    return list(dict.fromkeys(i for c, i in rows if kind is None or (("startup" in c.split()) == (kind == "startup"))))
 
 def check(name, cond, extra=""):
     print(("OK   " if cond else "FAIL ") + name + (f"  [{extra}]" if extra and not cond else ""))
@@ -81,9 +81,9 @@ check("desvío de línea base detectado", "difiere de la línea base" in html)
 check("evento 'Desviación de línea base'", "Desviación de línea base" in s.get(B + "/events").text)
 check("filtro de equipos fuera de baseline", "R1" in s.get(B + "/devices?status=drift").text)
 r = s.get(B + "/devices/1/baseline-diff")
-check("comparar con baseline (lado a lado)", 'class="sbs"' in r.text and f"ntp server {NTP}" in r.text)
-check("fila agregada resaltada", re.search(r'<tr class="a">.*?ntp server ' + re.escape(NTP), r.text, re.S) is not None)
-base_id = re.search(r'/versions/(\d+)/rollback"><button[^>]*>.{0,200}?Volver a la línea base', html)
+check("comparar con baseline (lado a lado)", 'class="diffv"' in r.text and f"ntp server {NTP}" in r.text)
+check("fila agregada resaltada", re.search(r'<span class="add">\+ ntp server ' + re.escape(NTP), r.text) is not None)
+base_id = re.search(r'data-revert="(\d+)"[^>]*>(?:(?!</button>).)*Volver a la línea base', html, re.S)
 check("botón 'Volver a la línea base'", base_id is not None)
 r = s.post(f"{B}/versions/{base_id.group(1)}/rollback")
 check("reversión a baseline genera 'no ntp server …'", f"no ntp server {NTP}" in r.text)
@@ -102,7 +102,7 @@ s.post(B + "/devices/1/compliance")
 dev = s.get(B + "/devices/1").text
 check("PCI: detecta Telnet en VTY", "Req 2.2.7 · Sin Telnet en líneas VTY" in dev)
 check("HIPAA: detecta falta de AAA", "164.312(a)(1) · Control de acceso con AAA" in dev)
-check("gráfica de cumplimiento en SVG", '<svg class="viz' in s.get(B + "/compliance").text)
+check("mapa equipo × política", "Mapa: equipo × política" in s.get(B + "/compliance").text)
 
 # ---------------------------------------------------------------- EOL / EOS
 r = s.post(B + "/eol/entries", data={"vendor": "Cisco", "model_pattern": "^CISCO2911", "end_of_sale": "2017-12-09",
@@ -112,7 +112,7 @@ csvdata = "vendor,model_pattern,end_of_sale,end_of_sw_maintenance,end_of_support
 r = s.post(B + "/eol/import", files={"file": ("eol.csv", csvdata)})
 check("importar CSV EOL (1 ok, 1 error)", "1 entradas EOL importadas" in r.text and "línea 3" in r.text)
 e = s.get(B + "/eol").text
-check("R1 marcado 'Sin soporte'", re.search(r"R1</a></td><td>CISCO2911/K9</td><td><span class=\"badge b-critical\">Sin soporte", e) is not None)
+check("R1 marcado 'Sin soporte'", re.search(r"<b>R1</b></a> <span class=\"muted sm\">CISCO2911/K9</span></span><span class=\"sm\" style=\"color:var\(--crit\)\">Sin soporte", e) is not None)
 check("ficha del equipo muestra ciclo de vida", "Sin soporte" in s.get(B + "/devices/1").text)
 check("informe eol.csv", "Sin soporte" in s.get(B + "/reports/eol.csv").content.decode("utf-8-sig"))
 r = s.post(B + "/eol/cisco-sync")
@@ -123,7 +123,7 @@ blob = os.urandom(300_000)
 r = s.post(B + "/firmware/upload", data={"version": "15.2(4)M11", "device_type_filter": "cisco_ios"},
            files={"file": ("c2900-test.bin", blob)})
 check("cargar imagen de firmware", "c2900-test.bin cargada" in r.text)
-img_id = re.search(r'<option value="(\d+)">c2900-test.bin', r.text).group(1)
+img_id = re.search(r'<option value="(\d+)"[^>]*>c2900-test.bin', r.text).group(1)
 r = s.post(B + "/firmware/upload", files={"file": ("../malo.bin", b"x")})
 check("nombre de archivo con ruta rechazado", "no válido" in r.text)
 r = s.post(B + "/firmware/upgrade", data={"image_id": img_id, "device_ids": "1"})
@@ -131,23 +131,23 @@ cr = re.search(r"/changes/(\d+)", r.url).group(1)
 check("solicitud de firmware pendiente de aprobación", "badge b-pending" in r.text and "SCP c2900-test.bin" in r.text)
 s.post(f"{B}/changes/{cr}/review", data={"decision": "approve"})
 st, t = wait_cr(cr, 120)
-check("actualización de firmware ejecutada", st == "done", re.findall(r"<pre>([\s\S]*?)</pre>", t)[-1:])
+check("actualización de firmware ejecutada", st == "done", re.findall(r"<pre[^>]*>([\s\S]*?)</pre>", t)[-1:])
 check("transferido y MD5 verificado", "transferida=True, MD5 verificado=True" in t)
 time.sleep(5)
-cfg = s.get(B + "/search", params={"q": "boot system"}).text
+cfg = re.sub(r"<[^>]+>", "", s.get(B + "/search", params={"q": "boot system"}).text)
 check("arranque configurado (boot system flash:c2900-test.bin)", "boot system flash:c2900-test.bin" in cfg)
 r = s.post(B + "/firmware/upgrade", data={"image_id": img_id, "device_ids": "1", "reload": "on"})
 cr = re.search(r"/changes/(\d+)", r.url).group(1)
 s.post(f"{B}/changes/{cr}/review", data={"decision": "approve"})
 st, t = wait_cr(cr, 120)
 check("segunda vez: archivo ya existía y se verifica sin retransmitir", "ya existía=True, transferida=False, MD5 verificado=True" in t)
-check("reinicio enviado", "Reinicio enviado" in t, re.findall(r"<pre>([\s\S]*?)</pre>", t)[-1:])
+check("reinicio enviado", "Reinicio enviado" in t, re.findall(r"<pre[^>]*>([\s\S]*?)</pre>", t)[-1:])
 r = s.post(B + "/firmware/upgrade", data={"image_id": img_id, "device_ids": "2"})
 check("imagen incompatible con Huawei rechazada", "no es compatible" in r.text)
 
 # ---------------------------------------------------------------- RBAC por grupos
-groups = s.get(B + "/credentials").text
-acceso = re.search(r'/devices\?group=(\d+)">Acceso', groups).group(1)
+groups = s.get(B + "/groups").text
+acceso = re.search(r'</svg>Acceso</div></td>.*?/devices\?group=(\d+)"', groups, re.S).group(1)
 s.post(B + "/users", data={"username": "op_acceso", "role": "operator", "password": "Operador12345",
                            "active": "on", "set_groups": "1", "group_ids": acceso})
 check("usuario restringido listado con su grupo", "Acceso" in s.get(B + "/users").text)
@@ -171,8 +171,8 @@ check("panel funciona para restringido", o.get(B + "/").status_code == 200)
 
 # ---------------------------------------------------------------- análisis e informes
 a = s.get(B + "/analytics").text
-check("análisis con ≥7 gráficas SVG", a.count('<svg class="viz') >= 7, a.count('<svg class="viz'))
-check("panel con gráfica de cambios", '<svg class="viz"' in s.get(B + "/").text)
+check("análisis: mapa de calor y ≥5 gráficas de barras", 'class="heat"' in a and a.count('class="hbars"') >= 5, a.count('class="hbars"'))
+check("panel con gráfica de cambios", 'class="vbars"' in s.get(B + "/").text)
 for k in ["inventory", "changes", "compliance", "conflicts", "baseline", "eol", "vulns", "changes_requests", "audit"]:
     r = s.get(f"{B}/reports/view/{k}")
     check(f"informe en pantalla {k}", r.status_code == 200 and "<th>" in r.text)
@@ -205,7 +205,7 @@ bad = s.get(B + "/system/backups/opennccm.db")
 check("descarga de archivo que no es copia rechazada", bad.url.endswith("/system") and b"SQLite" not in bad.content)
 r = s.post(B + "/schedules", data={"name": "DR diario", "action": "system_backup", "cron": "30 1 * * *"})
 check("tarea de copia diaria", "DR diario" in r.text)
-sid = re.search(r'<td>DR diario</td>[\s\S]*?/schedules/(\d+)/run', r.text).group(1)
+sid = re.search(r'</span>DR diario</div></td>[\s\S]*?/schedules/(\d+)/run', r.text).group(1)
 s.post(f"{B}/schedules/{sid}/run")
 time.sleep(3)
 check("copia programada ejecutada", "Copia de recuperación" in s.get(B + "/events").text)

@@ -1,32 +1,30 @@
-{% extends "base.html" %}{% block title %}Editar {{ u.username }}{% endblock %}
+{% extends "base.html" %}{% block title %}{{ _f('Editar «{0}»', u.username) if u else _('Crear usuario') }}{% endblock %}
+{% block crumbs %}<a href="/users">Usuarios</a>{{ icon('right', 's') }}<b>{{ u.username if u else _('Crear usuario') }}</b>{% endblock %}
 {% block content %}
-<h1><a href="/users">Usuarios</a> / Editar «{{ u.username }}»</h1>
-<div class="card" style="max-width:860px">
-<p class="small muted">Último ingreso: {{ u.last_login_at|dt }}{% if u.last_login_ip %} desde {{ u.last_login_ip }}{% endif %} ·
-Verificación en dos pasos: {% if u.totp_enabled %}<span class="badge b-ok">activada</span>{% else %}<span class="badge b-warning">desactivada</span>{% endif %}
-{% if u.locked_until and u.locked_until > now %} · <span class="badge b-crit">bloqueado hasta {{ u.locked_until|dt }}</span>
-(se desbloquea al guardar una contraseña nueva o esperando){% endif %}</p>
-<form method="post" autocomplete="off">
-  <div class="row">
-    <div><label>Nombre de usuario</label><input value="{{ u.username }}" disabled></div>
-    <div><label>Rol</label><select name="role">
-      {% for k, label in [('viewer', _('lector — solo consulta')), ('operator', _('operador — respaldos, ejecutar y solicitar cambios')), ('admin', _('administrador — todo, aprueba cambios'))] %}
-      <option value="{{ k }}" {{ 'selected' if u.role == k }}>{{ label }}</option>{% endfor %}</select></div>
-    <div><label>Email</label><input name="email" type="email" value="{{ u.email or '' }}"></div>
-  </div>
-  <label class="chk" style="margin-top:12px"><input type="checkbox" name="active" {{ 'checked' if u.active }}> Activo (si se desmarca, no podrá ingresar)</label>
-  <h2>Cambiar contraseña <span class="small muted">(opcional; deje vacío para no cambiarla)</span></h2>
-  <div class="row">
-    <div><label>Nueva contraseña</label><input name="password" type="password" minlength="10" autocomplete="new-password"></div>
-    <div><label>Repita la nueva contraseña</label><input name="password2" type="password" minlength="10" autocomplete="new-password"></div>
-  </div>
-  <label>Restringir a grupos de dispositivos (ninguno marcado = todos los equipos)</label>
-  <div>{% for g in groups %}<label class="chk"><input type="checkbox" name="group_ids" value="{{ g.id }}" {{ 'checked' if g.id in selected }}> {{ g.name }}</label>{% else %}<span class="muted small">No hay grupos.</span>{% endfor %}</div>
-  <p><button>Guardar cambios</button> <a class="btn sec" href="/users">Cancelar</a></p>
+{% set RC = [('viewer', _('Lector'), _('Solo consulta')), ('operator', _('Operador'), _('Respaldos, ejecutar y solicitar cambios')), ('admin', _('Administrador'), _('Todo, y aprueba cambios'))] %}
+<h1>{{ _f('Editar «{0}»', u.username) if u else _('Crear usuario') }}</h1>
+{% if u %}<p class="muted sm" data-sheet-sub>{{ _('Último acceso:') }} {% if u.last_login_at %}{{ u.last_login_at|ago }}{% if u.last_login_ip %} · {{ u.last_login_ip }}{% endif %}{% else %}{{ _('nunca') }}{% endif %}</p>{% endif %}
+<form method="post" action="{{ '/users/%d/edit'|format(u.id) if u else '/users' }}" autocomplete="off" class="stack" id="userf">
+  {% if u and u.locked_until and u.locked_until > now %}<div class="banner warn">{{ icon('lock') }}<span class="grow">{{ _f("Usuario bloqueado hasta {0}", u.locked_until|dt) }} (se desbloquea al guardar una contraseña nueva o esperando).</span></div>{% endif %}
+  <div class="f2"><div class="field"><label for="un">Nombre de usuario</label><div class="input"><input id="un" {% if u %}value="{{ u.username }}" readonly{% else %}name="username" required minlength="2" maxlength="64" pattern="[A-Za-z0-9._@\-]+" autocomplete="off"{% endif %}></div></div>
+    <div class="field"><label for="ue">Correo (opcional)</label><div class="input"><input id="ue" name="email" type="email" value="{{ (u.email or '') if u }}"></div><span class="help">Para avisos y recuperar el acceso.</span></div></div>
+  <div class="field"><span class="fl">Rol</span><div class="rcards">{% for k, t, d in RC %}<label class="rcard"><input type="radio" name="role" value="{{ k }}" {{ 'checked' if (u and u.role == k) or (not u and k == 'operator') }}><span><b>{{ t }}</b><div class="muted sm">{{ d }}</div></span></label>{% endfor %}</div></div>
+  <div class="field"><span class="fl">Restringir a grupos de dispositivos</span>
+    {% if groups %}<div class="cklist">{% for g in groups %}<label class="ck"><input type="checkbox" name="group_ids" value="{{ g.id }}" {{ 'checked' if g.id in selected }}> {{ g.name }}</label>{% endfor %}</div>{% else %}<p class="muted sm">No hay grupos. <a href="/groups">Créalos en Grupos</a>.</p>{% endif %}
+    <span class="help">Ninguno marcado = puede ver todos los equipos. No aplica a administradores.</span></div>
+  {% if u %}<label class="swrow"><span><b>Cuenta activa</b><div class="muted sm">Si la desactivas, no podrá ingresar.</div></span><input type="checkbox" class="sw" name="active" {{ 'checked' if u.active }} {{ 'disabled' if u.id == user.id }}>{% if u.id == user.id %}<input type="hidden" name="active" value="on">{% endif %}</label>{% endif %}
+  <div class="sec"><h3>{{ _('Cambiar contraseña (opcional)') if u else _('Contraseña') }}</h3><div class="f2">
+    <div class="field"><label for="up1">Contraseña</label><div class="input"><input id="up1" name="password" type="password" {{ 'required' if not u }} minlength="10" autocomplete="new-password"></div><span class="help">{{ _('Déjala vacía para no cambiarla.') if u else _('Mínimo 10 caracteres.') }}</span></div>
+    <div class="field"><label for="up2">Repítela</label><div class="input"><input id="up2" name="password2" type="password" {{ 'required' if not u }} minlength="10" autocomplete="new-password"></div></div></div></div>
+  {% if u and u.totp_enabled %}<div class="banner info">{{ icon('shield') }}<span class="grow">Tiene la verificación en dos pasos activa.</span><button type="button" class="btn s" data-dialog="tfa-reset">Quitarla (perdió su teléfono)</button></div>{% endif %}
+  <div class="row" data-sheet-foot>
+    {% if u and u.id != user.id %}<button type="button" class="btn dz" data-dialog="user-del">{{ icon('trash', 's') }}Eliminar</button>{% endif %}
+    <span class="grow"></span><a class="btn ghost" href="/users" data-cancel>Cancelar</a><button class="btn pri">{{ _('Guardar cambios') if u else _('Crear usuario') }}</button></div>
 </form>
-{% if u.totp_enabled %}
-<form method="post" action="/users/{{ u.id }}/2fa-reset" onsubmit="return confirm('¿Quitar la verificación en dos pasos a {{ u.username }}? Deberá activarla de nuevo.')">
-  <button class="sec">Quitar la verificación en dos pasos (perdió su teléfono)</button></form>
-{% endif %}
-</div>
+{% if u and u.totp_enabled %}<dialog class="dlg" id="tfa-reset"><form method="post" action="/users/{{ u.id }}/2fa-reset">
+  <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi warn">{{ icon('shield') }}</span><div><h2>{{ _f('¿Quitar la verificación en dos pasos a {0}?', u.username) }}</h2><p class="muted" style="margin-top:6px">Deberá activarla de nuevo desde Mi cuenta.</p></div></div>
+  <div class="row end"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn dzf">Quitarla</button></div></form></dialog>{% endif %}
+{% if u and u.id != user.id %}<dialog class="dlg" id="user-del"><form method="post" action="/users/{{ u.id }}/delete">
+  <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi crit">{{ icon('trash') }}</span><div><h2>{{ _f('¿Eliminar al usuario «{0}»?', u.username) }}</h2><p class="muted" style="margin-top:6px">Su historial queda en Auditoría.</p></div></div>
+  <div class="row end"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn dzf">Eliminar</button></div></form></dialog>{% endif %}
 {% endblock %}

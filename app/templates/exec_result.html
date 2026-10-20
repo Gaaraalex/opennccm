@@ -1,8 +1,9 @@
-{% extends "base.html" %}{% block title %}Resultado{% endblock %}
+{% extends "base.html" %}{% block title %}{{ _f('Resultado: {0}', c.name) }}{% endblock %}
 {% block content %}
-<h1>Resultado: {{ c.name }}</h1>
-<p><a href="/configlets/{{ c.id }}/run">← Ejecutar de nuevo</a></p>
-{% for name, out in outputs %}
-<div class="card"><b>{{ name }}</b><pre style="margin-top:8px">{{ out }}</pre></div>
+<div class="ph"><div class="grow"><h1>{{ _f('Resultado: {0}', c.name) }}</h1><div class="sub">{{ _('1 equipo') if outputs|length == 1 else _f('{0} equipos', outputs|length) }} · hace un momento</div></div>
+  <a class="btn" href="/configlets/{{ c.id }}/run" data-sheet data-wide data-title="{{ _f('Ejecutar «{0}»', c.name) }}">{{ icon('play', 's') }}Ejecutar de nuevo</a><a class="btn pri" href="/configlets">Cerrar</a></div>
+{% for name, out in outputs %}{% set bad = out.startswith('ERROR') or '% Invalid' in out %}
+<section class="card"><div class="sec"><div class="row"><span class="vend">{{ vend.get(name, '—') }}</span><b class="grow">{{ name }}</b>{% if bad %}<span class="pill crit">Error</span>{% else %}<span class="pill ok">Correcto</span>{% endif %}</div>
+  <pre class="term" style="min-height:0">{{ out }}</pre></div></section>
 {% endfor %}
 {% endblock %}

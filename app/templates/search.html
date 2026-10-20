@@ -1,17 +1,32 @@
 {% extends "base.html" %}{% block title %}Buscar en configuraciones{% endblock %}
 {% block content %}
-<h1>Buscar en configuraciones</h1>
-<form class="card row" method="get">
-  <input name="q" value="{{ q }}" placeholder="p. ej. snmp-server community, 10.1.1.1, vlan 20" style="flex:1 1 400px" autofocus>
-  <label class="chk"><input type="checkbox" name="regex" value="1" {{ 'checked' if regex }}> Expresión regular</label>
-  <button>Buscar</button>
-</form>
-{% if q %}<p class="muted">{{ results|length }} equipos con coincidencias (última configuración en ejecución).</p>{% endif %}
-{% for dev, v, hits, total in results %}
-<div class="card">
-  <b><a href="/devices/{{ dev.id }}">{{ dev.name }}</a></b> <span class="muted small">{{ dev.host }} · {{ total }} coincidencias · <a href="/versions/{{ v.id }}">ver configuración</a></span>
-  <pre style="margin-top:8px">{% for n, l in hits %}{{ '%5d'|format(n) }}  {{ l }}
-{% endfor %}</pre>
-</div>
+<div class="ph"><div class="grow"><h1>Buscar en configuraciones</h1><div class="sub">Busca texto o expresiones regulares en la configuración de todos los equipos. Para saltar rápido a un equipo, usa <kbd>Ctrl K</kbd>.</div></div>
+  <a class="btn" href="/diff">{{ icon('branch', 's') }}Comparar configuraciones</a></div>
+<section class="card"><form method="get" class="row" style="align-items:flex-end;gap:12px" id="sform"><input type="hidden" name="sent" value="1">
+  <div class="field grow" style="min-width:240px"><label for="sq">Buscar</label><div class="input {{ 'mono' if regex }}">{{ icon('search', 's') }}<input id="sq" name="q" value="{{ q }}" placeholder="{{ '^ transport input .*telnet' if regex else 'transport input' }}" autofocus></div></div>
+  <div class="field" style="min-width:160px"><label for="sgrp">Grupo</label><div class="input"><select id="sgrp" name="group"><option value="0">Todos los grupos</option>{% for g in groups %}<option value="{{ g.id }}" {{ 'selected' if g.id == group }}>{{ g.name }}</option>{% endfor %}</select></div></div>
+  <label class="ck" style="height:38px"><input type="checkbox" name="regex" value="1" {{ 'checked' if regex }}> Regex</label>
+  <label class="ck" style="height:38px"><input type="checkbox" name="cs" value="1" {{ 'checked' if cs }}> Distinguir mayúsculas</label>
+  <label class="ck" style="height:38px"><input type="checkbox" name="latest" value="1" {{ 'checked' if latest }}> Solo la última versión</label>
+  <noscript><button class="btn pri">Buscar</button></noscript></form>
+  {% if err %}<p style="color:var(--crit);margin-top:10px;font-weight:600" class="sm">{{ err }}</p>{% endif %}</section>
+{% if q and not err %}<div class="muted sm">{{ (_('1 coincidencia') if total == 1 else _f('{0} coincidencias', total)) }} {{ (_('en 1 equipo') if results|length == 1 else _f('en {0} equipos', results|length)) }}</div>{% endif %}
+{% for r in results %}
+<section class="card flush"><div class="card-h"><span class="vend">{{ r.vend }}</span><h2><a href="/devices/{{ r.dev.id }}" style="color:var(--ink)">{{ r.dev.name }}</a></h2>
+  <span class="muted sm">{{ _('1 línea') if r.total == 1 else _f('{0} líneas', r.total) }} · v{{ r.n }}</span><a class="btn s ghost" href="/versions/{{ r.v.id }}" data-sheet data-wide>Ver versión</a></div>
+  {% for i in r.hits %}<div class="hit">{% if i > 0 %}<div class="ctx"><span class="ln">{{ i }}</span>{{ r.lines[i - 1] }}</div>{% endif %}<div><span class="ln">{{ i + 1 }}</span>{{ r.lines[i]|mark(q, regex, cs) }}</div>{% if i < r.lines|length - 1 %}<div class="ctx"><span class="ln">{{ i + 2 }}</span>{{ r.lines[i + 1] }}</div>{% endif %}</div>{% endfor %}
+  {% if r.total > r.hits|length %}<p class="muted sm" style="padding:10px 20px">{{ _f('y {0} líneas más', r.total - r.hits|length) }}</p>{% endif %}
+</section>
 {% endfor %}
+{% if q and not err and not results %}<section class="card"><div class="empty">{{ empty_art('search') }}<h2>Sin coincidencias</h2><p>{{ _f('Ningún equipo tiene «{0}» en su configuración.', q) }}</p></div></section>{% endif %}
+{% if not q %}<section class="card"><div class="empty">{{ empty_art('search') }}<h2>Escribe algo para buscar</h2><p>Por ejemplo: «snmp-server community», «vlan 30» o, con Regex, «^ transport input .*telnet».</p></div></section>{% endif %}
+<script>
+(function () {  // como el prototipo: la búsqueda se actualiza al escribir y al cambiar las opciones
+  const f = document.getElementById('sform'), q = document.getElementById('sq');
+  let t = 0;
+  q.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => f.submit(), 600); });
+  f.addEventListener('change', () => f.submit());
+  q.focus(); q.setSelectionRange(q.value.length, q.value.length);
+})();
+</script>
 {% endblock %}

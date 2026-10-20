@@ -1,5 +1,27 @@
 # Historial de versiones
 
+## 2.0.0
+- **Interfaz rehecha pantalla por pantalla según el prototipo de diseño «Señal 2»**, con los datos reales de cada instalación:
+  armazón, barra superior (búsqueda, tema y acento, notificaciones, ayuda), paneles laterales, diálogos y avisos con «Deshacer».
+- **Ingreso, Panel, Dispositivos y ficha del equipo** con el nuevo diseño: línea de tiempo de versiones, comparación lado a lado
+  en la propia ficha, menú ⋯ y paneles para agregar, importar y editar equipos.
+- **Cambios, Configlets y Tareas**: Cambios se abre en «Por aprobar»; los configlets se ejecutan en un panel con vista previa en
+  vivo y campos por variable; las tareas muestran la próxima ejecución en palabras («hoy 06:00», «lun 07:00»).
+- **Cumplimiento**: mapa equipo × política, políticas con barra por gravedad y «Corregir» en cada regla, y un editor de
+  políticas que guarda todas las reglas a la vez y prueba cada una en vivo.
+- **Vulnerabilidades agrupadas por CVE**, con indicadores y la marca **«explotado activamente»** del catálogo KEV de CISA
+  (se descarga como mucho una vez al día al escanear; sin conexión no se marca).
+- **Firmware y ciclo de vida** en una página con pestañas: imágenes, actualizar equipos y fin de vida, con una barra del soporte
+  restante de cada equipo y la base de datos filtrable por fabricante.
+- **Alarmas** con chips por severidad y «Sin reconocer / Todas»; **Análisis** con mapa de calor, origen de los cambios y barras;
+  **Informes** en tarjetas.
+- **Administración** en pestañas con recuentos: usuarios con tarjetas de rol, credenciales con su estado real según los equipos,
+  **Grupos** como pestaña propia, plataformas, auditoría, **Sistema** (gráficas de 24 h, espacio, actualizaciones, copias, fecha y
+  hora) y **Ajustes** por secciones con barra de cambios sin guardar.
+- **Mi cuenta** con apariencia, densidad de tablas, idioma, verificación en dos pasos y reglas de contraseña en vivo; Acerca de y
+  Certificado con el nuevo diseño.
+- Interfaz en inglés completa y accesibilidad mantenida (tema de alto contraste, teclado, barras con `role="meter"`).
+
 ## 1.9.0
 - **Nuevo diseño «Señal»** en toda la interfaz. Barra lateral agrupada por tarea (Operar, Proteger, Observar, Administrar) con
   contadores de lo pendiente y opción de plegarla; Administración y Firmware + EOL en pestañas; buscador **Ctrl K** para ir a

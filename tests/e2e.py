@@ -13,8 +13,8 @@ fails = []
 
 def tl_ids(page, kind=None):
     """Ids de la línea de tiempo de versiones de la ficha (más reciente primero), opcionalmente de un tipo."""
-    rows = re.findall(r'class="tl-row[^"]*" data-id="(\d+)"(?:(?!data-id=).)*?class="tl-kind">(\w+)<', page, re.S)
-    return list(dict.fromkeys(i for i, k in rows if kind is None or k == kind))
+    rows = re.findall(r'<li class="([^"]*)" data-id="(\d+)"', page)
+    return list(dict.fromkeys(i for c, i in rows if kind is None or (("startup" in c.split()) == (kind == "startup"))))
 
 def check(name, cond, extra=""):
     print(("OK   " if cond else "FAIL ") + name + (f"  [{extra}]" if extra and not cond else ""))
@@ -71,13 +71,12 @@ check("respaldo sin cambios", any("sin cambios" in x for x in flashes(r.text)), 
 # configlet de cambio -> solicitud -> aprobación (habilitar autoaprobación para admin)
 post("/settings", {"require_approval": "on", "allow_self_approval": "on", "notify_compliance": "on",
                    "alert_min_severity": "critical", "retention_versions": "0"})
-cid = re.search(r'/configlets/(\d+)/run[^>]*>Ejecutar</a>[\s\S]*?', get("/configlets").text)
 # usar configlet "Agregar VLAN (IOS-like)"
 cl = get("/configlets").text
 m = re.search(r'<b>Agregar VLAN \(IOS-like\)</b>[\s\S]*?/configlets/(\d+)/run', cl)
 vid = m.group(1)
 r = get(f"/configlets/{vid}/run")
-check("formulario configlet detecta variables", "vlan_id=" in r.text and "vlan_nombre=" in r.text)
+check("formulario configlet detecta variables", 'name="var_vlan_id"' in r.text and 'name="var_vlan_nombre"' in r.text)
 r = post(f"/configlets/{vid}/run", {"device_ids": "1", "variables": "vlan_id=20\nvlan_nombre=VOZ",
                                      "title": "VLAN 20"})
 crm = re.search(r"/changes/(\d+)", r.url)
@@ -96,27 +95,27 @@ html = get("/devices/1").text
 vers = tl_ids(html)
 check("nueva versión tras el cambio", len(vers) >= 3, vers)
 run = get("/search?q=vlan+20").text
-check("búsqueda encuentra 'vlan 20'", "1 equipos con coincidencias" in run)
+check("búsqueda encuentra 'vlan 20'", "en 1 equipo" in run)
 
 # diff entre primera y última running
 running_ids = tl_ids(html, "running")
 last, first = running_ids[0], running_ids[-1]
 d = get(f"/diff?a={first}&b={last}&view=unified").text
-check("diff muestra +vlan 20", '<div class="a">+vlan 20</div>' in d)
+check("diff muestra +vlan 20", '<span>+ vlan 20</span>' in d)
 
 # reversión a la primera versión
 r = post(f"/versions/{first}/rollback")
 crm = re.search(r"/changes/(\d+)", r.url)
 check("solicitud de reversión creada", crm is not None, r.url)
 t = r.text
-check("reversión genera 'no vlan 20'", "no vlan 20" in t, re.findall(r"<pre>([\s\S]*?)</pre>", t)[:1])
+check("reversión genera 'no vlan 20'", "no vlan 20" in t, re.findall(r"<pre[^>]*>([\s\S]*?)</pre>", t)[:1])
 post(f"/changes/{crm.group(1)}/review", {"decision": "approve"})
 for _ in range(30):
     time.sleep(1)
     t = get(f"/changes/{crm.group(1)}").text
     if "b-done" in t or "b-failed" in t:
         break
-check("reversión ejecutada", "badge b-done" in t, re.findall(r"<pre>([\s\S]*?)</pre>", t)[-1:])
+check("reversión ejecutada", "badge b-done" in t, re.findall(r"<pre[^>]*>([\s\S]*?)</pre>", t)[-1:])
 time.sleep(4)
 check("vlan 20 ya no está", "0 equipos" in get("/search?q=vlan+20").text or
       "coincidencias" not in get("/search?q=vlan+20").text)

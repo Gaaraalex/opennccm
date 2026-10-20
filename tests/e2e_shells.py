@@ -47,13 +47,13 @@ try:
     time.sleep(3)
     s.post(B + "/login", data={"username": "admin", "password": "Admin12345"})
     s.post(B + "/credentials", data={"name": "shells", "username": "admin", "password": "cisco"})
-    cred = re.search(r'<option value="(\d+)">shells</option>', s.get(B + "/credentials").text).group(1)
+    cred = re.search(r'data-cred="(\d+)" data-name="shells"', s.get(B + "/credentials").text).group(1)
 
     vendors = s.get(B + "/vendors").text
     for label in ("pfSense", "OPNsense", "Alpine Linux"):
         check(f"{label} aparece en Plataformas", f">{label}<" in vendors)
     form = s.get(B + "/devices/new").text
-    check("el alta pregunta si el equipo tiene interfaz web", "¿El equipo tiene interfaz web?" in form
+    check("el alta pregunta si el equipo tiene interfaz web", "El equipo tiene interfaz web" in form
           and 'name="web_enabled" value="0"' in form)
     for label in ("pfSense", "OPNsense", "Alpine Linux"):
         check(f"{label} se puede elegir al crear un equipo", f">{label}</option>" in form)
@@ -73,16 +73,16 @@ try:
         page = s.get(f"{B}/devices/{dev}").text
         check(f"{name}: modelo «{model}»", field(page, "Modelo") == model, field(page, "Modelo"))
         check(f"{name}: n.º de serie «{serial}»", field(page, "Nº de serie") == serial, field(page, "Nº de serie"))
-        check(f"{name}: versión «{version}»", field(page, "Versión firmware") == version,
-              field(page, "Versión firmware"))
-        vid = re.search(r'class="tl-row[^"]*" data-id="(\d+)"', page)
+        check(f"{name}: versión «{version}»", field(page, "Firmware") == version,
+              field(page, "Firmware"))
+        vid = re.search(r'<li class="[^"]*" data-id="(\d+)"', page)
         check(f"{name}: guardó la configuración", vid and htmlmod.escape(text, quote=False)
               in s.get(f"{B}/versions/{vid.group(1)}").text.replace("&#34;", '"').replace("&quot;", '"'))
         has_btn = 'aria-label="Interfaz web del equipo (ventana nueva)"' in page
         check(f"{name}: botón de interfaz web {'visible' if web == '1' else 'oculto'}", has_btn == (web == "1"))
         edit = s.get(f"{B}/devices/{dev}/edit").text
         check(f"{name}: el formulario de edición recuerda la opción web",
-              re.search(rf'name="web_enabled" value="{web}" checked', edit) is not None)
+              (re.search(r'name="web_enabled" value="1" checked', edit) is not None) == (web == "1"))
 
     lista = s.get(B + "/devices").text
     check("lista: botón web solo en los equipos con web",

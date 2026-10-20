@@ -40,6 +40,7 @@ class User(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     theme: Mapped[str] = mapped_column(String(16), default="auto")  # auto | claro | oscuro | contraste
     accent: Mapped[str | None] = mapped_column(String(16))  # color de acento (vacío: cobalto)
+    density: Mapped[str | None] = mapped_column(String(8))  # densidad de las tablas: comfy | compact (vacío: cómoda)
     lang: Mapped[str | None] = mapped_column(String(8))  # idioma de la interfaz (vacío: el del navegador)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     # seguridad

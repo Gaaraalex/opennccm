@@ -1,60 +1,33 @@
-{% extends "base.html" %}{% block title %}Análisis{% endblock %}
+{% extends "base.html" %}{% block title %}Análisis de configuración{% endblock %}
+{% block crumbs %}<b>Análisis</b>{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div>
-    <h1>Análisis de configuración</h1>
-    <p class="muted small">Qué cambia en la red, cuándo, quién lo cambia y cómo está el cumplimiento.</p>
-  </div>
-  <nav class="period" aria-label="Periodo">
-    {% for d in [7, 30, 90, 365] %}<a href="/analytics?days={{ d }}" {{ 'aria-current="page" class=on'|safe if d == days }}>{{ d }} días</a>{% endfor %}
-  </nav>
-</div>
+{% macro hb(rows, cls='', unit='', links=none) %}{% set mx = [rows|map(attribute=1)|max if rows else 1, 1]|max %}
+<div class="hbars">{% for r in rows %}<div class="hb" title="{{ r[0] }}: {{ r[1] }}{{ unit }}"><span class="b" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{% if links %}<a href="{{ links[loop.index0] }}">{{ r[0] }}</a>{% else %}{{ r[0] }}{% endif %}</span><div class="meter {{ cls }}"><i style="width:{{ (r[1] / (100 if unit == '%' else mx) * 100)|round(1) }}%"></i></div><span>{{ r[1] }}{{ unit }}</span></div>{% endfor %}</div>{% endmacro %}
+<div class="ph"><div class="grow"><h1>Análisis de configuración</h1><div class="sub">Cuándo, cómo y quién cambia la red, y cómo está el parque.</div></div>
+  <div class="seg">{% for p in (7, 30, 90) %}<a class="{{ 'on' if days == p }}" href="?days={{ p }}">{{ _f('{0} días', p) }}</a>{% endfor %}</div></div>
 
-<div class="kpis">
-  <div class="kpi">
-    <small>Cambios en {{ days }} días</small>
-    <b>{{ data.changes }}</b>
-    {% if delta > 0 %}<span class="delta up">▲ {{ delta }} más que los {{ days }} días anteriores</span>
-    {% elif delta < 0 %}<span class="delta down">▼ {{ -delta }} menos que los {{ days }} días anteriores</span>
-    {% else %}<span class="delta">= igual que los {{ days }} días anteriores</span>{% endif %}
-    {{ spark|safe }}
-  </div>
-  <div class="kpi">
-    <small>Cumplimiento global</small>
-    {% if data.compliance_pct is not none %}
-    <div class="kpi-ring">{{ ring|safe }}<div><b class="t-{{ ring_status[0] }}">{{ data.compliance_pct }}%</b>
-      <span class="delta t-{{ ring_status[0] }}">{{ ring_status[1] }} {{ _('Bien') if ring_status[0] == 'ok' else _('Mejorable') if ring_status[0] == 'warn' else _('Requiere atención') }}</span></div></div>
-    {% else %}<b>—</b><span class="delta">Sin auditorías todavía</span>{% endif %}
-  </div>
-  <div class="kpi"><small>Equipos</small><b>{{ data.total }}</b><span class="delta">de {{ data.by_vendor|length }} fabricantes</span></div>
-  <a class="kpi" href="/devices?status=conflict"><small>Startup ≠ running</small><b class="{{ 't-warn' if data.conflicts }}">{{ data.conflicts }}</b><span class="delta">sin guardar en arranque</span></a>
-  <a class="kpi" href="/devices?status=drift"><small>Fuera de línea base</small><b class="{{ 't-warn' if data.drift }}">{{ data.drift }}</b><span class="delta">distintos de su versión de referencia</span></a>
-</div>
+<div class="bento">
+  <div class="c3"><div class="kpi static"><span class="label">Cambios</span><span class="v" data-count="{{ data.changes }}">{{ data.changes }}</span>
+    <span class="d">{% if delta is not none %}<span class="{{ 'up' if delta <= 0 else 'down' }}">{{ '%+d'|format(delta) }} %</span> vs. periodo anterior{% else %}{{ _f('{0} en los {1} días anteriores', data.prev_changes, days) }}{% endif %}</span>{{ spark(spark_pts) }}</div></div>
+  <div class="c3"><div class="kpi static {{ 'alert' if syslog_n }}"><span class="label">Fuera de solicitud</span><span class="v" data-count="{{ syslog_n }}">{{ syslog_n }}</span><span class="d">detectados por syslog</span></div></div>
+  <div class="c3"><div class="kpi static"><span class="label">Revertidos</span><span class="v" data-count="{{ reverted }}">{{ reverted }}</span><span class="d">por reversión</span></div></div>
+  <div class="c3"><a class="kpi" href="/devices"><span class="label">Equipos con cambios</span><span class="v" data-count="{{ data.devices_changed }}">{{ data.devices_changed }}</span><span class="d">{{ _f('de {0}', data.total) }}</span></a></div>
 
-<div class="card viz-card">
-  <div class="viz-head">
-    <h2>Actividad de cambios</h2>
-    <a class="small" href="/reports/view/changes?days={{ days }}">Ver como tabla</a>
-  </div>
-  <p class="muted small">Versiones nuevas de configuración por día, según cómo se detectaron.</p>
-  <ul class="legend inline">{% for lbl, cls in legend %}<li><i class="lg-sw {{ cls }}"></i>{{ lbl }}</li>{% endfor %}</ul>
-  {{ c_activity|safe }}
-</div>
+  <section class="card c8"><div class="card-h"><h2>Cuándo cambia la red</h2><span class="muted sm">más intenso = más cambios</span></div>
+    {% if hmax %}<div class="heat" role="img" aria-label="{{ _('Mapa de calor: cambios por día de la semana y hora') }}">{% for row in heat %}<span style="align-self:center">{{ weekdays[loop.index0] }}</span>{% set wd = weekdays[loop.index0] %}{% for v in row %}<i class="{{ '' if v else 'z' }}" {% if v %}style="opacity:{{ '%.2f'|format(0.25 + v / hmax * 0.75) }}"{% endif %} title="{{ wd }} {{ loop.index0 }}:00 · {{ v }}"></i>{% endfor %}{% endfor %}
+      <span></span>{% for h in range(24) %}<span style="text-align:center">{{ h if h % 6 == 0 else '' }}</span>{% endfor %}</div>
+    {% else %}<div class="empty" style="padding:24px">{{ empty_art('check') }}<h2>Sin datos en este periodo</h2><p>No hubo cambios de configuración.</p></div>{% endif %}</section>
 
-<div class="charts">
-  <div class="card viz-card"><h2>Cuándo cambia la red</h2>
-    <p class="muted small">Cambios por día de la semana y hora del servidor. Los cambios fuera del horario laboral suelen merecer una revisión.</p>
-    {{ c_heat|safe }}</div>
-  <div class="card viz-card"><h2>Origen de los cambios</h2>
-    <p class="muted small">Manual = respaldo a pedido · Programado = tarea programada · Syslog = detectado en tiempo real · OpenNCCM = cambio aplicado desde aquí.</p>
-    {{ c_origin|safe }}</div>
-  <div class="card viz-card"><h2>Equipos con más cambios</h2>{{ c_device|safe }}</div>
-  <div class="card viz-card"><h2>Quién hace los cambios</h2>{{ c_user|safe }}</div>
-  <div class="card viz-card"><h2>Cumplimiento por política</h2>
-    <p class="muted small">✓ 90 % o más · ⚠ 70–89 % · ✕ menos de 70 %. Haga clic en una política para ver el detalle.</p>
-    {{ c_comp|safe }}</div>
-  <div class="card viz-card"><h2>Ciclo de vida (EOL/EOS)</h2>{{ c_eol|safe }}<p class="small"><a href="/eol">Ver detalle por equipo</a></p></div>
-  <div class="card viz-card"><h2>Equipos por fabricante</h2>{{ c_vendor|safe }}</div>
-  <div class="card viz-card"><h2>Versiones de firmware más usadas</h2>{{ c_version|safe }}</div>
+  <section class="card c4"><div class="card-h"><h2>Origen de los cambios</h2></div>
+    {% if src %}<div class="row nowrap" style="gap:18px"><svg viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="{{ _('Origen de los cambios') }}">{% for s in src %}<circle cx="60" cy="60" r="46" fill="none" stroke="{{ s.color }}" stroke-width="16" stroke-dasharray="{{ s.dash }}" stroke-dashoffset="{{ s.off }}" transform="rotate(-90 60 60)"><title>{{ s.label }}: {{ s.n }}</title></circle>{% endfor %}<text x="60" y="66" text-anchor="middle" style="font:800 20px var(--f-display);fill:var(--ink)">{{ data.changes }}</text></svg>
+      <ul class="legend grow">{% for s in src %}<li><i class="sw" style="background:{{ s.color }}"></i><span>{{ s.label }}</span><b>{{ s.pct }}%</b></li>{% endfor %}</ul></div>
+    {% else %}<p class="muted">Sin cambios en este periodo.</p>{% endif %}</section>
+
+  <section class="card c6"><div class="card-h"><h2>Equipos con más cambios</h2></div>{% if data.by_device %}{{ hb(data.by_device[:5], links=dev_links) }}{% else %}<p class="muted">Sin cambios en este periodo.</p>{% endif %}</section>
+  <section class="card c6"><div class="card-h"><h2>Quién hace los cambios</h2></div>{% if by_user %}{{ hb(by_user[:5]) }}{% else %}<p class="muted">Sin cambios en este periodo.</p>{% endif %}</section>
+  <section class="card c4"><div class="card-h"><h2>Equipos por fabricante</h2></div>{% if data.by_vendor %}{{ hb(data.by_vendor[:8]) }}{% else %}<p class="muted">Sin equipos.</p>{% endif %}</section>
+  <section class="card c4"><div class="card-h"><h2>Firmware más usado</h2></div>{% if data.by_version %}{{ hb(data.by_version[:5]) }}{% else %}<p class="muted">Aún no hay inventario de firmware.</p>{% endif %}</section>
+  <section class="card c4"><div class="card-h"><h2>Ciclo de vida</h2></div>{% if life_rows %}{{ hb(life_rows) }}{% else %}<p class="muted">Sin datos de ciclo de vida.</p>{% endif %}</section>
+  <section class="card c12"><div class="card-h"><h2>Cumplimiento por política</h2></div>{% if comp_rows %}{{ hb(comp_rows, 'ok', '%', comp_links) }}{% else %}<p class="muted">Sin auditorías de cumplimiento.</p>{% endif %}</section>
 </div>
 {% endblock %}

@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from datetime import timedelta
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import case, delete, func, or_, select
 from starlette.middleware.sessions import SessionMiddleware
@@ -24,7 +24,8 @@ from .config import BASE_DIR, TLS_CA
 from .crypto import (decrypt, dummy_verify, encrypt, hash_password, needs_rehash, password_problem, session_secret,
                      verify_password)
 from .db import (AuditLog, ChangeRequest, ComplianceResult, Configlet, ConfigVersion, Credential, Device,
-                 DeviceGroup, Event, Policy, Rule, SessionLocal, Schedule, User, UserGroup, Vulnerability, audit,
+                 DeviceGroup, Event, FirmwareImage, Policy, Rule, SessionLocal, Schedule, User, UserGroup,
+                 Vulnerability, audit,
                  get_setting, init_db, now, set_setting)
 from .drivers import PROFILE_MAP, get_profile
 from .i18n import LANGS, LangMiddleware, N_, _, _f
@@ -266,16 +267,21 @@ async def account_theme(request: Request):
     old = form.get("theme")
     from .db import OLD_THEMES
     theme, accent = OLD_THEMES.get(old, (old, form.get("accent")))  # acepta también los nombres antiguos
-    theme = theme if theme in THEMES else "auto"
-    accent = accent if accent in ACCENTS else None
     with SessionLocal() as db:
         u = db.get(User, user.id)
-        u.theme = theme
+        if old or "theme" in form:  # el selector de la barra superior puede cambiar solo el acento
+            u.theme = theme if theme in THEMES else "auto"
         if accent or "accent" in form:
-            u.accent = accent
+            u.accent = accent if accent in ACCENTS else None
+        if form.get("density") in ("comfy", "compact"):
+            u.density = form.get("density")
         db.commit()
+        theme = u.theme
+    if form.get("quiet"):  # cambio al instante desde la barra superior o Mi cuenta: sin aviso ni redirección
+        return Response(status_code=204)
     flash(request, _f("Tema «{0}» aplicado.", _(THEMES[theme])))
-    return go(form.get("next") or "/account")
+    nxt = form.get("next") or "/account"
+    return go(nxt if nxt.startswith("/") and not nxt.startswith("//") else "/account")
 
 
 # --------------------------------------------------------------------------- panel
@@ -310,17 +316,41 @@ def dashboard(request: Request):
             v.device.name  # carga la relación antes de cerrar la sesión
         for e in events:
             e.device.name if e.device else None  # carga la relación antes de cerrar la sesión
-    from . import charts, health
+        # indicadores del panel «Señal»: nombres de los equipos afectados y tendencia de equipos (8 semanas)
+        devs = db.scalars(scoped(select(Device), Device.id).order_by(Device.name)).all()
+        week_ago = now() - timedelta(days=7)
+        # fecha de alta de cada equipo = la de su primera versión respaldada
+        first = dict(db.execute(select(ConfigVersion.device_id, func.min(ConfigVersion.created_at))
+                                .group_by(ConfigVersion.device_id)).all())
+        added = [first.get(d.id) for d in devs]
+        new_week = sum(1 for a in added if a and a >= week_ago)
+        dev_trend = [sum(1 for a in added if a and a <= now() - timedelta(weeks=w)) for w in range(7, -1, -1)]
+        backed24 = sum(1 for d in devs if d.last_status == "ok" and d.last_backup_at and d.last_backup_at >= since)
+        names = lambda ds: ", ".join(d.name for d in ds[:2]) + (f" +{len(ds) - 2}" if len(ds) > 2 else "")  # noqa: E731
+        err_names = names([d for d in devs if d.last_status == "error"])
+        drift_names = names([d for d in devs if d.baseline_drift])
+        conflict_names = names([d for d in devs if d.startup_conflict])
+        oldest = db.scalar(select(ChangeRequest.created_at).where(ChangeRequest.status == "pending")
+                           .order_by(ChangeRequest.created_at).limit(1))
+        crit_cves = db.scalar(scoped(select(func.count(Vulnerability.id)).where(Vulnerability.severity == "CRITICAL"),
+                                     Vulnerability.device_id)) or 0
+    from . import eol as eol_mod, health
     data = reports.analytics(scope, 30)
-    eol_bad = sum(n for label, n in data["eol"] if label in ("Sin soporte", "Sin parches de software"))
+    unsupported = [(d, e) for d, e, st in eol_mod.report(scope) if st in ("sin_soporte", "fin_mantenimiento")]
     comp = round(100 * cpass / (cpass + cfail)) if (cpass + cfail) else None
     server = _server_panel() if user.role == "admin" else None
-    week = [v for _d, v in data["per_day"][-7:]]
+    days = data["per_day"]
+    peak = max(days, key=lambda dv: dv[1]) if days else ("", 0)
+    vend = {}
+    for v in recent:
+        prof = PROFILE_MAP.get(v.device.device_type)
+        vend[v.device_id] = (prof.vendor if prof else v.device.device_type)[:3].upper()
     return render(request, "dashboard.html", user, total=total, ok=ok, err=err, conflicts=conflicts,
                   changes24=changes24, comp=comp, alarms=alarms, vcrit=vcrit, pending=pending, drift=drift,
-                  eol_bad=eol_bad, events=events, recent=recent, h=health.summary(scope, user.role == "admin", server),
-                  spark=charts.sparkline(week, 96, 30), week_total=sum(week),
-                  chart_changes=charts.columns(data["per_day"], " cambios", height=210, label_every=7, width=470))
+                  events=events, recent=recent, h=health.summary(scope, user.role == "admin", server),
+                  new_week=new_week, dev_trend=dev_trend, backed24=backed24, err_names=err_names,
+                  drift_names=drift_names, conflict_names=conflict_names, unsupported=unsupported, oldest=oldest,
+                  crit_cves=crit_cves, days=days, peak=peak, vend=vend, groups_n=len({d.group_id for d in devs if d.group_id}))
 
 
 def _server_panel() -> dict:
@@ -354,6 +384,12 @@ def _server_panel() -> dict:
                                    _f("{0} usados de {1}", hb(snap['swap_used']), hb(snap['swap_total'])))
         if snap["swap_total"] else "",
         "data_size": hb(snap["data_size"]), "app_rss": hb(snap["app_rss"]),
+        "cpu_vals": [v for _l, v in cpu_pts], "mem_vals": [v for _l, v in mem_pts],
+        "space": [(_("Disco"), _f("{0} de {1} · {2} libres", hb(snap["disk_used"]), hb(snap["disk_total"]),
+                                  hb(snap["disk_free"])), snap["disk_pct"]),
+                  (_("Memoria RAM"), _f("{0} de {1}", hb(snap["mem_used"]), hb(snap["mem_total"])), snap["mem_pct"])]
+                 + ([(_("Swap"), _f("{0} de {1}", hb(snap["swap_used"]), hb(snap["swap_total"])),
+                      100 * snap["swap_used"] / snap["swap_total"])] if snap["swap_total"] else []),
     }
 
 
@@ -370,8 +406,13 @@ def devices(request: Request, q: str = "", group: int = 0, status: str = ""):
                                   Device.location.ilike(like)))
         if group:
             stmt = stmt.where(Device.group_id == group)
+        from . import eol as eol_mod
+        scope0 = device_scope(user)
+        unsupported = {d.id for d, _e, st in eol_mod.report(scope0) if st in ("sin_soporte", "fin_mantenimiento")}
         if status == "conflict":
             stmt = stmt.where(Device.startup_conflict.is_(True))
+        elif status == "eol":
+            stmt = stmt.where(Device.id.in_(unsupported or {0}))
         elif status == "drift":
             stmt = stmt.where(Device.baseline_drift.is_(True))
         elif status:
@@ -393,10 +434,17 @@ def devices(request: Request, q: str = "", group: int = 0, status: str = ""):
         counts = {"": len(every), "ok": sum(d.last_status == "ok" for d in every),
                   "error": sum(d.last_status == "error" for d in every),
                   "pending": sum(d.last_status == "pending" for d in every),
-                  "conflict": sum(bool(d.startup_conflict) for d in every), "drift": sum(bool(d.baseline_drift) for d in every)}
+                  "conflict": sum(bool(d.startup_conflict) for d in every), "drift": sum(bool(d.baseline_drift) for d in every),
+                  "eol": sum(d.id in unsupported for d in every)}
+        # origen del último respaldo de cada equipo (manual, programado, syslog, push) y último respaldo global
+        latest_ids = select(func.max(ConfigVersion.id)).group_by(ConfigVersion.device_id)
+        src = dict(db.execute(select(ConfigVersion.device_id, ConfigVersion.trigger)
+                              .where(ConfigVersion.id.in_(latest_ids))).all())
+        last_global = max((d.last_backup_at for d in every if d.last_backup_at), default=None)
+        n_groups = len({d.group_id for d in every if d.group_id})
     from .console import console_allowed
     return render(request, "devices.html", user, devices=devs, groups=groups, q=q, group=group, status=status,
-                  counts=counts, can_console=console_allowed(user))
+                  counts=counts, can_console=console_allowed(user), src=src, last_global=last_global, n_groups=n_groups)
 
 
 @app.post("/devices/bulk")
@@ -422,6 +470,10 @@ async def devices_bulk(request: Request):
         services.jobs.submit(_audit)
         log_action(request, user, "compliance_selected", f"{ids}")
         flash(request, _f("Auditoría de cumplimiento lanzada para {0} equipos", len(ids)))
+    elif action == "cve":
+        services.jobs.submit(services.scan_cves_many, ids)
+        log_action(request, user, "cve_selected", f"{ids}")
+        flash(request, _f("Búsqueda de CVE lanzada para {0} equipos", len(ids)))
     elif action == "move":
         gid = int(form.get("group_id") or 0) or None
         with SessionLocal() as db:
@@ -574,7 +626,7 @@ async def device_import(request: Request):
 
 
 @app.get("/devices/{dev_id}")
-def device_detail(request: Request, dev_id: int):
+def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: str = "sbs", ctx: int = 3):
     user = require(request)
     check_device(user, dev_id)
     from .firmware import list_images, supports_upgrade
@@ -594,6 +646,38 @@ def device_detail(request: Request, dev_id: int):
                            .order_by(Vulnerability.score.desc().nulls_last())).all()
         events = db.scalars(select(Event).where(Event.device_id == dev_id).order_by(Event.id.desc()).limit(30)).all()
         inventory = decrypt(dev.inventory_raw_enc) if dev.inventory_raw_enc else ""
+        # línea de tiempo «Señal»: número de versión por equipo (v1…vN), origen, tamaño anormal y comparación A/B
+        total_v = db.scalar(select(func.count(ConfigVersion.id)).where(ConfigVersion.device_id == dev_id)) or 0
+        trig = {"manual": _("Manual"), "scheduled": _("Programado"), "syslog": "Syslog", "push": "Push"}
+        tl = []
+        for i, v in enumerate(versions):
+            prev = next((x for x in versions[i + 1:] if x.kind == v.kind), None)
+            tl.append({"id": v.id, "n": total_v - i, "kind": v.kind, "src": trig.get(v.trigger, v.trigger),
+                       "who": v.username or v.trigger, "when": v.created_at, "label": v.label,
+                       "base": v.id == dev.baseline_version_id, "inc": bool(prev and prev.size and v.size < prev.size * 0.5),
+                       "added": v.added, "removed": v.removed, "first": i == total_v - 1})
+        vnum = {t["id"]: t["n"] for t in tl}
+        ids = [v.id for v in versions]
+        va_id = a if a in ids else (ids[1] if len(ids) > 1 else (ids[0] if ids else 0))
+        vb_id = b if b in ids else (ids[0] if ids else 0)
+        if va_id and vb_id and va_id > vb_id:
+            va_id, vb_id = vb_id, va_id  # A siempre la más antigua
+        cmp = None
+        if va_id and vb_id:
+            va, vb = db.get(ConfigVersion, va_id), db.get(ConfigVersion, vb_id)
+            ta, tb = decrypt(va.content_enc), decrypt(vb.content_enc)
+            add_n, del_n = services.diff_stats(ta, tb)
+            cmp = {"a": va, "b": vb, "rows": services.side_by_side(ta, tb, ctx if ctx < 9999 else 100000),
+                   "summary": services.diff_summary(ta, tb), "n": add_n + del_n}
+        drift_n = 0
+        if dev.baseline_drift and dev.baseline_version_id and versions:
+            base_v = db.get(ConfigVersion, dev.baseline_version_id)
+            last_run = next((v for v in versions if v.kind == "running"), None)
+            if base_v and last_run:
+                drift_n = sum(services.diff_stats(decrypt(base_v.content_enc), decrypt(last_run.content_enc)))
+        audit_rows = db.scalars(select(AuditLog).where(or_(AuditLog.detail.like(f"%{dev.name}%"),
+                                                           AuditLog.detail.like(f"%device={dev_id}%")))
+                                .order_by(AuditLog.id.desc()).limit(20)).all()
     from . import eol
     with SessionLocal() as db:
         entry = eol.match_entry(dev, list(db.scalars(select(eol.EolEntry))))
@@ -617,7 +701,12 @@ def device_detail(request: Request, dev_id: int):
                   vuln_high=sum(1 for v in vulns if (v.severity or "").upper() in ("CRITICAL", "HIGH")),
                   events=events, inventory=inventory, profile=get_profile(dev.device_type), images=images,
                   eol_entry=entry, eol_status=eol.status(entry), eol_labels=eol.STATUS_LABEL,
-                  eol_sev=eol.STATUS_SEV)
+                  eol_sev=eol.STATUS_SEV, tl=tl, vnum=vnum, total_v=total_v, cmp=cmp, mode=mode, ctx=ctx,
+                  crit_cves=sum(1 for v in vulns if (v.severity or "").upper() == "CRITICAL"),
+                  open_events=sum(1 for e in events if not e.acknowledged), audit_rows=audit_rows, drift_n=drift_n,
+                  audited_at=max((c.checked_at for c in comp if c.checked_at), default=None),
+                  cve_at=max((v.found_at for v in vulns if v.found_at), default=None),
+                  latest_run=next((t["id"] for t in tl if t["kind"] == "running"), None))
 
 
 @app.post("/devices/{dev_id}/backup")
@@ -698,8 +787,10 @@ def version_view(request: Request, ver_id: int, raw: int = 0):
                           .order_by(ConfigVersion.id.desc()).limit(1)).first()
         current = services.latest_version(db, v.device_id, v.kind)
         small = _suspiciously_small(v, current)
+        n = db.scalar(select(func.count(ConfigVersion.id)).where(ConfigVersion.device_id == v.device_id,
+                                                                  ConfigVersion.id <= v.id)) or 1
     return render(request, "version.html", user, v=v, text=text, prev=prev, is_baseline=is_baseline,
-                  small=small, current=current)
+                  small=small, current=current, n=n, lines=text.splitlines())
 
 
 def _suspiciously_small(v, current) -> bool:
@@ -752,14 +843,23 @@ def baseline_diff(request: Request, dev_id: int):
         if not dev.baseline_version_id or not latest:
             flash(request, _("El equipo no tiene línea base definida"), "error")
             return go(f"/devices/{dev_id}")
-    return go(f"/diff?a={dev.baseline_version_id}&b={latest.id}&view=side")
+    return go(f"/devices/{dev_id}?a={dev.baseline_version_id}&b={latest.id}#versions")
 
 
 @app.get("/diff")
-def diff_view(request: Request, a: int = 0, b: int = 0, ctx: int = 3, view: str = "side"):
+def diff_view(request: Request, a: int = 0, b: int = 0, ctx: int = 3, view: str = "side", raw: int = 0):
     user = require(request)
     scope = device_scope(user)
     with SessionLocal() as db:
+        if not a or not b:  # «Comparar configuraciones» sin elegir: las dos últimas versiones del primer equipo visible
+            q0 = select(ConfigVersion).where(ConfigVersion.kind == "running").order_by(ConfigVersion.id.desc()).limit(1)
+            if scope is not None:
+                q0 = q0.where(ConfigVersion.device_id.in_(scope))
+            last = db.scalars(q0).first()
+            if last:
+                two = db.scalars(select(ConfigVersion.id).where(ConfigVersion.device_id == last.device_id)
+                                 .order_by(ConfigVersion.id.desc()).limit(2)).all()
+                a, b = (two[-1], two[0]) if not a and not b else (a or two[-1], b or two[0])
         va, vb = db.get(ConfigVersion, a), db.get(ConfigVersion, b)
         if not va or not vb:
             flash(request, _("Seleccione dos versiones"), "error")
@@ -769,16 +869,25 @@ def diff_view(request: Request, a: int = 0, b: int = 0, ctx: int = 3, view: str 
         (va.device.name, vb.device.name)  # carga la relación antes de cerrar la sesión
         ta, tb = decrypt(va.content_enc), decrypt(vb.content_enc)
         lines = services.diff_lines(ta, tb, f"{va.device.name} #{va.id}", f"{vb.device.name} #{vb.id}", ctx)
-        rows = services.side_by_side(ta, tb, ctx) if view == "side" else []
-        q = select(ConfigVersion).order_by(ConfigVersion.id.desc()).limit(500)
-        if scope is not None:
-            q = q.where(ConfigVersion.device_id.in_(scope))
-        all_versions = db.scalars(q).all()
-        for x in all_versions:
-            x.device.name  # carga la relación antes de cerrar la sesión
+        if raw:  # «.diff»: descarga en formato diff unificado
+            fname = f"{va.device.name}_v{va.id}_{vb.device.name}_v{vb.id}.diff"
+            body = "\n".join(lines) + "\n"
+            return PlainTextResponse(body, headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+        rows = services.side_by_side(ta, tb, ctx if ctx < 9999 else 100000)
+        # selectores del prototipo: equipo (izquierda / derecha) y sus versiones, numeradas v1…vN por equipo
+        devs = [d for d in db.scalars(select(Device).order_by(Device.name)) if scope is None or d.id in scope]
+        vers: dict[int, list] = {}
+        for d in devs:
+            vs = db.execute(select(ConfigVersion.id, ConfigVersion.kind, ConfigVersion.created_at)
+                            .where(ConfigVersion.device_id == d.id).order_by(ConfigVersion.id)).all()
+            vers[d.id] = [{"id": i, "n": k + 1, "kind": kind, "when": when} for k, (i, kind, when) in enumerate(vs)][::-1][:60]
+        vn = {x["id"]: x["n"] for lst in vers.values() for x in lst}
+        vn.setdefault(va.id, va.id)
+        vn.setdefault(vb.id, vb.id)
     added, removed = services.diff_stats(ta, tb)
-    return render(request, "diff.html", user, va=va, vb=vb, lines=lines, rows=rows, ctx=ctx, view=view,
-                  all_versions=all_versions, added=added, removed=removed, summary=services.diff_summary(ta, tb))
+    cmp = {"a": va, "b": vb, "rows": rows, "summary": services.diff_summary(ta, tb), "n": added + removed}
+    return render(request, "diff.html", user, va=va, vb=vb, cmp=cmp, ctx=ctx, view=view, devs=devs, vers=vers, vn=vn,
+                  mode="u" if view == "unified" else "sbs", vers_js={str(k): [x["id"] for x in v] for k, v in vers.items()})
 
 
 @app.post("/versions/{ver_id}/rollback")
@@ -806,27 +915,41 @@ async def version_rollback(request: Request, ver_id: int):
 
 # --------------------------------------------------------------------------- búsqueda
 @app.get("/search")
-def search(request: Request, q: str = "", regex: int = 0):
+def search(request: Request, q: str = "", regex: int = 0, cs: int = 0, group: int = 0, latest: int = 0, sent: int = 0):
+    """Buscar texto o expresiones regulares en las configuraciones (como el prototipo: grupo, mayúsculas y versiones)."""
     user = require(request)
-    results = []
-    if q:
-        try:
-            pat = re.compile(q if regex else re.escape(q), re.IGNORECASE)
-        except re.error as e:
-            flash(request, _f("Regex inválida: {0}", e), "error")
-            return go("/search")
-        scope = device_scope(user)
-        with SessionLocal() as db:
-            for dev in db.scalars(select(Device).order_by(Device.name)):
-                if scope is not None and dev.id not in scope:
+    if not sent:  # sin enviar el formulario: por omisión, solo la última versión
+        latest = 1
+    results, err = [], ""
+    with SessionLocal() as db:
+        groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
+        if q:
+            try:
+                pat = re.compile(q if regex else re.escape(q), 0 if cs else re.IGNORECASE)
+            except re.error as e:
+                err = _f("La expresión regular no es válida: {0}", e)
+                pat = None
+            scope = device_scope(user)
+            for dev in db.scalars(select(Device).order_by(Device.name)) if pat else []:
+                if (scope is not None and dev.id not in scope) or (group and dev.group_id != group):
                     continue
-                v = services.latest_version(db, dev.id)
-                if not v:
-                    continue
-                hits = [(n, l) for n, l in enumerate(decrypt(v.content_enc).splitlines(), 1) if pat.search(l)]
-                if hits:
-                    results.append((dev, v, hits[:50], len(hits)))
-    return render(request, "search.html", user, q=q, regex=regex, results=results)
+                vs = [services.latest_version(db, dev.id)] if latest else db.scalars(
+                    select(ConfigVersion).where(ConfigVersion.device_id == dev.id, ConfigVersion.kind == "running")
+                    .order_by(ConfigVersion.id.desc()).limit(20)).all()
+                for v in vs:
+                    if not v:
+                        continue
+                    lines = decrypt(v.content_enc).splitlines()
+                    hits = [i for i, line in enumerate(lines) if pat.search(line)]
+                    if hits:
+                        n = db.scalar(select(func.count(ConfigVersion.id)).where(ConfigVersion.device_id == dev.id,
+                                                                                  ConfigVersion.id <= v.id))
+                        prof = PROFILE_MAP.get(dev.device_type)
+                        results.append({"dev": dev, "v": v, "n": n, "lines": lines, "hits": hits[:50],
+                                        "total": len(hits), "vend": (prof.vendor if prof else dev.device_type)[:3].upper()})
+                        break
+    return render(request, "search.html", user, q=q, regex=regex, cs=cs, group=group, latest=latest, groups=groups,
+                  results=results, err=err, total=sum(r["total"] for r in results))
 
 
 # --------------------------------------------------------------------------- credenciales y grupos
@@ -835,8 +958,42 @@ def credentials(request: Request):
     user = require(request, "admin")
     with SessionLocal() as db:
         creds = db.scalars(select(Credential).order_by(Credential.name)).all()
+        usage: dict[int, dict] = {}
+        for d in db.scalars(select(Device)):
+            if d.credential_id:
+                u = usage.setdefault(d.credential_id, {"n": 0, "ok": 0, "err": 0})
+                u["n"] += 1
+                if d.last_status == "ok":
+                    u["ok"] += 1
+                elif d.last_status == "error":
+                    u["err"] += 1
+    return render(request, "credentials.html", user, creds=creds, usage=usage)
+
+
+@app.get("/credentials/new")
+def credential_new(request: Request):
+    user = require(request, "admin")
+    return render(request, "cred_edit.html", user, c=None, used=0)
+
+
+@app.get("/credentials/{cid}/edit")
+def credential_edit(request: Request, cid: int):
+    user = require(request, "admin")
+    with SessionLocal() as db:
+        c = db.get(Credential, cid)
+        used = db.scalar(select(func.count(Device.id)).where(Device.credential_id == cid)) or 0
+    if c is None:
+        return go("/credentials")
+    return render(request, "cred_edit.html", user, c=c, used=used)
+
+
+@app.get("/groups")
+def groups_page(request: Request):
+    user = require(request, "admin")
+    with SessionLocal() as db:
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
-    return render(request, "credentials.html", user, creds=creds, groups=groups)
+        counts = dict(db.execute(select(Device.group_id, func.count(Device.id)).group_by(Device.group_id)).all())
+    return render(request, "groups.html", user, groups=groups, counts=counts)
 
 
 @app.post("/credentials")
@@ -881,7 +1038,7 @@ async def group_save(request: Request):
         db.add(DeviceGroup(name=form["name"].strip()))
         db.commit()
     log_action(request, user, "group_create", form["name"])
-    return go("/credentials#groups")
+    return go("/groups")
 
 
 @app.post("/groups/{gid}/delete")
@@ -893,7 +1050,7 @@ def group_delete(request: Request, gid: int):
             db.delete(g)
             db.commit()
             log_action(request, user, "group_delete", g.name)
-    return go("/credentials#groups")
+    return go("/groups")
 
 
 # --------------------------------------------------------------------------- configlets
@@ -902,6 +1059,16 @@ def configlets(request: Request):
     user = require(request)
     with SessionLocal() as db:
         items = db.scalars(select(Configlet).order_by(Configlet.name)).all()
+        devs = [d for d in db.scalars(select(Device).where(Device.enabled.is_(True)))]
+        allowed = set(filter_ids(user, [d.id for d in devs]))
+        audit_rows = db.scalars(select(AuditLog.detail).where(AuditLog.action.in_(("configlet_exec", "change_request")))).all()
+    for c in items:  # tarjetas del prototipo: equipos compatibles y veces que se ha usado
+        try:
+            rx = re.compile(c.device_type_filter) if c.device_type_filter else None
+        except re.error:
+            rx = None
+        c.compat = sum(1 for d in devs if d.id in allowed and (rx is None or rx.search(d.device_type)))
+        c.uses = sum(1 for det in audit_rows if det and c.name in det)
     return render(request, "configlets.html", user, items=items)
 
 
@@ -911,7 +1078,8 @@ def configlet_form(request: Request, cid: int | None = None):
     user = require(request, "admin")
     with SessionLocal() as db:
         c = db.get(Configlet, cid) if cid else None
-    return render(request, "configlet_form.html", user, c=c)
+        types = [d.device_type for d in db.scalars(select(Device))]
+    return render(request, "configlet_form.html", user, c=c, types=types)
 
 
 @app.post("/configlets/new")
@@ -967,7 +1135,8 @@ def configlet_run_form(request: Request, cid: int):
             d.group.name if d.group else None  # carga la relación antes de cerrar la sesión
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
     found_vars = sorted(set(re.findall(r"{{\s*([a-zA-Z_]\w*)", c.body)) - {"device"})
-    return render(request, "configlet_run.html", user, c=c, devices=devs, groups=groups, found_vars=found_vars)
+    return render(request, "configlet_run.html", user, c=c, devices=devs, groups=groups, found_vars=found_vars,
+                  require_approval=get_setting("require_approval", "1") == "1")
 
 
 @app.post("/configlets/{cid}/run")
@@ -982,6 +1151,9 @@ async def configlet_run(request: Request, cid: int):
         flash(request, _("Seleccione al menos un dispositivo"), "error")
         return go(f"/configlets/{cid}/run")
     variables = _parse_vars(form.get("variables", ""))
+    for k, v in form.items():  # campos por variable del panel «Ejecutar» (var_nombre)
+        if k.startswith("var_") and k[4:].isidentifier() and str(v).strip():
+            variables[k[4:]] = str(v).strip()
     with SessionLocal() as db:
         c = db.get(Configlet, cid)
         if c.kind == "exec":
@@ -1000,7 +1172,9 @@ async def configlet_run(request: Request, cid: int):
                 except Exception as e:  # noqa: BLE001
                     outputs.append((name, f"ERROR: {e}"))
             log_action(request, user, "configlet_exec", f"{c.name} en {len(ids)} equipos")
-            return render(request, "exec_result.html", user, c=c, outputs=outputs)
+            vend = {d.name: (PROFILE_MAP[d.device_type].vendor if d.device_type in PROFILE_MAP else d.device_type)[:3].upper()
+                    for d in devs}
+            return render(request, "exec_result.html", user, c=c, outputs=outputs, vend=vend)
         title, body = c.name, c.body
     cr_id = _create_cr(user, form.get("title") or f"Configlet: {title}", body, variables, ids)
     log_action(request, user, "change_request", f"#{cr_id} {title}")
@@ -1030,16 +1204,30 @@ def _create_cr(user, title, body, variables, ids, is_rollback=False, kind="confi
 
 
 @app.get("/changes")
-def changes(request: Request, status: str = ""):
+def changes(request: Request, status: str | None = None):
     user = require(request)
     with SessionLocal() as db:
+        if status is None:  # como el prototipo: se abre en «Por aprobar» si hay alguna pendiente
+            status = "pending" if db.scalar(select(func.count(ChangeRequest.id))
+                                            .where(ChangeRequest.status == "pending")) else ""
         stmt = select(ChangeRequest).order_by(ChangeRequest.id.desc()).limit(300)
         if status:
             stmt = stmt.where(ChangeRequest.status == status)
         scope = device_scope(user)
         items = [cr for cr in db.scalars(stmt)
                  if scope is None or set(json.loads(cr.device_ids)) <= scope]
-    return render(request, "changes.html", user, items=items, status=status)
+        names = {d.id: d.name for d in db.scalars(select(Device))}
+        counts = {st: db.scalar(select(func.count(ChangeRequest.id)).where(ChangeRequest.status == st)) or 0
+                  for st in ("pending", "done", "rejected", "failed")}
+    for cr in items:  # tipo y equipos, para la lista del prototipo
+        cr.dev_names = [names.get(i, "?") for i in json.loads(cr.device_ids)]
+        cr.kind_label = (_("Firmware") if cr.kind == "firmware" else _("Reversión") if cr.is_rollback
+                         else _("Corrección de cumplimiento") if cr.title.startswith(("Corrección", "Corregir"))
+                         else _("Configlet"))
+        cr.kind_icon = ("chip" if cr.kind == "firmware" else "undo" if cr.is_rollback
+                        else "wrench" if cr.title.startswith(("Corrección", "Corregir")) else "code")
+    return render(request, "changes.html", user, items=items, status=status, counts=counts,
+                  flow=get_setting("require_approval", "1") == "1")
 
 
 @app.get("/changes/{cr_id}")
@@ -1070,7 +1258,11 @@ def change_detail(request: Request, cr_id: int):
                 previews.append((d.name, f"ERROR de plantilla: {e}"))
     can_review = ROLES[user.role] >= ROLES["admin"] and (
         cr.requested_by != user.username or get_setting("allow_self_approval", "1") == "1")
-    return render(request, "change.html", user, cr=cr, devices=devs, previews=previews, can_review=can_review)
+    kind_label = (_("Firmware") if cr.kind == "firmware" else _("Reversión") if cr.is_rollback
+                  else _("Corrección de cumplimiento") if cr.title.startswith(("Corrección", "Corregir")) else _("Configlet"))
+    vend = {d.id: (get_profile(d.device_type).vendor if d.device_type in PROFILE_MAP else d.device_type)[:3].upper() for d in devs}
+    return render(request, "change.html", user, cr=cr, devices=devs, previews=previews, can_review=can_review,
+                  kind_label=kind_label, vend=vend)
 
 
 @app.post("/changes/{cr_id}/review")
@@ -1085,6 +1277,9 @@ async def change_review(request: Request, cr_id: int):
             return go(f"/changes/{cr_id}")
         if cr.requested_by == user.username and get_setting("allow_self_approval", "1") != "1":
             flash(request, _("No puede aprobar sus propias solicitudes (ver Ajustes)"), "error")
+            return go(f"/changes/{cr_id}")
+        if decision != "approve" and not (form.get("comment") or "").strip():
+            flash(request, _("Escribe por qué se rechaza: así quien la pidió sabe qué cambiar."), "error")
             return go(f"/changes/{cr_id}")
         cr.status = "approved" if decision == "approve" else "rejected"
         cr.reviewed_by, cr.review_comment = user.username, form.get("comment")
@@ -1116,13 +1311,35 @@ def compliance(request: Request):
                                                 func.sum(case((ComplianceResult.passed.is_(True), 1), else_=0)),
                                                 func.count()).group_by(ComplianceResult.device_id)).all()
                    if scope is None or s[0] in scope]
-    from . import charts
-    comp = reports.analytics(scope)["compliance"]
-    chart = charts.bars([(n, v) for n, v, _z in comp], "%", vmax=100, status=True,
-                        link=[f"/compliance/policies/{pid}" for _a, _b, pid in comp])
-    return render(request, "compliance.html", user, policies=policies, groups=groups, fails=fails,
-                  devices_checked=len(summary), chart=chart,
-                  devices_ok=sum(1 for _k, p, t in summary if p == t))
+        # «Señal»: mapa equipo × política y barras por gravedad de cada política (sobre los equipos visibles)
+        results = [r for r in db.scalars(select(ComplianceResult)) if scope is None or r.device_id in scope]
+        sev_of = {r.id: r.severity for p in policies for r in p.rules}
+        cell: dict[tuple, list] = {}
+        pstat = {p.id: {"ok": 0, "critical": 0, "major": 0, "minor": 0, "fix": 0} for p in policies}
+        fixable = {r.id for p in policies for r in p.rules if r.remediation}
+        for r in results:
+            c = cell.setdefault((r.device_id, r.policy_id), [0, 0])
+            c[1] += 1
+            st = pstat.setdefault(r.policy_id, {"ok": 0, "critical": 0, "major": 0, "minor": 0, "fix": 0})
+            if r.passed:
+                c[0] += 1
+                st["ok"] += 1
+            else:
+                st[sev_of.get(r.rule_id, "major") if sev_of.get(r.rule_id) in ("critical", "major") else "minor"] += 1
+                st["fix"] += r.rule_id in fixable
+        dev_ids = sorted({d for d, _p in cell})
+        devs = {d.id: d for d in db.scalars(select(Device).where(Device.id.in_(dev_ids or [0])))}
+        matrix = [(devs[d], [round(100 * cell[(d, p.id)][0] / cell[(d, p.id)][1]) if (d, p.id) in cell else None
+                             for p in policies]) for d in dev_ids if d in devs]
+        matrix.sort(key=lambda row: row[0].name)
+        vend = {d.id: (PROFILE_MAP[d.device_type].vendor if d.device_type in PROFILE_MAP else d.device_type)[:3].upper()
+                for d in devs.values()}
+        last_audit = db.scalar(select(func.max(ComplianceResult.checked_at)))
+    total_r = len(results)
+    pct = round(100 * sum(1 for r in results if r.passed) / total_r) if total_r else None
+    return render(request, "compliance.html", user, policies=policies, groups=groups, fails=fails, fail_rows=fails,
+                  devices_checked=len(summary), devices_ok=sum(1 for _k, p, t in summary if p == t),
+                  matrix=matrix, pstat=pstat, pct=pct, last_audit=last_audit, vend=vend)
 
 
 @app.post("/compliance/policies")
@@ -1144,6 +1361,70 @@ async def policy_save(request: Request):
     return go(f"/compliance/policies/{pid}")
 
 
+@app.get("/compliance/policies/new")
+def policy_new(request: Request):
+    """«Nueva política» en un panel lateral (prototipo)."""
+    user = require(request, "admin")
+    with SessionLocal() as db:
+        groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
+        devs = [d for d in db.scalars(select(Device).order_by(Device.name)) if services.latest_version(db, d.id)]
+        types = [d.device_type for d in db.scalars(select(Device))]
+    return render(request, "policy.html", user, p=None, groups=groups, test_devices=devs, types=types)
+
+
+@app.post("/compliance/policies/save-all")
+async def policy_save_all(request: Request):
+    """Guarda la política y todas sus reglas de una vez (editor del prototipo): crea, cambia y quita reglas."""
+    user = require(request, "admin")
+    form = await request.form()
+    name = (form.get("name") or "").strip()
+    if not name:
+        flash(request, _("La política necesita un nombre"), "error")
+        return go("/compliance")
+    with SessionLocal() as db:
+        pid = int(form.get("id") or 0)
+        p = db.get(Policy, pid) if pid else Policy()
+        p.name, p.description = name, form.get("description") or None
+        p.device_type_filter = form.get("device_type_filter") or None
+        p.group_id = int(form["group_id"]) if form.get("group_id") else None
+        if not pid:
+            p.enabled = True
+            db.add(p)
+            db.flush()
+        keep = set()
+        ids, names, kinds = form.getlist("rule_id"), form.getlist("rule_name"), form.getlist("rule_kind")
+        sevs, pats, fixes = form.getlist("rule_sev"), form.getlist("rule_pattern"), form.getlist("rule_fix")
+        for i, rname in enumerate(names):
+            pat = pats[i] if i < len(pats) else ""
+            if not rname.strip() and not pat.strip():
+                continue
+            try:
+                re.compile(pat, re.M)
+            except re.error as e:
+                db.rollback()
+                flash(request, _f("Regla «{0}»: patrón no válido ({1})", rname or i + 1, e), "error")
+                return go(f"/compliance/policies/{pid}" if pid else "/compliance")
+            rid = int(ids[i]) if i < len(ids) and ids[i].isdigit() else 0
+            r = db.get(Rule, rid) if rid else None
+            if r is None or r.policy_id != p.id:
+                r = Rule(policy_id=p.id)
+                db.add(r)
+            r.name, r.pattern = rname.strip() or pat[:60], pat
+            r.kind = kinds[i] if i < len(kinds) and kinds[i] in ("must_contain", "must_not_contain") else "must_contain"
+            r.severity = sevs[i] if i < len(sevs) and sevs[i] in ("critical", "major", "minor") else "major"
+            r.remediation = (fixes[i] if i < len(fixes) else "").strip() or None
+            db.flush()
+            keep.add(r.id)
+        for r in list(p.rules):
+            if r.id not in keep:
+                db.delete(r)
+        db.commit()
+        pid = p.id
+    log_action(request, user, "policy_save", name)
+    flash(request, _("Política guardada. Se auditará en la próxima ejecución."))
+    return go("/compliance")
+
+
 @app.get("/compliance/policies/{pid}")
 def policy_detail(request: Request, pid: int):
     user = require(request)
@@ -1154,7 +1435,8 @@ def policy_detail(request: Request, pid: int):
         scope = device_scope(user)
         devs = [d for d in db.scalars(select(Device).order_by(Device.name))
                 if (scope is None or d.id in scope) and (not p.device_type_filter or re.search(p.device_type_filter, d.device_type))]
-    return render(request, "policy.html", user, p=p, groups=groups, test_devices=devs)
+        types = [d.device_type for d in db.scalars(select(Device))]
+    return render(request, "policy.html", user, p=p, groups=groups, test_devices=devs, types=types)
 
 
 @app.post("/compliance/policies/{pid}/delete")
@@ -1290,12 +1572,28 @@ def schedules(request: Request):
     sf = {"name": "Respaldo nocturno", "action": "backup", "group_id": None, "configlet_id": None,
           **cronutil.to_form("0 2 * * *")}
     return render(request, "schedules.html", user, items=items, groups=groups, configlets=configlets, jobs=jobs,
-                  DAYS=cronutil.DAYS, FREQS=cronutil.FREQS, ACTIONS=SCHEDULE_ACTIONS, sf=sf)
+                  DAYS=cronutil.DAYS, FREQS=cronutil.FREQS, ACTIONS=SCHEDULE_ACTIONS, sf=sf,
+                  cfl_names={c.id: c.name for c in configlets})
 
 
 SCHEDULE_ACTIONS = {"backup": N_("Respaldo de configuración"), "compliance": N_("Auditoría de cumplimiento"),
                     "cve": N_("Escaneo de vulnerabilidades"), "configlet": N_("Ejecutar configlet"),
                     "report_email": N_("Informes por correo"), "system_backup": N_("Copia de recuperación")}
+
+
+@app.get("/schedules/new")
+def schedule_new_form(request: Request, action: str = "backup"):
+    """«Nueva tarea» en un panel lateral (prototipo); por omisión, un respaldo nocturno a las 02:00."""
+    user = require(request, "admin")
+    from . import cronutil
+    with SessionLocal() as db:
+        groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
+        configlets = db.scalars(select(Configlet).order_by(Configlet.name)).all()
+    act = action if action in SCHEDULE_ACTIONS else "backup"
+    sf = {"name": _("Respaldo nocturno") if act == "backup" else "", "action": act, "group_id": None, "configlet_id": None,
+          **cronutil.to_form("0 2 * * *" if act == "backup" else "0 8 * * 1")}
+    return render(request, "schedule_edit.html", user, sf=sf, sid=None, groups=groups, configlets=configlets,
+                  DAYS=cronutil.DAYS, FREQS=cronutil.FREQS)
 
 
 @app.get("/schedules/{sid}/edit")
@@ -1382,22 +1680,43 @@ def schedule_op(request: Request, sid: int, op: str):
 
 
 # --------------------------------------------------------------------------- alarmas, vulns, auditoría
+EV_SEV = {"crit": ("critical",), "major": ("major", "error"), "minor": ("warning",), "info": ("info",)}
+
+
 @app.get("/events")
-def events(request: Request, sev: str = "", unack: int = 0, page: int = 1):
+def events(request: Request, sev: str = "", unack: int | None = None, page: int = 1):
+    """Alarmas y eventos (prototipo): chips por severidad con recuento, «Sin reconocer / Todas» y cola."""
+    from .web import _event_title
     user = require(request)
+    if unack is None:
+        unack = 1  # como el prototipo: se abre en «Sin reconocer»
     with SessionLocal() as db:
-        stmt = select(Event).order_by(Event.id.desc())
-        if sev:
-            stmt = stmt.where(Event.severity == sev)
+        base = select(Event)
         if unack:
-            stmt = stmt.where(Event.acknowledged.is_(False))
+            base = base.where(Event.acknowledged.is_(False))
         scope = device_scope(user)
         if scope is not None:  # eventos de sus equipos (los globales solo los ven usuarios sin restricción)
-            stmt = stmt.where(Event.device_id.in_(scope))
+            base = base.where(Event.device_id.in_(scope))
+        counts = {k: 0 for k in EV_SEV}
+        sub = base.subquery()
+        for sv, n in db.execute(select(sub.c.severity, func.count()).group_by(sub.c.severity)).all():
+            for k, vals in EV_SEV.items():
+                if sv in vals:
+                    counts[k] += n
+        total = sum(counts.values())
+        stmt = base.order_by(Event.id.desc())
+        if sev in EV_SEV:
+            stmt = stmt.where(Event.severity.in_(EV_SEV[sev]))
+        elif sev:  # compatibilidad con enlaces antiguos (?sev=critical)
+            stmt = stmt.where(Event.severity == sev)
         items = db.scalars(stmt.offset((page - 1) * 100).limit(100)).all()
         for e in items:
             e.device.name if e.device else None  # carga la relación antes de cerrar la sesión
-    return render(request, "events.html", user, items=items, sev=sev, unack=unack, page=page)
+            e.title = _event_title(e)
+        open_n = db.scalar(select(func.count(Event.id)).where(Event.acknowledged.is_(False),
+                                                              *([Event.device_id.in_(scope)] if scope is not None else []))) or 0
+    return render(request, "events.html", user, items=items, sev=sev, unack=unack, page=page, counts=counts,
+                  total=total, open_n=open_n, min_sev=get_setting("alert_min_severity", "warning"))
 
 
 @app.post("/events/ack")
@@ -1447,15 +1766,50 @@ async def events_unack(request: Request):
 
 
 @app.get("/vulns")
-def vulns(request: Request):
+def vulns(request: Request, f: str = "all"):
+    """Vulnerabilidades agrupadas por CVE (prototipo): KPI, filtros y «explotado activamente» (CISA KEV)."""
     user = require(request)
+    kev = services.kev_ids()
     with SessionLocal() as db:
         scope = device_scope(user)
         items = [v for v in db.scalars(select(Vulnerability).order_by(Vulnerability.score.desc().nulls_last())
                                        .limit(5000)) if scope is None or v.device_id in scope][:2000]
-        for v in items:
-            v.device.name  # carga la relación antes de cerrar la sesión
-    return render(request, "vulns.html", user, items=items)
+        devs = {d.id: d for d in db.scalars(select(Device)) if scope is None or d.id in scope}
+        images = db.scalars(select(FirmwareImage).order_by(FirmwareImage.uploaded_at.desc())).all()
+        last = max((v.found_at for v in items), default=None)
+
+    def fixed_image(d):  # imagen cargada para el tipo del equipo con otra versión
+        for img in images:
+            try:
+                if (not img.device_type_filter or re.search(img.device_type_filter, d.device_type)) \
+                        and img.version and img.version != d.os_version:
+                    return img
+            except re.error:
+                continue
+        return None
+
+    groups: dict[str, dict] = {}
+    for v in items:
+        g = groups.setdefault(v.cve_id, {"id": v.cve_id, "score": v.score, "sev": (v.severity or "").lower(),
+                                         "desc": v.description or "", "url": v.url, "kev": v.cve_id in kev,
+                                         "devs": []})
+        if v.device_id in devs and devs[v.device_id] not in g["devs"]:
+            g["devs"].append(devs[v.device_id])
+    rows = sorted(groups.values(), key=lambda g: (not g["kev"], -(g["score"] or 0), g["id"]))
+    for g in rows:
+        imgs = {fixed_image(d) for d in g["devs"]} - {None}
+        g["img"] = sorted(imgs, key=lambda i: i.filename)[0] if imgs else None
+    affected = {d.id: d for g in rows for d in g["devs"]}
+    crit = [g for g in rows if g["sev"] == "critical"]
+    k = {"crit": len(crit), "crit_devs": len({d.id for g in crit for d in g["devs"]}),
+         "kev": sum(1 for g in rows if g["kev"]), "affected": len(affected), "total": len(devs),
+         "with_img": sum(1 for d in affected.values() if fixed_image(d))}
+    sev_f = {"crit": ("critical",), "major": ("high",), "minor": ("medium", "low")}
+    if f == "kev":
+        rows = [g for g in rows if g["kev"]]
+    elif f in sev_f:
+        rows = [g for g in rows if g["sev"] in sev_f[f]]
+    return render(request, "vulns.html", user, rows=rows, k=k, f=f, last=last, has_kev=bool(kev))
 
 
 @app.get("/audit")
@@ -1530,6 +1884,14 @@ async def user_create(request: Request):
     log_action(request, user, "user_create", f"{username} rol={role} grupos={form.getlist('group_ids')}")
     flash(request, _f("Usuario «{0}» creado con rol {1}. Ya puede ingresar con su contraseña.", username, ROLE_NAMES[role]))
     return go("/users")
+
+
+@app.get("/users/new")
+def user_new_form(request: Request):
+    user = require(request, "admin")
+    with SessionLocal() as db:
+        groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
+    return render(request, "user_edit.html", user, u=None, groups=groups, selected=set(), now=now())
 
 
 @app.get("/users/{uid}/edit")
@@ -1722,8 +2084,32 @@ def api_devices(request: Request):
     with SessionLocal() as db:
         return [{"id": d.id, "name": d.name, "host": d.host, "type": d.device_type, "model": d.model,
                  "serial": d.serial, "version": d.os_version, "status": d.last_status,
+                 "platform": PROFILE_MAP[d.device_type].label if d.device_type in PROFILE_MAP else d.device_type,
                  "last_backup": d.last_backup_at.isoformat() if d.last_backup_at else None}
                 for d in db.scalars(select(Device).order_by(Device.name)) if scope is None or d.id in scope]
+
+
+@app.get("/api/config-search")
+def api_config_search(request: Request, q: str = ""):
+    """Paleta Ctrl K: las primeras líneas de configuración que contienen el texto (última versión de cada equipo)."""
+    user = require(request)
+    q = q.strip()
+    if len(q) < 2:
+        return []
+    ql, scope, hits = q.lower(), device_scope(user), []
+    with SessionLocal() as db:
+        for dev in db.scalars(select(Device).order_by(Device.name)):
+            if scope is not None and dev.id not in scope:
+                continue
+            v = services.latest_version(db, dev.id)
+            if not v:
+                continue
+            for n, line in enumerate(decrypt(v.content_enc).splitlines(), 1):
+                if ql in line.lower():
+                    hits.append({"device": dev.name, "device_id": dev.id, "line_no": n, "line": line.strip()[:120]})
+                    if len(hits) >= 4:
+                        return hits
+    return hits
 
 
 from . import routes_ops  # noqa: E402  (rutas de firmware, EOL, análisis y sistema)

@@ -1,32 +1,15 @@
-{# Línea de tiempo de versiones: clic = A, segundo clic = B, tercero reinicia. Variables: tl_versions, tl_id, baseline_id #}
-<form class="timeline" method="get" action="/diff" data-timeline id="{{ tl_id }}">
-  <input type="hidden" name="a" value="{{ tl_versions[1].id if tl_versions|length > 1 else '' }}">
-  <input type="hidden" name="b" value="{{ tl_versions[0].id if tl_versions else '' }}">
-  {% if tl_versions|length > 1 %}
-  <div class="tl-bar">
-    <span class="muted small tl-help">Pulse dos versiones para compararlas: la primera es A, la segunda B.</span>
-    <label class="chk small"><input type="checkbox" class="tl-changes"> Solo con cambios</label>
-    <span class="split">
-      <button name="view" value="side">{{ icon('branch', 'sm') }} Comparar <b class="tl-a">A</b> ↔ <b class="tl-b">B</b></button>
-      <button name="view" value="unified" class="sec" title="Vista unificada">Unificada</button>
-    </span>
-  </div>
-  {% endif %}
-  <ol class="tl">
-    {% for v in tl_versions %}
-    <li class="tl-row{{ ' nochg' if not v.added and not v.removed }}" data-id="{{ v.id }}" tabindex="0" role="button"
-        aria-pressed="false" aria-label="{{ _f('Versión {0}, {1}', v.id, v.created_at|dt) }}">
-      <span class="tl-dot {{ 'base' if v.id == baseline_id else v.kind }}" title="{{ _('línea base') if v.id == baseline_id else v.kind }}"></span>
-      <span class="tl-ab" aria-hidden="true"></span>
-      <span class="tl-main"><b>#{{ v.id }}</b> <span class="tl-kind">{{ v.kind }}</span>
-        {% if v.id == baseline_id %}<span class="tag signal">línea base</span>{% elif v.label %}<span class="tag">{{ v.label }}</span>{% endif %}
-        <span class="muted small tl-meta">{{ v.trigger|capitalize }}{% if v.username %} · {{ v.username }}{% endif %} · <span title="{{ v.created_at|dt }}">{{ v.created_at|ago }}</span></span></span>
-      <span class="mono diffc"><span class="add">+{{ v.added }}</span> <span class="del">−{{ v.removed }}</span></span>
-      <span class="tl-acts"><a class="btn sm sec" href="/versions/{{ v.id }}">Ver</a>
-        <a class="btn sm ghost icon-btn" href="/versions/{{ v.id }}?raw=1" title="Descargar la versión {{ v.id }}" aria-label="Descargar la versión {{ v.id }}">{{ icon('dl', 'sm') }}</a></span>
-    </li>
-    {% else %}
-    <li class="tl-empty empty">{{ empty_art('plus') }}<h3>Aún no hay versiones</h3><p class="muted">La primera se guarda al respaldar el equipo.</p></li>
-    {% endfor %}
-  </ol>
-</form>
+{# Línea de tiempo de versiones (prototipo): clic en una versión = A, siguiente clic = B. La flecha abre la versión
+   en un panel lateral. Variables: tl_list (lista de dicts de la ruta), sel_a, sel_b (ids), device. #}
+<ol class="tl" data-tl="{{ device.id }}">
+{% for v in tl_list %}
+<li class="{{ 'startup' if v.kind == 'startup' }} {{ 'base' if v.base }} {{ 'isA' if v.id == sel_a }} {{ 'isB' if v.id == sel_b }}" data-id="{{ v.id }}" data-n="{{ v.n }}" tabindex="0" role="button" aria-pressed="{{ 'true' if v.id in (sel_a, sel_b) else 'false' }}" aria-label="{{ _f('Versión {0}, {1}', v.n, v.when|dt) }}">
+  <span class="dot"></span><span class="ver">v{{ v.n }}</span>
+  <div class="row" style="gap:6px;min-width:0"><b style="font-weight:600">{{ v.src }}</b>{% if v.kind == 'startup' %}<span class="tag">startup</span>{% endif %}{% if v.base %}<span class="tag sig">línea base</span>{% endif %}{% if v.label %}<span class="tag info">{{ icon('tag', 's') }}{{ v.label }}</span>{% endif %}{% if v.inc %}<span class="tag crit">incompleta</span>{% endif %}<span class="muted sm">· {{ v.who }} · <span title="{{ v.when|dt }}">{{ v.when|ago }}</span></span></div>
+  <span class="row nowrap" style="gap:8px">{% if v.first %}<span class="delta muted">inicial</span>{% else %}<span class="delta"><span class="a">+{{ v.added }}</span> <span class="d">−{{ v.removed }}</span></span>{% endif %}
+    {% if v.id == sel_a %}<span class="ab">A</span>{% elif v.id == sel_b %}<span class="ab">B</span>{% endif %}
+    <a class="btn icon s ghost open" href="/versions/{{ v.id }}" data-sheet data-wide aria-label="{{ _f('Abrir versión {0}', v.n) }}" title="Ver, descargar, etiquetar…">{{ icon('right', 's') }}</a></span>
+</li>
+{% else %}
+<li class="tl-empty" style="cursor:default">{{ empty_art('plus') }}<span class="muted">Aún no se ha podido respaldar este equipo.</span></li>
+{% endfor %}
+</ol>

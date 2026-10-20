@@ -1,61 +1,75 @@
-{% extends "base.html" %}{% block title %}{{ _('Editar dispositivo') if device else _('Nuevo dispositivo') }}{% endblock %}
+{% extends "base.html" %}{% block title %}{{ _f('Editar {0}', device.name) if device else _('Agregar equipo') }}{% endblock %}
 {% block content %}
-<h1>{{ _f('Editar {0}', device.name) if device else _('Nuevo dispositivo') }}</h1>
-{% if not credentials %}<div class="flash error">Primero cree una <a href="/credentials">credencial</a> para conectarse a los equipos.</div>{% endif %}
-<div class="card" style="max-width:760px">
-<form method="post">
-  <div class="row">
-    <div><label>Nombre</label><input name="name" required value="{{ device.name if device }}"></div>
-    <div><label>IP / hostname</label><input name="host" required value="{{ device.host if device }}"></div>
-  </div>
-  <label>Fabricante / sistema operativo</label>
-  <select name="device_type" required>
-    {% set vendor = namespace(v='') %}
-    {% for p in profiles|sort(attribute='vendor') %}
-      {% if p.vendor != vendor.v %}{% if vendor.v %}</optgroup>{% endif %}<optgroup label="{{ p.vendor }}">{% set vendor.v = p.vendor %}{% endif %}
-      <option value="{{ p.key }}" {{ 'selected' if device and device.device_type == p.key }}>{{ p.label }}</option>
-    {% endfor %}</optgroup>
-  </select>
-  <div class="row">
-    <div><label>Protocolo</label><select name="protocol">
-      <option value="ssh" {{ 'selected' if not device or device.protocol == 'ssh' }}>SSH</option>
-      <option value="telnet" {{ 'selected' if device and device.protocol == 'telnet' }}>Telnet</option></select></div>
-    <div><label>Puerto</label><input name="port" type="number" style="width:100px" value="{{ device.port if device else '' }}" placeholder="22"></div>
-    <div><label>Credencial</label><select name="credential_id" required>
+{# Se abre en un panel lateral desde la lista o la ficha (igual que el prototipo); sin JavaScript, como página. #}
+<h1>{{ _f('Editar {0}', device.name) if device else _('Agregar equipo') }}</h1>
+<p data-sheet-sub class="muted">{% if device %}Los cambios se aplican en el próximo respaldo.{% else %}Tras guardarlo se hace el primer respaldo.{% endif %}</p>
+{% if not credentials %}<div class="banner warn">{{ icon('alert') }}<span class="grow">Primero crea una <a href="/credentials">credencial</a> para conectarse a los equipos.</span></div>{% endif %}
+<form method="post" class="stack" id="devform" style="gap:18px">
+  <div class="sec"><h3>Conexión</h3>
+    <div class="field"><label for="dn">Nombre</label><div class="input"><input id="dn" name="name" required value="{{ device.name if device }}" placeholder="CORE-SW2"></div><span class="help">Como aparecerá en listas e informes.</span></div>
+    <div class="f3"><div class="field" style="grid-column:span 2"><label for="dip">IP o nombre DNS</label><div class="input mono"><input id="dip" name="host" required value="{{ device.host if device }}" placeholder="10.0.0.5"></div></div>
+      <div class="field"><label for="dport">Puerto</label><div class="input"><input id="dport" name="port" type="number" value="{{ device.port if device else '' }}" placeholder="22"></div></div></div>
+    <div class="f2"><div class="field"><label for="dproto">Protocolo</label><div class="input"><select id="dproto" name="protocol">
+        <option value="ssh" {{ 'selected' if not device or device.protocol == 'ssh' }}>SSH</option>
+        <option value="telnet" {{ 'selected' if device and device.protocol == 'telnet' }}>Telnet (sin cifrar)</option></select></div></div>
+      <div class="field"><label for="dtype">Fabricante / sistema operativo</label><div class="input"><select id="dtype" name="device_type" required>
+        {% set vendor = namespace(v='') %}
+        {% for p in profiles|sort(attribute='vendor') %}
+          {% if p.vendor != vendor.v %}{% if vendor.v %}</optgroup>{% endif %}<optgroup label="{{ p.vendor }}">{% set vendor.v = p.vendor %}{% endif %}
+          <option value="{{ p.key }}" {{ 'selected' if device and device.device_type == p.key }}>{{ p.label }}</option>
+        {% endfor %}</optgroup></select></div><span class="help">{{ _f('Hay {0} plataformas, agrupadas por fabricante.', profiles|length) }}</span></div></div>
+    <div id="telwarn" class="banner warn" {{ '' if device and device.protocol == 'telnet' else 'hidden' }}>{{ icon('alert') }}<span class="grow">Telnet envía la contraseña sin cifrar. Úsalo solo con equipos antiguos sin SSH.</span></div>
+    <div class="field"><label for="dcred">Credencial</label><div class="input"><select id="dcred" name="credential_id" required>
       {% for c in credentials %}<option value="{{ c.id }}" {{ 'selected' if device and device.credential_id == c.id }}>{{ c.name }} ({{ c.username }})</option>{% endfor %}</select></div>
-    <div><label>Grupo</label><select name="group_id"><option value="">—</option>
-      {% for g in groups %}<option value="{{ g.id }}" {{ 'selected' if device and device.group_id == g.id }}>{{ g.name }}</option>{% endfor %}</select></div>
-    <div><label>…o crear un grupo nuevo</label><input name="new_group" placeholder="Ej.: Oficina principal" maxlength="100"></div>
+      {% if user.role == 'admin' %}<span class="help"><a href="/credentials">Gestionar credenciales</a></span>{% endif %}</div>
   </div>
-  <p class="small muted">Los grupos ordenan los equipos por sede, rol o cliente: sirven para filtrar, respaldar o programar tareas por grupo y para limitar qué equipos ve cada usuario. Se administran en <a href="/credentials#groups">Credenciales → Grupos de dispositivos</a>.</p>
+  <div class="sec"><h3>Organización</h3>
+    <div class="f2"><div class="field"><label for="dgrp">Grupo</label><div class="input"><select id="dgrp" name="group_id"><option value="">—</option>
+        {% for g in groups %}<option value="{{ g.id }}" {{ 'selected' if device and device.group_id == g.id }}>{{ g.name }}</option>{% endfor %}
+        <option value="__new">+ Crear grupo nuevo…</option></select></div></div>
+      <div class="field"><label for="dloc">Ubicación</label><div class="input"><input id="dloc" name="location" value="{{ device.location or '' if device }}" placeholder="CPD planta 0, rack 2"></div></div></div>
+    <div class="field" id="newgrpw" hidden><label for="dngrp">Nombre del grupo nuevo</label><div class="input"><input id="dngrp" name="new_group" maxlength="100" placeholder="Oficina principal"></div></div>
+    <div class="field"><label for="dnotes">Notas</label><textarea class="ta prose" id="dnotes" name="notes" placeholder="Contacto del proveedor, contrato de soporte…">{{ device.notes or '' if device }}</textarea></div>
+  </div>
   {% set web_on = not device or device.web_enabled %}
-  <fieldset class="webq">
-    <legend>¿El equipo tiene interfaz web?</legend>
-    <label class="chk"><input type="radio" name="web_enabled" value="1" {{ 'checked' if web_on }}> Sí, mostrar el botón «Interfaz web»</label>
-    <label class="chk"><input type="radio" name="web_enabled" value="0" {{ 'checked' if not web_on }}> No (el equipo no tiene web o no se quiere usar)</label>
-    <div id="web-url-box" {{ 'hidden' if not web_on }}>
-      <label for="web-url">Dirección de la interfaz web (opcional)</label>
-      <input id="web-url" name="web_url" style="width:100%" value="{{ device.web_url or '' if device }}" placeholder="https://IP-del-equipo/ (por omisión)">
-    </div>
-  </fieldset>
-  <script>
-  document.querySelectorAll('input[name=web_enabled]').forEach(function (r) {
-    r.addEventListener('change', function () { document.getElementById('web-url-box').hidden = this.value !== '1'; });
-  });
-  </script>
-  <label>Ubicación</label><input name="location" style="width:100%" value="{{ device.location or '' if device }}">
-  <label>Notas</label><textarea name="notes" rows="3">{{ device.notes or '' if device }}</textarea>
-  <label>Comando de respaldo personalizado (opcional)</label>
-  <input name="custom_backup_cmd" style="width:100%" value="{{ device.custom_backup_cmd or '' if device }}"
-         placeholder="Vacío = comando del perfil. Ej.: cat /etc/archivo.conf (equipos con perfil Genérico SSH o Linux)">
-  <p class="small muted">Úselo para equipos con perfil «Genérico SSH» o cuando el comando del fabricante difiera en su versión.
-  <a href="/vendors" target="_blank">Ver comandos por fabricante</a>.</p>
-  <p>
-    <label class="chk"><input type="checkbox" name="enabled" {{ 'checked' if not device or device.enabled }}> Habilitado (incluir en tareas)</label>
-    <label class="chk"><input type="checkbox" name="auto_rollback" {{ 'checked' if device and device.auto_rollback }}> Revertir automáticamente cambios no autorizados</label>
-  </p>
-  <p class="small muted">La reversión automática actúa cuando un cambio se detecta por syslog o respaldo programado y no proviene de una solicitud aprobada en OpenNCCM.</p>
-  <p><button>Guardar</button> <a class="btn sec" href="{{ '/devices/' ~ device.id if device else '/devices' }}">Cancelar</a></p>
+  <div class="sec"><h3>Opciones</h3>
+    <label class="swrow"><span><span class="b">El equipo tiene interfaz web</span><span class="muted sm" style="display:block">Muestra el botón «Interfaz web» en su ficha.</span></span>
+      <input type="hidden" name="web_enabled" value="0"><input type="checkbox" class="sw" role="switch" id="dhasweb" name="web_enabled" value="1" {{ 'checked' if web_on }}></label>
+    <div class="field" id="webw" {{ '' if web_on else 'hidden' }}><label for="dweb">Dirección de la interfaz web</label><div class="input mono"><input id="dweb" name="web_url" value="{{ device.web_url or '' if device }}" placeholder="https://10.0.0.5"></div><span class="help">Vacía = https://IP</span></div>
+    <label class="swrow"><span><span class="b">Reversión automática</span><span class="muted sm" style="display:block">Si se detecta un cambio que no viene de una solicitud aprobada (syslog o respaldo programado), se restaura la versión anterior.</span></span>
+      <input type="checkbox" class="sw" role="switch" name="auto_rollback" {{ 'checked' if device and device.auto_rollback }}></label>
+    <label class="swrow"><span><span class="b">Habilitado</span><span class="muted sm" style="display:block">Si lo desactivas, el equipo no entra en tareas programadas ni respaldos masivos.</span></span>
+      <input type="checkbox" class="sw" role="switch" name="enabled" {{ 'checked' if not device or device.enabled }}></label>
+    <details><summary class="sm b" style="cursor:pointer">Avanzado</summary><div class="field" style="margin-top:12px"><label for="dcmd">Comando de respaldo personalizado</label>
+      <div class="input mono"><input id="dcmd" name="custom_backup_cmd" value="{{ device.custom_backup_cmd or '' if device }}" placeholder="show running-config"></div>
+      <span class="help">Déjalo vacío para usar el de la plataforma. <a href="/vendors" target="_blank">Ver comandos por fabricante</a>.</span></div></details>
+  </div>
+  <div class="row" data-sheet-foot>
+    {% if device and user.role == 'admin' %}<button type="button" class="btn dz" data-dialog="del-dev-dlg">{{ icon('trash', 's') }}Eliminar…</button>{% endif %}
+    <span class="grow"></span>
+    <a class="btn ghost" href="{{ '/devices/' ~ device.id if device else '/devices' }}" data-cancel>Cancelar</a>
+    <button class="btn pri">{{ _('Guardar') if device else _('Agregar y respaldar') }}</button>
+  </div>
 </form>
-</div>
+{% if device and user.role == 'admin' %}
+<dialog class="dlg" id="del-dev-dlg" aria-labelledby="del-t"><form method="post" action="/devices/{{ device.id }}/delete">
+  <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi crit">{{ icon('trash') }}</span><div><h2 id="del-t">{{ _f('¿Eliminar {0}?', device.name) }}</h2>
+    <p class="muted" style="margin-top:6px">Se borrarán sus versiones de configuración, resultados y eventos. No se puede deshacer.</p></div></div>
+  <div class="field"><label for="del-dev-name">Escribe <span class="mono">{{ device.name }}</span> para confirmar</label><div class="input"><input id="del-dev-name" autocomplete="off" data-expect="{{ device.name }}"></div></div>
+  <div class="row end"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn dzf" disabled>Eliminar equipo</button></div>
+</form></dialog>
+{% endif %}
+<script>
+(function () {
+  const f = document.getElementById('devform');
+  const sync = () => {
+    document.getElementById('telwarn').hidden = f.elements.protocol.value !== 'telnet';
+    document.getElementById('newgrpw').hidden = f.elements.group_id.value !== '__new';
+    document.getElementById('webw').hidden = !document.getElementById('dhasweb').checked;
+  };
+  f.addEventListener('change', sync);
+  f.addEventListener('submit', () => { if (f.elements.group_id.value === '__new') f.elements.group_id.value = ''; });
+  sync();
+})();
+</script>
 {% endblock %}

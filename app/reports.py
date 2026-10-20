@@ -16,8 +16,8 @@ from .i18n import N_
 
 TITLES = {
     "inventory": N_("Inventario"), "changes": N_("Cambios de configuración"), "compliance": N_("Cumplimiento"),
-    "vulns": N_("Vulnerabilidades"), "audit": N_("Actividad de usuarios"), "changes_requests": N_("Solicitudes de cambio"),
-    "conflicts": N_("Conflictos startup/running"), "baseline": N_("Desviación de línea base"),
+    "vulns": N_("Vulnerabilidades"), "audit": N_("Auditoría de usuarios"), "changes_requests": N_("Solicitudes de cambio"),
+    "conflicts": N_("Conflictos startup ≠ running"), "baseline": N_("Fuera de línea base"),
     "eol": N_("Fin de vida (EOL/EOS)"),
 }
 
@@ -154,4 +154,17 @@ def analytics(scope: set[int] | None, days: int = 30) -> dict:
         "by_version": by_version.most_common(10), "compliance": comp, "eol": eol_counts.most_common(),
         "conflicts": sum(1 for d in devs if d.startup_conflict),
         "drift": sum(1 for d in devs if d.baseline_drift), "total": len(devs), "changes": len(versions),
+        "devices_changed": len(by_device), "per_week": _weekly(versions, days),
     }
+
+
+def _weekly(versions, days: int) -> list[int]:
+    """Cambios por tramo (8 tramos iguales del periodo), para la minigráfica del indicador «Cambios»."""
+    if not versions:
+        return [0] * 8
+    start = now() - timedelta(days=days)
+    out = [0] * 8
+    for v in versions:
+        i = int((v.created_at - start).total_seconds() / (days * 86400) * 8)
+        out[max(0, min(7, i))] += 1
+    return out

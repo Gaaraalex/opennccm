@@ -1,13 +1,31 @@
 {% extends "_auth.html" %}{% block title %}Verificación en dos pasos{% endblock %}
 {% block auth_form %}
-<h1>Verificación en dos pasos</h1>
-<p class="muted">Escriba el código de 6 dígitos que muestra su app de autenticación.</p>
-<form method="post" action="/login/2fa">
-  <label for="code">Código</label>
-  <div class="field">{{ icon('key', 'lead') }}
-    <input id="code" name="code" class="otp" required autofocus inputmode="numeric" autocomplete="one-time-code"
-           pattern="[0-9 ]{6,7}" maxlength="7" placeholder="000000"></div>
-  <button class="auth-submit">Verificar</button>
+<form method="post" action="/login/2fa" class="stack" id="l2">
+  <span class="qi info" style="width:48px;height:48px">{{ icon('shield') }}</span>
+  <div><h1>Verificación en dos pasos</h1><p class="muted" style="margin-top:4px">Escribe el código de 6 cifras de tu app de autenticación.</p></div>
+  <input type="hidden" name="code" id="code">
+  <div class="otp" role="group" aria-label="Código">{% for i in range(6) %}<input inputmode="numeric" maxlength="1" id="otp{{ i }}" aria-label="{{ _f('Cifra {0}', i + 1) }}" autocomplete="{{ 'one-time-code' if i == 0 else 'off' }}" {{ 'autofocus' if i == 0 }}>{% endfor %}</div>
+  <button class="btn pri" style="height:46px;font-size:15px" type="submit">Verificar</button>
+  <a class="btn ghost" href="/logout">{{ icon('left', 's') }}Volver</a>
 </form>
+<script>
+(function () {
+  const f = document.getElementById('l2'), boxes = Array.from(f.querySelectorAll('.otp input')), code = document.getElementById('code');
+  const fill = () => { code.value = boxes.map(b => b.value).join(''); };
+  f.addEventListener('input', e => {
+    if (!e.target.matches('.otp input')) return;
+    e.target.value = e.target.value.replace(/\D/g, '').slice(-1);
+    fill();
+    if (e.target.value) { const n = e.target.nextElementSibling; if (n) n.focus(); else if (code.value.length === 6) f.requestSubmit(); }
+  });
+  f.addEventListener('keydown', e => {
+    if (e.key === 'Backspace' && e.target.matches('.otp input') && !e.target.value) { const p = e.target.previousElementSibling; if (p) p.focus(); }
+  });
+  f.addEventListener('paste', e => {
+    const t = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, 6);
+    if (t.length === 6) { e.preventDefault(); t.split('').forEach((c, i) => { boxes[i].value = c; }); fill(); f.requestSubmit(); }
+  });
+  f.addEventListener('submit', fill);
+})();
+</script>
 {% endblock %}
-{% block auth_links %}<a href="/logout">Volver al inicio de sesión</a><br>{% endblock %}

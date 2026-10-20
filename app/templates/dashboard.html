@@ -1,86 +1,85 @@
 {% extends "base.html" %}{% block title %}Panel{% endblock %}
 {% block content %}
-{% set hour = now().hour %}
-<div class="hello">
-  <div>
-    <p class="eyebrow">{{ now()|ymd }}</p>
-    <h1 class="display">{% if hour < 6 or hour >= 20 %}Buenas noches, {{ user.username }}{% elif hour < 13 %}Buenos días, {{ user.username }}{% else %}Buenas tardes, {{ user.username }}{% endif %}</h1>
-  </div>
-  {% if ROLES[user.role] >= 1 and total %}
-  <form method="post" action="/backup/all"><input type="hidden" name="group" value="0">
-    <button onclick="return confirm('{{ _('¿Respaldar ahora todos los equipos?')|jsq }}')">{{ icon('refresh', 'sm') }} Respaldar todos</button></form>
-  {% endif %}
+{% set t = now() %}
+{% set wd = [_('lunes'), _('martes'), _('miércoles'), _('jueves'), _('viernes'), _('sábado'), _('domingo')][t.weekday()] %}
+{% set mo = [_('enero'), _('febrero'), _('marzo'), _('abril'), _('mayo'), _('junio'), _('julio'), _('agosto'), _('septiembre'), _('octubre'), _('noviembre'), _('diciembre')][t.month - 1] %}
+{% set can_run = ROLES[user.role] >= 1 %}
+<div class="ph"><div class="grow"><div class="muted sm">{{ _f('{0}, {1} de {2}', wd, t.day, mo) }}</div>
+  <h1>{% if t.hour < 6 or t.hour >= 20 %}{{ _f('Buenas noches, {0}', user.username) }}{% elif t.hour < 13 %}{{ _f('Buenos días, {0}', user.username) }}{% else %}{{ _f('Buenas tardes, {0}', user.username) }}{% endif %}</h1></div>
+  <a class="btn" href="/reports">{{ icon('file', 's') }}Informes</a>
+  {% if can_run and total %}<form class="inline" method="post" action="/backup/all"><input type="hidden" name="group" value="0">
+    <button class="btn pri" onclick="return confirm('{{ _('¿Respaldar ahora todos los equipos?')|jsq }}')">{{ icon('dl', 's') }}Respaldar todos</button></form>{% endif %}
 </div>
 
 {% if h.total %}
 {% set sc = h.score if h.score is not none else 0 %}
-{% set tone = 'ok' if sc >= 90 else ('warn' if sc >= 50 else 'crit') %}
-<section class="health tone-{{ tone }}{{ ' perfect' if h.perfect }}" aria-labelledby="salud-t">
-  <svg class="health-ring" viewBox="0 0 132 132" role="img" aria-label="{{ _f('Puntuación de salud: {0} de 100', sc) }}">
-    <circle cx="66" cy="66" r="54" class="trk"/>
-    <circle cx="66" cy="66" r="54" class="val" pathLength="100" stroke-dasharray="{{ sc }} 100" transform="rotate(-90 66 66)"/>
-    <text x="66" y="72" text-anchor="middle" class="num">{{ sc }}</text>
-    <text x="66" y="92" text-anchor="middle" class="of">/ 100</text>
-  </svg>
-  <div class="health-txt">
-    <p class="label">Salud de la red</p>
-    <h2 id="salud-t">{{ h.phrase }}</h2>
-    <p class="health-sub">{% if h.perfect %}Todo respaldado y cumpliendo. Buen trabajo.{% else %}{{ h.backed }} de {{ h.total }} equipos respaldados en las últimas 24 h.{% endif %}</p>
-    {% if h.chips %}<p class="health-chips">{% for cls, text, href in h.chips %}<a class="hchip {{ cls }}" href="{{ href }}">{{ text }}</a>{% endfor %}</p>{% endif %}
+<section class="hero" aria-labelledby="salud-t">
+  <canvas data-net aria-hidden="true"></canvas>
+  <svg class="ring" viewBox="0 0 150 150" role="img" aria-label="{{ _f('Salud de la red: {0} de 100', sc) }}"><circle class="tr" cx="75" cy="75" r="62" fill="none" stroke-width="14"/><circle class="vl" id="ringv" cx="75" cy="75" r="62" fill="none" stroke-width="14" stroke-linecap="round" stroke-dasharray="389.6" stroke-dashoffset="{{ '%.1f'|format(389.6 * (1 - sc / 100)) }}" transform="rotate(-90 75 75)"/><text class="big" x="75" y="83" text-anchor="middle" data-count="{{ sc }}">{{ sc }}</text><text class="cap" x="75" y="105" text-anchor="middle">SALUD</text></svg>
+  <div><div class="row"><div class="t" id="salud-t">{{ h.phrase }}</div></div>
+    <p>{{ _f('{0} de {1} equipos respaldados en las últimas 24 h.', h.backed, h.total) }}
+      {% if h.queue_total %}{% if h.queue_total == 1 %}Hay <b>1 cosa</b> que necesita tu atención antes de que se complique.{% else %}Hay <b>{{ h.queue_total }} cosas</b> que necesitan tu atención antes de que se compliquen.{% endif %}{% else %}Todo respaldado y cumpliendo. Buen trabajo.{% endif %}</p>
+    {% if h.chips %}<div class="hchips">{% for cls, n, text, href in h.chips %}<a class="hchip {{ cls }}" href="{{ href }}"><b>{{ n }}</b> {{ text }}</a>{% endfor %}</div>{% endif %}
   </div>
 </section>
 {% endif %}
 
-<div class="kpis kpis4">
-  <a class="kpi" href="/devices"><small>Dispositivos</small><b>{{ total }}</b><span class="delta">{{ ok }} con respaldo correcto</span></a>
-  <a class="kpi" href="/reports/view/changes?days=7"><small>Cambios 24 h</small><b>{{ changes24 }}</b><span class="delta">{{ week_total }} en los últimos 7 días</span>{{ spark|safe }}</a>
-  <a class="kpi" href="/compliance"><small>Reglas cumplidas</small><b>{{ comp ~ '%' if comp is not none else '—' }}</b><span class="delta">{% if comp is none %}Sin auditorías todavía{% else %}en todas las políticas{% endif %}</span></a>
-  <a class="kpi{{ ' alert' if alarms }}" href="/events?unack=1"><small>Alarmas abiertas</small><b>{{ alarms }}</b><span class="delta">{% if alarms %}sin reconocer{% else %}ninguna pendiente{% endif %}</span></a>
-</div>
+<div class="bento">
+  <div class="c3"><a class="kpi" href="/devices"><span class="label">Dispositivos</span><span class="v" data-count="{{ total }}">{{ total }}</span>
+    <span class="d">{% if new_week %}<span class="up">+{{ new_week }}</span> esta semana{% else %}{{ _f('en {0} grupos', groups_n) }}{% endif %}</span>{% if dev_trend[-1] %}{{ spark(dev_trend) }}{% endif %}</a></div>
+  <div class="c3"><a class="kpi" href="/devices?status=ok"><span class="label">Respaldo OK</span><span class="v" data-count="{{ backed24 }}">{{ backed24 }}</span><span class="d">en las últimas 24 h</span></a></div>
+  <div class="c3"><a class="kpi" href="/compliance"><span class="label">Reglas cumplidas</span><span class="v" {% if comp is not none %}data-count="{{ comp }}" data-suffix="%"{% endif %}>{{ comp ~ '%' if comp is not none else '—' }}</span>
+    <span class="d">{% if comp is none %}Sin auditorías todavía{% else %}en todas las políticas{% endif %}</span></a></div>
+  <div class="c3"><a class="kpi {{ 'alert' if err }}" href="/devices?status=error"><span class="label">Con error</span><span class="v" data-count="{{ err }}">{{ err }}</span><span class="d">{{ err_names or _('ninguno') }}</span></a></div>
+  <div class="c3"><a class="kpi" href="/reports/view/baseline"><span class="label">Fuera de línea base</span><span class="v">{{ drift }}</span><span class="d">{{ drift_names or _('todos coinciden') }}</span></a></div>
+  <div class="c3"><a class="kpi" href="/reports/view/conflicts"><span class="label">Startup ≠ running</span><span class="v">{{ conflicts }}</span><span class="d">{% if conflicts %}{{ _f('{0} sin guardar', conflict_names) }}{% else %}todo guardado{% endif %}</span></a></div>
+  <div class="c3"><a class="kpi" href="/eol"><span class="label">Equipos sin soporte</span><span class="v">{{ unsupported|length }}</span>
+    <span class="d">{% if unsupported %}{% set d0, e0 = unsupported[0] %}{{ d0.name }}{% if e0 and e0.end_of_support %} · {{ _f('desde {0}', e0.end_of_support.year) }}{% endif %}{% if unsupported|length > 1 %} +{{ unsupported|length - 1 }}{% endif %}{% else %}todos con soporte{% endif %}</span></a></div>
+  <div class="c3"><a class="kpi" href="/changes?status=pending"><span class="label">Cambios por aprobar</span><span class="v">{{ pending }}</span><span class="d">{% if oldest %}{{ _f('el más antiguo, {0}', oldest|ago) }}{% else %}ninguno pendiente{% endif %}</span></a></div>
 
-<div class="dash-grid">
-  <section class="card flush queue-card" aria-labelledby="cola-t">
-    <div class="card-head"><h2 id="cola-t">Qué hacer ahora</h2>{% if h.queue_total > 6 %}<span class="muted small">{{ h.queue|length }} de {{ h.queue_total }}</span>{% endif %}</div>
-    {% if h.queue %}
-    <ul class="queue">
-      {% for q in h.queue %}
-      <li class="q-{{ q.sev }}">
-        <span class="q-ico">{{ icon(q.icon) }}</span>
-        <div class="q-txt"><a href="{{ q.href }}"><b>{{ q.title }}</b></a><span class="muted small">{{ q.sub }}</span></div>
-        {% if q.post and ROLES[user.role] >= 1 %}
-        <form method="post" action="{{ q.post }}"><button class="sec sm">{{ icon('refresh', 'sm') }} {{ q.action }}</button></form>
-        {% else %}<a class="btn sec sm" href="{{ q.href }}">{{ q.action }}</a>{% endif %}
-      </li>
-      {% endfor %}
-    </ul>
-    {% else %}
-    <div class="empty">
-      {{ empty_art('check') }}
-      <h3>Nada pendiente</h3><p class="muted">Tu red está en orden.</p>
-    </div>
-    {% endif %}
-    <div class="card-foot"><a href="/events?unack=1">Ver todas las alarmas ({{ alarms }}) →</a></div>
+  <section class="card flush c7 r2" aria-labelledby="cola-t"><div class="card-h"><h2 id="cola-t">Necesita tu atención</h2><span class="grow"></span><a href="/events?unack=1" class="sm">{{ _f('Ver todas las alarmas ({0})', alarms) }}</a></div>
+    {% if h.queue %}<ul class="queue">{% for q in h.queue[:5] %}
+      <li><span class="qi {{ q.sev }}">{{ icon('alert' if q.sev == 'crit' else 'shield' if q.sev == 'major' else 'clock') }}</span>
+        <div style="min-width:0"><div class="qt">{{ q.title }}</div><div class="qs">{{ q.sub }}</div></div>
+        {% if q.post and can_run %}<form class="inline" method="post" action="{{ q.post }}"><button class="btn s">{{ q.action }}</button></form>
+        {% else %}<a class="btn s" href="{{ q.href }}">{{ q.action }}</a>{% endif %}</li>
+    {% endfor %}</ul>
+    {% else %}<div class="empty">{{ empty_art('check') }}<h2>Nada pendiente</h2><p>Tu red está en orden.</p></div>{% endif %}
   </section>
-  <div class="dash-side">
-    <section class="card">
-      <div class="card-head"><h2>Cambios por día</h2><a class="small" href="/analytics">Más análisis →</a></div>
-      {{ chart_changes|safe }}
-    </section>
-    <section class="card flush">
-      <div class="card-head"><h2>Actividad reciente</h2><a class="small" href="/reports/view/changes">Ver como tabla</a></div>
-      <ul class="activity">
-        {% for v in recent[:6] %}
-        <li>
-          <span class="av alt" aria-hidden="true">{{ (v.username or v.trigger or '?')[:2]|upper }}</span>
-          <div><span class="act-line"><a href="/devices/{{ v.device_id }}"><b>{{ v.device.name }}</b></a> <span class="mono diffc"><span class="add">+{{ v.added }}</span> <span class="del">−{{ v.removed }}</span></span></span>
-            <span class="muted small" title="{{ v.created_at|dt }}">{{ v.trigger }}{% if v.username %} · {{ v.username }}{% endif %} · {{ v.created_at|ago }}</span></div>
-          <a class="btn sm sec" href="/versions/{{ v.id }}">Ver</a>
-        </li>
-        {% else %}
-        <li class="muted">Sin respaldos todavía. <a href="/devices/new" data-sheet>Agregue un dispositivo</a>.</li>
-        {% endfor %}
-      </ul>
-    </section>
-  </div>
+
+  <section class="card c5" id="chg"><div class="card-h"><h2>Cambios de configuración</h2><div class="seg" role="group" aria-label="Periodo"><button type="button" data-p="7">7 d</button><button type="button" class="on" data-p="30">30 d</button></div></div>
+    {% set mx = (days|map(attribute=1)|max) if days else 0 %}
+    <div class="vbars" role="img" aria-label="Cambios por día">{% for d, v in days %}<i class="{{ '' if v else 'z' }}" style="height:{{ ([6, v / mx * 100]|max) if v else 3 }}%" title="{{ _f('{0}: {1} cambios', d, v) }}" data-i="{{ loop.index0 }}"></i>{% endfor %}</div>
+    <div class="row muted sm between" style="margin-top:8px"><span data-from>hace 30 días</span><span>{% if peak[1] %}{{ _f('Pico: {0} cambios el {1}', peak[1], peak[0]) }}{% else %}Sin cambios en este periodo{% endif %}</span><span>hoy</span></div>
+    <div class="row" style="margin-top:10px;gap:14px"><a href="/analytics" class="sm">Más análisis</a><a href="/reports/view/changes" class="sm">Ver como tabla</a></div>
+  </section>
+
+  <section class="card c5"><div class="card-h"><h2>Últimos cambios</h2><a href="/reports/view/changes" class="sm">Ver todos</a></div>
+    {% if recent %}<div class="stack t">{% for v in recent[:4] %}<a class="row nowrap" href="/devices/{{ v.device_id }}#versions" style="color:var(--ink)"><span class="vend">{{ vend[v.device_id] }}</span>
+      <div class="grow sm"><b>{{ v.device.name }}</b> <span class="muted">· {{ v.trigger }}{% if v.username %} · {{ v.username }}{% endif %}</span></div>
+      <span class="delta"><span class="a">+{{ v.added }}</span> <span class="d">−{{ v.removed }}</span></span><span class="muted sm" style="width:72px;text-align:right" title="{{ v.created_at|dt }}">{{ v.created_at|ago }}</span></a>{% endfor %}</div>
+    {% else %}<p class="muted sm">Sin respaldos todavía. {% if user.role == 'admin' %}<a href="/devices/new" data-sheet data-title="Agregar equipo">Agrega un dispositivo</a>.{% endif %}</p>{% endif %}
+  </section>
 </div>
+{% if user.role == 'admin' %}<p class="muted sm">El rendimiento del servidor (CPU, memoria, disco) está en <a href="/system#servidor">Administración › Sistema</a>. Si algo pasa del 90 % aparece arriba, en la bandeja.</p>{% endif %}
+<script src="/static/net.js?v={{ VERSION }}" defer></script>
+<script>
+(function () {
+  const card = document.getElementById('chg'); if (!card) return;
+  const bars = Array.from(card.querySelectorAll('.vbars i')), from = card.querySelector('[data-from]');
+  const T = {{ {'d7': _('hace 7 días'), 'd30': _('hace 30 días')}|tojson }};
+  card.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => {
+    card.querySelectorAll('.seg button').forEach(x => x.classList.toggle('on', x === b));
+    const n = +b.dataset.p;
+    bars.forEach((i, k) => { i.hidden = k < bars.length - n; });
+    from.textContent = n === 7 ? T.d7 : T.d30;
+  }));
+  const r = document.getElementById('ringv');  // el anillo se llena al aparecer
+  if (r && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const to = r.getAttribute('stroke-dashoffset');
+    r.style.strokeDashoffset = 389.6;
+    requestAnimationFrame(() => requestAnimationFrame(() => { r.style.strokeDashoffset = to; }));
+  }
+})();
+</script>
 {% endblock %}

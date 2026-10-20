@@ -123,7 +123,7 @@ pre,.code{font-family:var(--font-mono);font-size:12.5px;line-height:1.55;white-s
 .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:16px 0 0;flex-wrap:wrap}.tabs a{padding:8px 12px;border:1px solid transparent;border-bottom:none;border-radius:6px 6px 0 0}
 .tabs a.on{border-color:var(--line);background:var(--panel)}
 .kv{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px}.kv dt{color:var(--muted)}.kv dd{margin:0}
-.login{max-width:360px;margin:12vh auto}.login input{width:100%}
+
 /* gráficas (colores en los temas de arriba) */
 svg.viz{width:100%;height:auto;display:block;font:12px system-ui,-apple-system,"Segoe UI",sans-serif}
 svg.viz .grid{stroke:var(--viz-grid);stroke-width:1}svg.viz .axis{stroke:var(--viz-axis);stroke-width:1}
@@ -265,13 +265,6 @@ body.auth main{max-width:none;padding:0}
 .auth-card .auth-logo.sm{display:none;font-size:24px;color:var(--text);margin-bottom:22px}.auth-card .auth-logo.sm img{width:40px;height:40px}
 .auth-card .auth-logo.sm b{color:var(--accent)}
 .auth-card label{margin-top:16px}
-.field{position:relative;display:flex;align-items:center}
-.field .ico.lead{position:absolute;left:13px;opacity:.6;pointer-events:none}
-.field input{width:100%;padding:12px 44px 12px 42px;border-radius:11px;font-size:15px;transition:border-color .15s,box-shadow .15s}
-.field input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 28%,transparent)}
-.field .peek{position:absolute;right:6px;background:transparent;border:0;color:var(--muted);padding:6px 9px;font-size:16px;border-radius:8px}
-.field .peek:hover,.field .peek[aria-pressed="true"]{background:var(--viz-track);color:var(--text)}
-.field input.otp{letter-spacing:10px;font-size:24px;text-align:center;font-variant-numeric:tabular-nums}
 .caps{color:var(--t-warn);font-size:12.5px;margin:8px 0 0}
 .auth-submit{width:100%;margin-top:22px;padding:12px;font-size:15px;font-weight:600;border-radius:11px}
 .auth-card .flash{border-radius:10px;margin:0 0 6px}

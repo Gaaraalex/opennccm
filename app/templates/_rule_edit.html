@@ -1,0 +1,12 @@
+{# Una regla dentro del editor de política (prototipo). Variable: r (Rule o none para una nueva) #}
+<div class="redit"><input type="hidden" name="rule_id" value="{{ r.id if r else '' }}">
+  <div class="row between"><b class="sm rnum">Regla</b><span class="row"><span class="rres"></span><button type="button" class="btn s icon ghost" data-delrule aria-label="Quitar la regla" title="Quitar la regla">{{ icon('trash', 's') }}</button></span></div>
+  <div class="field"><span class="fl">Nombre</span><div class="input"><input name="rule_name" value="{{ r.name if r else '' }}" placeholder="Sin Telnet en VTY" aria-label="Nombre de la regla"></div></div>
+  <div class="f2"><div class="field"><span class="fl">Condición</span><div class="input"><select name="rule_kind" aria-label="Condición">
+      <option value="must_contain" {{ 'selected' if not r or r.kind == 'must_contain' }}>La configuración debe contener</option>
+      <option value="must_not_contain" {{ 'selected' if r and r.kind == 'must_not_contain' }}>La configuración NO debe contener</option></select></div></div>
+    <div class="field"><span class="fl">Severidad</span><div class="input"><select name="rule_sev" aria-label="Severidad">
+      {% for k, l in [('critical', _('Crítica')), ('major', _('Mayor')), ('minor', _('Menor'))] %}<option value="{{ k }}" {{ 'selected' if (r and r.severity == k) or (not r and k == 'major') }}>{{ l }}</option>{% endfor %}</select></div></div></div>
+  <div class="field"><span class="fl">Patrón (regex multilínea: ^ y $ marcan cada línea)</span><div class="input mono"><input name="rule_pattern" value="{{ r.pattern if r else '' }}" placeholder="^ transport input .*telnet" aria-label="Patrón"></div></div>
+  <div class="field"><span class="fl">Comandos de corrección (opcional, Jinja2)</span><textarea class="ta" name="rule_fix" style="min-height:70px" placeholder="line vty 0 4&#10; transport input ssh" aria-label="Comandos de corrección">{{ r.remediation or '' if r }}</textarea><span class="help">Si los rellenas, aparece el botón «Corregir».</span></div>
+</div>

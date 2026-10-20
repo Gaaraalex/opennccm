@@ -1,31 +1,31 @@
-{% extends "base.html" %}{% block title %}Versión #{{ v.id }}{% endblock %}
+{% extends "base.html" %}{% block title %}{{ _f('{0} · versión {1}', v.device.name, n) }}{% endblock %}
+{% block crumbs %}<a href="/devices">Dispositivos</a>{{ icon('right', 's') }}<a href="/devices/{{ v.device_id }}#versions">{{ v.device.name }}</a>{{ icon('right', 's') }}<b>{{ _f('versión {0}', n) }}</b>{% endblock %}
 {% block content %}
-<h1><a href="/devices/{{ v.device_id }}">{{ v.device.name }}</a> · versión #{{ v.id }} ({{ v.kind }})</h1>
-<p class="muted">{{ v.created_at|dt }} · origen: {{ v.trigger }}{% if v.username %} · {{ v.username }}{% endif %} · {{ v.size }} bytes · SHA-256 <code>{{ v.sha256[:16] }}…</code></p>
-<div class="toolbar">
-  <a class="btn sec" href="/versions/{{ v.id }}?raw=1">Descargar</a>
-  {% if prev %}<a class="btn sec" href="/diff?a={{ prev.id }}&b={{ v.id }}">Comparar con anterior</a>{% endif %}
-  {% if ROLES[user.role] >= 1 %}
-  <form class="inline row" method="post" action="/versions/{{ v.id }}/label">
-    <input name="label" value="{{ v.label or '' }}" placeholder="Etiqueta (p. ej. baseline)"><button class="sec">Etiquetar</button></form>
-  {% if v.kind == 'running' %}
-  {% if is_baseline %}<span class="badge b-ok">Línea base del equipo</span>
-  {% else %}<form class="inline" method="post" action="/versions/{{ v.id }}/baseline"><button class="sec">Marcar como línea base</button></form>{% endif %}
-  {% if not small %}<form class="inline" method="post" action="/versions/{{ v.id }}/rollback"><button class="danger">Revertir el equipo a esta versión…</button></form>{% endif %}
-  {% endif %}{% endif %}
-</div>
-{% if small and v.kind == 'running' %}
-<div class="card" style="border-color:var(--crit)">
-  <h2 style="margin-top:0">⚠ Esta versión parece incompleta</h2>
-  <p>Tiene <b>{{ v.size }} bytes</b> y la configuración actual (<a href="/versions/{{ current.id }}">versión #{{ current.id }}</a>)
-  tiene <b>{{ current.size }} bytes</b>. Casi siempre es un respaldo cortado. Si revierte el equipo a esta versión,
-  OpenNCCM <b>borrará del equipo todo lo que falta aquí</b> (VLAN, usuarios, puertos…).</p>
-  <p>Para volver a un estado anterior, elija una versión completa en el historial del equipo.</p>
-  {% if ROLES[user.role] >= 1 %}
-  <form method="post" action="/versions/{{ v.id }}/rollback" onsubmit="return confirm('Se borrará del equipo todo lo que no esté en esta versión. ¿Continuar?')">
-    <input type="hidden" name="confirm" value="1"><button class="danger">Entiendo el riesgo: revertir de todas formas…</button></form>
+{% set trig = {'manual': _('manual'), 'scheduled': _('programado'), 'syslog': 'syslog', 'push': 'push'} %}
+{% set can_run = ROLES[user.role] >= 1 %}
+<div data-sheet-wide></div>
+<h1>{{ _f('{0} · versión {1}', v.device.name, n) }}</h1>
+<p class="muted sm" data-sheet-sub>{{ v.kind }} · {{ trig.get(v.trigger, v.trigger) }}{% if v.username %} · {{ v.username }}{% endif %} · <span title="{{ v.created_at|dt }}">{{ v.created_at|ago }}</span> · {{ _f('{0} líneas', lines|length) }}</p>
+{% if small and v.kind == 'running' %}<div class="banner crit">{{ icon('alert') }}<span class="grow"><b>Esta versión parece incompleta.</b> Tiene muchas menos líneas que la actual ({{ v.size }} frente a {{ current.size }} bytes); puede que el respaldo se cortara. No conviene restaurarla.</span></div>{% endif %}
+<div class="row">{% if is_baseline %}<span class="tag sig" title="Línea base del equipo">línea base</span>{% endif %}{% if v.label %}<span class="tag info">{{ icon('tag', 's') }}{{ v.label }}</span>{% endif %}<span class="tag" title="SHA-256 {{ v.sha256 }}">{{ v.kind }}</span></div>
+{% if can_run %}<form class="row" method="post" action="/versions/{{ v.id }}/label"><label class="input grow" style="min-width:200px">{{ icon('tag', 's') }}<input name="label" value="{{ v.label or '' }}" placeholder="Etiqueta, p. ej. «antes de la migración»" aria-label="Etiqueta"></label><button class="btn">Etiquetar</button></form>{% endif %}
+<div class="cv">{% for l in lines %}<div><span class="n">{{ loop.index }}</span><span>{{ l }}</span></div>{% endfor %}</div>
+<div class="row" data-sheet-foot>
+  <a class="btn ghost" href="/versions/{{ v.id }}?raw=1">{{ icon('dl', 's') }}Descargar</a>
+  {% if prev %}<a class="btn ghost" href="/devices/{{ v.device_id }}?a={{ prev.id }}&b={{ v.id }}#versions">{{ icon('branch', 's') }}Comparar con anterior</a>{% endif %}
+  <span class="grow"></span>
+  {% if can_run and v.kind == 'running' %}
+  {% if not is_baseline %}<form method="post" action="/versions/{{ v.id }}/baseline"><button class="btn">{{ icon('flag', 's') }}Marcar como línea base</button></form>{% endif %}
+  <button type="button" class="btn dz" data-dialog="vrev-dlg">{{ icon('undo', 's') }}Revertir a esta versión…</button>
   {% endif %}
 </div>
+{% if can_run and v.kind == 'running' %}
+<dialog class="dlg" id="vrev-dlg" aria-labelledby="vrev-t"><form method="post" action="/versions/{{ v.id }}/rollback">
+  <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi major">{{ icon('undo') }}</span><div><h2 id="vrev-t">{{ _f('¿Revertir {0} a la versión {1}?', v.device.name, n) }}</h2>
+    <p class="muted" style="margin-top:6px">Se enviará esa configuración al equipo. Antes se hace un respaldo. Se creará una solicitud de cambio para revisar los comandos.</p></div></div>
+  {% if small %}<div class="banner crit">{{ icon('alert') }}<span>Esta versión parece incompleta. Revertir podría dejar el equipo sin parte de su configuración.</span></div>
+  <label class="ck"><input type="checkbox" name="confirm" value="1" required> Entiendo el riesgo: revertir de todas formas</label>{% endif %}
+  <div class="row end"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn pri">Crear solicitud</button></div>
+</form></dialog>
 {% endif %}
-<pre>{{ text }}</pre>
 {% endblock %}

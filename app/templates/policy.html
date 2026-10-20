@@ -1,81 +1,63 @@
-{% extends "base.html" %}{% block title %}Política {{ p.name }}{% endblock %}
+{% extends "base.html" %}{% block title %}{{ _('Editar política') if p else _('Nueva política') }}{% endblock %}
+{% block crumbs %}<a href="/compliance">Cumplimiento</a>{{ icon('right', 's') }}<b>{{ p.name if p else _('Nueva política') }}</b>{% endblock %}
 {% block content %}
-<h1><a href="/compliance">Cumplimiento</a> / {{ p.name }}</h1>
-{% if user.role == 'admin' %}
-<div class="card">
-<form method="post" action="/compliance/policies" class="row">
-  <input type="hidden" name="id" value="{{ p.id }}">
-  <div><label>Nombre</label><input name="name" value="{{ p.name }}" required></div>
-  <div><label>Regex de device_type</label><input name="device_type_filter" value="{{ p.device_type_filter or '' }}"></div>
-  <div><label>Grupo</label><select name="group_id"><option value="">Todos</option>{% for g in groups %}<option value="{{ g.id }}" {{ 'selected' if g.id == p.group_id }}>{{ g.name }}</option>{% endfor %}</select></div>
-  <div><label>Descripción</label><input name="description" value="{{ p.description or '' }}"></div>
-  <label class="chk"><input type="checkbox" name="enabled" {{ 'checked' if p.enabled }}> Activa</label>
-  <button>Guardar</button>
+{# Editor de política del prototipo: datos de la política y sus reglas, cada una con prueba en vivo contra un equipo #}
+<div data-sheet-wide></div>
+<h1>{{ _('Editar política') if p else _('Nueva política') }}</h1>
+<p class="muted sm" data-sheet-sub>{% if test_devices %}{{ _f('Cada regla se prueba en vivo contra la configuración de {0}', test_devices[0].name) }} <span class="pill" style="color:var(--brand);border:1px solid var(--brand)">{{ icon('spark', 's') }}Prueba en vivo</span>{% else %}Respalda algún equipo para probar las reglas en vivo.{% endif %}</p>
+<form method="post" action="/compliance/policies/save-all" class="stack" id="polf">
+  {% if p %}<input type="hidden" name="id" value="{{ p.id }}">{% endif %}
+  <div class="f2"><div class="field"><label for="pn">Nombre</label><div class="input"><input id="pn" name="name" required value="{{ p.name if p }}" placeholder="Hardening sucursales"></div></div>
+    <div class="field"><label for="pgrp">Grupo (opcional)</label><div class="input"><select id="pgrp" name="group_id"><option value="">Todos los grupos</option>{% for g in groups %}<option value="{{ g.id }}" {{ 'selected' if p and g.id == p.group_id }}>{{ g.name }}</option>{% endfor %}</select></div></div></div>
+  <div class="field"><label for="pdesc">Descripción</label><div class="input"><input id="pdesc" name="description" value="{{ p.description or '' if p }}"></div></div>
+  <div class="field"><label for="ptype">Aplica a (regex de tipo de equipo)</label><div class="input mono"><input id="ptype" name="device_type_filter" value="{{ p.device_type_filter or '' if p }}" placeholder="cisco_ios|cisco_xe"></div><span class="help" id="ptmsg"></span></div>
+  {% if test_devices %}<div class="field"><label for="rt-dev">Probar las reglas contra</label><div class="input"><select id="rt-dev">{% for d in test_devices %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}</select></div></div>{% endif %}
+  <div class="sec"><div class="row between"><h3>Reglas</h3><button type="button" class="btn s" id="addrule">{{ icon('plus', 's') }}Agregar regla</button></div>
+    <div class="stack t" id="rules">
+      {% for r in (p.rules if p else []) %}{% include "_rule_edit.html" %}{% endfor %}
+      {% if not p or not p.rules %}{% set r = none %}{% include "_rule_edit.html" %}{% endif %}
+    </div></div>
+  <div class="row" data-sheet-foot>
+    {% if p %}<button type="button" class="btn dz" data-dialog="pol-del">{{ icon('trash', 's') }}Eliminar política…</button>{% endif %}
+    <span class="grow"></span><a class="btn ghost" href="/compliance" data-cancel>Cancelar</a><button class="btn pri">Guardar</button></div>
 </form>
-<form method="post" action="/compliance/policies/{{ p.id }}/delete" onsubmit="return confirm('¿Eliminar política y reglas?')" style="margin-top:10px"><button class="sm danger">Eliminar política</button></form>
-</div>
-{% endif %}
-<div class="card">
-<h2 style="margin-top:0">Reglas</h2>
-<table><tr><th>Nombre</th><th>Condición</th><th>Patrón (regex)</th><th>Severidad</th><th>Corrección</th><th></th></tr>
-{% for r in p.rules %}
-<tr><td>{{ r.name }}</td><td>{{ _('debe contener') if r.kind == 'must_contain' else _('no debe contener') }}</td><td><code>{{ r.pattern }}</code></td>
-<td>{{ sevtag(r.severity) }}</td><td><pre style="padding:4px">{{ r.remediation or '—' }}</pre></td>
-<td>{% if user.role == 'admin' %}<form class="inline" method="post" action="/compliance/rules/{{ r.id }}/delete"><button class="sm danger">×</button></form>{% endif %}</td></tr>
-{% else %}<tr class="empty-row"><td colspan="6"><div class="empty">{{ empty_art('plus') }}<h3>Esta política aún no tiene reglas</h3><p class="muted">Agregue la primera abajo y pruébela contra un equipo antes de guardarla.</p></div></td></tr>{% endfor %}
-</table>
-</div>
-{% if user.role == 'admin' %}
-<div class="card" style="max-width:820px">
-<h2 style="margin-top:0">Agregar regla</h2>
-<form method="post" action="/compliance/policies/{{ p.id }}/rules">
-  <div class="row">
-    <div><label>Nombre</label><input name="name" required></div>
-    <div><label>Condición</label><select name="kind"><option value="must_contain">Debe contener</option><option value="must_not_contain">No debe contener</option></select></div>
-    <div><label>Severidad</label><select name="severity"><option>critical</option><option selected>major</option><option>minor</option></select></div>
-  </div>
-  <label>Patrón (regex multilínea, <code>^</code> = inicio de línea)</label><input name="pattern" required style="width:100%" placeholder="^ip ssh version 2">
-  <div class="rule-test" id="rule-test">
-    <div class="row">
-      <div><label for="rt-dev">Probar contra la configuración de</label>
-        <select id="rt-dev">{% for d in test_devices %}<option value="{{ d.id }}">{{ d.name }}</option>{% else %}<option value="">—</option>{% endfor %}</select></div>
-      <button type="button" class="sec" id="rt-go" {{ 'disabled' if not test_devices }}>{{ icon('play', 'sm') }} Probar la regla</button>
-    </div>
-    <div class="rt-out" id="rt-out" aria-live="polite" hidden></div>
-    <p class="small muted">La prueba usa la última configuración respaldada del equipo y no guarda nada.</p>
-  </div>
-  <label>Comandos de corrección (opcional, Jinja2)</label><textarea name="remediation" rows="4"></textarea>
-  <p><button>Agregar</button></p>
-</form>
+<template id="rule-tpl">{% set r = none %}{% include "_rule_edit.html" %}</template>
+{% if p %}<dialog class="dlg" id="pol-del"><form method="post" action="/compliance/policies/{{ p.id }}/delete">
+  <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi crit">{{ icon('trash') }}</span><div><h2>{{ _f('¿Eliminar «{0}»?', p.name) }}</h2><p class="muted" style="margin-top:6px">Se borrarán sus reglas y resultados.</p></div></div>
+  <div class="row end"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn dzf">Eliminar política</button></div></form></dialog>{% endif %}
 <script>
 (function () {
-  const btn = document.getElementById('rt-go'), out = document.getElementById('rt-out');
-  if (!btn) return;
-  const T = {{ {'pass': _('La regla se cumple en este equipo.'), 'fail': _('La regla NO se cumple en este equipo.'),
-                'found': _('Líneas que coinciden:'), 'nomatch': _('Ninguna línea coincide con el patrón.'),
-                'bad': _('Patrón no válido: {0}'), 'empty': _('Escriba un patrón para probar.'), 'err': _('No se pudo probar la regla.')}|tojson }};
-  const form = btn.closest('form');
-  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
-  async function run() {
-    const pattern = form.elements.pattern.value;
-    out.hidden = false;
-    if (!pattern.trim()) { out.className = 'rt-out'; out.textContent = T.empty; return; }
-    const fd = new FormData();
-    fd.append('pattern', pattern); fd.append('kind', form.elements.kind.value);
-    fd.append('device_id', document.getElementById('rt-dev').value);
+  const f = document.getElementById('polf'), box = document.getElementById('rules'), tpl = document.getElementById('rule-tpl');
+  const TYPES = {{ types|tojson }}, T = {{ {'n': _('{0} equipos compatibles'), 'bad': _('Expresión no válida'), 'ok': _('{0} cumple'),
+    'ko': _('{0} incumple'), 'rx': _('Regex no válida'), 'rule': _('Regla {0}')}|tojson }};
+  const dev = document.getElementById('rt-dev');
+  function number() { box.querySelectorAll('.redit').forEach((el, i) => { el.querySelector('.rnum').textContent = T.rule.replace('{0}', i + 1); }); }
+  async function test(card) {
+    const res = card.querySelector('.rres'), pat = card.querySelector('[name=rule_pattern]').value;
+    if (!dev || !pat.trim()) { res.innerHTML = ''; return; }
+    const fd = new FormData(); fd.append('pattern', pat); fd.append('kind', card.querySelector('[name=rule_kind]').value); fd.append('device_id', dev.value);
     try {
-      const r = await fetch('/compliance/rules/test', {method: 'POST', body: fd, credentials: 'same-origin'});
-      const j = await r.json();
-      if (j.error) { out.className = 'rt-out bad'; out.textContent = T.bad.replace('{0}', j.error); return; }
-      out.className = 'rt-out ' + (j.passed ? 'ok' : 'bad');
-      out.innerHTML = '<b>' + esc(j.passed ? T.pass : T.fail) + '</b><br>' +
-        (j.lines.length ? esc(T.found) + '<pre>' + j.lines.map(esc).join('\n') + '</pre>' : '<span class="muted">' + esc(T.nomatch) + '</span>');
-    } catch (e) { out.className = 'rt-out bad'; out.textContent = T.err; }
+      const j = await (await fetch('/compliance/rules/test', {method: 'POST', body: fd, credentials: 'same-origin'})).json();
+      const name = dev.options[dev.selectedIndex].text;
+      res.innerHTML = j.error ? '<span class="pill crit"></span>' : '<span class="pill ' + (j.passed ? 'ok' : 'crit') + '"></span>';
+      res.firstChild.textContent = j.error ? T.rx : (j.passed ? T.ok : T.ko).replace('{0}', name);
+      res.title = (j.lines || []).join('\n');
+    } catch (e) { res.innerHTML = ''; }
   }
-  btn.addEventListener('click', run);
-  form.elements.pattern.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
+  let t = 0;
+  box.addEventListener('input', e => { const c = e.target.closest('.redit'); if (c) { clearTimeout(t); t = setTimeout(() => test(c), 350); } });
+  box.addEventListener('change', e => { const c = e.target.closest('.redit'); if (c) test(c); });
+  box.addEventListener('click', e => { const b = e.target.closest('[data-delrule]'); if (b) { b.closest('.redit').remove(); number(); } });
+  document.getElementById('addrule').addEventListener('click', () => {
+    box.insertAdjacentHTML('beforeend', tpl.innerHTML); number();
+    const last = box.lastElementChild.querySelector('input'); if (last) last.focus();
+  });
+  if (dev) dev.addEventListener('change', () => box.querySelectorAll('.redit').forEach(test));
+  const pt = document.getElementById('ptype'), msg = document.getElementById('ptmsg');
+  function types() { let rx = null, ok = true; try { rx = pt.value ? new RegExp(pt.value) : null; } catch (e) { ok = false; }
+    msg.textContent = ok ? T.n.replace('{0}', TYPES.filter(x => !rx || rx.test(x)).length) : T.bad; msg.style.color = ok ? '' : 'var(--crit)'; }
+  pt.addEventListener('input', types); types();
+  number(); box.querySelectorAll('.redit').forEach(test);
 })();
 </script>
-</div>
-{% endif %}
 {% endblock %}

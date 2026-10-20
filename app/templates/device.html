@@ -1,202 +1,226 @@
 {% extends "base.html" %}{% block title %}{{ device.name }}{% endblock %}
+{% block crumbs %}<a href="/devices">Dispositivos</a>{{ icon('right', 's') }}<b>{{ device.name }}</b>{% endblock %}
 {% block content %}
 {% set can_run = ROLES[user.role] >= 1 %}
-{% set sevmap = {'critical': 'crit', 'major': 'major', 'minor': 'minor', 'CRITICAL': 'crit', 'HIGH': 'major', 'MEDIUM': 'minor', 'LOW': 'info'} %}
-{% set sevlabel = {'crit': _('Crítica'), 'major': _('Mayor'), 'minor': _('Menor'), 'info': _('Info')} %}
-<p class="eyebrow"><a href="/devices">Dispositivos</a>{% if device.group %} · <a href="/devices?group={{ device.group_id }}">{{ device.group.name }}</a>{% endif %}</p>
-<div class="dev-head">
-  <span class="vendor lg" aria-hidden="true">{{ profile.vendor[:3]|upper }}</span>
-  <div class="dev-title">
-    <h1>{{ device.name }}</h1>
-    <p class="pills">
-      {% if device.last_status == 'ok' %}<span class="badge b-ok">Respaldo OK</span>
-      {% elif device.last_status == 'error' %}<span class="badge b-error">Error</span>
-      {% else %}<span class="badge b-pending">Pendiente</span>{% endif %}
-      {% if device.startup_conflict %}<span class="badge b-warning" title="running ≠ startup">Sin guardar en arranque</span>{% endif %}
-      {% if device.baseline_drift %}<span class="badge b-major">Difiere de la base</span>{% endif %}
-      {% if not device.enabled %}<span class="badge">deshabilitado</span>{% endif %}
-    </p>
-    <p class="muted small dev-ctx">{{ profile.label }} · <span class="mono">{{ device.host }}:{{ device.port }}</span> · Último respaldo <span title="{{ device.last_backup_at|dt }}">{{ device.last_backup_at|ago }}</span></p>
-  </div>
-  <div class="dev-actions">
-    {% if can_run %}<form method="post" action="/devices/{{ device.id }}/backup"><button>{{ icon('refresh', 'sm') }} Respaldar ahora</button></form>{% endif %}
-    {% if can_console and device.protocol == 'ssh' %}
-    <a class="btn sec" href="/devices/{{ device.id }}/console" target="_blank" rel="noopener"
-       onclick="return abrirVentana(this.href, 'consola-{{ device.id }}', 1000, 640)" aria-label="Consola SSH (ventana nueva)">{{ icon('term', 'sm') }} Consola</a>
-    {% endif %}
-    {% if device.web_enabled != false %}
-    <a class="btn sec" href="{{ device.web_url or 'https://' ~ device.host ~ '/' }}" target="_blank" rel="noopener noreferrer"
-       onclick="return abrirVentana(this.href, 'web-{{ device.id }}', 1280, 820)" aria-label="Interfaz web del equipo (ventana nueva)">{{ icon('globe', 'sm') }} Interfaz web</a>
-    {% endif %}
-    {% if can_run or user.role == 'admin' %}
-    <details class="dropdown">
-      <summary class="btn sec icon-btn" title="Más acciones" aria-label="Más acciones">{{ icon('more') }}</summary>
-      <div class="drop">
-        {% if can_run %}
-        <form method="post" action="/devices/{{ device.id }}/compliance"><button class="drop-item">{{ icon('shield', 'sm') }} Auditar cumplimiento</button></form>
-        <form method="post" action="/devices/{{ device.id }}/cve"><button class="drop-item">{{ icon('bug', 'sm') }} Buscar CVE de firmware</button></form>
-        {% if images %}<a href="#firmware" data-tab-link>{{ icon('chip', 'sm') }} Actualizar firmware</a>{% endif %}
-        {% endif %}
-        {% if user.role == 'admin' %}<a href="/devices/{{ device.id }}/edit" data-sheet>{{ icon('edit', 'sm') }} Editar</a>{% endif %}
-        {% if (can_run and device.baseline_version_id) or user.role == 'admin' %}<hr>{% endif %}
-        {% if can_run and device.baseline_version_id %}
-        <form method="post" action="/versions/{{ device.baseline_version_id }}/rollback"><button class="drop-item danger-item">{{ icon('undo', 'sm') }} Volver a la línea base…</button></form>
-        {% endif %}
-        {% if user.role == 'admin' %}<button type="button" class="drop-item danger-item" data-dialog="del-dlg">{{ icon('trash', 'sm') }} Eliminar equipo…</button>{% endif %}
-      </div>
-    </details>
-    {% endif %}
-  </div>
+{% set is_admin = user.role == 'admin' %}
+{% set sevmap = {'critical': 'crit', 'major': 'major', 'minor': 'minor'} %}
+{% set base_n = vnum.get(device.baseline_version_id) %}
+{% set sel_a = cmp.a.id if cmp else 0 %}{% set sel_b = cmp.b.id if cmp else 0 %}
+{% set comp_pct = ((comp|length - comp_fails) * 100 / comp|length)|round|int if comp else none %}
+{% set eol_bad = eol_status in ('sin_soporte', 'fin_mantenimiento') %}
+<div class="ph"><div class="grow row nowrap" style="gap:16px"><span class="vend" style="width:56px;height:56px;border-radius:16px;font-size:14px">{{ profile.vendor[:3]|upper }}</span>
+  <div style="min-width:0"><div class="row"><h1>{{ device.name }}</h1>
+    {% if device.last_status == 'ok' %}<span class="pill ok live">En línea</span>{% elif device.last_status == 'error' %}<span class="pill crit">Sin conexión</span>{% else %}<span class="pill warn">Pendiente</span>{% endif %}
+    {% if device.baseline_drift %}<span class="pill major">Difiere de la base</span>{% endif %}
+    {% if device.startup_conflict %}<span class="pill warn">Startup ≠ running</span>{% endif %}
+    {% if not device.enabled %}<span class="tag">deshabilitado</span>{% endif %}</div>
+    <div class="muted" style="margin-top:2px">{{ profile.label }} · <span class="mono">{{ device.host }}{{ ':' ~ device.port if device.port != (23 if device.protocol == 'telnet' else 22) }}</span> ({{ device.protocol|upper }}) · {{ _f('respaldado {0}', device.last_backup_at|ago) if device.last_backup_at else _('sin respaldar todavía') }}</div></div></div>
+  {% if can_console and device.protocol == 'ssh' %}<a class="btn" href="/devices/{{ device.id }}/console" target="_blank" rel="noopener" onclick="return abrirVentana(this.href, 'consola-{{ device.id }}', 1000, 640)" aria-label="Consola SSH (ventana nueva)">{{ icon('term', 's') }}Consola</a>{% endif %}
+  {% if device.web_enabled != false %}<a class="btn" href="{{ device.web_url or 'https://' ~ device.host ~ '/' }}" target="_blank" rel="noopener noreferrer" onclick="return abrirVentana(this.href, 'web-{{ device.id }}', 1280, 820)" aria-label="Interfaz web del equipo (ventana nueva)">{{ icon('globe', 's') }}Interfaz web</a>{% endif %}
+  {% if can_run %}<form class="inline" method="post" action="/devices/{{ device.id }}/backup"><button class="btn pri">{{ icon('dl', 's') }}Respaldar ahora</button></form>{% endif %}
+  <span class="dropw"><button type="button" class="btn icon" data-drop="dev-menu" aria-haspopup="true" aria-expanded="false" aria-label="Más acciones" title="Más acciones">{{ icon('more', 's') }}</button>
+    <div class="drop" id="dev-menu" hidden>
+      {% if can_run %}<form method="post" action="/devices/{{ device.id }}/compliance"><button>{{ icon('shield', 's') }}Auditar cumplimiento</button></form>
+      <form method="post" action="/devices/{{ device.id }}/cve"><button>{{ icon('bug', 's') }}Buscar CVE de firmware</button></form>
+      <a href="#firmware" data-tab-link>{{ icon('chip', 's') }}Actualizar firmware…</a>{% endif %}
+      {% if is_admin %}<a href="/devices/{{ device.id }}/edit" data-sheet data-title="{{ _f('Editar {0}', device.name) }}">{{ icon('edit', 's') }}Editar</a>{% endif %}
+      {% if latest_run %}<a href="/diff?a={{ latest_run }}&b={{ latest_run }}">{{ icon('branch', 's') }}Comparar con otro equipo</a>{% endif %}
+      {% if device.baseline_version_id %}<hr>
+      <a href="?a={{ device.baseline_version_id }}&b={{ latest_run }}#versions">{{ icon('flag', 's') }}Ver diferencias con la línea base</a>
+      {% if can_run %}<button type="button" data-revert="{{ device.baseline_version_id }}" data-n="{{ base_n }}">{{ icon('undo', 's') }}Volver a la línea base…</button>{% endif %}{% endif %}
+      {% if is_admin %}{% if not device.baseline_version_id %}<hr>{% endif %}<button type="button" class="dz" data-dialog="del-dlg">{{ icon('trash', 's') }}Eliminar equipo…</button>{% endif %}
+    </div></span>
 </div>
 
-{% if device.last_error %}<div class="banner crit">{{ icon('alert') }}<div><b>Último error:</b> {{ device.last_error }}</div>
-  {% if can_run %}<form method="post" action="/devices/{{ device.id }}/backup"><button class="sec sm">Reintentar</button></form>{% endif %}</div>{% endif %}
-{% if profile.note and not device.custom_backup_cmd %}<div class="banner info">{{ icon('info') }}<div>{{ profile.note }}</div></div>{% endif %}
-{% if device.baseline_drift %}<div class="banner warn">{{ icon('flag') }}<div>La configuración actual difiere de la línea base (versión #{{ device.baseline_version_id }}).</div>
-  <a class="btn sec sm" href="/devices/{{ device.id }}/baseline-diff">Ver diferencias</a></div>{% endif %}
-
-<nav class="page-tabs dev-tabs" data-tabs aria-label="Secciones del equipo">
-  <a href="#resumen">{{ icon('grid', 'sm') }} Resumen</a>
-  <a href="#versions">{{ icon('branch', 'sm') }} Versiones <span class="tcount">{{ versions|length }}</span></a>
-  <a href="#compliance">{{ icon('shield', 'sm') }} Cumplimiento {% if comp_fails %}<span class="tcount bad">{{ comp_fails }}</span>{% endif %}</a>
-  <a href="#vulns">{{ icon('bug', 'sm') }} Vulnerabilidades <span class="tcount{{ ' bad' if vuln_high }}">{{ vulns|length }}</span></a>
-  {% if images and can_run %}<a href="#firmware">{{ icon('chip', 'sm') }} Firmware</a>{% endif %}
-  <a href="#activity">{{ icon('bell', 'sm') }} Actividad <span class="tcount">{{ events|length }}</span></a>
+<nav class="tabs" data-tabs aria-label="Secciones del equipo">
+  <a href="#resumen">Resumen</a>
+  <a href="#versions">Versiones{% if total_v %} <span class="cnt2">{{ total_v }}</span>{% endif %}</a>
+  <a href="#compliance">Cumplimiento{% if comp_fails %} <span class="cnt2 crit">{{ comp_fails }}</span>{% endif %}</a>
+  <a href="#vulns">Vulnerabilidades{% if vulns %} <span class="cnt2 {{ 'crit' if crit_cves }}">{{ vulns|length }}</span>{% endif %}</a>
+  <a href="#firmware">Firmware</a>
+  <a href="#activity">Eventos{% if open_events %} <span class="cnt2">{{ open_events }}</span>{% endif %}</a>
 </nav>
 
-<section class="tab-panel" id="resumen" aria-label="Resumen">
-<div class="sum-grid">
-<div class="card">
-  <h2 style="margin-top:0">Inventario</h2>
-  <dl class="kv">
-    <dt>Fabricante</dt><dd>{{ profile.vendor }} — {{ profile.label }}</dd>
-    <dt>Modelo</dt><dd>{{ device.model or '—' }}</dd>
-    <dt>Nº de serie</dt><dd class="mono">{{ device.serial or '—' }}</dd>
-    <dt>Versión firmware</dt><dd class="mono">{{ device.os_version or '—' }}{% if not (device.model or device.serial or device.os_version) %} <span class="small muted">(se completan solos en cada respaldo con «{{ profile.inventory_label or _('sin comando de inventario') }}»)</span>{% endif %}</dd>
-    <dt>Host</dt><dd class="mono">{{ device.host }}:{{ device.port }} ({{ device.protocol }})</dd>
-    <dt>Grupo</dt><dd>{% if device.group %}<a href="/devices?group={{ device.group_id }}">{{ device.group.name }}</a>{% else %}—{% endif %}
-      {% if user.role == 'admin' %} <a class="small" href="/devices/{{ device.id }}/edit" data-sheet>{{ _('cambiar') if device.group else _('asignar grupo') }}</a>{% endif %}</dd>
-    <dt>Ubicación</dt><dd>{{ device.location or '—' }}</dd>
-    <dt>Credencial</dt><dd>{{ device.credential.name if device.credential else '—' }}</dd>
-    <dt>Último respaldo</dt><dd>{{ device.last_backup_at|dt }}</dd>
-    <dt>Reversión automática</dt><dd>{{ _('Sí') if device.auto_rollback else _('No') }}</dd>
-    <dt>Línea base</dt><dd>{% if device.baseline_version_id %}<a href="/versions/{{ device.baseline_version_id }}">versión #{{ device.baseline_version_id }}</a>
-      <span class="badge b-{{ 'warning' if device.baseline_drift else 'ok' }}">{{ 'difiere' if device.baseline_drift else 'coincide' }}</span>
-      {% else %}<span class="muted">sin definir (márquela desde una versión)</span>{% endif %}</dd>
-    <dt>Ciclo de vida</dt><dd><span class="badge b-{{ eol_sev[eol_status] }}">{{ _(eol_labels[eol_status]) }}</span>
-      {% if eol_entry %}<span class="small muted">fin de soporte {{ eol_entry.end_of_support|ymd }}{% if eol_entry.replacement %} · reemplazo {{ eol_entry.replacement }}{% endif %}</span>{% endif %}</dd>
-    {% if device.custom_backup_cmd %}<dt>Comando de respaldo</dt><dd><code>{{ device.custom_backup_cmd }}</code></dd>{% endif %}
-  </dl>
-  {% if device.notes %}<p class="small">{{ device.notes }}</p>{% endif %}
-  {% if inventory %}<details><summary class="small">Salida de inventario ({{ profile.inventory_label }})</summary><pre>{{ inventory }}</pre></details>{% endif %}
-</div>
-<div class="sum-side">
-  <div class="kpis two">
-    <a class="kpi{{ ' alert' if comp_fails }}" href="#compliance" data-tab-link><small>Infracciones de cumplimiento</small><b>{{ comp_fails }}</b>
-      <span class="delta">{% if comp %}{{ comp|length - comp_fails }} de {{ comp|length }} reglas cumplidas{% else %}sin auditar{% endif %}</span></a>
-    <a class="kpi{{ ' alert' if vuln_high }}" href="#vulns" data-tab-link><small>CVE críticos o altos</small><b>{{ vuln_high }}</b>
-      <span class="delta">{{ vulns|length }} en total</span></a>
+<section id="resumen" class="stack" aria-label="Resumen">
+  {% if device.baseline_drift %}<div class="banner crit">{{ icon('alert') }}<span class="grow">La configuración actual <b>difiere de la línea base</b>{% if base_n %} (v{{ base_n }}){% endif %}{% if drift_n %} {{ _f('en {0} líneas', drift_n) }}{% endif %}.</span>
+    <a class="btn s" href="?a={{ device.baseline_version_id }}&b={{ latest_run }}#versions">Ver diferencias</a>
+    {% if can_run %}<button type="button" class="btn s dz" data-revert="{{ device.baseline_version_id }}" data-n="{{ base_n }}">Volver a la línea base…</button>{% endif %}</div>{% endif %}
+  {% if device.startup_conflict %}<div class="banner warn">{{ icon('save') }}<span class="grow">La configuración en ejecución tiene cambios que <b>no se guardaron</b> en startup. Si el equipo se reinicia, se perderán.</span></div>{% endif %}
+  {% if eol_bad %}<div class="banner warn">{{ icon('clock') }}<span class="grow">Este equipo está <b>{{ _('sin soporte del fabricante') if eol_status == 'sin_soporte' else _('sin parches de software') }}</b>{% if eol_entry and eol_entry.end_of_support %} {{ _f('desde el {0}', eol_entry.end_of_support|fecha) }}{% endif %}.{% if eol_entry and eol_entry.replacement %} {{ _f('Reemplazo sugerido: {0}.', eol_entry.replacement) }}{% endif %}</span>
+    <a class="btn s" href="/eol">Ver ciclo de vida</a></div>{% endif %}
+  {% if device.last_status == 'error' and device.last_error %}<div class="banner crit">{{ icon('alert') }}<span class="grow"><b>No se pudo conectar.</b> <span style="white-space:pre-line">{{ device.last_error[:800] }}</span></span>
+    {% if is_admin %}<a class="btn s" href="/devices/{{ device.id }}/edit" data-sheet data-title="{{ _f('Editar {0}', device.name) }}">Revisar datos</a>{% endif %}</div>{% endif %}
+  {% if profile.note and not device.custom_backup_cmd %}<div class="banner info">{{ icon('info') }}<span class="grow">{{ profile.note }}</span></div>{% endif %}
+  <div class="bento">
+    <section class="card c5"><div class="card-h"><h2>Inventario</h2>{% if is_admin %}<a class="btn s ghost" href="/devices/{{ device.id }}/edit" data-sheet data-title="{{ _f('Editar {0}', device.name) }}">{{ icon('edit', 's') }}Editar</a>{% endif %}</div>
+      <dl class="kv"><dt>Host</dt><dd class="mono">{{ device.host }}:{{ device.port }} ({{ device.protocol }})</dd><dt>Fabricante</dt><dd>{{ profile.label }}</dd>
+        <dt>Modelo</dt><dd>{{ device.model or '—' }}</dd><dt>Nº de serie</dt><dd class="mono">{{ device.serial or '—' }}</dd>
+        <dt>Firmware</dt><dd class="mono">{{ device.os_version or '—' }}</dd><dt>Grupo</dt><dd>{% if device.group %}<a href="/devices?group={{ device.group.id }}">{{ device.group.name }}</a>{% else %}—{% endif %}</dd>
+        <dt>Ubicación</dt><dd>{{ device.location or '—' }}</dd><dt>Credencial</dt><dd>{{ device.credential.name if device.credential else '—' }}</dd>
+        <dt>Último respaldo</dt><dd title="{{ device.last_backup_at|dt }}">{{ device.last_backup_at|ago if device.last_backup_at else '—' }}</dd>
+        <dt>Reversión automática</dt><dd>{{ _('Sí') if device.auto_rollback else _('No') }}</dd>
+        <dt>Línea base</dt><dd>{% if device.baseline_version_id %}<a href="/versions/{{ device.baseline_version_id }}" data-sheet data-wide>{{ _f('versión {0}', base_n or device.baseline_version_id) }}</a> {% if device.baseline_drift %}<span class="pill major">difiere</span>{% else %}<span class="pill ok">coincide</span>{% endif %}{% else %}—{% endif %}</dd>
+        <dt>Ciclo de vida</dt><dd>{% if eol_bad %}<span class="pill crit">{{ _(eol_labels[eol_status]) }}</span>{% elif eol_entry and eol_entry.end_of_support %}{{ _f('Soporte hasta {0}', eol_entry.end_of_support.year) }}{% else %}{{ _(eol_labels[eol_status]) }}{% endif %}</dd>
+        {% if device.custom_backup_cmd %}<dt>Comando de respaldo</dt><dd class="mono">{{ device.custom_backup_cmd }}</dd>{% endif %}</dl>
+      {% if device.notes %}<p class="sm muted" style="margin-top:12px">{{ device.notes }}</p>{% endif %}
+      {% if inventory %}<details style="margin-top:14px"><summary class="sm b" style="cursor:pointer">{{ _f('Salida de inventario ({0})', profile.inventory_label) }}</summary><pre class="cv" style="padding:10px 12px;margin-top:8px;white-space:pre-wrap">{{ inventory }}</pre></details>{% endif %}
+    </section>
+    <div class="c7 stack">
+      <div class="bento" style="gap:12px">
+        <div class="c6"><a class="kpi {{ 'alert' if comp_pct is not none and comp_pct < 50 }}" href="#compliance" data-tab-link><span class="label">Reglas cumplidas</span><span class="v">{{ comp_pct ~ '%' if comp_pct is not none else '—' }}</span>
+          <span class="d">{% if comp_pct is none %}Sin auditar todavía{% elif comp_fails %}{{ _f('{0} reglas fallan', comp_fails) }}{% else %}Todas las reglas se cumplen{% endif %}</span></a></div>
+        <div class="c6"><a class="kpi {{ 'alert' if crit_cves }}" href="#vulns" data-tab-link><span class="label">CVE críticos</span><span class="v">{{ crit_cves }}</span><span class="d">{{ _f('de {0} que le afectan', vulns|length) }}</span></a></div>
+      </div>
+      <section class="card"><div class="card-h"><h2>Últimas versiones</h2><a class="btn s ghost" href="#versions" data-tab-link>Ver todas {{ icon('right', 's') }}</a></div>
+        {% set tl_list = tl[:4] %}{% include "_timeline.html" %}</section>
+    </div>
   </div>
-  <div class="card flush">
-    <div class="card-head"><h2>Últimas versiones</h2><a class="small" href="#versions" data-tab-link>Ver todas ({{ versions|length }}) →</a></div>
-    {% set tl_versions = versions[:6] %}{% set tl_id = 'tl-sum' %}{% set baseline_id = device.baseline_version_id %}
-    {% include "_timeline.html" %}
-  </div>
-</div>
-</div>
 </section>
 
-<section class="tab-panel" id="versions" aria-label="Versiones">
-<div class="card flush">
-  <div class="card-head"><h2>Versiones de configuración</h2>
-    <span class="tl-legend small muted"><i class="tl-dot running"></i> running <i class="tl-dot startup"></i> startup <i class="tl-dot base"></i> línea base</span></div>
-  {% set tl_versions = versions %}{% set tl_id = 'tl-all' %}{% set baseline_id = device.baseline_version_id %}
-  {% include "_timeline.html" %}
-</div>
+<section id="versions" aria-label="Versiones">
+  {% if tl %}
+  <div class="bento"><section class="card c5"><div class="card-h"><h2>Historial</h2><span class="muted sm">{{ _f('{0} versiones', total_v) }}{% if total_v > 12 %} {{ _f('(se muestran {0})', 12) }}{% endif %}</span></div>
+    <p class="muted sm" style="margin:-6px 0 10px">Clic en una versión: primero elige <b>A</b>, luego <b>B</b>. La flecha abre la versión para verla, descargarla, etiquetarla o marcarla como línea base.</p>
+    {% set tl_list = tl[:12] %}{% include "_timeline.html" %}</section>
+  <section class="card c7"><div class="card-h"><h2>Comparación</h2><div class="row">
+      {% set qs = 'a=' ~ sel_a ~ '&b=' ~ sel_b %}
+      <div class="seg"><a class="{{ 'on' if mode != 'u' }}" href="?{{ qs }}&ctx={{ ctx }}#versions">Lado a lado</a><a class="{{ 'on' if mode == 'u' }}" href="?{{ qs }}&ctx={{ ctx }}&mode=u#versions">Unificada</a></div>
+      <div class="input" style="min-height:32px"><select id="ctxsel" aria-label="Líneas de contexto" style="height:30px;font-size:12.5px" data-base="?{{ qs }}&mode={{ mode }}">
+        {% for v, l in [(3, _('3 líneas de contexto')), (10, _('10 líneas de contexto')), (9999, _('Archivo completo'))] %}<option value="{{ v }}" {{ 'selected' if ctx == v }}>{{ l }}</option>{% endfor %}</select></div>
+      {% if cmp %}<a class="btn s" href="/diff?a={{ sel_a }}&b={{ sel_b }}&ctx={{ ctx }}&raw=1">{{ icon('dl', 's') }}.diff</a>{% endif %}</div></div>
+    {% if cmp %}
+    {% set na = device.name %}{% set nb = device.name %}{% set va_n = vnum[sel_a] %}{% set vb_n = vnum[sel_b] %}
+    {% set la = 'v' ~ va_n ~ ' · ' ~ cmp.a.kind ~ ' · ' ~ cmp.a.created_at|ago %}{% set lb = 'v' ~ vb_n ~ ' · ' ~ cmp.b.kind ~ ' · ' ~ cmp.b.created_at|ago %}
+    {% set fold_href = '?' ~ qs ~ '&mode=' ~ mode ~ '&ctx=9999#versions' %}
+    {% include "_diffview.html" %}
+    <div class="row between" style="margin-top:14px"><a href="/diff?a={{ sel_b }}&b={{ sel_b }}" class="sm">Comparar con otro equipo {{ icon('right', 's') }}</a>
+      {% if can_run %}<button type="button" class="btn dz s" data-revert="{{ sel_a }}" data-n="{{ va_n }}">{{ icon('undo', 's') }}{{ _f('Revertir el equipo a v{0}…', va_n) }}</button>{% endif %}</div>
+    {% else %}<p class="muted">Elige dos versiones.</p>{% endif %}
+  </section></div>
+  {% else %}<section class="card"><div class="empty">{{ empty_art('plus') }}<h2>Sin versiones</h2><p>Aún no se ha podido respaldar este equipo.</p></div></section>{% endif %}
 </section>
 
-<section class="tab-panel" id="compliance" aria-label="Cumplimiento">
-{% for g in comp_groups %}
-<details class="card flush pol" {{ 'open' if g.fails }}>
-  <summary class="pol-head">
-    <span class="pol-name"><b>{{ g.policy.name }}</b>
-      <span class="muted small">{% if g.fails %}{{ g.fails }} de {{ g.results|length }} reglas sin cumplir{% else %}{{ g.results|length }} reglas cumplidas{% endif %}</span></span>
-    {% set pct = ((g.results|length - g.fails) * 100 / g.results|length)|round|int %}
-    <span class="pol-bar" aria-hidden="true"><i class="{{ 'ok' if pct >= 90 else ('warn' if pct >= 70 else 'crit') }}" style="width:{{ pct }}%"></i></span>
-    <span class="pol-pct num">{{ pct }}%</span>
-    {% if g.fixable and can_run %}
-    <form method="post" action="/compliance/remediate-policy"><input type="hidden" name="policy_id" value="{{ g.policy.id }}">
-      <input type="hidden" name="device_id" value="{{ device.id }}"><input type="hidden" name="next" value="/devices/{{ device.id }}#compliance">
-      <button class="signal sm">{{ icon('wrench', 'sm') }} Corregir {{ g.fixable }}</button></form>
-    {% endif %}
-  </summary>
-  <ul class="rules">
-    {% for c in g.results %}
-    <li class="{{ 'pass' if c.passed else 'fail' }}">
-      {% if c.passed %}<span class="rule-ok">{{ icon('check', 'sm') }}</span>{% else %}<span class="sev {{ sevmap.get(c.rule.severity, 'info') }}">{{ sevlabel[sevmap.get(c.rule.severity, 'info')] }}</span>{% endif %}
-      <span class="rule-name">{{ c.rule.name }}</span>
-      <span class="muted small">{{ c.checked_at|ago }}</span>
-      {% if not c.passed and c.rule.remediation and can_run %}
-      <form method="post" action="/compliance/remediate/{{ c.id }}"><button class="sm sec">Corregir</button></form>{% else %}<span></span>{% endif %}
-    </li>
-    {% endfor %}
-  </ul>
-</details>
-{% else %}
-<div class="card empty">{{ empty_art('search') }}<h3>Sin auditar</h3><p class="muted">No hay políticas aplicables o aún no se audita.</p>
-  {% if can_run %}<form method="post" action="/devices/{{ device.id }}/compliance"><button>{{ icon('shield', 'sm') }} Auditar ahora</button></form>{% endif %}</div>
-{% endfor %}
+<section id="compliance" class="stack" aria-label="Cumplimiento">
+  {% if comp_groups %}
+  <div class="row between"><span class="muted sm">{{ _f('Revisado {0} con {1} políticas que aplican a {2}.', audited_at|ago, comp_groups|length, profile.label) }}</span>
+    {% if can_run %}<form class="inline" method="post" action="/devices/{{ device.id }}/compliance"><button class="btn s">{{ icon('refresh', 's') }}Auditar ahora</button></form>{% endif %}</div>
+  {% for g in comp_groups %}
+  {% set tot = g.results|length %}{% set ok_n = tot - g.fails %}
+  {% set nc = g.results|selectattr('passed', 'equalto', false)|map(attribute='rule.severity')|list %}
+  <details class="pol" {{ 'open' if loop.first and g.fails }}>
+    <summary><div><div class="nm">{{ g.policy.name }}</div><div class="muted sm">{{ _f('{0} reglas', tot) }} · tipo <span class="mono" title="{{ g.policy.device_type_filter or '' }}">{{ (g.policy.device_type_filter or '.*')|truncate(36) }}</span></div></div>
+      <div class="barw"><div class="bar"><i class="ok" style="width:{{ ok_n / tot * 100 }}%"></i><i class="crit" style="width:{{ nc.count('critical') / tot * 100 }}%"></i><i class="major" style="width:{{ nc.count('major') / tot * 100 }}%"></i><i class="warn" style="width:{{ (g.fails - nc.count('critical') - nc.count('major')) / tot * 100 }}%"></i></div>
+        <div class="muted sm" style="margin-top:4px">{{ _f('{0} de {1} cumplen', ok_n, tot) }}</div></div>
+      {% if g.fails %}<span class="pill crit">{{ _f('{0} infracciones', g.fails) }}</span>{% else %}<span class="pill ok">Cumple</span>{% endif %}
+      {% if g.fixable and can_run %}<form method="post" action="/compliance/remediate-policy"><input type="hidden" name="policy_id" value="{{ g.policy.id }}"><input type="hidden" name="device_id" value="{{ device.id }}"><input type="hidden" name="next" value="/devices/{{ device.id }}#compliance">
+        <button class="btn s sig">{{ icon('wrench', 's') }}{{ _f('Corregir {0}', g.fixable) }}</button></form>
+      {% elif is_admin %}<a class="btn s ghost" href="/compliance/policies/{{ g.policy.id }}">{{ icon('edit', 's') }}Editar</a>{% else %}<span></span>{% endif %}</summary>
+    {% set fails = g.results|rejectattr('passed')|list %}
+    {% if fails %}<div>{% for c in fails %}<div class="rule">{{ sevtag(c.rule.severity) }}<span>{{ c.rule.name }}{% if not c.rule.remediation %} <span class="muted">· sin corrección automática</span>{% endif %}</span>
+      {% if c.rule.remediation and can_run %}<form method="post" action="/compliance/remediate/{{ c.id }}"><button class="btn s">Corregir</button></form>
+      {% elif is_admin %}<a class="btn s ghost" href="/compliance/policies/{{ g.policy.id }}">Añadir corrección</a>{% else %}<span></span>{% endif %}</div>{% endfor %}</div>{% endif %}
+    <div class="passed">{{ icon('check', 's') }} {{ _f('{0} reglas cumplen', ok_n) }}</div>
+  </details>
+  {% endfor %}
+  {% else %}
+  <section class="card"><div class="empty">{{ empty_art('search') }}<h2>Aún no se ha auditado</h2><p>{% if device.last_backup_at %}No hay políticas que apliquen a {{ profile.label }} o aún no se audita.{% else %}Este equipo todavía no tiene un respaldo, así que no hay configuración que revisar.{% endif %}</p>
+    {% if can_run %}{% if device.last_backup_at %}<form method="post" action="/devices/{{ device.id }}/compliance"><button class="btn pri">{{ icon('shield', 's') }}Auditar ahora</button></form>{% else %}<form method="post" action="/devices/{{ device.id }}/backup"><button class="btn pri">Respaldar ahora</button></form>{% endif %}{% endif %}</div></section>
+  {% endif %}
 </section>
 
-<section class="tab-panel" id="vulns" aria-label="Vulnerabilidades">
-<div class="card flush">
-  <div class="card-head"><h2>Vulnerabilidades de firmware ({{ vulns|length }})</h2>
-    {% if can_run %}<form method="post" action="/devices/{{ device.id }}/cve"><button class="sec sm">{{ icon('refresh', 'sm') }} Buscar de nuevo</button></form>{% endif %}</div>
-  <table class="dtable"><thead><tr><th>CVE</th><th>CVSS</th><th>Severidad</th><th>Descripción</th></tr></thead>
-  {% for v in vulns %}
-  <tr><td class="mono"><a href="{{ v.url }}" target="_blank" rel="noopener">{{ v.cve_id }}</a></td><td class="num">{{ v.score or '—' }}</td>
-  <td>{% set s = sevmap.get((v.severity or '').upper(), 'info') %}<span class="sev {{ s }}">{{ sevlabel[s] }}</span></td><td class="small">{{ (v.description or '')[:300] }}</td></tr>
-  {% else %}<tr class="empty-row"><td colspan="4"><div class="empty">{{ empty_art('search') }}<h3>Aún no se han buscado vulnerabilidades</h3><p class="muted">Use «Buscar CVE de firmware» en el menú ⋯ para comparar su versión con la base del NIST.</p></div></td></tr>{% endfor %}
-  </table>
-</div>
+<section id="vulns" class="stack" aria-label="Vulnerabilidades">
+  <div class="row between"><span class="muted sm">{{ _f('Firmware {0}', device.os_version or '—') }}{% if cve_at %} · {{ _f('consultado {0} en NVD', cve_at|ago) }}{% endif %}.</span>
+    {% if can_run %}<form class="inline" method="post" action="/devices/{{ device.id }}/cve"><button class="btn s">{{ icon('search', 's') }}Buscar CVE de firmware</button></form>{% endif %}</div>
+  {% if vulns %}
+  <section class="card flush"><div class="tw"><table class="t"><thead><tr><th>CVE</th><th>CVSS</th><th>Severidad</th><th>Afecta a</th><th>Qué permite</th><th>Solución</th></tr></thead><tbody>
+  {% for v in vulns %}{% set sc = v.score or 0 %}
+  <tr><td class="mono" style="white-space:nowrap"><a href="{{ v.url }}" target="_blank" rel="noopener" style="color:var(--ink)">{{ v.cve_id }}</a>{% if v.kev %}<div style="margin-top:4px"><span class="tag crit">explotado activamente</span></div>{% endif %}</td>
+    <td><span class="mc num {{ 'crit' if sc >= 9 else 'major' if sc >= 7 else 'warn' }}">{{ '%.1f'|format(sc) if v.score else '—' }}</span></td>
+    <td>{{ sevtag(v.severity) }}</td><td style="white-space:nowrap"><a href="/devices/{{ device.id }}">{{ device.name }}</a></td>
+    <td style="min-width:260px" class="sm" title="{{ v.description or '' }}">{{ (v.description or '')|truncate(160) }}</td><td class="sm" style="min-width:120px">{% if v.url %}<a href="{{ v.url }}" target="_blank" rel="noopener">Ver en NVD</a>{% else %}—{% endif %}</td></tr>
+  {% endfor %}</tbody></table></div></section>
+  {% else %}<section class="card"><div class="empty">{{ empty_art('search') }}<h2>{{ _('Sin vulnerabilidades conocidas') if cve_at else _('Aún no se han buscado vulnerabilidades') }}</h2><p>{{ _('No hay CVE publicados que afecten a esta versión de firmware.') if cve_at else _('Usa «Buscar CVE de firmware» para comparar su versión con la base del NIST.') }}</p></div></section>{% endif %}
 </section>
 
-{% if images and can_run %}
-<section class="tab-panel" id="firmware" aria-label="Firmware">
-<div class="card">
-  <h2 style="margin-top:0">Actualizar firmware</h2>
-  <form method="post" action="/firmware/upgrade" class="row">
-    <input type="hidden" name="device_ids" value="{{ device.id }}">
-    <div><label>Imagen</label><select name="image_id">{% for i in images %}<option value="{{ i.id }}">{{ i.filename }}{% if i.version %} ({{ i.version }}){% endif %}</option>{% endfor %}</select></div>
-    <label class="chk"><input type="checkbox" name="reload"> Reiniciar al terminar</label>
-    <button>Solicitar actualización…</button>
+<section id="firmware" aria-label="Firmware">
+  <section class="card"><div class="card-h"><h2>Actualizar firmware</h2><span class="muted sm">Instalado: <span class="mono">{{ device.os_version or '—' }}</span></span></div>
+  {% if images and can_run %}
+  <form method="post" action="/firmware/upgrade"><input type="hidden" name="device_ids" value="{{ device.id }}">
+  <div class="bento"><div class="c6 stack">
+    <div class="field"><label for="fwimg">Imagen</label><div class="input"><select id="fwimg" name="image_id">{% for i in images %}<option value="{{ i.id }}">{{ i.filename }}{% if i.version %} · {{ i.version }}{% endif %}</option>{% endfor %}</select></div>
+      <span class="help">{{ _f('Se transfiere por SCP a {0}, se verifica el MD5 en el equipo y se configura el arranque. Requiere aprobación.', profile.firmware.fs) }}</span></div>
+    <label class="ck"><input type="checkbox" name="reload"> Reiniciar al terminar</label>
+    <div><button class="btn pri">Solicitar actualización…</button></div></div>
+  <div class="c6"><div class="summ">{{ icon('shield') }}<div><b>Antes de actualizar</b><div class="muted sm">Se hace un respaldo automático. Si el equipo no vuelve en 10 minutos, aparece en Alarmas.{% if crit_cves %} {{ _f('Hay {0} CVE críticos en la versión instalada.', crit_cves) }}{% endif %}</div></div></div></div></div>
   </form>
-  <p class="small muted">Se transfiere por SCP a <code>{{ profile.firmware.fs }}</code>, se verifica el MD5 en el equipo y se configura el arranque. Requiere aprobación.</p>
-</div>
-</section>
-{% endif %}
-
-<section class="tab-panel" id="activity" aria-label="Actividad">
-<div class="card">
-  <h2 style="margin-top:0">Eventos del equipo {% if events|length > 3 %}<span class="small muted">({{ events|length }}; baje con la barra de la derecha para ver más)</span>{% endif %}</h2>
-  <div class="scrollbox" data-rows="3" tabindex="0" aria-label="Eventos del equipo">
-  <table>{% for e in events %}
-  <tr class="item"><td>{{ sevtag(e.severity) }}</td><td class="small" title="{{ e.created_at|dt }}">{{ e.created_at|ago }}</td><td><b>{{ _(e.category) }}</b><pre style="max-height:84px">{{ e.message }}</pre></td></tr>
-  {% else %}<tr class="empty-row"><td colspan="3"><div class="empty">{{ empty_art('check') }}<h3>Sin actividad</h3><p class="muted">Este equipo no tiene eventos registrados.</p></div></td></tr>{% endfor %}</table>
-  </div>
-</div>
+  {% elif not profile.firmware %}<p class="muted">La actualización remota de firmware no está disponible para {{ profile.label }}.</p>
+  {% else %}<p class="muted">{{ _f('No hay imágenes cargadas para {0}.', profile.label) }} <a href="/firmware">Carga una en Firmware</a>.</p>{% endif %}
+  </section>
 </section>
 
-{% if user.role == 'admin' %}
-<dialog id="del-dlg" class="confirm-dlg" aria-labelledby="del-t">
-  <form method="post" action="/devices/{{ device.id }}/delete">
-    <h2 id="del-t">Eliminar {{ device.name }}</h2>
-    <p>Se borrarán el equipo y <b>todo su historial</b>: versiones, resultados de cumplimiento y eventos. No se puede deshacer.</p>
-    <label for="del-name">Escriba <b>{{ device.name }}</b> para confirmar</label>
-    <input id="del-name" autocomplete="off" data-expect="{{ device.name }}" style="width:100%">
-    <p class="row" style="margin-top:16px"><button class="danger-fill" disabled>{{ icon('trash', 'sm') }} Eliminar equipo</button>
-      <button type="button" class="ghost" data-close>Cancelar</button></p>
-  </form>
-</dialog>
+<section id="activity" class="stack" aria-label="Eventos">
+  <section class="card flush"><div class="card-h"><h2>Alarmas del equipo</h2></div>
+    {% if events %}<ul class="queue">{% for e in events %}{% set s = sevmap.get(e.severity, 'minor' if e.severity == 'warning' else 'info') %}
+      <li><span class="qi {{ s }}">{{ icon('alert' if s == 'crit' else 'bell') }}</span><div style="min-width:0"><div class="row"><span class="qt">{{ _(e.category) }}</span>{{ sevtag(e.severity) }}{% if e.acknowledged %}<span class="tag">reconocida</span>{% endif %}</div>
+        <div class="qs">{{ (e.message or '').replace('\n', ' · ')|truncate(140) }} · <span title="{{ e.created_at|dt }}">{{ e.created_at|ago }}</span></div></div>
+        {% if not e.acknowledged and can_run %}<form method="post" action="/events/ack"><input type="hidden" name="id" value="{{ e.id }}"><button class="btn s">Reconocer</button></form>{% else %}<span></span>{% endif %}</li>
+    {% endfor %}</ul>{% else %}<div class="empty">{{ empty_art('check') }}<h2>Sin eventos</h2><p>Este equipo no tiene alarmas.</p></div>{% endif %}</section>
+  {% if audit_rows %}<section class="card flush"><div class="card-h"><h2>Actividad de usuarios en este equipo</h2></div><div class="tw"><table class="t"><tbody>
+    {% for r in audit_rows %}<tr><td class="muted" style="white-space:nowrap" title="{{ r.created_at|dt }}">{{ r.created_at|ago }}</td><td>{{ r.username }}</td><td>{{ r.action }}{% if r.detail %} · <span class="muted">{{ r.detail[:160] }}</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
+</section>
+
+{% if can_run %}
+<dialog class="dlg" id="rev-dlg" aria-labelledby="rev-t"><form method="post" id="rev-form">
+  <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi major">{{ icon('undo') }}</span><div><h2 id="rev-t"></h2>
+    <p class="muted" style="margin-top:6px">Se enviará esa configuración al equipo. Antes se hace un respaldo. Se creará una solicitud de cambio para revisar los comandos.</p></div></div>
+  <div class="banner crit" id="rev-inc" hidden>{{ icon('alert') }}<span>Esta versión parece incompleta. Revertir podría dejar el equipo sin parte de su configuración.</span></div>
+  <label class="ck" id="rev-gate" hidden><input type="checkbox" name="confirm" value="1"> Entiendo el riesgo: revertir de todas formas</label>
+  <div class="row end"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn pri" id="rev-ok">Crear solicitud</button></div>
+</form></dialog>
 {% endif %}
+{% if is_admin %}
+<dialog class="dlg" id="del-dlg" aria-labelledby="del-t"><form method="post" action="/devices/{{ device.id }}/delete">
+  <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi crit">{{ icon('trash') }}</span><div><h2 id="del-t">{{ _f('¿Eliminar {0}?', device.name) }}</h2>
+    <p class="muted" style="margin-top:6px">Se borrarán sus versiones de configuración, resultados y eventos. No se puede deshacer.</p></div></div>
+  <div class="field"><label for="del-name">Escribe <span class="mono">{{ device.name }}</span> para confirmar</label><div class="input"><input id="del-name" autocomplete="off" data-expect="{{ device.name }}"></div></div>
+  <div class="row end"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn dzf" disabled>Eliminar equipo</button></div>
+</form></dialog>
+{% endif %}
+<script>
+(function () {
+  const T = {{ {'rev': _('¿Revertir {0} a la versión {1}?')}|tojson }}, name = {{ device.name|tojson }};
+  const INC = {{ tl|selectattr('inc')|map(attribute='id')|list|tojson }};
+  // línea de tiempo: primer clic = A, siguiente = B (se guarda cuál toca en la sesión del navegador)
+  const key = 'oc-pick-' + {{ device.id }};
+  document.querySelectorAll('.tl[data-tl] li[data-id]').forEach(li => {
+    const pick = () => {
+      const p = new URLSearchParams(location.search);
+      let next = 'A'; try { next = sessionStorage.getItem(key) || 'A'; } catch (e) {}
+      const cur = {a: p.get('a') || '{{ sel_a }}', b: p.get('b') || '{{ sel_b }}'};
+      cur[next === 'A' ? 'a' : 'b'] = li.dataset.id;
+      try { sessionStorage.setItem(key, next === 'A' ? 'B' : 'A'); } catch (e) {}
+      p.set('a', cur.a); p.set('b', cur.b);
+      location.href = '?' + p.toString() + '#versions';
+    };
+    li.addEventListener('click', e => { if (!e.target.closest('a, button')) pick(); });
+    li.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+  });
+  const ctx = document.getElementById('ctxsel');
+  if (ctx) ctx.addEventListener('change', () => { location.href = ctx.dataset.base + '&ctx=' + ctx.value + '#versions'; });
+  // «Revertir…» y «Volver a la línea base…»: diálogo de confirmación (con aviso si la versión parece incompleta)
+  const dlg = document.getElementById('rev-dlg');
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-revert]'); if (!b || !dlg) return;
+    const id = +b.dataset.revert, inc = INC.includes(id);
+    document.getElementById('rev-form').action = '/versions/' + id + '/rollback';
+    document.getElementById('rev-t').textContent = T.rev.replace('{0}', name).replace('{1}', b.dataset.n || id);
+    document.getElementById('rev-inc').hidden = !inc; document.getElementById('rev-gate').hidden = !inc;
+    const gate = dlg.querySelector('#rev-gate input'); gate.checked = false;
+    document.getElementById('rev-ok').disabled = inc;
+    gate.onchange = () => { document.getElementById('rev-ok').disabled = !gate.checked; };
+    const dd = document.querySelector('.drop[data-open]'); if (dd) dd.hidden = true;
+    dlg.showModal();
+  });
+})();
+</script>
 {% endblock %}

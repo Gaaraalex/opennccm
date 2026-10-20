@@ -1,7 +1,8 @@
 {% extends "base.html" %}{% block title %}Privacidad, cookies y licencias{% endblock %}
+{% block crumbs %}<b>Acerca de</b>{% endblock %}
 {% block content %}
-<h1>Acerca de OpenNCCM: privacidad, cookies, condiciones y licencias</h1>
-<div class="card" style="max-width:900px">
+<div class="ph"><div class="grow"><h1>Acerca de OpenNCCM</h1><div class="sub">{{ _f('Privacidad, cookies, condiciones y licencias · versión {0}', VERSION) }}</div></div></div>
+<section class="card"><div class="prose">
   <h2 id="responsable" style="margin-top:0">Responsable de esta instalación</h2>
   {% if org.name or org.contact %}
   <p>Esta instalación de OpenNCCM la administra <b>{{ org.name or '—' }}</b>{% if org.address %}, {{ org.address }}{% endif %}.
@@ -14,14 +15,14 @@
   ningún dato de esta instalación.</p>
 
   <h2 id="privacidad">Privacidad: qué datos se guardan</h2>
-  <table>
+  <div class="tw"><table class="t">
     <tr><th>Dato</th><th>Para qué</th><th>Cómo se protege</th></tr>
     <tr><td>Usuarios: nombre, rol, correo (opcional), fecha e IP del último ingreso</td><td>Iniciar sesión y controlar permisos</td><td>Contraseña con PBKDF2-SHA256 (600 000 iteraciones), nunca en texto plano; verificación en dos pasos opcional</td></tr>
     <tr><td>Credenciales de los equipos de red</td><td>Conectarse para respaldar y aplicar cambios</td><td>Cifradas con AES-256-GCM; nunca se muestran en pantalla</td></tr>
     <tr><td>Configuraciones, inventario y estado de los equipos</td><td>Respaldos, comparación de cambios, cumplimiento</td><td>En el servidor; las versiones antiguas se borran según la retención configurada</td></tr>
     <tr><td>Registro de auditoría: usuario, acción, dirección IP y fecha</td><td>Seguridad y trazabilidad de los cambios</td><td>Solo lo ven los administradores</td></tr>
     <tr><td>Eventos y mensajes syslog de los equipos</td><td>Detectar cambios y alarmas</td><td>En el servidor</td></tr>
-  </table>
+  </table></div>
   <p>Todo se guarda en este servidor. <b>No se venden ni se comparten datos, no hay publicidad, no hay analíticas ni
   seguimiento</b>, y las páginas no cargan nada de servidores de terceros (ni fuentes, ni scripts, ni widgets).</p>
   <h3>Conexiones a servicios externos (solo las que el administrador activa)</h3>
@@ -34,11 +35,11 @@
   </ul>
 
   <h2 id="cookies">Cookies</h2>
-  <table>
+  <div class="tw"><table class="t">
     <tr><th>Nombre</th><th>Tipo</th><th>Finalidad</th><th>Duración</th></tr>
     <tr><td><code>opennccm</code></td><td>Propia, técnica, estrictamente necesaria</td><td>Mantener la sesión iniciada (firmada; SameSite=Strict{% if request.url.scheme == 'https' %}, solo HTTPS{% endif %})</td>
       <td>Se borra al cerrar sesión, tras el tiempo de inactividad configurado o, como máximo, a las 12 horas</td></tr>
-  </table>
+  </table></div>
   <p>No se usan cookies de análisis, publicidad, redes sociales ni de terceros, ni almacenamiento local del navegador. Las cookies
   estrictamente necesarias para prestar el servicio que el usuario solicita (iniciar sesión) <b>no requieren consentimiento</b>
   según la Directiva europea de privacidad electrónica (art. 5.3 de la Directiva 2002/58/CE) y las normas equivalentes de otros
@@ -71,11 +72,11 @@
     <tr><td>itsdangerous</td><td>BSD-3-Clause</td><td>python-multipart</td><td>Apache-2.0</td></tr>
     <tr><td>pyotp</td><td>MIT</td><td>segno</td><td>BSD-3-Clause</td></tr>
     <tr><td>psutil</td><td>BSD-3-Clause</td><td>xterm.js (consola web, incluido en /static)</td><td>MIT</td></tr>
-  </table>
+  </table></div>
 
   <h2 id="accesibilidad">Accesibilidad</h2>
   <p>La interfaz se puede usar con teclado, tiene textos alternativos y etiquetas en formularios y botones, respeta el tamaño de
-  letra del navegador e incluye un tema de <b>alto contraste</b> (Mi cuenta → Tema). Si encuentra una barrera de accesibilidad,
+  letra del navegador e incluye un tema de <b>alto contraste</b> (Mi cuenta → Apariencia). Si encuentra una barrera de accesibilidad,
   comuníquelo a {{ org.contact or _('su administrador') }}.</p>
-</div>
+</div></section>
 {% endblock %}
