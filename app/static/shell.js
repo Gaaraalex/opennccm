@@ -149,6 +149,24 @@
     frame.addEventListener('load', function () { cmd('fit'); });
   });
 
+  /* ---------- «Apoya OpenNCCM»: en el móvil, diálogo centrado en lugar del desplegable; «Donar» del aviso ---------- */
+  document.addEventListener('click', function (e) {
+    var dlg = $('#don-dlg');
+    var top = e.target.closest('[data-drop="don-pop"]');
+    if (top && dlg && window.innerWidth < 860) {
+      e.preventDefault(); e.stopImmediatePropagation(); closeDrops(); dlg.showModal(); return;
+    }
+    if (e.target.closest('[data-donate]')) {
+      e.preventDefault();
+      var b = $('[data-drop="don-pop"]');
+      if (b && window.innerWidth >= 860 && b.offsetParent !== null) { e.stopImmediatePropagation(); closeDrops(); setTimeout(function () { b.click(); }, 0); }
+      else if (dlg) dlg.showModal();
+      var t = e.target.closest('.toast'); if (t) t.remove();
+      return;
+    }
+    if (e.target.closest('[data-dismiss-toast]')) { var w = e.target.closest('.toast'); if (w) w.remove(); }
+  }, true);
+
   /* ---------- diálogos (atajos, confirmaciones creadas por las páginas) ---------- */
   var overlay = null;
   function closeOverlay() {
