@@ -50,7 +50,7 @@
   <td data-stop><div class="acts">
     {% if d.last_status == 'error' and can_run %}<form method="post" action="/devices/{{ d.id }}/backup"><button class="btn s">Reintentar</button></form>
     {% else %}
-    {% if can_console and d.protocol == 'ssh' %}<a class="btn icon s" href="/devices/{{ d.id }}/console" target="_blank" rel="noopener" onclick="return abrirVentana(this.href, 'consola-{{ d.id }}', 1000, 640)" title="Consola SSH" aria-label="{{ _f('Consola SSH de {0}', d.name) }}">{{ icon('term', 's') }}</a>{% endif %}
+    {% if can_console and d.protocol == 'ssh' %}<a class="btn icon s" href="/devices/{{ d.id }}/console" target="_blank" rel="noopener" data-console="{{ d.id }}" data-name="{{ d.name }}" data-vend="{{ (prof.vendor if prof else d.device_type)[:3]|upper }}" title="Consola SSH" aria-label="{{ _f('Consola SSH de {0}', d.name) }}">{{ icon('term', 's') }}</a>{% endif %}
     {% if d.web_enabled != false %}<a class="btn icon s" href="{{ d.web_url or 'https://' ~ d.host ~ '/' }}" target="_blank" rel="noopener noreferrer" onclick="return abrirVentana(this.href, 'web-{{ d.id }}', 1280, 820)" title="Interfaz web" aria-label="{{ _f('Interfaz web de {0}', d.name) }}">{{ icon('globe', 's') }}</a>{% endif %}
     {% if can_run %}<form method="post" action="/devices/{{ d.id }}/backup"><button class="btn icon s" title="Respaldar ahora" aria-label="{{ _f('Respaldar {0} ahora', d.name) }}">{{ icon('dl', 's') }}</button></form>{% endif %}
     {% endif %}</div></td>

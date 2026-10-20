@@ -15,7 +15,7 @@
     {% if device.startup_conflict %}<span class="pill warn">Startup ≠ running</span>{% endif %}
     {% if not device.enabled %}<span class="tag">deshabilitado</span>{% endif %}</div>
     <div class="muted" style="margin-top:2px">{{ profile.label }} · <span class="mono">{{ device.host }}{{ ':' ~ device.port if device.port != (23 if device.protocol == 'telnet' else 22) }}</span> ({{ device.protocol|upper }}) · {{ _f('respaldado {0}', device.last_backup_at|ago) if device.last_backup_at else _('sin respaldar todavía') }}</div></div></div>
-  {% if can_console and device.protocol == 'ssh' %}<a class="btn" href="/devices/{{ device.id }}/console" target="_blank" rel="noopener" onclick="return abrirVentana(this.href, 'consola-{{ device.id }}', 1000, 640)" aria-label="Consola SSH (ventana nueva)">{{ icon('term', 's') }}Consola</a>{% endif %}
+  {% if can_console and device.protocol == 'ssh' %}<a class="btn" href="/devices/{{ device.id }}/console" target="_blank" rel="noopener" data-console="{{ device.id }}" data-name="{{ device.name }}" data-vend="{{ profile.vendor[:3]|upper }}" aria-label="{{ _f('Consola SSH de {0}', device.name) }}">{{ icon('term', 's') }}Consola</a>{% endif %}
   {% if device.web_enabled != false %}<a class="btn" href="{{ device.web_url or 'https://' ~ device.host ~ '/' }}" target="_blank" rel="noopener noreferrer" onclick="return abrirVentana(this.href, 'web-{{ device.id }}', 1280, 820)" aria-label="Interfaz web del equipo (ventana nueva)">{{ icon('globe', 's') }}Interfaz web</a>{% endif %}
   {% if can_run %}<form class="inline" method="post" action="/devices/{{ device.id }}/backup"><button class="btn pri">{{ icon('dl', 's') }}Respaldar ahora</button></form>{% endif %}
   <span class="dropw"><button type="button" class="btn icon" data-drop="dev-menu" aria-haspopup="true" aria-expanded="false" aria-label="Más acciones" title="Más acciones">{{ icon('more', 's') }}</button>
@@ -25,10 +25,14 @@
       <a href="#firmware" data-tab-link>{{ icon('chip', 's') }}Actualizar firmware…</a>{% endif %}
       {% if is_admin %}<a href="/devices/{{ device.id }}/edit" data-sheet data-title="{{ _f('Editar {0}', device.name) }}">{{ icon('edit', 's') }}Editar</a>{% endif %}
       {% if latest_run %}<a href="/diff?a={{ latest_run }}&b={{ latest_run }}">{{ icon('branch', 's') }}Comparar con otro equipo</a>{% endif %}
-      {% if device.baseline_version_id %}<hr>
-      <a href="?a={{ device.baseline_version_id }}&b={{ latest_run }}#versions">{{ icon('flag', 's') }}Ver diferencias con la línea base</a>
-      {% if can_run %}<button type="button" data-revert="{{ device.baseline_version_id }}" data-n="{{ base_n }}">{{ icon('undo', 's') }}Volver a la línea base…</button>{% endif %}{% endif %}
-      {% if is_admin %}{% if not device.baseline_version_id %}<hr>{% endif %}<button type="button" class="dz" data-dialog="del-dlg">{{ icon('trash', 's') }}Eliminar equipo…</button>{% endif %}
+      <hr>
+      {% if device.baseline_version_id %}<a href="?a={{ device.baseline_version_id }}&b={{ latest_run }}#versions">{{ icon('flag', 's') }}Ver diferencias con la línea base</a>
+      {% if can_run %}<button type="button" data-revert="{{ device.baseline_version_id }}" data-n="{{ base_n }}">{{ icon('undo', 's') }}Volver a la línea base…</button>{% endif %}
+      {% else %}{# sin línea base: las mismas opciones del prototipo; la primera la crea con la última versión #}
+      {% if latest_run and can_run %}<form method="post" action="/versions/{{ latest_run }}/baseline"><button>{{ icon('flag', 's') }}Marcar la última versión como línea base</button></form>
+      {% else %}<button type="button" disabled title="{{ _('Este equipo aún no tiene línea base') }}">{{ icon('flag', 's') }}Ver diferencias con la línea base</button>{% endif %}
+      <button type="button" disabled title="{{ _('Este equipo aún no tiene línea base') }}">{{ icon('undo', 's') }}Volver a la línea base…</button>{% endif %}
+      {% if is_admin %}<button type="button" class="dz" data-dialog="del-dlg">{{ icon('trash', 's') }}Eliminar equipo…</button>{% endif %}
     </div></span>
 </div>
 

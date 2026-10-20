@@ -1,21 +1,41 @@
 {% extends "base.html" %}{% block title %}Activar verificación en dos pasos{% endblock %}
+{% block crumbs %}<a href="/account">Mi cuenta</a>{{ icon('right', 's') }}<b>Verificación en dos pasos</b>{% endblock %}
 {% block content %}
-<h1>Activar verificación en dos pasos</h1>
-<div class="card" style="max-width:640px">
-  <ol class="steps">
-    <li>Instale en su teléfono una app de autenticación: Google Authenticator, Microsoft Authenticator, Authy o FreeOTP.</li>
-    <li>En la app, elija «Agregar cuenta» y escanee este código:
-      <div class="qr">{{ qr|safe }}</div>
-      <p class="small muted">¿No puede escanearlo? Escriba esta clave en la app (tipo «basada en tiempo»):<br>
-      <code style="font-size:15px;letter-spacing:1px;user-select:all">{{ secret }}</code></p></li>
-    <li>Escriba el código de 6 dígitos que muestra la app para confirmar:</li>
-  </ol>
-  <form method="post" action="/account/2fa/setup" class="row">
-    <div><label for="code">Código de la app</label>
-      <input id="code" name="code" required inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" autofocus></div>
-    <button>Confirmar y activar</button>
+<div class="ph"><div class="grow"><h1>Activar verificación en dos pasos</h1><div class="sub">Aunque alguien conozca tu contraseña, no podrá entrar sin el código de tu teléfono.</div></div></div>
+<section class="card" style="max-width:640px">
+  <form method="post" action="/account/2fa/setup" id="l2" class="stack">
+    <ol class="steps">
+      <li><span>Abre tu app de autenticación (Google Authenticator, Microsoft Authenticator, Authy, FreeOTP…).</span></li>
+      <li><span>En la app, elige «Agregar cuenta» y escanea este código QR.
+        <div class="qr" style="margin-top:10px">{{ qr|safe }}</div>
+        <div class="muted sm" style="margin-top:8px">¿No puedes escanearlo? Escribe esta clave en la app (tipo «basada en tiempo»):<br>
+          <code style="font-size:14px;letter-spacing:1px;color:var(--ink);user-select:all">{{ secret }}</code></div></span></li>
+      <li><span>Escribe el código de 6 cifras que muestra la app.</span></li>
+    </ol>
+    <div class="otp" role="group" aria-label="{{ _('Código de la app') }}">{% for i in range(6) %}<input inputmode="numeric" maxlength="1" id="otp{{ i }}" aria-label="{{ _f('Cifra {0}', i + 1) }}" autocomplete="{{ 'one-time-code' if i == 0 else 'off' }}" {{ 'autofocus' if i == 0 }}>{% endfor %}</div>
+    <input type="hidden" name="code" id="code">
+    <div class="row end"><a class="btn ghost" href="/account">Cancelar</a><button class="btn pri">Confirmar y activar</button></div>
   </form>
-  <p class="small muted">Si pierde el teléfono, un administrador puede quitarle la verificación en <b>Usuarios → Editar</b>, o
-  desde la consola del servidor con <code>sudo opennccm reset-2fa USUARIO</code>.</p>
-</div>
+  <p class="muted sm" style="margin-top:14px">Si pierdes el teléfono, un administrador puede quitarte la verificación en <b>Administración › Usuarios › Editar</b>, o desde la consola del servidor con <code>sudo opennccm reset-2fa USUARIO</code>.</p>
+</section>
+<script>
+(function () {
+  const f = document.getElementById('l2'), boxes = Array.from(f.querySelectorAll('.otp input')), code = document.getElementById('code');
+  const fill = () => { code.value = boxes.map(b => b.value).join(''); };
+  f.addEventListener('input', e => {
+    if (!e.target.matches('.otp input')) return;
+    e.target.value = e.target.value.replace(/\D/g, '').slice(-1);
+    fill();
+    if (e.target.value) { const n = e.target.nextElementSibling; if (n) n.focus(); else if (code.value.length === 6) f.requestSubmit(); }
+  });
+  f.addEventListener('keydown', e => {
+    if (e.key === 'Backspace' && e.target.matches('.otp input') && !e.target.value) { const p = e.target.previousElementSibling; if (p) p.focus(); }
+  });
+  f.addEventListener('paste', e => {
+    const t = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, 6);
+    if (t.length === 6) { e.preventDefault(); t.split('').forEach((c, i) => { boxes[i].value = c; }); fill(); f.requestSubmit(); }
+  });
+  f.addEventListener('submit', fill);
+})();
+</script>
 {% endblock %}
