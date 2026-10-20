@@ -7,12 +7,13 @@ import json
 import logging
 import os
 import re
+import secrets
 import time
 from contextlib import asynccontextmanager
 from datetime import timedelta
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import case, delete, func, or_, select
 from starlette.middleware.sessions import SessionMiddleware
@@ -27,6 +28,7 @@ from .db import (AuditLog, ChangeRequest, ComplianceResult, Configlet, ConfigVer
                  DeviceGroup, Event, FirmwareImage, Policy, Rule, SessionLocal, Schedule, User, UserGroup,
                  Vulnerability, audit,
                  get_setting, init_db, now, set_setting)
+from . import extauth
 from .drivers import PROFILE_MAP, get_profile
 from .i18n import LANGS, LangMiddleware, N_, _, _f
 from .web import csv_response, flash, go, ip, log_action, render
@@ -106,7 +108,8 @@ ACCOUNT_LOCK_MINUTES = 15
 def login_form(request: Request):
     if request.session.pop("expired", None):
         flash(request, _("Su sesión se cerró por inactividad. Vuelva a ingresar."), "error")
-    return render(request, "login.html", None, ca_available=TLS_CA.is_file())
+    return render(request, "login.html", None, ca_available=TLS_CA.is_file(), oidc=extauth.oidc_enabled(),
+                  oidc_label=get_setting("oidc_button", "") or _("Entrar con Microsoft"), ldap=extauth.ldap_enabled())
 
 
 def _finish_login(request: Request, db, user: User, addr: str):
@@ -128,11 +131,18 @@ async def login(request: Request):
     if len(attempts) >= 10:
         flash(request, _("Demasiados intentos desde su dirección. Espere 15 minutos."), "error")
         return go("/login")
-    username, password = form.get("username", ""), form.get("password", "")
+    username, password = form.get("username", "").strip(), form.get("password", "")
     with SessionLocal() as db:
         user = db.scalars(select(User).where(User.username == username)).first()
+        if user is None and "@" in username:  # cuentas de Azure / AD guardadas en minúsculas
+            user = db.scalars(select(User).where(func.lower(User.username) == username.lower())).first()
+        if (user is None or (user.auth_source or "local") == "ldap") and extauth.ldap_enabled() \
+                and not (user and user.locked_until and user.locked_until > now()):
+            return _login_ldap(request, db, user, username, password, addr, attempts)
         if user is None:
             dummy_verify(password)  # mismo tiempo de respuesta: no revela si el usuario existe
+        elif (user.auth_source or "local") != "local":
+            pass  # cuenta de un directorio externo: su contraseña local no sirve
         elif user.locked_until and user.locked_until > now():
             audit(username, "login_locked", "", addr)
             flash(request, _("La cuenta está bloqueada temporalmente por intentos fallidos. Inténtelo más tarde o pida a un administrador que la desbloquee."), "error")
@@ -162,6 +172,113 @@ async def login(request: Request):
     audit(username or "?", "login_failed", "", addr)
     flash(request, _("Usuario o contraseña incorrectos"), "error")
     return go("/login")
+
+
+def _login_fail(request: Request, username: str, addr: str, attempts: list, msg: str | None = None):
+    attempts.append(time.time())
+    _failed[addr] = attempts
+    audit(username or "?", "login_failed", "", addr)
+    flash(request, msg or _("Usuario o contraseña incorrectos"), "error")
+    return go("/login")
+
+
+def _external_ok(request: Request, db, user: User, addr: str, source: str):
+    """Tras validar en el directorio: segundo paso si el usuario lo tiene, o sesión directamente."""
+    db.commit()  # primero se guarda la cuenta: la auditoría escribe con otra conexión (SQLite no admite dos a la vez)
+    audit(user.username, f"login_{source}", "", addr)
+    if user.totp_enabled:
+        request.session.clear()
+        request.session["pending_uid"] = user.id
+        request.session["pending_at"] = int(time.time())
+        return go("/login/2fa")
+    _finish_login(request, db, user, addr)
+    return go("/")
+
+
+def _login_ldap(request: Request, db, user: User | None, username: str, password: str, addr: str, attempts: list):
+    """Usuario y contraseña de Active Directory (cuentas que no son locales)."""
+    try:
+        ext = extauth.ldap_authenticate(username, password)
+    except extauth.ExtAuthError as e:
+        log.warning("Active Directory: %s", e)
+        services.add_event("major", "Error de Active Directory", str(e))
+        return _login_fail(request, username, addr, attempts,
+                           _("No se pudo comprobar la cuenta en el directorio. Avise a un administrador."))
+    if ext is None:
+        if user is not None:
+            user.failed_logins = (user.failed_logins or 0) + 1
+            if user.failed_logins >= ACCOUNT_LOCK_AFTER:
+                user.locked_until = now() + timedelta(minutes=ACCOUNT_LOCK_MINUTES)
+                user.failed_logins = 0
+            db.commit()
+        else:
+            dummy_verify(password)
+        return _login_fail(request, username, addr, attempts)
+    found, why = extauth.upsert_user(db, ext, "ldap")
+    if found is None:
+        db.rollback()
+        return _login_fail(request, username, addr, attempts, {
+            "norole": _("Su cuenta del directorio no pertenece a ningún grupo con acceso a OpenNCCM."),
+            "inactive": _("Su cuenta está desactivada en OpenNCCM."),
+            "local": _("Ya existe una cuenta local con ese nombre; ingrese con su contraseña de OpenNCCM.")}.get(why))
+    return _external_ok(request, db, found, addr, "ldap")
+
+
+def _redirect_uri(request: Request) -> str:
+    """Dirección de vuelta que se registra en Azure: la de Ajustes o la de esta misma página (también tras nginx)."""
+    fixed = get_setting("oidc_redirect", "")
+    if fixed:
+        return fixed
+    proto = request.headers.get("x-forwarded-proto", request.url.scheme).split(",")[0].strip()
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
+    return f"{proto}://{host}/login/oidc/callback"
+
+
+@app.get("/login/oidc")
+def login_oidc(request: Request):
+    """«Entrar con Microsoft»: lleva al proveedor con state, nonce y PKCE."""
+    if not extauth.oidc_enabled():
+        return go("/login")
+    try:
+        url, pending = extauth.oidc_begin(extauth.oidc_settings(), _redirect_uri(request))
+    except Exception as e:  # noqa: BLE001 — proveedor inaccesible o mal configurado
+        log.warning("OpenID Connect: %s", e)
+        flash(request, _("No se pudo contactar con el proveedor de identidad. Avise a un administrador."), "error")
+        return go("/login")
+    request.session["oidc"] = pending
+    return RedirectResponse(url, status_code=303)
+
+
+@app.get("/login/oidc/callback")
+def login_oidc_callback(request: Request, code: str = "", state: str = "", error: str = "", error_description: str = ""):
+    addr = ip(request)
+    pending = request.session.pop("oidc", None)
+    if error:
+        audit("?", "login_oidc_failed", error[:60], addr)
+        flash(request, _f("El proveedor de identidad no permitió el ingreso: {0}", (error_description or error)[:200]), "error")
+        return go("/login")
+    if not pending or not code or not secrets.compare_digest(state, pending.get("state", "")) \
+            or time.time() - pending.get("at", 0) > 600:
+        flash(request, _("El inicio de sesión caducó o no es válido. Inténtelo de nuevo."), "error")
+        return go("/login")
+    try:
+        ext = extauth.oidc_finish(extauth.oidc_settings(), _redirect_uri(request), code, pending)
+    except Exception as e:  # noqa: BLE001 — token inválido, proveedor caído, etc.
+        log.warning("OpenID Connect: %s", e)
+        audit("?", "login_oidc_failed", str(e)[:120], addr)
+        flash(request, _("No se pudo validar el inicio de sesión con el proveedor de identidad."), "error")
+        return go("/login")
+    with SessionLocal() as db:
+        found, why = extauth.upsert_user(db, ext, "oidc")
+        if found is None:
+            db.rollback()
+            audit(ext.username, "login_oidc_denied", why, addr)
+            flash(request, {"norole": _("Su cuenta no pertenece a ningún grupo con acceso a OpenNCCM."),
+                            "inactive": _("Su cuenta está desactivada en OpenNCCM."),
+                            "local": _("Ya existe una cuenta local con ese nombre; ingrese con su contraseña de OpenNCCM.")
+                            }.get(why, _("No se pudo iniciar sesión.")), "error")
+            return go("/login")
+        return _external_ok(request, db, found, addr, "oidc")
 
 
 @app.get("/login/2fa")
@@ -218,6 +335,9 @@ async def account_save(request: Request):
     form = await request.form()
     with SessionLocal() as db:
         u = db.get(User, user.id)
+        if (u.auth_source or "local") != "local":
+            flash(request, _("Su contraseña se administra en el directorio de su organización."), "error")
+            return go("/account")
         if not verify_password(form.get("current", ""), u.password_hash):
             flash(request, _("La contraseña actual no es correcta."), "error")
             return go("/account")
@@ -1978,13 +2098,19 @@ SETTING_KEYS = ["smtp_host", "smtp_port", "smtp_security", "smtp_user", "smtp_fr
                 "allow_self_approval", "notify_compliance", "retention_versions", "cisco_api_client_id",
                 "dr_keep", "dr_remote_host", "dr_remote_port", "dr_remote_user", "dr_remote_path",
                 "session_idle_minutes", "require_2fa_admins", "console_access", "console_autologin", "update_check",
-                "org_name", "org_contact", "org_address", "default_lang"]
+                "org_name", "org_contact", "org_address", "default_lang",
+                "ldap_enabled", "ldap_url", "ldap_starttls", "ldap_verify_tls", "ldap_bind_dn", "ldap_base_dn",
+                "ldap_user_filter", "ldap_group_admin", "ldap_group_operator", "ldap_group_viewer", "ldap_default_role",
+                "oidc_enabled", "oidc_tenant", "oidc_client_id", "oidc_discovery", "oidc_button", "oidc_redirect",
+                "oidc_group_admin", "oidc_group_operator", "oidc_group_viewer", "oidc_default_role"]
 CHECKBOX_KEYS = ("require_approval", "allow_self_approval", "notify_compliance", "require_2fa_admins",
-                 "console_autologin", "update_check")
+                 "console_autologin", "update_check", "ldap_enabled", "ldap_starttls", "ldap_verify_tls", "oidc_enabled")
 # valores por defecto cuando el ajuste nunca se guardó
 SETTING_DEFAULTS = {"allow_self_approval": "1", "session_idle_minutes": "30", "require_2fa_admins": "0",
-                    "console_access": "admin", "console_autologin": "0", "update_check": "1"}
-SECRET_FORM_KEYS = ["smtp_password", "cisco_api_secret", "dr_remote_password"]
+                    "console_access": "admin", "console_autologin": "0", "update_check": "1",
+                    "ldap_verify_tls": "1", "ldap_user_filter": "(&(objectClass=user)(sAMAccountName={username}))"}
+SECRET_FORM_KEYS = ["smtp_password", "cisco_api_secret", "dr_remote_password", "ldap_bind_password", "oidc_client_secret"]
+ROLE_KEYS = ("ldap_default_role", "oidc_default_role")
 
 
 @app.get("/settings")
@@ -1993,7 +2119,34 @@ def settings(request: Request):
     values = {k: get_setting(k, SETTING_DEFAULTS.get(k, "")) for k in SETTING_KEYS}
     for k in SECRET_FORM_KEYS:
         values[f"{k}_set"] = bool(get_setting(k))
-    return render(request, "settings.html", user, s=values)
+    return render(request, "settings.html", user, s=values, redirect_uri=_redirect_uri(request))
+
+
+@app.post("/settings/ldap-test")
+async def settings_ldap_test(request: Request):
+    """«Probar conexión» con Active Directory, con lo que hay escrito en el formulario (sin guardarlo)."""
+    user = require(request, "admin")
+    form = await request.form()
+    cfg = {k: (form.get(f"ldap_{k}") or "").strip() for k in ("url", "bind_dn", "base_dn", "user_filter",
+                                                               "group_admin", "group_operator", "group_viewer", "default_role")}
+    cfg["starttls"] = "1" if form.get("ldap_starttls") == "on" else "0"
+    cfg["verify_tls"] = "1" if form.get("ldap_verify_tls") == "on" else "0"
+    cfg["bind_password"] = form.get("ldap_bind_password") or get_setting("ldap_bind_password", "")
+    if not cfg["url"]:
+        return JSONResponse({"ok": False, "msg": _("Escriba la dirección del servidor.")})
+    try:
+        res = extauth.ldap_test(cfg, (form.get("test_user") or "").strip())
+    except extauth.ExtAuthError as e:
+        return JSONResponse({"ok": False, "msg": str(e)})
+    log_action(request, user, "ldap_test", cfg["url"])
+    if res == "ok":
+        return JSONResponse({"ok": True, "msg": _("Conexión correcta: la cuenta de servicio inició sesión.")})
+    if res == "notfound":
+        return JSONResponse({"ok": False, "msg": _("Conexión correcta, pero no se encontró ese usuario con el filtro indicado.")})
+    _f_, role, n = res.split(":")
+    names = {"admin": _("administrador"), "operator": _("operador"), "viewer": _("lector")}
+    return JSONResponse({"ok": bool(role), "msg": _f("Usuario encontrado, en {0} grupos. Rol en OpenNCCM: {1}.", n,
+                                                      names.get(role, _("sin acceso")))})
 
 
 @app.post("/settings")
@@ -2014,6 +2167,8 @@ async def settings_save(request: Request):
             set_setting(k, form.get(k) if form.get(k) in LANGS else "es")
         elif k == "console_access":
             set_setting(k, form.get(k) if form.get(k) in ("off", "admin", "operator") else "admin")
+        elif k in ROLE_KEYS:
+            set_setting(k, form.get(k) if form.get(k) in ROLES else "")
         else:
             set_setting(k, (form.get(k) or "").strip())
     clear_settings_cache()

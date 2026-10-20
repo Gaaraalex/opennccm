@@ -13,9 +13,11 @@
     {% if groups %}<div class="cklist">{% for g in groups %}<label class="ck"><input type="checkbox" name="group_ids" value="{{ g.id }}" {{ 'checked' if g.id in selected }}> {{ g.name }}</label>{% endfor %}</div>{% else %}<p class="muted sm">No hay grupos. <a href="/groups">Créalos en Grupos</a>.</p>{% endif %}
     <span class="help">Ninguno marcado = puede ver todos los equipos. No aplica a administradores.</span></div>
   {% if u %}<label class="swrow"><span><b>Cuenta activa</b><div class="muted sm">Si la desactivas, no podrá ingresar.</div></span><input type="checkbox" class="sw" name="active" {{ 'checked' if u.active }} {{ 'disabled' if u.id == user.id }}>{% if u.id == user.id %}<input type="hidden" name="active" value="on">{% endif %}</label>{% endif %}
-  <div class="sec"><h3>{{ _('Cambiar contraseña (opcional)') if u else _('Contraseña') }}</h3><div class="f2">
+  {% set ext = u and (u.auth_source or 'local') != 'local' %}
+  {% if ext %}<div class="banner info">{{ icon('info') }}<span class="grow">{{ _('Cuenta de Active Directory: su contraseña y su rol vienen del directorio; el rol se actualiza en cada ingreso.') if u.auth_source == 'ldap' else _('Cuenta de Microsoft Entra ID: inicia sesión con Microsoft; el rol se actualiza en cada ingreso.') }}</span></div>
+  {% else %}<div class="sec"><h3>{{ _('Cambiar contraseña (opcional)') if u else _('Contraseña') }}</h3><div class="f2">
     <div class="field"><label for="up1">Contraseña</label><div class="input"><input id="up1" name="password" type="password" {{ 'required' if not u }} minlength="10" autocomplete="new-password"></div><span class="help">{{ _('Déjala vacía para no cambiarla.') if u else _('Mínimo 10 caracteres.') }}</span></div>
-    <div class="field"><label for="up2">Repítela</label><div class="input"><input id="up2" name="password2" type="password" {{ 'required' if not u }} minlength="10" autocomplete="new-password"></div></div></div></div>
+    <div class="field"><label for="up2">Repítela</label><div class="input"><input id="up2" name="password2" type="password" {{ 'required' if not u }} minlength="10" autocomplete="new-password"></div></div></div></div>{% endif %}
   {% if u and u.totp_enabled %}<div class="banner info">{{ icon('shield') }}<span class="grow">Tiene la verificación en dos pasos activa.</span><button type="button" class="btn s" data-dialog="tfa-reset">Quitarla (perdió su teléfono)</button></div>{% endif %}
   <div class="row" data-sheet-foot>
     {% if u and u.id != user.id %}<button type="button" class="btn dz" data-dialog="user-del">{{ icon('trash', 's') }}Eliminar</button>{% endif %}

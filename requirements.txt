@@ -12,3 +12,5 @@ requests>=2.31
 pyotp>=2.9        # verificación en dos pasos (TOTP)
 segno>=1.6        # código QR para configurar la app de autenticación
 psutil>=5.9       # rendimiento del servidor (CPU, RAM, disco) en el panel
+ldap3>=2.9         # inicio de sesión con Active Directory (LDAP)
+pyjwt[crypto]>=2.8 # inicio de sesión con Azure / Entra ID (OpenID Connect): validar el token

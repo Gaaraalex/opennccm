@@ -1,5 +1,17 @@
 # Historial de versiones
 
+## 2.1.0
+- **Inicio de sesión con Active Directory** (LDAP/LDAPS o StartTLS): las personas entran con su usuario y contraseña de la red en
+  el mismo formulario. Su rol (administrador, operador o lector) sale de los grupos del directorio, también anidados; la cuenta se
+  crea al primer ingreso y el rol se actualiza en cada ingreso. **Probar conexión** comprueba la cuenta de servicio y el rol que
+  tendría un usuario.
+- **Inicio de sesión con Microsoft Entra ID (Azure AD)**: botón **Entrar con Microsoft** (OpenID Connect con PKCE, state y nonce;
+  se validan la firma, el emisor, la audiencia y la caducidad del token). Los roles salen de los grupos o de los roles de
+  aplicación del token. Con la URL de descubrimiento sirve también para Google Workspace, Keycloak, Okta y otros proveedores.
+- Las cuentas locales siguen funcionando siempre y nunca se toman desde un directorio. En **Usuarios** se marca el origen de cada
+  cuenta; la verificación en dos pasos, los bloqueos por intentos fallidos y la auditoría también se aplican a estas cuentas.
+- Nueva sección **Ajustes → Inicio de sesión** y capítulo en el manual de funciones.
+
 ## 2.0.1
 - **Consola SSH en un diálogo** sobre la página, como en el prototipo: Reconectar, Pantalla completa, cerrar y estado de la
   conexión. Un botón la abre en una ventana aparte (redimensionable) y Ctrl+clic, en una pestaña nueva. La ventana propia tiene la

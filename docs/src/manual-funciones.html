@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.0.1<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 2.1.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -808,6 +808,36 @@ salir de la página sin guardar, el navegador lo advierte.</p>
   <tr><td>Idioma predeterminado</td><td>Español o inglés para quien no eligió idioma y cuyo navegador no pide uno disponible.</td></tr>
   <tr><td>Consola SSH web</td><td>Quién puede abrirla y si entra con la credencial del equipo (ver capítulo 4).</td></tr>
 </table>
+<h2 id="sso">Inicio de sesión con Active Directory y Microsoft Entra ID</h2>
+<p>En <b>Ajustes → Inicio de sesión</b> se puede permitir que las personas entren con su cuenta de la organización. Las cuentas
+locales de OpenNCCM siguen funcionando siempre (por ejemplo, la del administrador que lo instaló).</p>
+<table>
+  <tr><th style="width:24%">Directorio</th><th>Cómo se entra</th><th>Qué hay que configurar</th></tr>
+  <tr><td><b>Active Directory</b> (LDAP)</td><td>Con el mismo formulario: usuario (o usuario@dominio) y la contraseña de la red.</td>
+  <td>Servidor (<code>ldaps://dc01.empresa.local</code>, o <code>ldap://</code> con StartTLS), base de búsqueda, una cuenta de servicio
+  con permiso de lectura, el filtro de usuario y los grupos de cada rol. <b>Probar conexión</b> comprueba la cuenta de servicio y, si se
+  escribe un usuario de prueba, qué rol tendría.</td></tr>
+  <tr><td><b>Microsoft Entra ID</b> (Azure AD)</td><td>Botón <b>Entrar con Microsoft</b> en la pantalla de ingreso (inicio de sesión
+  único con Microsoft 365).</td><td>Registre una aplicación en <b>Entra ID → Registros de aplicaciones</b> con la <b>URI de
+  redirección</b> que muestra la página, y copie el ID de directorio (tenant), el ID de aplicación y un secreto de cliente. Para
+  asignar roles, agregue la notificación <b>groups</b> en <b>Configuración del token</b> (o use roles de aplicación) y escriba el
+  Object ID de cada grupo.</td></tr>
+</table>
+<ul>
+  <li><b>Roles:</b> cada rol (administrador, operador, lector) se asocia a uno o varios grupos (separados con «;»); si alguien está en
+  varios, recibe el rol más alto. En Active Directory se admiten grupos anidados. Quien no esté en ningún grupo no entra, salvo que
+  se elija un <b>rol por omisión</b>.</li>
+  <li><b>Cuentas:</b> la cuenta se crea en OpenNCCM al primer ingreso y su rol se actualiza en cada ingreso. En <b>Usuarios</b> se
+  marca su origen (AD o Microsoft); su contraseña no se guarda en OpenNCCM y se cambia en el directorio. Los administradores pueden
+  desactivarla o restringirla a grupos de equipos como cualquier otra. Una cuenta local con el mismo nombre nunca se toma desde el
+  directorio.</li>
+  <li><b>Seguridad:</b> el ingreso con Microsoft usa el flujo de código con PKCE, <i>state</i> y <i>nonce</i>, y valida la firma, el
+  emisor, la audiencia y la caducidad del token. La verificación en dos pasos de OpenNCCM, los bloqueos por intentos fallidos y la
+  auditoría también se aplican a estas cuentas. Las contraseñas de la cuenta de servicio y el secreto de cliente se guardan
+  cifrados.</li>
+  <li><b>Otros proveedores:</b> en <b>Opciones avanzadas</b>, la URL de descubrimiento permite usar cualquier proveedor OpenID
+  Connect (Google Workspace, Keycloak, Okta…), con el texto del botón que se quiera.</li>
+</ul>
 <h2>Datos de la organización</h2>
 <p>Nombre, correo de contacto y dirección de quien administra esta instalación. Se muestran en la página
 <b>Privacidad, cookies y licencias</b> (enlace al pie de cada página y en el inicio de sesión), que explica qué datos guarda
