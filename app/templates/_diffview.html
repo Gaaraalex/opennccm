@@ -1,0 +1,44 @@
+{# Comparación A ↔ B con el marcado del prototipo: resumen en palabras + vista lado a lado o unificada.
+   Variables: cmp {rows, summary, n}, na, nb (nombres de equipo), la, lb (versión A y B: «v15 · running · hace 3 min»),
+   va_n, vb_n (números de versión), mode ('sbs' | 'u'), fold_href (enlace «mostrar todo»). #}
+{% if cmp.n %}
+<div class="summ" style="margin-bottom:12px">{{ icon('spark') }}<div><div class="row"><b>{{ _('1 línea distinta') if cmp.n == 1 else _f('{0} líneas distintas', cmp.n) }}</b></div>
+  <div class="muted sm">{% if cmp.summary %}{% set s = cmp.summary|join(' · ') %}{{ s[:1]|upper ~ s[1:] }}.{% else %}Cambios menores.{% endif %}</div></div></div>
+{% else %}
+<div class="summ" style="margin-bottom:12px">{{ icon('check') }}<div><b>Idénticas</b><div class="muted sm">No hay diferencias entre A y B.</div></div></div>
+{% endif %}
+<div class="diffv" data-diff>
+  {% if mode == 'u' %}
+  <div class="hd u"><div><span class="ab">A</span>{{ na }} v{{ va_n }} → <span class="ab">B</span>{{ nb }} v{{ vb_n }}</div></div>
+  {% for k, n1, n2, t in unified_rows(cmp.rows) %}
+  {% if k == 's' %}<a class="fold" href="{{ fold_href }}">⋯ {{ t.split()[1] if t.split()|length > 1 else '' }} líneas iguales · mostrar todo</a>
+  {% elif k == 'e' %}<div class="dl u"><span class="n">{{ n1 }}</span><span class="n">{{ n2 }}</span><span>  {{ t }}</span></div>
+  {% elif k == 'd' %}<div class="dl u del"><span class="n">{{ n1 }}</span><span class="n"></span><span>- {{ t }}</span></div>
+  {% else %}<div class="dl u add"><span class="n"></span><span class="n">{{ n2 }}</span><span>+ {{ t }}</span></div>{% endif %}
+  {% endfor %}
+  {% else %}
+  <div class="hd"><div><span class="ab">A</span> {{ na }} · {{ la }}</div><div><span class="ab">B</span> {{ nb }} · {{ lb }}</div></div>
+  {% for k, n1, t1, n2, t2 in cmp.rows %}
+  {% if k == 's' %}<a class="fold" href="{{ fold_href }}">⋯ {{ t1.split()[1] if t1.split()|length > 1 else '' }} líneas iguales · mostrar todo</a>
+  {% elif k == 'e' %}<div class="dl"><span class="n">{{ n1 }}</span><span>{{ t1 }}</span><span class="n">{{ n2 }}</span><span>{{ t2 }}</span></div>
+  {% else %}<div class="dl"><span class="n">{{ n1 or '' }}</span><span class="{{ 'del' if n1 }}">{{ '- ' ~ t1 if n1 }}</span><span class="n">{{ n2 or '' }}</span><span class="{{ 'add' if n2 }}">{{ '+ ' ~ t2 if n2 }}</span></div>{% endif %}
+  {% endfor %}
+  {% endif %}
+</div>
+<script>
+/* n / p: saltar al cambio siguiente o anterior dentro de la comparación */
+(function () {
+  const box = document.currentScript.previousElementSibling;
+  const rows = Array.from(box.querySelectorAll('.dl'));
+  const isChg = r => r.querySelector('.del, .add') || r.classList.contains('del') || r.classList.contains('add');
+  const blocks = rows.filter((r, i) => isChg(r) && !(i && isChg(rows[i - 1])));
+  let cur = -1;
+  document.addEventListener('keydown', e => {
+    if (!blocks.length || e.ctrlKey || e.metaKey || e.altKey || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) || !box.offsetParent) return;
+    if (e.key !== 'n' && e.key !== 'p') return;
+    cur = (cur + (e.key === 'n' ? 1 : -1) + blocks.length) % blocks.length;
+    blocks.forEach(b => b.classList.remove('cur')); blocks[cur].classList.add('cur');
+    blocks[cur].scrollIntoView({block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
+  });
+})();
+</script>

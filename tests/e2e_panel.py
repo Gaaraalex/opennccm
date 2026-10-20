@@ -53,7 +53,7 @@ lec = login("lector9", "Lector-2026xy")
 lp = lec.get(B + "/").text
 check("un lector ve el Panel sin botones de acción", "Salud de la red" in lp and "/backup/all" not in lp)
 dev = adm.get(B + "/devices/1").text
-check("equipo: eventos con desplazamiento (3 visibles)", 'class="scrollbox" data-rows="3"' in dev)
+check("equipo: pestaña Eventos con las alarmas del equipo", 'id="activity"' in dev and "Alarmas del equipo" in dev)
 check("un lector no ve Sistema", lec.get(B + "/system").status_code == 403)
 
 # --- Dispositivos: chips de estado, selección múltiple y acciones masivas
@@ -126,15 +126,15 @@ time.sleep(4)
 dev = adm.get(f"{B}/devices/{dev_id}").text
 check("ficha: pestañas Resumen, Versiones, Cumplimiento y Actividad",
       all(f'href="#{t}"' in dev for t in ("resumen", "versions", "compliance", "activity")) and "data-tabs" in dev)
-check("ficha: línea de tiempo con selección A/B", "data-timeline" in dev and 'name="a"' in dev and 'name="b"' in dev)
+check("ficha: línea de tiempo con selección A/B", 'data-tl=' in dev and '<span class="ab">A</span>' in dev and '<span class="ab">B</span>' in dev)
 check("ficha: borrar exige escribir el nombre del equipo", 'data-expect="R1"' in dev)
 vers = re.findall(r'href="/versions/(\d+)"', dev)
 if len(set(vers)) >= 2:
     a, b = sorted(set(vers), key=int)[:2]
     d = adm.get(f"{B}/diff?a={a}&b={b}&view=side&ctx=3").text
     check("comparación: resumen en palabras o configuraciones idénticas",
-          "Qué cambió" in d or "Las configuraciones son idénticas" in d)
-    check("comparación: navegación n/p y minibarra", "data-diff-next" in d and 'class="diff-map"' in d)
+          "líneas distintas" in d or "línea distinta" in d or "Idénticas" in d)
+    check("comparación: selectores de equipo y versión, e intercambiar A y B", 'data-role="ver"' in d and "Intercambiar A y B" in d)
 pol = re.search(r'name="policy_id" value="(\d+)"', dev)
 check("ficha: «Corregir N» por política con infracciones corregibles", pol is not None)
 if pol:
@@ -150,8 +150,8 @@ if pol:
         adm.post(f"{B}/changes/{cr.group(1)}/review", data={"decision": "reject", "comment": "prueba"})
     pp = adm.get(f"{B}/compliance/policies/{pol.group(1)}").text
     check("política: el título muestra el nombre de la política",
-          re.search(r'<h1><a href="/compliance">Cumplimiento</a> / [^<]+</h1>', pp) is not None)
-    check("política: panel para probar la regla", 'id="rule-test"' in pp and 'id="rt-go"' in pp)
+          re.search(r'<a href="/compliance">Cumplimiento</a>.*?<b>[^<]+</b>', pp, re.S) is not None and "<h1>Editar política</h1>" in pp)
+    check("política: panel para probar la regla", 'id="rt-dev"' in pp and 'class="rres"' in pp)
 t = adm.post(B + "/compliance/rules/test", data={"device_id": dev_id, "pattern": "^hostname", "kind": "must_contain"}).json()
 check("prueba de regla: se cumple y devuelve las líneas", t.get("passed") is True and any("hostname" in x for x in t.get("lines", [])), str(t))
 t = adm.post(B + "/compliance/rules/test", data={"device_id": dev_id, "pattern": "^hostname", "kind": "must_not_contain"}).json()

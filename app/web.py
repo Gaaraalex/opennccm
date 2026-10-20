@@ -54,7 +54,8 @@ def ago(d) -> str:
     if secs < 86400:
         return _f("hace {0} h", int(secs // 3600))
     if secs < 7 * 86400:
-        return _f("hace {0} d", int(secs // 86400))
+        n = int(secs // 86400)
+        return _("ayer") if n == 1 else _f("hace {0} días", n)
     return d.strftime("%Y-%m-%d")
 
 
@@ -92,6 +93,98 @@ def spark(pts, w: int = 90, h: int = 36):
 
 
 templates.env.globals["spark"] = spark
+
+_MESES = [i18n.N_("ene"), i18n.N_("feb"), i18n.N_("mar"), i18n.N_("abr"), i18n.N_("may"), i18n.N_("jun"),
+          i18n.N_("jul"), i18n.N_("ago"), i18n.N_("sep"), i18n.N_("oct"), i18n.N_("nov"), i18n.N_("dic")]
+
+
+def fecha(d) -> str:
+    """Fecha corta legible, como en el prototipo: «31 dic 2022»."""
+    if not d:
+        return "—"
+    return f"{d.day} {i18n._(_MESES[d.month - 1])} {d.year}"
+
+
+templates.env.filters["fecha"] = fecha
+_DIAS = [i18n.N_("lunes"), i18n.N_("martes"), i18n.N_("miércoles"), i18n.N_("jueves"), i18n.N_("viernes"),
+         i18n.N_("sábado"), i18n.N_("domingo")]
+
+
+def cuando(d) -> str:
+    """Próxima ejecución legible, como en el prototipo: «hoy 06:00», «mañana 03:00», «lun 07:00», «1 nov 22:00»."""
+    if not d:
+        return "—"
+    from datetime import datetime
+    days = (d.date() - datetime.now(d.tzinfo).date()).days
+    hm = d.strftime("%H:%M")
+    if days == 0:
+        return i18n._f("hoy {0}", hm)
+    if days == 1:
+        return i18n._f("mañana {0}", hm)
+    if 1 < days < 7:
+        return f"{i18n._(_DIAS[d.weekday()])[:3]} {hm}"
+    return f"{d.day} {i18n._(_MESES[d.month - 1])} {hm}"
+
+
+templates.env.filters["cuando"] = cuando
+
+
+def mark(line: str, q: str, regex: int = 0, cs: int = 0):
+    """Resalta las coincidencias de la búsqueda en una línea (texto escapado; solo se añade <mark>)."""
+    import re as _re
+
+    from markupsafe import Markup, escape
+    try:
+        pat = _re.compile(q if regex else _re.escape(q), 0 if cs else _re.IGNORECASE)
+    except _re.error:
+        return escape(line)
+    out, last = [], 0
+    for m in pat.finditer(line):
+        if not m.group(0):
+            continue
+        out.append(str(escape(line[last:m.start()])) + "<mark>" + str(escape(m.group(0))) + "</mark>")
+        last = m.end()
+    out.append(str(escape(line[last:])))
+    return Markup("".join(out))
+
+
+templates.env.filters["mark"] = mark
+
+
+def varmark(text: str):
+    """Plantilla de configlet con sus variables {{ x }} resaltadas en el color de acento (tarjetas del prototipo)."""
+    import re as _re
+
+    from markupsafe import Markup, escape
+    return Markup(_re.sub(r"\{\{\s*(\w+)\s*\}\}", r'<b style="color:var(--brand)">{{ \1 }}</b>', str(escape(text or ""))))
+
+
+templates.env.filters["varmark"] = varmark
+
+
+def unified_rows(rows):
+    """Filas de services.side_by_side → vista unificada: en cada bloque de cambios, primero lo quitado y luego lo
+    agregado (como el prototipo). Devuelve (tipo, nº A, nº B, texto) con tipo e | d | a | s."""
+    out, dels, adds = [], [], []
+
+    def flush():
+        out.extend(dels + adds)
+        dels.clear()
+        adds.clear()
+    for kind, na, ta, nb, tb in rows:
+        if kind in ("c", "d", "a"):
+            if kind in ("c", "d"):
+                dels.append(("d", na, None, ta))
+            if kind in ("c", "a"):
+                adds.append(("a", None, nb, tb))
+            continue
+        flush()
+        out.append(("s", None, None, ta) if kind == "s" else ("e", na, nb, ta))
+    flush()
+    return out
+
+
+templates.env.globals["unified_rows"] = unified_rows
 
 # severidad -> forma y texto traducido (nunca el valor crudo de la base de datos)
 SEV_CLASS = {"critical": "crit", "major": "major", "error": "major", "minor": "minor", "warning": "warn",

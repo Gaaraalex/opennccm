@@ -1,100 +1,38 @@
-{% extends "base.html" %}{% block title %}Comparar{% endblock %}
+{% extends "base.html" %}{% block title %}Comparar configuraciones{% endblock %}
 {% block content %}
-<h1>Comparación de configuraciones</h1>
-<form class="card diff-form" method="get">
-  <div><label>Versión A (izquierda)</label><select name="a">{% for x in all_versions %}<option value="{{ x.id }}" {{ 'selected' if x.id == va.id }}>{{ x.device.name }} #{{ x.id }} {{ x.kind }} {{ x.created_at|dt }}</option>{% endfor %}</select></div>
-  <div><label>Versión B (derecha)</label><select name="b">{% for x in all_versions %}<option value="{{ x.id }}" {{ 'selected' if x.id == vb.id }}>{{ x.device.name }} #{{ x.id }} {{ x.kind }} {{ x.created_at|dt }}</option>{% endfor %}</select></div>
-  <div><label>Contexto</label><select name="ctx">{% for n in [0,3,10,100000] %}<option value="{{ n }}" {{ 'selected' if n == ctx }}>{{ _('completo') if n > 1000 else _f('{0} líneas', n) }}</option>{% endfor %}</select></div>
-  <div><label>Vista</label><select name="view"><option value="side" {{ 'selected' if view == 'side' }}>Lado a lado</option><option value="unified" {{ 'selected' if view != 'side' }}>Unificada</option></select></div>
-  <button>Comparar</button>
-</form>
-<p class="muted small">Puede comparar versiones del mismo equipo o de equipos distintos.</p>
-
-{% if summary %}
-<div class="card diff-summary">
-  <div class="card-head"><h2>Qué cambió</h2><span class="mono diffc"><span class="add">+{{ added }}</span> <span class="del">−{{ removed }}</span> líneas</span></div>
-  <ul>{% for s in summary %}<li>{{ s }}</li>{% endfor %}</ul>
-</div>
-{% endif %}
-
-<div class="diff-wrap" data-diff>
-  <div class="diff-tools">
-    <span class="muted small"><span class="legend-del">eliminado / modificado</span> <span class="legend-add">agregado / modificado</span></span>
-    <span class="diff-nav"><span class="muted small diff-pos" aria-live="polite"></span>
-      <button type="button" class="sec sm" data-diff-prev title="Cambio anterior (p)">{{ icon('left', 'sm') }} <kbd>p</kbd></button>
-      <button type="button" class="sec sm" data-diff-next title="Cambio siguiente (n)"><kbd>n</kbd> {{ icon('right', 'sm') }}</button></span>
-  </div>
-{% if view == 'side' %}
-<div class="card flush diff-card">
-{% if rows %}
-<table class="sbs">
-  <colgroup><col style="width:44px"><col><col style="width:44px"><col></colgroup>
-  <thead><tr><th colspan="2"><span class="tag">A</span> {{ va.device.name }} #{{ va.id }} · {{ va.kind }} · {{ va.created_at|dt }}</th><th colspan="2"><span class="tag">B</span> {{ vb.device.name }} #{{ vb.id }} · {{ vb.kind }} · {{ vb.created_at|dt }}</th></tr></thead>
-  <tbody>
-  {% for kind, na, ta, nb, tb in rows %}
-  {% if kind == 's' %}<tr class="s"><td colspan="4">{{ ta }}</td></tr>
-  {% else %}<tr class="{{ kind }}"><td class="n">{{ na or '' }}</td><td class="l">{{ ta }}</td><td class="n">{{ nb or '' }}</td><td class="r">{{ tb }}</td></tr>{% endif %}
+{% set qs = 'a=' ~ va.id ~ '&b=' ~ vb.id %}
+<div class="ph"><div class="grow"><h1>Comparar configuraciones</h1><div class="sub">Entre dos versiones de un equipo, o entre equipos distintos (por ejemplo, dos switches que deberían ser iguales).</div></div></div>
+<section class="card"><div class="f2">
+  {% for side, v, did in [('a', va, va.device_id), ('b', vb, vb.device_id)] %}
+  <div class="stack t"><span class="row"><span class="ab">{{ side|upper }}</span><b>{{ _('Izquierda') if side == 'a' else _('Derecha') }}</b></span><div class="f2">
+    <div class="field"><label for="cd{{ side }}">Equipo</label><div class="input"><select id="cd{{ side }}" data-side="{{ side }}" data-role="dev">{% for d in devs if vers[d.id] %}<option value="{{ d.id }}" {{ 'selected' if d.id == did }}>{{ d.name }}</option>{% endfor %}</select></div></div>
+    <div class="field"><label for="cv{{ side }}">Versión</label><div class="input"><select id="cv{{ side }}" data-side="{{ side }}" data-role="ver">{% for x in vers.get(did, []) %}<option value="{{ x.id }}" {{ 'selected' if x.id == v.id }}>v{{ x.n }} · {{ x.kind }} · {{ x.when|ago }}</option>{% endfor %}</select></div></div>
+  </div></div>
   {% endfor %}
-  </tbody>
-</table>
-{% else %}<p class="muted" style="padding:20px 24px">Las configuraciones son idénticas.</p>{% endif %}
 </div>
-{% else %}
-<div class="card diff">
-{% for l in lines %}
-  {% if l.startswith('+++') or l.startswith('---') %}<div class="h">{{ l }}</div>
-  {% elif l.startswith('@@') %}<div class="h">{{ l }}</div>
-  {% elif l.startswith('+') %}<div class="a">{{ l }}</div>
-  {% elif l.startswith('-') %}<div class="d">{{ l }}</div>
-  {% else %}<div>{{ l }}</div>{% endif %}
-{% else %}<p class="muted">Las configuraciones son idénticas.</p>{% endfor %}
-</div>
-{% endif %}
-  <div class="diff-map" aria-hidden="true"></div>
-</div>
+<div class="row" style="margin-top:14px">
+  <div class="seg"><a class="{{ 'on' if view != 'unified' }}" href="?{{ qs }}&ctx={{ ctx }}&view=side">Lado a lado</a><a class="{{ 'on' if view == 'unified' }}" href="?{{ qs }}&ctx={{ ctx }}&view=unified">Unificada</a></div>
+  <div class="input" style="min-height:32px"><select id="ctxsel" aria-label="Líneas de contexto" style="height:30px;font-size:12.5px">
+    {% for v, l in [(3, _('3 líneas de contexto')), (10, _('10 líneas de contexto')), (9999, _('Archivo completo'))] %}<option value="{{ v }}" {{ 'selected' if ctx == v }}>{{ l }}</option>{% endfor %}</select></div>
+  <a class="btn s" href="?{{ qs }}&ctx={{ ctx }}&raw=1">{{ icon('dl', 's') }}.diff</a>
+  <span class="grow"></span><a class="btn s ghost" href="?a={{ vb.id }}&b={{ va.id }}&ctx={{ ctx }}&view={{ view }}">{{ icon('refresh', 's') }}Intercambiar A y B</a></div></section>
+<section class="card">
+  {% set na = va.device.name %}{% set nb = vb.device.name %}{% set va_n = vn[va.id] %}{% set vb_n = vn[vb.id] %}
+  {% set la = 'v' ~ va_n ~ ' · ' ~ va.kind ~ ' · ' ~ va.created_at|ago %}{% set lb = 'v' ~ vb_n ~ ' · ' ~ vb.kind ~ ' · ' ~ vb.created_at|ago %}
+  {% set fold_href = '?' ~ qs ~ '&view=' ~ view ~ '&ctx=9999' %}
+  {% include "_diffview.html" %}
+</section>
 <script>
 (function () {
-  const wrap = document.querySelector('[data-diff]');
-  if (!wrap) return;
-  const T = {{ {'pos': _('cambio {0} de {1}'), 'none': _('sin cambios')}|tojson }};
-  // un «cambio» = filas consecutivas modificadas (lado a lado) o líneas +/− consecutivas (unificada)
-  const rows = Array.from(wrap.querySelectorAll('table.sbs tbody tr, .diff > div'));
-  const isChg = r => r.matches('tr.c, tr.a, tr.d, .diff > div.a, .diff > div.d');
-  const blocks = [];
-  rows.forEach((r, i) => { if (isChg(r) && !(i && isChg(rows[i - 1]))) blocks.push(r); });
-  const pos = wrap.querySelector('.diff-pos'), map = wrap.querySelector('.diff-map');
-  let cur = -1;
-  function go(i) {
-    if (!blocks.length) return;
-    cur = (i + blocks.length) % blocks.length;
-    blocks.forEach(b => b.classList.remove('cur'));
-    blocks[cur].classList.add('cur');
-    blocks[cur].scrollIntoView({block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
-    pos.textContent = T.pos.replace('{0}', cur + 1).replace('{1}', blocks.length);
-  }
-  pos.textContent = blocks.length ? T.pos.replace('{0}', '–').replace('{1}', blocks.length) : T.none;
-  wrap.querySelector('[data-diff-next]').addEventListener('click', () => go(cur + 1));
-  wrap.querySelector('[data-diff-prev]').addEventListener('click', () => go(cur - 1));
-  document.addEventListener('keydown', e => {
-    if (e.ctrlKey || e.metaKey || e.altKey || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
-    if (e.key === 'n') go(cur + 1); else if (e.key === 'p') go(cur - 1);
-  });
-  // minibarra: dónde están los cambios en todo el archivo
-  if (rows.length && blocks.length) {
-    rows.forEach((r, i) => {
-      if (!isChg(r)) return;
-      const m = document.createElement('i');
-      m.className = r.matches('tr.a, div.a') ? 'add' : r.matches('tr.d, div.d') ? 'del' : 'chg';
-      m.style.top = (100 * i / rows.length) + '%';
-      map.appendChild(m);
-    });
-    map.addEventListener('click', e => {
-      const f = (e.clientY - map.getBoundingClientRect().top) / map.offsetHeight;
-      const target = rows[Math.min(rows.length - 1, Math.floor(f * rows.length))];
-      const near = blocks.reduce((best, b, i) => Math.abs(rows.indexOf(b) - rows.indexOf(target)) < Math.abs(rows.indexOf(blocks[best]) - rows.indexOf(target)) ? i : best, 0);
-      go(near);
-    });
-  } else { map.hidden = true; }
+  const VERS = {{ vers_js|tojson }};
+  const cur = {a: {{ va.id }}, b: {{ vb.id }}}, ctx = document.getElementById('ctxsel');
+  const go = () => { location.href = '?a=' + cur.a + '&b=' + cur.b + '&ctx=' + ctx.value + '&view={{ view }}'; };
+  document.querySelectorAll('select[data-side]').forEach(s => s.addEventListener('change', () => {
+    if (s.dataset.role === 'dev') { const l = VERS[s.value] || []; if (l.length) cur[s.dataset.side] = l[0]; }
+    else cur[s.dataset.side] = +s.value;
+    go();
+  }));
+  ctx.addEventListener('change', go);
 })();
 </script>
 {% endblock %}

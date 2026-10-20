@@ -24,8 +24,8 @@ fails = []
 
 def tl_ids(page, kind=None):
     """Ids de la línea de tiempo de versiones de la ficha (más reciente primero), opcionalmente de un tipo."""
-    rows = re.findall(r'class="tl-row[^"]*" data-id="(\d+)"(?:(?!data-id=).)*?class="tl-kind">(\w+)<', page, re.S)
-    return list(dict.fromkeys(i for i, k in rows if kind is None or k == kind))
+    rows = re.findall(r'<li class="([^"]*)" data-id="(\d+)"', page)
+    return list(dict.fromkeys(i for c, i in rows if kind is None or (("startup" in c.split()) == (kind == "startup"))))
 
 def check(name, cond, extra=""):
     print(("OK   " if cond else "FAIL ") + name + (f"  [{extra}]" if extra and not cond else ""))
@@ -81,9 +81,9 @@ check("desvío de línea base detectado", "difiere de la línea base" in html)
 check("evento 'Desviación de línea base'", "Desviación de línea base" in s.get(B + "/events").text)
 check("filtro de equipos fuera de baseline", "R1" in s.get(B + "/devices?status=drift").text)
 r = s.get(B + "/devices/1/baseline-diff")
-check("comparar con baseline (lado a lado)", 'class="sbs"' in r.text and f"ntp server {NTP}" in r.text)
-check("fila agregada resaltada", re.search(r'<tr class="a">.*?ntp server ' + re.escape(NTP), r.text, re.S) is not None)
-base_id = re.search(r'/versions/(\d+)/rollback"><button[^>]*>.{0,200}?Volver a la línea base', html)
+check("comparar con baseline (lado a lado)", 'class="diffv"' in r.text and f"ntp server {NTP}" in r.text)
+check("fila agregada resaltada", re.search(r'<span class="add">\+ ntp server ' + re.escape(NTP), r.text) is not None)
+base_id = re.search(r'data-revert="(\d+)"[^>]*>(?:(?!</button>).)*Volver a la línea base', html, re.S)
 check("botón 'Volver a la línea base'", base_id is not None)
 r = s.post(f"{B}/versions/{base_id.group(1)}/rollback")
 check("reversión a baseline genera 'no ntp server …'", f"no ntp server {NTP}" in r.text)
@@ -102,7 +102,7 @@ s.post(B + "/devices/1/compliance")
 dev = s.get(B + "/devices/1").text
 check("PCI: detecta Telnet en VTY", "Req 2.2.7 · Sin Telnet en líneas VTY" in dev)
 check("HIPAA: detecta falta de AAA", "164.312(a)(1) · Control de acceso con AAA" in dev)
-check("gráfica de cumplimiento en SVG", '<svg class="viz' in s.get(B + "/compliance").text)
+check("mapa equipo × política", "Mapa: equipo × política" in s.get(B + "/compliance").text)
 
 # ---------------------------------------------------------------- EOL / EOS
 r = s.post(B + "/eol/entries", data={"vendor": "Cisco", "model_pattern": "^CISCO2911", "end_of_sale": "2017-12-09",
@@ -131,17 +131,17 @@ cr = re.search(r"/changes/(\d+)", r.url).group(1)
 check("solicitud de firmware pendiente de aprobación", "badge b-pending" in r.text and "SCP c2900-test.bin" in r.text)
 s.post(f"{B}/changes/{cr}/review", data={"decision": "approve"})
 st, t = wait_cr(cr, 120)
-check("actualización de firmware ejecutada", st == "done", re.findall(r"<pre>([\s\S]*?)</pre>", t)[-1:])
+check("actualización de firmware ejecutada", st == "done", re.findall(r"<pre[^>]*>([\s\S]*?)</pre>", t)[-1:])
 check("transferido y MD5 verificado", "transferida=True, MD5 verificado=True" in t)
 time.sleep(5)
-cfg = s.get(B + "/search", params={"q": "boot system"}).text
+cfg = re.sub(r"<[^>]+>", "", s.get(B + "/search", params={"q": "boot system"}).text)
 check("arranque configurado (boot system flash:c2900-test.bin)", "boot system flash:c2900-test.bin" in cfg)
 r = s.post(B + "/firmware/upgrade", data={"image_id": img_id, "device_ids": "1", "reload": "on"})
 cr = re.search(r"/changes/(\d+)", r.url).group(1)
 s.post(f"{B}/changes/{cr}/review", data={"decision": "approve"})
 st, t = wait_cr(cr, 120)
 check("segunda vez: archivo ya existía y se verifica sin retransmitir", "ya existía=True, transferida=False, MD5 verificado=True" in t)
-check("reinicio enviado", "Reinicio enviado" in t, re.findall(r"<pre>([\s\S]*?)</pre>", t)[-1:])
+check("reinicio enviado", "Reinicio enviado" in t, re.findall(r"<pre[^>]*>([\s\S]*?)</pre>", t)[-1:])
 r = s.post(B + "/firmware/upgrade", data={"image_id": img_id, "device_ids": "2"})
 check("imagen incompatible con Huawei rechazada", "no es compatible" in r.text)
 
@@ -205,7 +205,7 @@ bad = s.get(B + "/system/backups/opennccm.db")
 check("descarga de archivo que no es copia rechazada", bad.url.endswith("/system") and b"SQLite" not in bad.content)
 r = s.post(B + "/schedules", data={"name": "DR diario", "action": "system_backup", "cron": "30 1 * * *"})
 check("tarea de copia diaria", "DR diario" in r.text)
-sid = re.search(r'<td>DR diario</td>[\s\S]*?/schedules/(\d+)/run', r.text).group(1)
+sid = re.search(r'</span>DR diario</div></td>[\s\S]*?/schedules/(\d+)/run', r.text).group(1)
 s.post(f"{B}/schedules/{sid}/run")
 time.sleep(3)
 check("copia programada ejecutada", "Copia de recuperación" in s.get(B + "/events").text)

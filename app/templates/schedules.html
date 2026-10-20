@@ -1,26 +1,20 @@
 {% extends "base.html" %}{% block title %}Tareas programadas{% endblock %}
 {% block content %}
-<h1>Tareas programadas</h1>
-<div class="card">
-<table><tr><th>Nombre</th><th>Acción</th><th>Cuándo</th><th>Grupo</th><th>Última ejecución</th><th>Próxima</th><th><span class="vh">Acciones</span></th></tr>
-{% for s in items %}
-<tr><td>{{ s.name }}</td><td>{{ _(ACTIONS.get(s.action, s.action)) }}</td><td>{{ s.cron|cron_text }}<div class="small muted"><code>{{ s.cron }}</code></div></td><td>{{ s.group.name if s.group else _('todos') }}</td>
-<td class="small">{{ s.last_run|dt }}</td><td class="small">{{ jobs.get('sched-' ~ s.id)|dt if s.enabled else 'pausada' }}</td>
-<td style="white-space:nowrap">
-  {% if ROLES[user.role] >= 1 %}<form class="inline" method="post" action="/schedules/{{ s.id }}/run"><button class="sm">Ejecutar ya</button></form>{% endif %}
-  {% if user.role == 'admin' %}
-  <a class="btn sm sec" href="/schedules/{{ s.id }}/edit" data-sheet>Editar</a>
-  <form class="inline" method="post" action="/schedules/{{ s.id }}/toggle"><button class="sm sec">{{ _('Pausar') if s.enabled else _('Activar') }}</button></form>
-  <form class="inline" method="post" action="/schedules/{{ s.id }}/delete" onsubmit="return confirm('¿Eliminar la tarea «{{ s.name }}»?')"><button class="sm danger" aria-label="Eliminar la tarea {{ s.name }}" title="Eliminar">×</button></form>
-  {% endif %}</td></tr>
-{% else %}<tr class="empty-row"><td colspan="7"><div class="empty">{{ empty_art('plus') }}<h3>Aún no hay tareas programadas</h3><p class="muted">Se recomienda un respaldo nocturno, todos los días a las 02:00; el formulario de abajo ya viene preparado.</p></div></td></tr>{% endfor %}
-</table>
-</div>
-{% if user.role == 'admin' %}
-<div class="card" style="max-width:900px">
-<h2 style="margin-top:0">Nueva tarea</h2>
-{% set form_action = "/schedules" %}{% set submit_label = _("Crear tarea") %}{% set cancel_url = None %}
-{% include "_schedule_form.html" %}
-</div>
-{% endif %}
+{% set is_admin = user.role == 'admin' %}
+<div class="ph"><div class="grow"><h1>Tareas programadas</h1><div class="sub">Lo que OpenNCCM hace solo, a su hora.</div></div>
+  {% if is_admin %}<a class="btn pri" href="/schedules/new" data-sheet data-title="Nueva tarea">{{ icon('plus', 's') }}Nueva tarea</a>{% endif %}</div>
+<section class="card flush"><div class="tw"><table class="t"><thead><tr><th>Tarea</th><th>Qué hace</th><th>Cuándo</th><th>Próxima</th><th>Última</th><th>Activa</th><th><span class="vh">Acciones</span></th></tr></thead><tbody>
+{% for s in items %}{% set nxt = jobs.get('sched-' ~ s.id) %}
+<tr><td><div class="dev"><span class="qi {{ 'info' if s.enabled else 'mut' }}" style="width:32px;height:32px">{{ icon('cal', 's') }}</span>{{ s.name }}</div></td>
+  <td class="sm">{{ _(ACTIONS.get(s.action, s.action)) }}{% if s.action == 'configlet' and s.configlet_id %} «{{ cfl_names.get(s.configlet_id, '?') }}»{% endif %}
+    <div class="muted">{% if s.group %}{{ _f('Grupo {0}', s.group.name) }}{% elif s.action in ('backup', 'compliance', 'cve', 'configlet') %}Todos los equipos{% endif %}</div></td>
+  <td class="sm">{{ s.cron|cron_text }}</td>
+  <td class="{{ '' if s.enabled else 'muted' }}" style="white-space:nowrap">{% if s.enabled and nxt %}<span title="{{ nxt|dt }}">{{ nxt|cuando }}</span>{% else %}En pausa{% endif %}</td>
+  <td>{% if s.last_run %}<span class="pill ok" title="{{ s.last_run|dt }}">{{ s.last_run|ago }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+  <td>{% if is_admin %}<form method="post" action="/schedules/{{ s.id }}/toggle" style="margin:0"><button class="switch" role="switch" aria-checked="{{ 'true' if s.enabled else 'false' }}" aria-label="{{ _f('Activar {0}', s.name) }}"></button></form>
+    {% else %}<span class="switch" role="switch" aria-checked="{{ 'true' if s.enabled else 'false' }}" aria-disabled="true" aria-label="{{ s.name }}"></span>{% endif %}</td>
+  <td><div class="acts">{% if ROLES[user.role] >= 1 %}<form method="post" action="/schedules/{{ s.id }}/run"><button class="btn s">{{ icon('play', 's') }}Ejecutar ya</button></form>{% endif %}
+    {% if is_admin %}<a class="btn s icon" href="/schedules/{{ s.id }}/edit" data-sheet data-title="Editar tarea" aria-label="{{ _f('Editar {0}', s.name) }}" title="Editar">{{ icon('edit', 's') }}</a>{% endif %}</div></td></tr>
+{% else %}<tr><td colspan="7"><div class="empty">{{ empty_art('plus') }}<h2>Aún no hay tareas programadas</h2><p>Se recomienda un respaldo nocturno, todos los días a las 02:00.</p>{% if is_admin %}<a class="btn pri" href="/schedules/new" data-sheet data-title="Nueva tarea">{{ icon('plus', 's') }}Nueva tarea</a>{% endif %}</div></td></tr>{% endfor %}
+</tbody></table></div></section>
 {% endblock %}

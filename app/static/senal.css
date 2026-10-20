@@ -503,3 +503,5 @@ input.sw{appearance:none;-webkit-appearance:none;width:40px;height:24px;min-heig
   background:radial-gradient(circle at 11px 50%,var(--surface) 8.5px,transparent 9.5px) var(--surface-3);transition:background .15s}
 input.sw:checked{border-color:var(--brand);background:radial-gradient(circle at 27px 50%,var(--on-brand) 8.5px,transparent 9.5px) var(--brand)}
 label.swrow{cursor:pointer;font-weight:400}
+dialog.dlg:not([open]){display:none}
+.cfl-name>b{font-size:15px}

@@ -218,7 +218,7 @@
         var form = foot.closest('form');
         var footer = document.createElement('footer');
         while (foot.firstChild) footer.appendChild(foot.firstChild);
-        $$('button:not([form]), input[type=submit]', footer).forEach(function (b) { if (form) b.setAttribute('form', form.id); });
+        $$('button:not([form]), input[type=submit]', footer).forEach(function (b) { if (form && !b.closest('form')) b.setAttribute('form', form.id); });
         foot.remove();
         sheet.appendChild(footer);
       }

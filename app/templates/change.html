@@ -1,29 +1,34 @@
-{% extends "base.html" %}{% block title %}Cambio #{{ cr.id }}{% endblock %}
+{% extends "base.html" %}{% block title %}{{ _f('Solicitud #{0}', cr.id) }}{% endblock %}
+{% block crumbs %}<a href="/changes">Cambios</a>{{ icon('right', 's') }}<b>#{{ cr.id }}</b>{% endblock %}
 {% block content %}
-<h1>Solicitud #{{ cr.id }}: {{ cr.title }} {{ crstatus(cr.status) }}</h1>
-<div class="card">
-  <dl class="kv">
-    <dt>Solicitada por</dt><dd>{{ cr.requested_by }} · {{ cr.created_at|dt }}</dd>
-    <dt>Revisada por</dt><dd>{{ cr.reviewed_by or '—' }}{% if cr.review_comment %} — “{{ cr.review_comment }}”{% endif %}</dd>
-    <dt>Ejecutada</dt><dd>{{ cr.executed_at|dt }}</dd>
-    <dt>Dispositivos ({{ devices|length }})</dt><dd>{% for d in devices %}<a href="/devices/{{ d.id }}">{{ d.name }}</a>{{ ', ' if not loop.last }}{% endfor %}</dd>
-  </dl>
-  {% if cr.status in ('pending', 'approved', 'running') %}<p class="small muted">Actualice la página para ver el avance.</p>{% endif %}
-</div>
-{% if cr.is_rollback %}<div class="flash error">Comandos generados automáticamente a partir de la diferencia entre la configuración actual y la versión destino. Revíselos con cuidado antes de aprobar.</div>{% endif %}
-<div class="card">
-  <h2 style="margin-top:0">Comandos a aplicar (vista previa{{ _(', primeros 5 equipos') if devices|length > 5 }})</h2>
-  {% for name, text in previews %}<p><b>{{ name }}</b></p><pre>{{ text }}</pre>{% endfor %}
-</div>
-{% if cr.status == 'pending' and can_review %}
-<div class="card" style="max-width:640px">
-  <h2 style="margin-top:0">Revisión</h2>
-  <form method="post" action="/changes/{{ cr.id }}/review">
-    <label>Comentario</label><input name="comment" style="width:100%">
-    <p><button name="decision" value="approve" onclick="return confirm('¿Aprobar y aplicar ahora en {{ devices|length }} equipos?')">Aprobar y ejecutar</button>
-    <button name="decision" value="reject" class="danger">Rechazar</button></p>
-  </form>
-</div>
-{% elif cr.status == 'pending' %}<p class="muted">Pendiente de aprobación por un administrador distinto del solicitante.</p>{% endif %}
-{% if cr.result %}<div class="card"><h2 style="margin-top:0">Resultado</h2><pre>{{ cr.result }}</pre></div>{% endif %}
+{% set st = {'pending': ('info', _('Por aprobar')), 'approved': ('info', _('Aprobada')), 'running': ('info', _('En curso')), 'done': ('ok', _('Aprobada y ejecutada')), 'partial': ('warn', _('Ejecutada en parte')), 'failed': ('crit', _('Fallida')), 'rejected': ('crit', _('Rechazada'))} %}
+{% set s = st.get(cr.status, ('info', cr.status)) %}
+<div data-sheet-wide></div>
+<h1>{{ _f('Solicitud #{0}: {1}', cr.id, cr.title) }}</h1>
+<p class="muted sm" data-sheet-sub>{{ kind_label }} · {{ _f('pedida por {0}', cr.requested_by) }} <span title="{{ cr.created_at|dt }}">{{ cr.created_at|ago }}</span></p>
+<div class="row"><span class="pill {{ s[0] }}">{{ s[1] }}</span><span hidden class="badge b-{{ cr.status }}"></span><span class="muted sm">{{ _('1 equipo') if devices|length == 1 else _f('{0} equipos', devices|length) }}</span>
+  {% if cr.status in ('approved', 'running') %}<span class="muted sm">· Actualiza la página para ver el avance.</span>{% endif %}</div>
+{% if cr.is_rollback %}<div class="banner warn">{{ icon('alert') }}<span class="grow">Comandos generados automáticamente a partir de la diferencia entre la configuración actual y la versión destino. Revísalos con cuidado antes de aprobar.</span></div>{% endif %}
+<div class="field"><span class="fl">{% if devices|length > 5 %}Comandos a aplicar (vista previa, primeros 5 equipos){% else %}Comandos a aplicar{% endif %}</span>
+  {% for name, text in previews %}<div><div class="row sm b" style="margin-bottom:4px">{% for d in devices if d.name == name %}<span class="vend" style="width:24px;height:24px;font-size:9px">{{ vend[d.id] }}</span>{% endfor %}{{ name }}</div><pre class="term" style="min-height:0">{{ text }}</pre></div>{% endfor %}</div>
+{% if cr.status == 'pending' %}
+  {% if can_review %}<form method="post" action="/changes/{{ cr.id }}/review" id="review" class="stack">
+    <div class="field"><label for="chc">Comentario</label><textarea class="ta prose" id="chc" name="comment" placeholder="{{ _f('Opcional al aprobar; obligatorio al rechazar. Se avisará a {0}.', cr.requested_by) }}"></textarea></div>
+    <div class="row" data-sheet-foot><span class="grow"></span><button class="btn dz" name="decision" value="reject" id="rej">Rechazar</button>
+      <button class="btn sig" name="decision" value="approve">{{ icon('check', 's') }}Aprobar y ejecutar</button></div></form>
+  {% else %}<div class="banner info">{{ icon('info') }}<span>Solo un administrador puede aprobar o rechazar esta solicitud{% if user.role == 'admin' %} (y no quien la pidió, según los Ajustes){% endif %}.</span></div>{% endif %}
+{% else %}
+  {% if cr.reviewed_by %}<div class="sec"><h3>Revisión</h3><div class="summ">{{ icon('x' if cr.status == 'rejected' else 'check') }}<div><b>{{ _f('Rechazada por {0}', cr.reviewed_by) if cr.status == 'rejected' else _f('Aprobada por {0}', cr.reviewed_by) }}</b><div class="muted sm">{{ cr.review_comment or _('Sin comentario') }}</div></div></div></div>{% endif %}
+  {% if cr.result %}<div class="sec"><h3>Resultado</h3>{% if cr.executed_at %}<span class="muted sm">{{ _f('Ejecutada {0}', cr.executed_at|ago) }}</span>{% endif %}<pre class="term" style="min-height:0">{{ cr.result }}</pre></div>{% endif %}
+  <div class="row" data-sheet-foot><span class="grow"></span><a class="btn" href="/changes" data-cancel>Cerrar</a></div>
+{% endif %}
+<script>
+(function () {
+  const rej = document.getElementById('rej'); if (!rej) return;
+  rej.addEventListener('click', e => {  // rechazar exige un comentario (como en el prototipo)
+    const c = document.getElementById('chc');
+    if (!c.value.trim()) { e.preventDefault(); c.style.borderColor = 'var(--crit)'; c.focus(); if (window.ocToast) window.ocToast({{ _('Escribe por qué se rechaza: así quien la pidió sabe qué cambiar.')|tojson }}, 'error'); }
+  });
+})();
+</script>
 {% endblock %}

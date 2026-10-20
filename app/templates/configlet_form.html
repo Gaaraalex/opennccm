@@ -1,21 +1,37 @@
-{% extends "base.html" %}{% block title %}Configlet{% endblock %}
+{% extends "base.html" %}{% block title %}{{ _f('Editar «{0}»', c.name) if c else _('Nuevo configlet') }}{% endblock %}
 {% block content %}
-<h1>{{ _('Editar configlet') if c else _('Nuevo configlet') }}</h1>
-<div class="card" style="max-width:900px">
-<form method="post">
-  <div class="row">
-    <div><label>Nombre</label><input name="name" required value="{{ c.name if c }}"></div>
-    <div><label>Tipo</label><select name="kind">
-      <option value="config" {{ 'selected' if c and c.kind == 'config' }}>config — modo configuración (requiere aprobación)</option>
-      <option value="exec" {{ 'selected' if c and c.kind == 'exec' }}>exec — comandos show/diagnóstico</option></select></div>
-    <div><label>Aplica a (regex de device_type)</label><input name="device_type_filter" value="{{ c.device_type_filter or '' if c }}" placeholder="cisco|arista"></div>
-  </div>
-  <label>Descripción</label><input name="description" style="width:100%" value="{{ c.description or '' if c }}">
-  <label>Comandos (una línea por comando)</label>
-  <textarea name="body" rows="14" required>{{ c.body if c }}</textarea>
-  <p class="small muted">Variables: <code>{{ '{{ device.name }}' }}</code>, <code>{{ '{{ device.host }}' }}</code>, <code>{{ '{{ device.model }}' }}</code>, <code>{{ '{{ device.location }}' }}</code>, <code>{{ '{{ device.group }}' }}</code>
-  y cualquier variable propia como <code>{{ '{{ vlan_id }}' }}</code> (se piden al ejecutar). Admite <code>{{ '{% if %}' }}</code> y <code>{{ '{% for %}' }}</code>.</p>
-  <p><button>Guardar</button> <a class="btn sec" href="/configlets">Cancelar</a></p>
+<h1>{{ _f('Editar «{0}»', c.name) if c else _('Nuevo configlet') }}</h1>
+<p class="muted sm" data-sheet-sub>Usa &#123;&#123; variable &#125;&#125; para los valores que cambian en cada ejecución.</p>
+<form method="post" class="stack" id="cflform">
+  <div class="f2"><div class="field"><label for="cn">Nombre</label><div class="input"><input id="cn" name="name" required value="{{ c.name if c }}" placeholder="Agregar VLAN"></div></div>
+    <div class="field"><label for="ckind">Tipo</label><div class="input"><select id="ckind" name="kind">
+      <option value="config" {{ 'selected' if not c or c.kind == 'config' }}>Configlet (cambia la configuración)</option>
+      <option value="exec" {{ 'selected' if c and c.kind == 'exec' }}>Script (solo comandos de consulta)</option></select></div></div></div>
+  <div class="field"><label for="cdesc">Descripción</label><div class="input"><input id="cdesc" name="description" value="{{ c.description or '' if c }}"></div></div>
+  <div class="field"><label for="cre">Aplica a (regex de tipo de equipo)</label><div class="input mono"><input id="cre" name="device_type_filter" value="{{ c.device_type_filter or '' if c }}" placeholder="cisco_(ios|xe)"></div><span class="help" id="cremsg"></span></div>
+  <div class="field"><label for="ctpl">Comandos (uno por línea)</label><textarea class="ta" id="ctpl" name="body" required style="min-height:180px" placeholder="vlan &#123;&#123; vlan_id &#125;&#125;&#10; name &#123;&#123; nombre &#125;&#125;">{{ c.body if c }}</textarea></div>
+  <div class="field"><span class="fl">Variables detectadas</span><div class="row" id="cvars"></div></div>
+  <div class="row" data-sheet-foot>
+    {% if c %}<button type="button" class="btn dz" data-dialog="cfl-del">{{ icon('trash', 's') }}Eliminar</button>{% endif %}
+    <span class="grow"></span><a class="btn ghost" href="/configlets" data-cancel>Cancelar</a><button class="btn pri">Guardar</button></div>
 </form>
-</div>
+{% if c %}<dialog class="dlg" id="cfl-del"><form method="post" action="/configlets/{{ c.id }}/delete">
+  <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi crit">{{ icon('trash') }}</span><div><h2>{{ _f('¿Eliminar «{0}»?', c.name) }}</h2><p class="muted" style="margin-top:6px">El configlet se borrará. Las solicitudes ya creadas con él no cambian.</p></div></div>
+  <div class="row end"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn dzf">Eliminar</button></div></form></dialog>{% endif %}
+<script>
+(function () {
+  const TYPES = {{ types|tojson }}, T = {{ {'n': _('{0} equipos compatibles'), 'bad': _('Expresión no válida'), 'none': _('Ninguna')}|tojson }};
+  const tpl = document.getElementById('ctpl'), re = document.getElementById('cre'), out = document.getElementById('cvars'), msg = document.getElementById('cremsg');
+  const vars = t => [...new Set([...t.matchAll(/\{\{\s*([a-zA-Z_]\w*)\s*\}\}/g)].map(m => m[1]).filter(v => v !== 'device'))];
+  function upd() {
+    const v = vars(tpl.value);
+    out.innerHTML = v.length ? v.map(x => '<span class="tag info mono"></span>').join('') : '<span class="muted sm"></span>';
+    if (v.length) out.querySelectorAll('.tag').forEach((e, i) => { e.textContent = v[i]; }); else out.firstChild.textContent = T.none;
+    let rx = null, ok = true; try { rx = re.value ? new RegExp(re.value) : null; } catch (e) { ok = false; }
+    msg.innerHTML = ok ? '' : '<span style="color:var(--crit)"></span>';
+    if (ok) msg.textContent = T.n.replace('{0}', TYPES.filter(t => !rx || rx.test(t)).length); else msg.firstChild.textContent = T.bad;
+  }
+  tpl.addEventListener('input', upd); re.addEventListener('input', upd); upd();
+})();
+</script>
 {% endblock %}

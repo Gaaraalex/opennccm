@@ -1,17 +1,27 @@
 {% extends "base.html" %}{% block title %}Solicitudes de cambio{% endblock %}
+{% block crumbs %}<b>Cambios</b>{% endblock %}
 {% block content %}
-<h1>Solicitudes de cambio</h1>
-<div class="toolbar">
-  {% for s, l in [('', _('Todas')), ('pending', _('Pendientes')), ('done', _('Ejecutadas')), ('failed', _('Fallidas')), ('rejected', _('Rechazadas'))] %}
-  <a class="btn sm {{ '' if s == status else 'sec' }}" href="/changes?status={{ s }}">{{ l }}</a>{% endfor %}
-</div>
-<div class="card">
-<table><tr><th>#</th><th>Fecha</th><th>Título</th><th>Solicitante</th><th>Revisor</th><th>Estado</th></tr>
-{% for cr in items %}
-<tr><td>{{ cr.id }}</td><td class="small">{{ cr.created_at|dt }}</td>
-<td><a href="/changes/{{ cr.id }}">{{ cr.title }}</a>{% if cr.is_rollback %} <span class="badge b-warning">reversión</span>{% endif %}</td>
-<td>{{ cr.requested_by }}</td><td>{{ cr.reviewed_by or '—' }}</td><td>{{ crstatus(cr.status) }}</td></tr>
-{% else %}<tr class="empty-row"><td colspan="6"><div class="empty">{{ empty_art('check') }}<h3>Todo al día</h3><p class="muted">No hay solicitudes de cambio. Se crean desde <a href="/configlets">Configlets</a>, reversiones o correcciones de cumplimiento.</p></div></td></tr>{% endfor %}
-</table>
-</div>
+{% set st = {'pending': ('info', _('Por aprobar')), 'approved': ('info', _('Aprobada')), 'running': ('info', _('En curso')), 'done': ('ok', _('Aprobada y ejecutada')), 'partial': ('warn', _('Ejecutada en parte')), 'failed': ('crit', _('Fallida')), 'rejected': ('crit', _('Rechazada'))} %}
+<div class="ph"><div class="grow"><h1>Solicitudes de cambio</h1><div class="sub">{% if flow %}Los cambios a los equipos necesitan el visto bueno de un administrador antes de ejecutarse.{% else %}El flujo de aprobación está desactivado: los operadores ejecutan directamente.{% endif %}
+  {% if user.role == 'admin' %}<a href="/settings#flujo">Cambiar</a>{% endif %}</div></div>
+  {% if ROLES[user.role] >= 1 %}<a class="btn pri" href="/configlets">{{ icon('plus', 's') }}Nueva desde un configlet</a>{% endif %}</div>
+<div class="row">
+  {% for k, l in [('pending', _('Por aprobar')), ('done', _('Ejecutadas')), ('rejected', _('Rechazadas'))] %}<a class="chip {{ 'on' if status == k }}" href="?status={{ k }}">{{ l }}{% if k == 'pending' %} <span class="n">{{ counts.pending }}</span>{% endif %}</a>{% endfor %}
+  {% if counts.failed %}<a class="chip {{ 'on' if status == 'failed' }}" href="?status=failed">Fallidas <span class="n">{{ counts.failed }}</span></a>{% endif %}
+  <a class="chip {{ 'on' if not status }}" href="?status=">Todas</a></div>
+<section class="card flush">
+  {% if items %}<ul class="queue">{% for cr in items %}{% set s = st.get(cr.status, ('info', cr.status)) %}
+  <li class="click" data-href="/changes/{{ cr.id }}"><span class="qi {{ 'info' if cr.status in ('pending', 'approved', 'running') else 'ok' if cr.status == 'done' else 'warn' if cr.status == 'partial' else 'crit' }}">{{ icon(cr.kind_icon) }}</span>
+    <div style="min-width:0"><div class="row"><span class="qt">#{{ cr.id }} · {{ cr.title }}</span><span class="pill {{ s[0] }}">{{ s[1] }}</span></div>
+      <div class="qs">{{ cr.kind_label }} · {{ cr.requested_by }} · <span title="{{ cr.created_at|dt }}">{{ cr.created_at|ago }}</span> · {{ _('1 equipo') if cr.dev_names|length == 1 else _f('{0} equipos', cr.dev_names|length) }}: {{ cr.dev_names[:6]|join(', ') }}{{ '…' if cr.dev_names|length > 6 }}</div></div>
+    <span class="row nowrap">{% if cr.status == 'pending' and user.role == 'admin' %}<a class="btn s sig" href="/changes/{{ cr.id }}" data-sheet data-wide>Revisar</a>{% else %}<a class="btn s ghost" href="/changes/{{ cr.id }}" data-sheet data-wide>Abrir {{ icon('right', 's') }}</a>{% endif %}</span></li>
+  {% endfor %}</ul>
+  {% else %}<div class="empty">{{ empty_art('check') }}<h2>Nada pendiente</h2><p>{{ _('Todas las solicitudes están revisadas.') if status == 'pending' else _('No hay solicitudes de cambio con este filtro.') }}</p></div>{% endif %}
+</section>
+<script>
+document.querySelectorAll('.queue li.click').forEach(li => li.addEventListener('click', e => {
+  if (e.target.closest('a, button')) return;
+  const a = li.querySelector('a[data-sheet]'); if (a) a.click();
+}));
+</script>
 {% endblock %}
