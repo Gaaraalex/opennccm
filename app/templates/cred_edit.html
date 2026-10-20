@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block title %}{{ _f('Actualizar «{0}»', c.name) if c else _('Crear credencial') }}{% endblock %}
+{% block content %}
+<h1>{{ _f('Actualizar «{0}»', c.name) if c else _('Crear credencial') }}</h1>
+{% if c %}<p class="muted sm" data-sheet-sub>{{ _f('La usan {0} equipos. Se aplica en el próximo respaldo.', used) }}</p>{% endif %}
+<form method="post" action="/credentials" class="stack" autocomplete="off">
+  {% if c %}<input type="hidden" name="id" value="{{ c.id }}">{% endif %}
+  <div class="field"><label for="crn">Nombre</label><div class="input"><input id="crn" name="name" required value="{{ c.name if c }}" placeholder="lab"></div><span class="help">Un nombre para reconocerla.</span></div>
+  <div class="field"><label for="cru">Usuario</label><div class="input mono"><input id="cru" name="username" required value="{{ c.username if c }}" autocomplete="off"></div></div>
+  <div class="field"><label for="crp">Contraseña</label><div class="input"><input id="crp" name="password" type="password" autocomplete="new-password" {% if c %}placeholder="{{ _('•••••••• (vacía = no cambiarla)') }}"{% endif %}></div></div>
+  <div class="field"><label for="cre2">Enable / secret (opcional)</label><div class="input"><input id="cre2" name="secret" type="password" autocomplete="new-password" {% if c and c.secret_enc %}placeholder="{{ _('•••••••• (guardado)') }}"{% endif %}></div><span class="help">Para equipos que piden «enable» (Cisco, por ejemplo).</span></div>
+  {% if c and c.secret_enc %}<label class="ck"><input type="checkbox" name="clear_secret"> Quitar el enable guardado</label>{% endif %}
+  <div class="row" data-sheet-foot><span class="grow"></span><a class="btn ghost" href="/credentials" data-cancel>Cancelar</a><button class="btn pri">Guardar</button></div>
+</form>
+{% endblock %}

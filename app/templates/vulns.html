@@ -1,18 +1,29 @@
 {% extends "base.html" %}{% block title %}Vulnerabilidades de firmware{% endblock %}
+{% block crumbs %}<b>Vulnerabilidades</b>{% endblock %}
 {% block content %}
-<h1>Vulnerabilidades de firmware</h1>
-<p class="muted">Consulta la base NVD (NIST) según fabricante y versión de firmware detectada en el inventario. Los resultados son orientativos: confirme siempre con el boletín del fabricante.</p>
-<div class="toolbar">
-  {% if ROLES[user.role] >= 1 %}<form class="inline" method="post" action="/cve/all"><button>Escanear todos</button></form>{% endif %}
-  <a class="btn sec" href="/reports/vulns.csv">Exportar CSV</a>
+<div class="ph"><div class="grow"><h1>Vulnerabilidades de firmware</h1>
+  <div class="sub">CVE publicados que afectan al firmware instalado. Fuente: NVD{% if has_kev %} y catálogo KEV de CISA{% endif %}{% if last %} · {{ _f('actualizado {0}', last|ago) }}{% endif %}. Son orientativos: confírmalos con el boletín del fabricante.</div></div>
+  <a class="btn" href="/reports/vulns.csv">{{ icon('dl', 's') }}Exportar CSV</a>
+  {% if ROLES[user.role] >= 1 %}<form class="inline" method="post" action="/cve/all"><button class="btn pri">{{ icon('search', 's') }}Escanear todos</button></form>{% endif %}</div>
+
+<div class="bento">
+  <div class="c3"><div class="kpi static {{ 'alert' if k.crit }}"><span class="label">Críticos</span><span class="v" data-count="{{ k.crit }}">{{ k.crit }}</span><span class="d">{{ _('en 1 equipo') if k.crit_devs == 1 else _f('en {0} equipos', k.crit_devs) }}</span></div></div>
+  <div class="c3"><div class="kpi static"><span class="label">Explotados activamente</span><span class="v" data-count="{{ k.kev }}">{{ k.kev }}</span><span class="d">{{ _('según CISA KEV') if has_kev else _('catálogo KEV aún no descargado') }}</span></div></div>
+  <div class="c3"><a class="kpi" href="/devices"><span class="label">Equipos afectados</span><span class="v" data-count="{{ k.affected }}">{{ k.affected }}</span><span class="d">{{ _f('de {0}', k.total) }}</span></a></div>
+  <div class="c3"><a class="kpi" href="/firmware"><span class="label">Con imagen corregida cargada</span><span class="v">{{ _f('{0} de {1}', k.with_img, k.affected) }}</span><span class="d">{{ _('carga el resto en Firmware') if k.with_img < k.affected else _('todas cargadas') }}</span></a></div>
 </div>
-<div class="card">
-<table><tr><th>Equipo</th><th>Versión</th><th>CVE</th><th>CVSS</th><th>Severidad</th><th>Descripción</th></tr>
-{% for v in items %}
-<tr><td><a href="/devices/{{ v.device_id }}">{{ v.device.name }}</a></td><td>{{ v.device.os_version }}</td>
-<td><a href="{{ v.url }}" target="_blank" rel="noopener">{{ v.cve_id }}</a></td><td>{{ v.score or '—' }}</td>
-<td>{{ sevtag(v.severity) }}</td><td class="small">{{ (v.description or '')[:220] }}</td></tr>
-{% else %}<tr class="empty-row"><td colspan="6"><div class="empty">{{ empty_art('search') }}<h3>Aún no se han buscado vulnerabilidades</h3><p class="muted">La búsqueda compara el firmware de cada equipo con la base de CVE del NIST; se lanza desde la ficha del equipo o con una tarea programada.</p></div></td></tr>{% endfor %}
-</table>
-</div>
+
+<div class="row">{% for key, l in [('all', _('Todos')), ('crit', _('Críticos')), ('major', _('Mayores')), ('minor', _('Menores')), ('kev', _('Explotados activamente'))] %}<a class="chip {{ 'on' if f == key }}" href="?f={{ key }}">{{ l }}</a>{% endfor %}</div>
+
+{% if rows %}<section class="card flush"><div class="tw"><table class="t"><thead><tr><th>CVE</th><th>CVSS</th><th>Severidad</th><th>Afecta a</th><th>Qué permite</th><th>Solución</th></tr></thead><tbody>
+{% for g in rows %}{% set c = g.score or 0 %}
+<tr><td class="mono" style="white-space:nowrap"><a href="{{ g.url }}" target="_blank" rel="noopener" style="color:inherit">{{ g.id }}</a>{% if g.kev %}<div style="margin-top:4px"><span class="tag crit">explotado activamente</span></div>{% endif %}</td>
+  <td>{% if g.score is not none %}<span class="mc num" style="background:var(--{{ 'crit' if c >= 9 else 'major' if c >= 7 else 'warn' }}-soft);color:var(--{{ 'crit' if c >= 9 else 'major' if c >= 7 else 'warn' }})">{{ '%.1f'|format(c) }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+  <td>{{ sevtag(g.sev) }}</td>
+  <td style="white-space:nowrap">{% for d in g.devs %}<a href="/devices/{{ d.id }}#vulns">{{ d.name }}</a>{{ ', ' if not loop.last }}{% endfor %}</td>
+  <td style="min-width:260px" class="sm" title="{{ g.desc }}">{{ g.desc|truncate(120) }}</td>
+  <td class="sm" style="min-width:160px">{% if g.img %}{{ _f('Actualizar a {0}', g.img.version) }} · <a href="/firmware?img={{ g.img.id }}#actualizar">imagen cargada</a>{% else %}Actualizar el firmware · <a href="{{ g.url }}" target="_blank" rel="noopener">ver el boletín</a>{% endif %}</td></tr>
+{% endfor %}</tbody></table></div></section>
+{% elif f != 'all' %}<section class="card"><div class="empty">{{ empty_art('check') }}<h2>Nada con este filtro</h2><p><a href="/vulns">Ver todos</a></p></div></section>
+{% else %}<section class="card"><div class="empty">{{ empty_art('search') }}<h2>Sin vulnerabilidades conocidas</h2><p>La búsqueda compara el firmware de cada equipo con la base de CVE del NIST; se lanza con «Escanear todos», desde la ficha del equipo o con una tarea programada.</p></div></section>{% endif %}
 {% endblock %}

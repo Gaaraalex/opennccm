@@ -127,6 +127,43 @@ def cuando(d) -> str:
 
 
 templates.env.filters["cuando"] = cuando
+templates.env.filters["cuando_ts"] = lambda ts: cuando(__import__("datetime").datetime.fromtimestamp(ts)) if ts else "—"
+
+
+def area(pts, label: str = ""):
+    """Gráfica de área de 24 h del prototipo (Sistema): 0-100 %, líneas a 0/50/100 y «hace 24 h · ahora»."""
+    from markupsafe import Markup, escape
+    pts = [max(0.0, min(100.0, float(p))) for p in pts] or [0.0, 0.0]
+    if len(pts) == 1:
+        pts = pts * 2
+    W, H, pl, pb = 600, 140, 34, 20
+    sx = (W - pl) / (len(pts) - 1)
+    y = lambda v: H - pb - v / 100 * (H - pb - 8)  # noqa: E731
+    d = " ".join(f"{'L' if i else 'M'}{pl + i * sx:.1f} {y(v):.1f}" for i, v in enumerate(pts))
+    grid = "".join(f'<line class="g" x1="{pl}" x2="{W}" y1="{y(v):.1f}" y2="{y(v):.1f}"/><text x="0" y="{y(v) + 4:.1f}">{v}%</text>'
+                   for v in (0, 50, 100))
+    return Markup(f'<svg class="areachart" viewBox="0 0 {W} {H}" preserveAspectRatio="none" role="img" aria-label="{escape(label)}">'
+                  f'{grid}<path class="ar" d="{d} L{W} {H - pb} L{pl} {H - pb}Z"/><path class="ln" d="{d}"/>'
+                  f'<text x="{pl}" y="{H - 4}">{escape(i18n._("hace 24 h"))}</text>'
+                  f'<text x="{W - 36}" y="{H - 4}">{escape(i18n._("ahora"))}</text></svg>')
+
+
+templates.env.globals["area"] = area
+
+
+def admin_counts() -> dict:
+    """Recuentos de las pestañas de Administración (prototipo)."""
+    from sqlalchemy import func, select
+
+    from .db import Credential, DeviceGroup, SessionLocal, User
+    from .drivers import PROFILES
+    with SessionLocal() as db:
+        return {"users": db.scalar(select(func.count(User.id))) or 0,
+                "creds": db.scalar(select(func.count(Credential.id))) or 0,
+                "groups": db.scalar(select(func.count(DeviceGroup.id))) or 0, "platforms": len(PROFILES)}
+
+
+templates.env.globals["admin_counts"] = admin_counts
 
 
 def mark(line: str, q: str, regex: int = 0, cs: int = 0):

@@ -47,7 +47,7 @@ try:
     time.sleep(3)
     s.post(B + "/login", data={"username": "admin", "password": "Admin12345"})
     s.post(B + "/credentials", data={"name": "shells", "username": "admin", "password": "cisco"})
-    cred = re.search(r'<option value="(\d+)">shells</option>', s.get(B + "/credentials").text).group(1)
+    cred = re.search(r'data-cred="(\d+)" data-name="shells"', s.get(B + "/credentials").text).group(1)
 
     vendors = s.get(B + "/vendors").text
     for label in ("pfSense", "OPNsense", "Alpine Linux"):

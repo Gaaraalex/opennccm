@@ -24,7 +24,8 @@ from .config import BASE_DIR, TLS_CA
 from .crypto import (decrypt, dummy_verify, encrypt, hash_password, needs_rehash, password_problem, session_secret,
                      verify_password)
 from .db import (AuditLog, ChangeRequest, ComplianceResult, Configlet, ConfigVersion, Credential, Device,
-                 DeviceGroup, Event, Policy, Rule, SessionLocal, Schedule, User, UserGroup, Vulnerability, audit,
+                 DeviceGroup, Event, FirmwareImage, Policy, Rule, SessionLocal, Schedule, User, UserGroup,
+                 Vulnerability, audit,
                  get_setting, init_db, now, set_setting)
 from .drivers import PROFILE_MAP, get_profile
 from .i18n import LANGS, LangMiddleware, N_, _, _f
@@ -383,6 +384,12 @@ def _server_panel() -> dict:
                                    _f("{0} usados de {1}", hb(snap['swap_used']), hb(snap['swap_total'])))
         if snap["swap_total"] else "",
         "data_size": hb(snap["data_size"]), "app_rss": hb(snap["app_rss"]),
+        "cpu_vals": [v for _l, v in cpu_pts], "mem_vals": [v for _l, v in mem_pts],
+        "space": [(_("Disco"), _f("{0} de {1} · {2} libres", hb(snap["disk_used"]), hb(snap["disk_total"]),
+                                  hb(snap["disk_free"])), snap["disk_pct"]),
+                  (_("Memoria RAM"), _f("{0} de {1}", hb(snap["mem_used"]), hb(snap["mem_total"])), snap["mem_pct"])]
+                 + ([(_("Swap"), _f("{0} de {1}", hb(snap["swap_used"]), hb(snap["swap_total"])),
+                      100 * snap["swap_used"] / snap["swap_total"])] if snap["swap_total"] else []),
     }
 
 
@@ -951,8 +958,42 @@ def credentials(request: Request):
     user = require(request, "admin")
     with SessionLocal() as db:
         creds = db.scalars(select(Credential).order_by(Credential.name)).all()
+        usage: dict[int, dict] = {}
+        for d in db.scalars(select(Device)):
+            if d.credential_id:
+                u = usage.setdefault(d.credential_id, {"n": 0, "ok": 0, "err": 0})
+                u["n"] += 1
+                if d.last_status == "ok":
+                    u["ok"] += 1
+                elif d.last_status == "error":
+                    u["err"] += 1
+    return render(request, "credentials.html", user, creds=creds, usage=usage)
+
+
+@app.get("/credentials/new")
+def credential_new(request: Request):
+    user = require(request, "admin")
+    return render(request, "cred_edit.html", user, c=None, used=0)
+
+
+@app.get("/credentials/{cid}/edit")
+def credential_edit(request: Request, cid: int):
+    user = require(request, "admin")
+    with SessionLocal() as db:
+        c = db.get(Credential, cid)
+        used = db.scalar(select(func.count(Device.id)).where(Device.credential_id == cid)) or 0
+    if c is None:
+        return go("/credentials")
+    return render(request, "cred_edit.html", user, c=c, used=used)
+
+
+@app.get("/groups")
+def groups_page(request: Request):
+    user = require(request, "admin")
+    with SessionLocal() as db:
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
-    return render(request, "credentials.html", user, creds=creds, groups=groups)
+        counts = dict(db.execute(select(Device.group_id, func.count(Device.id)).group_by(Device.group_id)).all())
+    return render(request, "groups.html", user, groups=groups, counts=counts)
 
 
 @app.post("/credentials")
@@ -997,7 +1038,7 @@ async def group_save(request: Request):
         db.add(DeviceGroup(name=form["name"].strip()))
         db.commit()
     log_action(request, user, "group_create", form["name"])
-    return go("/credentials#groups")
+    return go("/groups")
 
 
 @app.post("/groups/{gid}/delete")
@@ -1009,7 +1050,7 @@ def group_delete(request: Request, gid: int):
             db.delete(g)
             db.commit()
             log_action(request, user, "group_delete", g.name)
-    return go("/credentials#groups")
+    return go("/groups")
 
 
 # --------------------------------------------------------------------------- configlets
@@ -1639,22 +1680,43 @@ def schedule_op(request: Request, sid: int, op: str):
 
 
 # --------------------------------------------------------------------------- alarmas, vulns, auditoría
+EV_SEV = {"crit": ("critical",), "major": ("major", "error"), "minor": ("warning",), "info": ("info",)}
+
+
 @app.get("/events")
-def events(request: Request, sev: str = "", unack: int = 0, page: int = 1):
+def events(request: Request, sev: str = "", unack: int | None = None, page: int = 1):
+    """Alarmas y eventos (prototipo): chips por severidad con recuento, «Sin reconocer / Todas» y cola."""
+    from .web import _event_title
     user = require(request)
+    if unack is None:
+        unack = 1  # como el prototipo: se abre en «Sin reconocer»
     with SessionLocal() as db:
-        stmt = select(Event).order_by(Event.id.desc())
-        if sev:
-            stmt = stmt.where(Event.severity == sev)
+        base = select(Event)
         if unack:
-            stmt = stmt.where(Event.acknowledged.is_(False))
+            base = base.where(Event.acknowledged.is_(False))
         scope = device_scope(user)
         if scope is not None:  # eventos de sus equipos (los globales solo los ven usuarios sin restricción)
-            stmt = stmt.where(Event.device_id.in_(scope))
+            base = base.where(Event.device_id.in_(scope))
+        counts = {k: 0 for k in EV_SEV}
+        sub = base.subquery()
+        for sv, n in db.execute(select(sub.c.severity, func.count()).group_by(sub.c.severity)).all():
+            for k, vals in EV_SEV.items():
+                if sv in vals:
+                    counts[k] += n
+        total = sum(counts.values())
+        stmt = base.order_by(Event.id.desc())
+        if sev in EV_SEV:
+            stmt = stmt.where(Event.severity.in_(EV_SEV[sev]))
+        elif sev:  # compatibilidad con enlaces antiguos (?sev=critical)
+            stmt = stmt.where(Event.severity == sev)
         items = db.scalars(stmt.offset((page - 1) * 100).limit(100)).all()
         for e in items:
             e.device.name if e.device else None  # carga la relación antes de cerrar la sesión
-    return render(request, "events.html", user, items=items, sev=sev, unack=unack, page=page)
+            e.title = _event_title(e)
+        open_n = db.scalar(select(func.count(Event.id)).where(Event.acknowledged.is_(False),
+                                                              *([Event.device_id.in_(scope)] if scope is not None else []))) or 0
+    return render(request, "events.html", user, items=items, sev=sev, unack=unack, page=page, counts=counts,
+                  total=total, open_n=open_n, min_sev=get_setting("alert_min_severity", "warning"))
 
 
 @app.post("/events/ack")
@@ -1704,15 +1766,50 @@ async def events_unack(request: Request):
 
 
 @app.get("/vulns")
-def vulns(request: Request):
+def vulns(request: Request, f: str = "all"):
+    """Vulnerabilidades agrupadas por CVE (prototipo): KPI, filtros y «explotado activamente» (CISA KEV)."""
     user = require(request)
+    kev = services.kev_ids()
     with SessionLocal() as db:
         scope = device_scope(user)
         items = [v for v in db.scalars(select(Vulnerability).order_by(Vulnerability.score.desc().nulls_last())
                                        .limit(5000)) if scope is None or v.device_id in scope][:2000]
-        for v in items:
-            v.device.name  # carga la relación antes de cerrar la sesión
-    return render(request, "vulns.html", user, items=items)
+        devs = {d.id: d for d in db.scalars(select(Device)) if scope is None or d.id in scope}
+        images = db.scalars(select(FirmwareImage).order_by(FirmwareImage.uploaded_at.desc())).all()
+        last = max((v.found_at for v in items), default=None)
+
+    def fixed_image(d):  # imagen cargada para el tipo del equipo con otra versión
+        for img in images:
+            try:
+                if (not img.device_type_filter or re.search(img.device_type_filter, d.device_type)) \
+                        and img.version and img.version != d.os_version:
+                    return img
+            except re.error:
+                continue
+        return None
+
+    groups: dict[str, dict] = {}
+    for v in items:
+        g = groups.setdefault(v.cve_id, {"id": v.cve_id, "score": v.score, "sev": (v.severity or "").lower(),
+                                         "desc": v.description or "", "url": v.url, "kev": v.cve_id in kev,
+                                         "devs": []})
+        if v.device_id in devs and devs[v.device_id] not in g["devs"]:
+            g["devs"].append(devs[v.device_id])
+    rows = sorted(groups.values(), key=lambda g: (not g["kev"], -(g["score"] or 0), g["id"]))
+    for g in rows:
+        imgs = {fixed_image(d) for d in g["devs"]} - {None}
+        g["img"] = sorted(imgs, key=lambda i: i.filename)[0] if imgs else None
+    affected = {d.id: d for g in rows for d in g["devs"]}
+    crit = [g for g in rows if g["sev"] == "critical"]
+    k = {"crit": len(crit), "crit_devs": len({d.id for g in crit for d in g["devs"]}),
+         "kev": sum(1 for g in rows if g["kev"]), "affected": len(affected), "total": len(devs),
+         "with_img": sum(1 for d in affected.values() if fixed_image(d))}
+    sev_f = {"crit": ("critical",), "major": ("high",), "minor": ("medium", "low")}
+    if f == "kev":
+        rows = [g for g in rows if g["kev"]]
+    elif f in sev_f:
+        rows = [g for g in rows if g["sev"] in sev_f[f]]
+    return render(request, "vulns.html", user, rows=rows, k=k, f=f, last=last, has_kev=bool(kev))
 
 
 @app.get("/audit")
@@ -1787,6 +1884,14 @@ async def user_create(request: Request):
     log_action(request, user, "user_create", f"{username} rol={role} grupos={form.getlist('group_ids')}")
     flash(request, _f("Usuario «{0}» creado con rol {1}. Ya puede ingresar con su contraseña.", username, ROLE_NAMES[role]))
     return go("/users")
+
+
+@app.get("/users/new")
+def user_new_form(request: Request):
+    user = require(request, "admin")
+    with SessionLocal() as db:
+        groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
+    return render(request, "user_edit.html", user, u=None, groups=groups, selected=set(), now=now())
 
 
 @app.get("/users/{uid}/edit")

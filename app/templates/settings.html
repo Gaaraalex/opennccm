@@ -1,95 +1,92 @@
 {% extends "base.html" %}{% block title %}Ajustes{% endblock %}
+{% block crumbs %}<b>Administración</b>{% endblock %}
 {% block content %}
 {% include "_admin_tabs.html" %}
-<h1>Ajustes</h1>
-<form method="post" action="/settings" data-dirty>
-<div class="card" style="max-width:900px" id="seguridad">
-  <h2 style="margin-top:0">Seguridad y acceso</h2>
-  <label for="s-idle">Cerrar la sesión tras estos minutos sin actividad (5 a 720)</label>
-  <input id="s-idle" name="session_idle_minutes" type="number" min="5" max="720" value="{{ s.session_idle_minutes or '30' }}">
-  <p><label class="chk"><input type="checkbox" name="require_2fa_admins" {{ 'checked' if s.require_2fa_admins == '1' }}> Exigir verificación en dos pasos (código de una app de autenticación) a todos los administradores</label></p>
-  <p class="small muted">Cada usuario la activa en «Mi cuenta». Si se exige, un administrador sin ella solo podrá entrar a «Mi cuenta» hasta activarla.</p>
-  <h3>Idioma</h3>
-  <label for="s-lang">Idioma predeterminado de la interfaz</label>
-  <select id="s-lang" name="default_lang">{% for code, name in LANGS.items() %}<option value="{{ code }}" {{ 'selected' if (s.default_lang or 'es') == code }}>{{ name }}</option>{% endfor %}</select>
-  <p class="small muted">Se usa cuando el navegador no pide un idioma disponible. Cada usuario puede elegir el suyo en «Mi cuenta» o en la pantalla de ingreso.</p>
-  <h3>Consola SSH web</h3>
-  <label for="s-console">Quién puede abrir la consola de los equipos desde el navegador</label>
-  <select id="s-console" name="console_access">
-    <option value="admin" {{ 'selected' if s.console_access == 'admin' }}>Solo administradores</option>
-    <option value="operator" {{ 'selected' if s.console_access == 'operator' }}>Administradores y operadores (solo sus equipos)</option>
-    <option value="off" {{ 'selected' if s.console_access == 'off' }}>Nadie (consola desactivada)</option>
-  </select>
-  <p><label class="chk"><input type="checkbox" name="console_autologin" {{ 'checked' if s.console_autologin == '1' }}> Iniciar sesión automáticamente con la credencial asignada al equipo</label></p>
-  <p class="small muted">Sin esta opción, la consola pide usuario y contraseña del equipo. Con ella, quien pueda abrir la consola entra
-  al equipo sin conocer la contraseña. Cada sesión de consola queda registrada en Auditoría.</p>
-  <h3>Actualizaciones</h3>
-  <p><label class="chk"><input type="checkbox" name="update_check" {{ 'checked' if s.update_check != '0' }}> Buscar versiones nuevas una vez al día (consulta GitHub) y avisar a los administradores</label></p>
-  <p><button>Guardar ajustes</button></p>
-</div>
-<div class="card" style="max-width:900px" id="organizacion">
-  <h2 style="margin-top:0">Datos de la organización</h2>
-  <p class="small muted">Se muestran en la página <a href="/acerca">Privacidad, cookies y licencias</a> como responsable de los datos
-  de esta instalación.</p>
-  <div class="row">
-    <div><label for="o-name">Nombre de la organización</label><input id="o-name" name="org_name" value="{{ s.org_name }}"></div>
-    <div><label for="o-contact">Correo de contacto para privacidad</label><input id="o-contact" name="org_contact" type="email" value="{{ s.org_contact }}"></div>
-  </div>
-  <label for="o-addr">Dirección (opcional)</label><input id="o-addr" name="org_address" value="{{ s.org_address }}" style="width:100%">
-  <p><button>Guardar ajustes</button></p>
-</div>
-<div class="card" style="max-width:900px">
-  <h2 style="margin-top:0">Flujo de cambios</h2>
-  <label class="chk"><input type="checkbox" name="require_approval" {{ 'checked' if s.require_approval != '0' }}> Exigir aprobación de un administrador para aplicar cambios</label><br>
-  <label class="chk"><input type="checkbox" name="allow_self_approval" {{ 'checked' if s.allow_self_approval == '1' }}> Permitir que un administrador apruebe sus propias solicitudes</label><br>
-  <label class="chk"><input type="checkbox" name="notify_compliance" {{ 'checked' if s.notify_compliance != '0' }}> Notificar infracciones de cumplimiento</label>
-  <label>Retención: versiones por equipo (0 = ilimitado; las etiquetadas nunca se borran)</label>
-  <input name="retention_versions" type="number" min="0" value="{{ s.retention_versions or '0' }}">
-</div>
-<div class="card" style="max-width:900px">
-  <h2 style="margin-top:0">Notificaciones</h2>
-  <label>Severidad mínima para notificar</label>
-  <select name="alert_min_severity">{% for v in ['info','warning','major','critical'] %}<option {{ 'selected' if (s.alert_min_severity or 'warning') == v }}>{{ v }}</option>{% endfor %}</select>
-  <div class="row">
-    <div><label>Servidor SMTP</label><input name="smtp_host" value="{{ s.smtp_host }}"></div>
-    <div><label>Puerto</label><input name="smtp_port" value="{{ s.smtp_port or '587' }}" style="width:90px"></div>
-    <div><label>Seguridad</label><select name="smtp_security">{% for v in ['starttls','ssl','none'] %}<option {{ 'selected' if (s.smtp_security or 'starttls') == v }}>{{ v }}</option>{% endfor %}</select></div>
-  </div>
-  <div class="row">
-    <div><label>Usuario SMTP</label><input name="smtp_user" value="{{ s.smtp_user }}" autocomplete="off"></div>
-    <div><label>Contraseña SMTP {{ '(guardada)' if s.smtp_password_set }}</label><input name="smtp_password" type="password" autocomplete="new-password"></div>
-    <div><label>Remitente</label><input name="smtp_from" value="{{ s.smtp_from }}"></div>
-  </div>
-  <label>Destinatarios (separados por coma)</label><input name="alert_emails" value="{{ s.alert_emails }}" style="width:100%">
-  <label>Webhook (Slack / Teams / Mattermost / Google Chat)</label><input name="webhook_url" value="{{ s.webhook_url }}" style="width:100%">
-  <div class="row">
-    <div><label>Telegram bot token</label><input name="telegram_token" value="{{ s.telegram_token }}"></div>
-    <div><label>Telegram chat ID</label><input name="telegram_chat_id" value="{{ s.telegram_chat_id }}"></div>
-  </div>
-  <p><button>Guardar ajustes</button></p>
-</div>
-<div class="card" style="max-width:900px">
-  <h2 style="margin-top:0">Fin de vida: API Cisco EoX (opcional)</h2>
-  <p class="small muted">Credenciales de aplicación de <a href="https://apiconsole.cisco.com" target="_blank" rel="noopener">apiconsole.cisco.com</a> con acceso a "EoX". Permiten completar automáticamente las fechas de fin de venta/soporte de los equipos Cisco.</p>
-  <div class="row">
-    <div><label>Client ID</label><input name="cisco_api_client_id" value="{{ s.cisco_api_client_id }}" autocomplete="off"></div>
-    <div><label>Client Secret {{ '(guardado)' if s.cisco_api_secret_set }}</label><input name="cisco_api_secret" type="password" autocomplete="new-password"></div>
-  </div>
-  <p><button>Guardar ajustes</button></p>
-</div>
-<div class="card" style="max-width:900px">
-  <h2 style="margin-top:0">Recuperación ante desastres</h2>
-  <label>Copias locales a conservar</label><input name="dr_keep" type="number" min="1" value="{{ s.dr_keep or '14' }}">
-  <p class="small muted">Copia remota opcional por SFTP de cada copia de recuperación:</p>
-  <div class="row">
-    <div><label>Servidor SFTP</label><input name="dr_remote_host" value="{{ s.dr_remote_host }}"></div>
-    <div><label>Puerto</label><input name="dr_remote_port" value="{{ s.dr_remote_port or '22' }}" style="width:80px"></div>
-    <div><label>Usuario</label><input name="dr_remote_user" value="{{ s.dr_remote_user }}" autocomplete="off"></div>
-    <div><label>Contraseña {{ '(guardada)' if s.dr_remote_password_set }}</label><input name="dr_remote_password" type="password" autocomplete="new-password"></div>
-    <div><label>Carpeta remota</label><input name="dr_remote_path" value="{{ s.dr_remote_path }}" placeholder="/backups/opennccm"></div>
-  </div>
-  <p><button>Guardar ajustes</button></p>
-</div>
+{% set SECS = [('seguridad', _('Seguridad y acceso'), 'lock'), ('organizacion', _('Organización'), 'users'), ('flujo', _('Flujo de cambios'), 'branch'),
+               ('notificaciones', _('Notificaciones'), 'bell'), ('eox', _('Fin de vida (Cisco EoX)'), 'clock'), ('recuperacion', _('Recuperación ante desastres'), 'db'),
+               ('actualizaciones', _('Actualizaciones'), 'refresh')] %}
+{% macro F(label, id, help='') %}<div class="field"><label for="{{ id }}">{{ label }}</label>{{ caller() }}{% if help %}<span class="help">{{ help }}</span>{% endif %}</div>{% endmacro %}
+<form method="post" action="/settings" data-dirty id="setf" autocomplete="off">
+<div class="settings"><nav class="anchors" aria-label="{{ _('Secciones') }}">{% for k, l, i in SECS %}<a href="#{{ k }}" data-sec="{{ k }}">{{ icon(i, 's') }}{{ l }}</a>{% endfor %}</nav>
+<div class="stack" id="setwrap">
+  <section class="card" id="seguridad" data-secp><div class="card-h"><h2>Seguridad y acceso</h2></div><div class="stack">
+    {% call F(_('Cerrar la sesión tras estos minutos sin actividad'), 's-idle', _('Entre 5 y 720 minutos.')) %}<div class="input" style="max-width:200px"><input id="s-idle" name="session_idle_minutes" type="number" min="5" max="720" value="{{ s.session_idle_minutes or '30' }}"></div>{% endcall %}
+    <label class="swrow"><span><b>Exigir la verificación en dos pasos a los administradores</b><div class="muted sm">Cada usuario la activa en Mi cuenta. Si se exige, un administrador sin ella solo podrá entrar a Mi cuenta hasta activarla.</div></span><input type="checkbox" class="sw" name="require_2fa_admins" {{ 'checked' if s.require_2fa_admins == '1' }}></label>
+    {% call F(_('Idioma predeterminado de la interfaz'), 's-lang', _('Cada usuario puede elegir el suyo en Mi cuenta.')) %}<div class="input"><select id="s-lang" name="default_lang">{% for code, name in LANGS.items() %}<option value="{{ code }}" {{ 'selected' if (s.default_lang or 'es') == code }}>{{ name }}</option>{% endfor %}</select></div>{% endcall %}
+    {% call F(_('Quién puede abrir la consola SSH desde el navegador'), 's-console', _('Todas las sesiones de consola quedan en Auditoría.')) %}<div class="input"><select id="s-console" name="console_access">
+      <option value="admin" {{ 'selected' if s.console_access == 'admin' }}>Solo administradores</option>
+      <option value="operator" {{ 'selected' if s.console_access == 'operator' }}>Administradores y operadores (solo sus equipos)</option>
+      <option value="off" {{ 'selected' if s.console_access == 'off' }}>Nadie (consola desactivada)</option></select></div>{% endcall %}
+    <label class="swrow"><span><b>Entrar en la consola con la credencial del equipo</b><div class="muted sm">Sin esta opción, la consola pide usuario y contraseña del equipo. Con ella, quien pueda abrir la consola entra sin conocer la contraseña.</div></span><input type="checkbox" class="sw" name="console_autologin" {{ 'checked' if s.console_autologin == '1' }}></label>
+  </div></section>
+
+  <section class="card" id="organizacion" data-secp><div class="card-h"><h2>Organización</h2></div><div class="stack">
+    <div class="f2">{% call F(_('Nombre de la organización'), 'o-name') %}<div class="input"><input id="o-name" name="org_name" value="{{ s.org_name }}"></div>{% endcall %}
+      {% call F(_('Correo de contacto para privacidad'), 'o-contact') %}<div class="input"><input id="o-contact" name="org_contact" type="email" value="{{ s.org_contact }}"></div>{% endcall %}</div>
+    {% call F(_('Dirección (opcional)'), 'o-addr', _('Aparece en Acerca de, junto a la política de privacidad.')) %}<div class="input"><input id="o-addr" name="org_address" value="{{ s.org_address }}"></div>{% endcall %}
+  </div></section>
+
+  <section class="card" id="flujo" data-secp><div class="card-h"><h2>Flujo de cambios</h2></div><div class="stack">
+    <div class="rcards">
+      <label class="rcard"><input type="radio" name="require_approval" value="on" {{ 'checked' if s.require_approval != '0' }}><span><b>Requiere aprobación</b><div class="muted sm">Los operadores crean solicitudes; un administrador las aprueba antes de ejecutarlas. Recomendado para PCI DSS.</div></span></label>
+      <label class="rcard"><input type="radio" name="require_approval" value="off" {{ 'checked' if s.require_approval == '0' }}><span><b>Ejecución directa</b><div class="muted sm">Operadores y administradores aplican cambios al momento. Todo queda en Auditoría.</div></span></label></div>
+    <label class="swrow"><span><b>Un administrador puede aprobar sus propias solicitudes</b><div class="muted sm">Útil si solo hay un administrador.</div></span><input type="checkbox" class="sw" name="allow_self_approval" {{ 'checked' if s.allow_self_approval == '1' }}></label>
+    <label class="swrow"><span><b>Avisar de las infracciones de cumplimiento</b><div class="muted sm">Crea una alarma cuando una auditoría encuentra infracciones nuevas.</div></span><input type="checkbox" class="sw" name="notify_compliance" {{ 'checked' if s.notify_compliance != '0' }}></label>
+    {% call F(_('Versiones que se guardan por equipo'), 's-ret', _('0 = sin límite. Las versiones etiquetadas y la línea base nunca se borran.')) %}<div class="input" style="max-width:240px"><input id="s-ret" name="retention_versions" type="number" min="0" value="{{ s.retention_versions or '0' }}"><span class="sm muted">versiones</span></div>{% endcall %}
+  </div></section>
+
+  <section class="card" id="notificaciones" data-secp><div class="card-h"><h2>Notificaciones</h2></div><div class="stack">
+    {% call F(_('Avisar a partir de esta severidad'), 's-sev') %}<div class="input" style="max-width:300px"><select id="s-sev" name="alert_min_severity">{% for v, l in [('critical', _('Crítica')), ('major', _('Mayor')), ('warning', _('Aviso')), ('info', _('Info (todo)'))] %}<option value="{{ v }}" {{ 'selected' if (s.alert_min_severity or 'warning') == v }}>{{ l }}</option>{% endfor %}</select></div>{% endcall %}
+    <div class="sec"><h3>{{ icon('mail', 's') }}Correo (SMTP)</h3>
+      <div class="f3">{% call F(_('Servidor SMTP'), 's-smtp') %}<div class="input mono"><input id="s-smtp" name="smtp_host" value="{{ s.smtp_host }}"></div>{% endcall %}
+        {% call F(_('Puerto'), 's-smtpp') %}<div class="input"><input id="s-smtpp" name="smtp_port" value="{{ s.smtp_port or '587' }}" inputmode="numeric"></div>{% endcall %}
+        {% call F(_('Seguridad'), 's-smtps') %}<div class="input"><select id="s-smtps" name="smtp_security">{% for v, l in [('starttls', 'STARTTLS'), ('ssl', 'SSL/TLS'), ('none', _('Ninguna'))] %}<option value="{{ v }}" {{ 'selected' if (s.smtp_security or 'starttls') == v }}>{{ l }}</option>{% endfor %}</select></div>{% endcall %}</div>
+      <div class="f2">{% call F(_('Usuario SMTP'), 's-smtpu') %}<div class="input"><input id="s-smtpu" name="smtp_user" value="{{ s.smtp_user }}" autocomplete="off"></div>{% endcall %}
+        {% call F(_('Contraseña SMTP'), 's-smtppw', _('Déjala vacía para no cambiarla.')) %}<div class="input"><input id="s-smtppw" name="smtp_password" type="password" autocomplete="new-password" {% if s.smtp_password_set %}placeholder="{{ _('•••••••• (guardada)') }}"{% endif %}></div>{% endcall %}
+        {% call F(_('Remitente'), 's-from') %}<div class="input"><input id="s-from" name="smtp_from" value="{{ s.smtp_from }}"></div>{% endcall %}
+        {% call F(_('Destinatarios'), 's-to', _('Separados por comas.')) %}<div class="input"><input id="s-to" name="alert_emails" value="{{ s.alert_emails }}"></div>{% endcall %}</div></div>
+    <div class="sec"><h3>{{ icon('globe', 's') }}Webhook</h3>
+      {% call F(_('URL del webhook'), 's-hook', _('Funciona con Slack, Microsoft Teams, Mattermost y Google Chat.')) %}<div class="input mono"><input id="s-hook" name="webhook_url" value="{{ s.webhook_url }}" placeholder="https://hooks.slack.com/services/…"></div>{% endcall %}</div>
+    <div class="sec"><h3>{{ icon('bell', 's') }}Telegram</h3>
+      <div class="f2">{% call F(_('Token del bot'), 's-tgt') %}<div class="input mono"><input id="s-tgt" name="telegram_token" value="{{ s.telegram_token }}" placeholder="123456:ABC-DEF…"></div>{% endcall %}
+        {% call F(_('Chat ID'), 's-tgc') %}<div class="input mono"><input id="s-tgc" name="telegram_chat_id" value="{{ s.telegram_chat_id }}" placeholder="-1001234567890"></div>{% endcall %}</div></div>
+    <div><button class="btn" formaction="/settings/test-alert" formnovalidate>{{ icon('play', 's') }}Enviar notificación de prueba</button> <span class="muted sm">Usa los ajustes ya guardados.</span></div>
+  </div></section>
+
+  <section class="card" id="eox" data-secp><div class="card-h"><h2>Fin de vida (Cisco EoX)</h2></div><div class="stack">
+    <p class="muted sm">Opcional. Con una cuenta de la API de Cisco Support (<a href="https://apiconsole.cisco.com" target="_blank" rel="noopener">apiconsole.cisco.com</a>, acceso «EoX»), OpenNCCM rellena solo las fechas de fin de venta y soporte de los equipos Cisco.</p>
+    <div class="f2">{% call F(_('Client ID'), 's-cid') %}<div class="input mono"><input id="s-cid" name="cisco_api_client_id" value="{{ s.cisco_api_client_id }}" autocomplete="off"></div>{% endcall %}
+      {% call F(_('Client Secret'), 's-csec') %}<div class="input"><input id="s-csec" name="cisco_api_secret" type="password" autocomplete="new-password" {% if s.cisco_api_secret_set %}placeholder="{{ _('•••••••• (guardado)') }}"{% endif %}></div>{% endcall %}</div>
+  </div></section>
+
+  <section class="card" id="recuperacion" data-secp><div class="card-h"><h2>Recuperación ante desastres</h2></div><div class="stack">
+    {% call F(_('Copias locales a conservar'), 's-keep', _('Las copias se crean con la tarea «Copia de recuperación» o a mano en Sistema.')) %}<div class="input" style="max-width:200px"><input id="s-keep" name="dr_keep" type="number" min="1" value="{{ s.dr_keep or '14' }}"></div>{% endcall %}
+    <div class="sec"><h3>{{ icon('db', 's') }}Copia remota por SFTP (opcional)</h3>
+      <div class="f3">{% call F(_('Servidor SFTP'), 's-sftp') %}<div class="input mono"><input id="s-sftp" name="dr_remote_host" value="{{ s.dr_remote_host }}" placeholder="backup.empresa.local"></div>{% endcall %}
+        {% call F(_('Puerto'), 's-sftpp') %}<div class="input"><input id="s-sftpp" name="dr_remote_port" value="{{ s.dr_remote_port or '22' }}" inputmode="numeric"></div>{% endcall %}
+        {% call F(_('Usuario'), 's-sftpu') %}<div class="input"><input id="s-sftpu" name="dr_remote_user" value="{{ s.dr_remote_user }}" autocomplete="off"></div>{% endcall %}</div>
+      <div class="f2">{% call F(_('Contraseña'), 's-sftppw') %}<div class="input"><input id="s-sftppw" name="dr_remote_password" type="password" autocomplete="new-password" {% if s.dr_remote_password_set %}placeholder="{{ _('•••••••• (guardada)') }}"{% endif %}></div>{% endcall %}
+        {% call F(_('Carpeta remota'), 's-sftpd') %}<div class="input mono"><input id="s-sftpd" name="dr_remote_path" value="{{ s.dr_remote_path }}" placeholder="/backups/opennccm"></div>{% endcall %}</div></div>
+  </div></section>
+
+  <section class="card" id="actualizaciones" data-secp><div class="card-h"><h2>Actualizaciones</h2></div><div class="stack">
+    <label class="swrow"><span><b>Buscar actualizaciones cada día</b><div class="muted sm">Muestra un aviso a los administradores cuando hay una versión nueva. Solo consulta GitHub; no envía datos.</div></span><input type="checkbox" class="sw" name="update_check" {{ 'checked' if s.update_check != '0' }}></label>
+  </div></section>
+  <div class="row end"><button class="btn pri" data-save>{{ icon("save", "s") }}Guardar ajustes</button></div>
+</div></div>
 </form>
-<form method="post" action="/settings/test-alert"><button class="sec">Enviar notificación de prueba</button></form>
+<script>
+(function () {
+  const links = [...document.querySelectorAll('.anchors a[data-sec]')], secs = [...document.querySelectorAll('[data-secp]')];
+  function show(id, push) {
+    const t = secs.find(s => s.id === id) || secs[0];
+    secs.forEach(s => { s.hidden = s !== t; });
+    links.forEach(a => { const on = a.dataset.sec === t.id; a.classList.toggle('on', on); if (on) a.setAttribute('aria-current', 'true'); else a.removeAttribute('aria-current'); });
+    if (push) history.replaceState(null, '', '#' + t.id);
+  }
+  links.forEach(a => a.addEventListener('click', e => { e.preventDefault(); show(a.dataset.sec, true); }));
+  window.addEventListener('hashchange', () => show(location.hash.slice(1)));
+  show(location.hash.slice(1));
+})();
+</script>
 {% endblock %}

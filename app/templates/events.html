@@ -1,25 +1,28 @@
 {% extends "base.html" %}{% block title %}Alarmas y eventos{% endblock %}
+{% block crumbs %}<b>Alarmas</b>{% endblock %}
 {% block content %}
-<h1>Alarmas y eventos</h1>
-<div class="toolbar">
-  <form class="row" method="get">
-    <select name="sev"><option value="">Todas las severidades</option>{% for s, l in [('critical', _('Crítica')), ('major', _('Mayor')), ('warning', _('Aviso')), ('info', _('Info'))] %}<option value="{{ s }}" {{ 'selected' if s == sev }}>{{ l }}</option>{% endfor %}</select>
-    <label class="chk"><input type="checkbox" name="unack" value="1" {{ 'checked' if unack }}> Solo sin reconocer</label>
-    <button class="sec">Filtrar</button>
-  </form>
-  <span style="flex:1"></span>
-  {% if ROLES[user.role] >= 1 %}<form class="inline" method="post" action="/events/ack"><button class="sec">Reconocer todas</button></form>{% endif %}
-</div>
-<div class="card">
-<table><tr><th>Severidad</th><th>Fecha</th><th>Categoría</th><th>Equipo</th><th>Mensaje</th><th></th></tr>
-{% for e in items %}
-<tr style="{{ 'opacity:.6' if e.acknowledged }}"><td>{{ sevtag(e.severity) }}</td><td class="small">{{ e.created_at|dt }}</td>
-<td>{{ _(e.category) }}</td><td>{% if e.device %}<a href="/devices/{{ e.device_id }}">{{ e.device.name }}</a>{% endif %}</td>
-<td><details><summary class="small">{{ e.message.split('\n')[0][:140] }}</summary><pre>{{ e.message }}</pre></details></td>
-<td>{% if not e.acknowledged and ROLES[user.role] >= 1 %}<form class="inline" method="post" action="/events/ack"><input type="hidden" name="id" value="{{ e.id }}"><button class="sm sec">OK</button></form>{% endif %}</td></tr>
-{% else %}{% if unack or sev %}<tr class="empty-row"><td colspan="6"><div class="empty">{{ empty_art('check') }}<h3>Nada pendiente</h3><p class="muted">Tu red está en orden: no hay alarmas que revisar.</p></div></td></tr>{% else %}<tr class="empty-row"><td colspan="6"><div class="empty">{{ empty_art('plus') }}<h3>Aún no hay eventos</h3><p class="muted">Aquí aparecerán los respaldos fallidos, los cambios detectados por syslog y las alertas de cumplimiento.</p></div></td></tr>{% endif %}{% endfor %}
-</table>
-<p>{% if page > 1 %}<a href="?sev={{ sev }}&unack={{ unack }}&page={{ page - 1 }}">← Anterior</a>{% endif %}
-{% if items|length == 100 %} <a href="?sev={{ sev }}&unack={{ unack }}&page={{ page + 1 }}">Siguiente →</a>{% endif %}</p>
-</div>
+{% set SEVN = {'critical': _('crítica'), 'major': _('mayor'), 'warning': _('aviso'), 'info': _('info')} %}
+{% set QI = {'critical': ('crit', 'alert'), 'major': ('major', 'shield'), 'error': ('major', 'shield'), 'warning': ('minor', 'clock'), 'info': ('info', 'bell')} %}
+<div class="ph"><div class="grow"><h1>Alarmas y eventos</h1>
+  <div class="sub">{{ _f('{0} sin reconocer', open_n) }} · {{ _f('se notifican por correo, webhook o Telegram desde la severidad «{0}»', SEVN.get(min_sev or 'warning', min_sev)) }}{% if user.role == 'admin' %} (<a href="/settings#notificaciones">cambiar</a>){% endif %}</div></div>
+  {% if ROLES[user.role] >= 1 %}<form class="inline" method="post" action="/events/ack"><button class="btn" {{ 'disabled' if not open_n }}>{{ icon('check', 's') }}Reconocer todas</button></form>{% endif %}</div>
+
+<div class="row">
+  {% for k, l in [('', _('Todas')), ('crit', _('Críticas')), ('major', _('Mayores')), ('minor', _('Menores')), ('info', _('Info'))] %}<a class="chip {{ 'on' if sev == k }}" href="?sev={{ k }}&amp;unack={{ unack }}">{{ l }} <span class="n">{{ total if not k else counts[k] }}</span></a>{% endfor %}
+  <span class="grow"></span>
+  <div class="seg"><a class="{{ 'on' if unack }}" href="?sev={{ sev }}&amp;unack=1">Sin reconocer</a><a class="{{ 'on' if not unack }}" href="?sev={{ sev }}&amp;unack=0">Todas</a></div></div>
+
+<section class="card flush">
+{% if items %}<ul class="queue">{% for e in items %}{% set q = QI.get(e.severity, ('info', 'bell')) %}
+  <li><span class="qi {{ q[0] }}">{{ icon(q[1]) }}</span>
+    <div style="min-width:0"><div class="row" style="gap:10px"><span class="qt" title="{{ e.message }}">{{ e.title }}</span>{{ sevtag(e.severity) }}{% if e.acknowledged %}<span class="tag">reconocida</span>{% endif %}</div>
+      <div class="qs">{{ _(e.category) }}{% if e.device %} · {{ e.device.name }}{% endif %} · <span title="{{ e.created_at|dt }}">{{ e.created_at|ago }}</span></div></div>
+    <div class="row nowrap">{% if e.device_id %}<a class="btn s ghost" href="/devices/{{ e.device_id }}">Abrir equipo</a>{% endif %}
+      {% if not e.acknowledged and ROLES[user.role] >= 1 %}<form method="post" action="/events/ack" style="margin:0"><input type="hidden" name="id" value="{{ e.id }}"><button class="btn s">Reconocer</button></form>{% endif %}</div></li>
+{% endfor %}</ul>
+{% elif unack %}<div class="empty">{{ empty_art('check') }}<h2>Sin alarmas</h2><p>Nada pendiente. Tu red está en orden.</p></div>
+{% else %}<div class="empty">{{ empty_art('plus') }}<h2>Aún no hay eventos</h2><p>Aquí aparecerán los respaldos fallidos, los cambios detectados por syslog y las alertas de cumplimiento.</p></div>{% endif %}
+</section>
+{% if page > 1 or items|length == 100 %}<div class="row end">{% if page > 1 %}<a class="btn s" href="?sev={{ sev }}&amp;unack={{ unack }}&amp;page={{ page - 1 }}">{{ icon('left', 's') }}Anterior</a>{% endif %}
+  {% if items|length == 100 %}<a class="btn s" href="?sev={{ sev }}&amp;unack={{ unack }}&amp;page={{ page + 1 }}">Siguiente{{ icon('right', 's') }}</a>{% endif %}</div>{% endif %}
 {% endblock %}

@@ -53,7 +53,7 @@ try:
     time.sleep(3)
     s.post(B + "/login", data={"username": "admin", "password": "Admin12345"})
     s.post(B + "/credentials", data={"name": "edge", "username": "admin", "password": "cisco"})
-    cred = re.search(r'<option value="(\d+)">edge</option>', s.get(B + "/credentials").text).group(1)
+    cred = re.search(r'data-cred="(\d+)" data-name="edge"', s.get(B + "/credentials").text).group(1)
     r = s.post(B + "/devices/new", data={"name": "EdgeSW16", "host": "127.0.0.1", "device_type": "ubiquiti_edgeswitch",
                                          "protocol": "ssh", "port": str(PORT), "credential_id": cred,
                                          "new_group": "Oficina principal", "enabled": "on"})

@@ -1,30 +1,24 @@
 {% extends "base.html" %}{% block title %}Informes{% endblock %}
 {% block content %}
-<h1>Informes</h1>
-<div class="card">
-<table><tr><th>Informe</th><th>Descripción</th><th></th></tr>
-{% set desc = {
-  'inventory': _('Modelo, serie, firmware, estado de respaldo, conflictos y línea base'),
-  'changes': _('Versiones nuevas por equipo, origen y usuario (30 días)'),
-  'compliance': _('Resultado por equipo, política y regla'),
-  'conflicts': _('Equipos cuya configuración en ejecución no está guardada en arranque'),
-  'baseline': _('Equipos con línea base y si se han desviado de ella'),
-  'eol': _('Fin de venta, fin de parches y fin de soporte por equipo'),
-  'vulns': _('CVE de firmware por equipo'),
-  'changes_requests': _('Quién pidió cada cambio, quién lo aprobó y su resultado'),
-  'audit': _('Actividad de usuarios (90 días, solo administradores)')} %}
-{% for k, title in titles.items() %}{% if k != 'audit' or user.role == 'admin' %}
-<tr><td><b>{{ _(title) }}</b></td><td class="small muted">{{ desc[k] }}</td>
-<td style="white-space:nowrap"><a class="btn sm sec" href="/reports/view/{{ k }}{{ '?days=90' if k == 'audit' }}">Ver</a>
-<a class="btn sm" href="/reports/{{ k }}.csv{{ '?days=90' if k == 'audit' }}">CSV</a></td></tr>
+{% set INFO = {
+  'inventory': (_('Modelo, serie, firmware, grupo y ubicación de cada equipo'), 'server'),
+  'changes': (_('Cada versión: equipo, tipo, origen, usuario y líneas'), 'branch'),
+  'compliance': (_('Resultado de cada regla por equipo, para auditores'), 'shield'),
+  'vulns': (_('CVE por equipo con su CVSS y solución'), 'bug'),
+  'audit': (_('Inicios de sesión y acciones de cada usuario'), 'users'),
+  'changes_requests': (_('Quién pidió, quién aprobó y cuándo se ejecutó'), 'check'),
+  'conflicts': (_('Equipos con cambios sin guardar en la memoria de arranque'), 'save'),
+  'baseline': (_('Equipos cuya configuración difiere de su línea base'), 'flag'),
+  'eol': (_('Fechas de fin de venta y de soporte de cada equipo'), 'clock')} %}
+<div class="ph"><div class="grow"><h1>Informes</h1><div class="sub">Se ven en pantalla y se descargan en CSV. También se pueden enviar por correo, ahora o con una tarea programada.</div></div>
+  {% if user.role == 'admin' %}<a class="btn" href="/schedules/new?action=report_email" data-sheet data-title="Nueva tarea">{{ icon('cal', 's') }}Programar envío</a>
+  <form class="inline" method="post" action="/reports/email"><button class="btn pri">{{ icon('mail', 's') }}Enviar por correo ahora</button></form>{% endif %}</div>
+<div class="bento">
+{% for k in ['inventory', 'changes', 'compliance', 'vulns', 'audit', 'changes_requests', 'conflicts', 'baseline', 'eol'] %}{% if k in titles and (k != 'audit' or user.role == 'admin') %}{% set q = '?days=90' if k == 'audit' else '' %}
+  <section class="card c4" style="display:flex;flex-direction:column;gap:12px"><span class="qi info">{{ icon(INFO[k][1]) }}</span>
+    <div><b style="font-size:15px">{{ _(titles[k]) }}</b><div class="muted sm">{{ INFO[k][0] }}</div></div>
+    <div class="row" style="margin-top:auto"><a class="btn s pri" href="/reports/view/{{ k }}{{ q }}">{{ icon('eye', 's') }}Ver</a><a class="btn s" href="/reports/{{ k }}.csv{{ q }}">{{ icon('dl', 's') }}CSV</a></div></section>
 {% endif %}{% endfor %}
-</table>
 </div>
-{% if user.role == 'admin' %}
-<div class="card">
-  <form class="inline" method="post" action="/reports/email"><button class="sec">Enviar informes por correo ahora</button></form>
-  <span class="small muted">Para enviarlos periódicamente cree una <a href="/schedules">tarea</a> «Enviar informes por correo».</span>
-</div>
-{% endif %}
-<p class="muted">Los CSV (UTF-8) se abren en Excel o LibreOffice. Gráficas en <a href="/analytics">Análisis</a>. API JSON de inventario: <a href="/api/devices">/api/devices</a>.</p>
+<p class="muted sm">Los CSV (UTF-8) se abren en Excel o LibreOffice. Gráficas en <a href="/analytics">Análisis</a>. API JSON de inventario: <a href="/api/devices">/api/devices</a>.</p>
 {% endblock %}

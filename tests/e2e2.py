@@ -112,7 +112,7 @@ csvdata = "vendor,model_pattern,end_of_sale,end_of_sw_maintenance,end_of_support
 r = s.post(B + "/eol/import", files={"file": ("eol.csv", csvdata)})
 check("importar CSV EOL (1 ok, 1 error)", "1 entradas EOL importadas" in r.text and "línea 3" in r.text)
 e = s.get(B + "/eol").text
-check("R1 marcado 'Sin soporte'", re.search(r"R1</a></td><td>CISCO2911/K9</td><td><span class=\"badge b-critical\">Sin soporte", e) is not None)
+check("R1 marcado 'Sin soporte'", re.search(r"<b>R1</b></a> <span class=\"muted sm\">CISCO2911/K9</span></span><span class=\"sm\" style=\"color:var\(--crit\)\">Sin soporte", e) is not None)
 check("ficha del equipo muestra ciclo de vida", "Sin soporte" in s.get(B + "/devices/1").text)
 check("informe eol.csv", "Sin soporte" in s.get(B + "/reports/eol.csv").content.decode("utf-8-sig"))
 r = s.post(B + "/eol/cisco-sync")
@@ -123,7 +123,7 @@ blob = os.urandom(300_000)
 r = s.post(B + "/firmware/upload", data={"version": "15.2(4)M11", "device_type_filter": "cisco_ios"},
            files={"file": ("c2900-test.bin", blob)})
 check("cargar imagen de firmware", "c2900-test.bin cargada" in r.text)
-img_id = re.search(r'<option value="(\d+)">c2900-test.bin', r.text).group(1)
+img_id = re.search(r'<option value="(\d+)"[^>]*>c2900-test.bin', r.text).group(1)
 r = s.post(B + "/firmware/upload", files={"file": ("../malo.bin", b"x")})
 check("nombre de archivo con ruta rechazado", "no válido" in r.text)
 r = s.post(B + "/firmware/upgrade", data={"image_id": img_id, "device_ids": "1"})
@@ -146,8 +146,8 @@ r = s.post(B + "/firmware/upgrade", data={"image_id": img_id, "device_ids": "2"}
 check("imagen incompatible con Huawei rechazada", "no es compatible" in r.text)
 
 # ---------------------------------------------------------------- RBAC por grupos
-groups = s.get(B + "/credentials").text
-acceso = re.search(r'/devices\?group=(\d+)">Acceso', groups).group(1)
+groups = s.get(B + "/groups").text
+acceso = re.search(r'</svg>Acceso</div></td>.*?/devices\?group=(\d+)"', groups, re.S).group(1)
 s.post(B + "/users", data={"username": "op_acceso", "role": "operator", "password": "Operador12345",
                            "active": "on", "set_groups": "1", "group_ids": acceso})
 check("usuario restringido listado con su grupo", "Acceso" in s.get(B + "/users").text)
@@ -171,7 +171,7 @@ check("panel funciona para restringido", o.get(B + "/").status_code == 200)
 
 # ---------------------------------------------------------------- análisis e informes
 a = s.get(B + "/analytics").text
-check("análisis con ≥7 gráficas SVG", a.count('<svg class="viz') >= 7, a.count('<svg class="viz'))
+check("análisis: mapa de calor y ≥5 gráficas de barras", 'class="heat"' in a and a.count('class="hbars"') >= 5, a.count('class="hbars"'))
 check("panel con gráfica de cambios", 'class="vbars"' in s.get(B + "/").text)
 for k in ["inventory", "changes", "compliance", "conflicts", "baseline", "eol", "vulns", "changes_requests", "audit"]:
     r = s.get(f"{B}/reports/view/{k}")

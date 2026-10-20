@@ -1,68 +1,65 @@
 {% extends "base.html" %}{% block title %}Mi cuenta{% endblock %}
 {% block content %}
-<div class="ph"><div class="grow"><h1>Mi cuenta</h1><div class="sub">{{ user.username }}</div></div><a class="btn" href="/logout">{{ icon('logout', 's') }}Cerrar sesión</a></div>
-<div class="row" style="align-items:start">
-<div class="card" id="clave" style="flex:1 1 360px;max-width:460px">
-  <h2 style="margin-top:0">Cambiar mi contraseña</h2>
-  <form method="post" action="/account">
-    <label for="pw-cur">Contraseña actual</label><input id="pw-cur" type="password" name="current" required autocomplete="current-password" style="width:100%">
-    <label for="pw-new">Nueva contraseña (mínimo 10 caracteres, con letras y números)</label><input id="pw-new" type="password" name="new" required minlength="10" autocomplete="new-password" style="width:100%">
-    <label for="pw-new2">Repita la nueva contraseña</label><input id="pw-new2" type="password" name="new2" required minlength="10" autocomplete="new-password" style="width:100%">
-    <p><button>Cambiar contraseña</button></p>
-  </form>
-  <p class="small muted">Al cambiarla se cierran sus sesiones abiertas en otros equipos. Las mayúsculas y minúsculas cuentan.
-  Si olvida su contraseña, un administrador puede cambiarla en <b>Usuarios → Editar</b>, o desde la consola del servidor con
-  <code>sudo opennccm reset-password USUARIO 'CLAVE'</code>.</p>
+{% set RN = {'admin': _('Administrador'), 'operator': _('Operador'), 'viewer': _('Lector')} %}
+{% set PV = {'auto': 'background:linear-gradient(90deg,#eef1f5 50%,#090c13 50%)', 'claro': 'background:#eef1f5', 'oscuro': 'background:#090c13', 'contraste': 'background:#000'} %}
+{% set TN = {'auto': _('Automático'), 'claro': _('Claro'), 'oscuro': _('Sala de control'), 'contraste': _('Alto contraste')} %}
+{% set TI = {'auto': 'monitor', 'claro': 'sun', 'oscuro': 'moon', 'contraste': 'eye'} %}
+<div class="ph"><div class="grow"><h1>Mi cuenta</h1><div class="sub">{{ user.username }} · {{ RN[user.role] }} · {{ _('verificación en dos pasos activa') if user.totp_enabled else _('sin verificación en dos pasos') }}</div></div><a class="btn" href="/logout">{{ icon('logout', 's') }}Cerrar sesión</a></div>
+<div class="bento">
+  <section class="card c7"><div class="card-h"><h2>Apariencia</h2><span class="muted sm">Se aplica al instante y se recuerda</span></div>
+    <form method="post" action="/account/theme" id="themef">
+      <fieldset class="tcards" style="border:0;padding:0;margin:0;grid-template-columns:repeat(auto-fill,minmax(120px,1fr))"><legend class="vh">Tema</legend>
+        {% for key, name in themes.items() %}<label class="tcard {{ 'on' if (user.theme or 'auto') == key }}" data-set-theme="{{ key }}"><input class="vh" type="radio" name="theme" value="{{ key }}" {{ 'checked' if (user.theme or 'auto') == key }}>
+          <div class="pv" style="{{ PV[key] }}" aria-hidden="true"><span style="background:{{ '#000' if key == 'contraste' else '#0f1524' }}"></span><span style="display:flex;flex-direction:column;gap:5px;padding:8px"><i style="height:8px;border-radius:4px;width:60%;background:{{ '#ffd400' if key == 'contraste' else 'var(--brand)' }}"></i><i style="height:8px;border-radius:4px;width:80%;background:{{ '#1e2738' if key in ('oscuro', 'contraste') else '#dfe3ea' }}"></i></span></div>
+          <span class="row sm b">{{ icon(TI[key], 's') }}{{ TN[key] }}</span></label>{% endfor %}
+      </fieldset>
+      <div class="row" style="margin:22px 0 12px"><h3>Color de acento</h3><span class="muted sm">No se aplica al tema de alto contraste.</span></div>
+      <fieldset class="accs" style="border:0;padding:0;margin:0"><legend class="vh">Color de acento</legend>
+        {% for key, name in accents.items() %}{% set sw = ACCENT_SWATCHES.get(key, ('#888', '#888')) %}<label class="acc {{ 'on' if (user.accent or 'cobalto') == key }}" data-set-accent="{{ key }}" data-l="{{ sw[0] }}" data-d="{{ sw[1] }}" style="background:{{ sw[0] }}" title="{{ _(name) }}"><input class="vh" type="radio" name="accent" value="{{ key }}" {{ 'checked' if (user.accent or 'cobalto') == key }}><span class="vh">{{ _(name) }}</span></label>{% endfor %}
+      </fieldset>
+      <noscript><p><button class="btn">Aplicar tema</button></p></noscript>
+    </form>
+    <div class="row" style="margin-top:22px;gap:24px;align-items:flex-start">
+      <div class="field"><span class="fl">Densidad de tablas</span><div class="seg" role="group" aria-label="{{ _('Densidad de tablas') }}">{% for k, l in [('comfy', _('Cómoda')), ('compact', _('Compacta'))] %}<button type="button" class="{{ 'on' if (user.density or 'comfy') == k }}" data-density="{{ k }}" aria-pressed="{{ 'true' if (user.density or 'comfy') == k else 'false' }}">{{ l }}</button>{% endfor %}</div></div>
+      <div class="field" id="idioma"><span class="fl">Idioma</span><div class="seg">{% for code, name in LANGS.items() %}<a class="{{ 'on' if get_lang() == code }}" href="/lang/{{ code }}?next=/account%23idioma" lang="{{ code }}" hreflang="{{ code }}"{{ ' aria-current="true"'|safe if get_lang() == code }}>{{ name }}</a>{% endfor %}</div>
+        </div></div>
+  </section>
+
+  <section class="card c5" id="dospasos"><div class="card-h"><h2>Verificación en dos pasos</h2>{% if user.totp_enabled %}<span class="pill ok">Activa</span>{% else %}<span class="pill warn">Sin activar</span>{% endif %}</div>
+    <p class="muted sm">{% if user.totp_enabled %}Al entrar se te pide un código de 6 cifras de tu app (Google Authenticator, Microsoft Authenticator, Authy…).{% else %}Protege tu cuenta con un código de tu móvil además de la contraseña: aunque alguien la conozca, no podrá entrar sin él.{% endif %}</p>
+    <div style="margin-top:14px">{% if user.totp_enabled %}<button type="button" class="btn dz" data-dialog="tfa-off">Desactivar…</button>{% else %}<a class="btn pri" href="/account/2fa/setup">{{ icon('shield', 's') }}Activar verificación en dos pasos</a>{% endif %}</div></section>
+
+  <section class="card c12" id="clave"><div class="card-h"><h2>Cambiar mi contraseña</h2></div>
+    <form method="post" action="/account" class="bento" id="pwf"><div class="c6 stack">
+      <div class="field"><label for="pw-cur">Contraseña actual</label><div class="input">{{ icon('lock', 's') }}<input id="pw-cur" type="password" name="current" required autocomplete="current-password"></div></div>
+      <div class="field"><label for="pw-new">Nueva contraseña</label><div class="input">{{ icon('lock', 's') }}<input id="pw-new" type="password" name="new" required minlength="10" autocomplete="new-password"></div></div>
+      <div class="field"><label for="pw-new2">Repite la nueva contraseña</label><div class="input">{{ icon('lock', 's') }}<input id="pw-new2" type="password" name="new2" required minlength="10" autocomplete="new-password"></div></div>
+      <div><button class="btn pri" id="pwbtn">Cambiar contraseña</button></div></div>
+      <div class="c6"><div class="summ" style="flex-direction:column;gap:2px"><b>La nueva contraseña debe tener</b><ul class="rules-ok" id="pwrules" aria-live="polite">
+        {% for k, t in [('len', _('Al menos 10 caracteres')), ('let', _('Letras')), ('num', _('Números')), ('eq', _('Las dos coinciden'))] %}<li data-r="{{ k }}">{{ icon('x', 's no') }}{{ icon('check', 's yes') }}{{ t }}</li>{% endfor %}</ul></div>
+        <p class="muted sm" style="margin-top:12px">Al cambiarla se cierran tus sesiones abiertas en otros equipos. Si la olvidas, un administrador puede cambiarla en Usuarios, o desde la consola del servidor con <code>sudo opennccm reset-password USUARIO 'CLAVE'</code>.</p></div>
+    </form></section>
 </div>
-<div class="card" id="dospasos" style="flex:1 1 360px;max-width:460px">
-  <h2 style="margin-top:0">Verificación en dos pasos</h2>
-  {% if user.totp_enabled %}
-  <p><span class="badge b-ok">Activada</span> Al ingresar se pide, además de la contraseña, el código de 6 dígitos de su app de
-  autenticación.</p>
-  <details><summary>Desactivar</summary>
-  <form method="post" action="/account/2fa/disable">
-    <label for="d-pw">Contraseña</label><input id="d-pw" type="password" name="password" required autocomplete="current-password" style="width:100%">
-    <label for="d-code">Código de la app</label><input id="d-code" name="code" required inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7">
-    <p><button class="danger">Desactivar la verificación en dos pasos</button></p>
-  </form></details>
-  {% else %}
-  <p><span class="badge b-warning">Desactivada</span> Recomendada: aunque alguien conozca su contraseña, no podrá entrar sin el
-  código que genera su teléfono (Google Authenticator, Microsoft Authenticator, Authy, FreeOTP…).</p>
-  <p><a class="btn" href="/account/2fa/setup">Activar verificación en dos pasos</a></p>
-  {% endif %}
-</div>
-<div class="card" style="flex:1 1 260px" id="idioma">
-  <h2 style="margin-top:0">Idioma</h2>
-  <p class="langs">{% for code, name in LANGS.items() %}<a class="btn {{ '' if get_lang() == code else 'sec' }}" href="/lang/{{ code }}?next=/account%23idioma" lang="{{ code }}" hreflang="{{ code }}"{{ ' aria-current="true"'|safe if get_lang() == code }}>{{ name }}</a> {% endfor %}</p>
-  <p class="small muted">Se guarda en su usuario. Los documentos PDF y los mensajes que envían los equipos siguen en su idioma original.</p>
-</div>
-<div class="card" style="flex:2 1 420px">
-  <h2 style="margin-top:0">Tema de la interfaz</h2>
-  <form method="post" action="/account/theme">
-    <fieldset class="themes"><legend class="vh">Tema</legend>
-      {% set swatches = {
-        'auto': ['#f4f5f7', '#ffffff', '#0b0f17', '#121826'],
-        'claro': ['#f4f5f7', '#ffffff', '#101626', '#eef0f3'],
-        'oscuro': ['#0b0f17', '#121826', '#070a10', '#1a2233'],
-        'contraste': ['#000000', '#000000', '#ffffff', '#ffd400']} %}
-      {% for key, name in themes.items() %}
-      <label><input class="vh" type="radio" name="theme" value="{{ key }}" {{ 'checked' if (user.theme or 'auto') == key }}>
-        <span class="sw" aria-hidden="true">{% for c in swatches[key] %}<i style="background:{{ c }}"></i>{% endfor %}</span>{{ _(name) }}</label>
-      {% endfor %}
-    </fieldset>
-    <h3>Color de acento</h3>
-    <p class="small muted" style="margin-top:0">Cambia el color de los botones, enlaces y la primera serie de las gráficas. No se aplica al tema de alto contraste.</p>
-    <fieldset class="accents"><legend class="vh">Color de acento</legend>
-      {% set acc = {'cobalto': ['#2347e8', '#7c96ff'], 'bosque': ['#1f7a4d', '#4cc38a'], 'arena': ['#8f5410', '#e0a458'],
-                    'lavanda': ['#6a3fc2', '#b39cff'], 'oceano': ['#0e7480', '#3cc6c0'], 'atardecer': ['#b9400b', '#ff8c5a'],
-                    'grafito': ['#3d4652', '#c9d1d9']} %}
-      {% for key, name in accents.items() %}
-      <label><input class="vh" type="radio" name="accent" value="{{ key }}" {{ 'checked' if (user.accent or 'cobalto') == key }}>
-        <span class="dot" aria-hidden="true" style="background:linear-gradient(135deg,{{ acc[key][0] }} 50%,{{ acc[key][1] }} 50%)"></span>{{ _(name) }}</label>
-      {% endfor %}
-    </fieldset>
-    <p><button>Aplicar tema</button> <span class="small muted">Se guarda en su usuario y se usa en cualquier equipo desde el que ingrese.</span></p>
-  </form>
-</div>
-</div>
+{% if user.totp_enabled %}<dialog class="dlg" id="tfa-off"><form method="post" action="/account/2fa/disable" class="stack">
+  <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi warn">{{ icon('shield') }}</span><div><h2>Desactivar la verificación en dos pasos</h2><p class="muted" style="margin-top:6px">Confirma con tu contraseña y un código de la app.</p></div></div>
+  <div class="field"><label for="d-pw">Contraseña</label><div class="input"><input id="d-pw" type="password" name="password" required autocomplete="current-password"></div></div>
+  <div class="field"><label for="d-code">Código de la app</label><div class="input mono"><input id="d-code" name="code" required inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7"></div></div>
+  <div class="row end"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn dzf">Desactivar</button></div></form></dialog>{% endif %}
+<script>
+(function () {
+  document.querySelectorAll('[data-set-theme]').forEach(l => l.addEventListener('click', () => {
+    document.querySelectorAll('.tcard').forEach(x => x.classList.toggle('on', x === l)); }));
+  document.querySelectorAll('[data-density]').forEach(b => b.addEventListener('click', () => {
+    document.documentElement.dataset.density = b.dataset.density;
+    document.querySelectorAll('[data-density]').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)); });
+    if (window.ocSavePref) window.ocSavePref({density: b.dataset.density});
+  }));
+  const a = document.getElementById('pw-new'), b = document.getElementById('pw-new2'), ul = document.getElementById('pwrules');
+  function upd() {
+    const v = a.value, ok = {len: v.length >= 10, let: /[a-zA-Z]/.test(v), num: /\d/.test(v), eq: !!v && v === b.value};
+    ul.querySelectorAll('li').forEach(li => li.classList.toggle('on', ok[li.dataset.r]));
+  }
+  a.addEventListener('input', upd); b.addEventListener('input', upd); upd();
+})();
+</script>
 {% endblock %}

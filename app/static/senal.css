@@ -211,6 +211,7 @@ input[type=checkbox],input[type=radio]{width:16px;height:16px;accent-color:var(-
 .rcard:has(input:checked){border-color:var(--brand);background:var(--brand-soft)}
 .rules-ok{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:4px;font-size:12.5px}
 .rules-ok li{display:flex;gap:6px;align-items:center;color:var(--muted)}.rules-ok li.on{color:var(--ok)}
+.rules-ok li .yes,.rules-ok li.on .no{display:none}.rules-ok li.on .yes{display:inline-block}
 .drop-zone{border:2px dashed var(--line-strong);border-radius:var(--r-lg);padding:28px 16px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--muted);cursor:pointer;background:var(--surface-2);font-weight:400}
 .drop-zone:hover,.drop-zone.on{border-color:var(--brand);color:var(--brand)}
 
@@ -282,9 +283,9 @@ table.t{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px;ma
 .bulk .btn.sig{background:var(--signal);border-color:var(--signal);color:var(--on-signal)}
 .bulk select{height:30px;border-radius:var(--r-sm);background:var(--rail-2);color:#fff;border:0;padding:0 8px}
 
-.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;margin:0;flex-wrap:nowrap}
 .tabs>a,.tabs>button{border:0;background:none;display:inline-flex;align-items:center;gap:8px;padding:11px 14px;min-height:0;height:auto;color:var(--muted);font:600 13.5px var(--f-sans);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;cursor:pointer;border-radius:0;box-shadow:none;text-decoration:none}
-.tabs>a:hover,.tabs>button:hover{color:var(--ink);background:none}.tabs>.on,.tabs>[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--brand)}
+.tabs>a:hover,.tabs>button:hover{color:var(--ink);background:none}.tabs>.on,.tabs>[aria-selected="true"],.tabs>a.on{color:var(--ink);background:none;border-color:transparent;border-bottom-color:var(--brand)}
 .cnt2{font:600 11.5px/1 var(--f-sans);padding:3px 7px;border-radius:99px;background:var(--surface-3);color:var(--muted)}.cnt2.crit{background:var(--crit-soft);color:var(--crit)}
 
 /* línea de tiempo de versiones */

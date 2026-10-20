@@ -446,7 +446,11 @@
 
   /* ---------- formularios largos (Ajustes): barra «Tienes cambios sin guardar» y aviso al salir ---------- */
   $$('form[data-dirty]').forEach(function (form) {
-    var bar = null, dirty = false, saveLabel = (form.querySelector('button:not([type=button])') || {}).textContent || 'OK';
+    var bar = null, dirty = false, initial = null,
+        saveLabel = (form.querySelector('[data-save]') || form.querySelector('button:not([type=button]):not([formaction])') || {}).textContent || 'OK';
+    function snap() { return new URLSearchParams(new FormData(form)).toString(); }
+    /* la foto inicial se toma tras cargar (el autocompletado del navegador no cuenta como cambio) */
+    window.addEventListener('load', function () { setTimeout(function () { initial = snap(); }, 400); });
     function show(on) {
       dirty = on;
       if (on && !bar) {
@@ -458,14 +462,15 @@
         bar.children[0].textContent = T.dirty || '';
         bar.children[1].textContent = T.discard || '';
         bar.children[2].lastChild.textContent = saveLabel.trim();
-        bar.children[1].addEventListener('click', function () { form.reset(); show(false); });
+        bar.children[1].addEventListener('click', function () { form.reset(); show(false); form.dispatchEvent(new Event('oc-reset')); });
         bar.children[2].addEventListener('click', function () { if (form.requestSubmit) form.requestSubmit(); else form.submit(); });
         document.body.appendChild(bar);
       }
       if (bar) bar.hidden = !on;
     }
-    form.addEventListener('input', function () { show(true); });
-    form.addEventListener('change', function () { show(true); });
+    function check() { show(initial === null || snap() !== initial); }
+    form.addEventListener('input', check);
+    form.addEventListener('change', check);
     form.addEventListener('submit', function () { dirty = false; });
     window.addEventListener('beforeunload', function (e) { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
   });

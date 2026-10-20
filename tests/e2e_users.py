@@ -113,7 +113,7 @@ check("plataformas: sin equipos no se marca", re.search(r"<code>yamaha</code>.*?
 
 # --- fecha y hora
 sysp = adm.get(B + "/system").text
-check("Sistema: sección de fecha, hora y zona horaria", "Fecha, hora y zona horaria del servidor" in sysp)
+check("Sistema: sección de fecha, hora y zona horaria", "Fecha, hora y zona horaria" in sysp and 'id="hora"' in sysp)
 
 # --- borrar usuario y comando de consola
 r = adm.post(f"{B}/users/{ana_id}/delete")
