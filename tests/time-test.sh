@@ -25,7 +25,7 @@ set_tz() {
 echo "== Zona actual: $ORIG -> cambiando a $NEW desde la interfaz"
 set_tz "$NEW" || { echo "La zona no cambió"; journalctl -u opennccm -n 30 --no-pager; exit 1; }
 login
-curl -s -c "$JAR" -b "$JAR" $B/system | grep -q "<dd>$NEW</dd>" || { echo "La página no muestra la nueva zona"; exit 1; }
+curl -s -c "$JAR" -b "$JAR" $B/system | grep -q "<option selected>$NEW</option>" || { echo "La página no muestra la nueva zona"; exit 1; }
 echo "OK zona horaria cambiada y servicio reiniciado"
 echo "== Restaurando $ORIG"
 set_tz "$ORIG"
