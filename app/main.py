@@ -208,7 +208,7 @@ def logout(request: Request):
 
 @app.get("/account")
 def account(request: Request):
-    return render(request, "account.html", require(request), themes=THEMES)
+    return render(request, "account.html", require(request), themes=THEMES, accents=ACCENTS)
 
 
 @app.post("/account")
@@ -236,10 +236,10 @@ async def account_save(request: Request):
     return go("/account")
 
 
-THEMES = {"auto": N_("Automático (según el sistema)"), "claro": N_("Claro"), "oscuro": N_("Oscuro"),
-          "noche": N_("Azul noche"), "bosque": N_("Bosque"), "arena": N_("Arena"), "oceano": N_("Océano"),
-          "atardecer": N_("Atardecer"), "lavanda": N_("Lavanda"), "grafito": N_("Grafito"),
+THEMES = {"auto": N_("Automático (según el sistema)"), "claro": N_("Claro"), "oscuro": N_("Sala de control (oscuro)"),
           "contraste": N_("Alto contraste")}
+ACCENTS = {"cobalto": N_("Cobalto"), "bosque": N_("Bosque"), "arena": N_("Arena"), "lavanda": N_("Lavanda"),
+           "oceano": N_("Océano"), "atardecer": N_("Atardecer"), "grafito": N_("Grafito")}
 
 
 @app.get("/lang/{code}")
@@ -263,9 +263,16 @@ def set_language(request: Request, code: str, next: str = "/"):
 async def account_theme(request: Request):
     user = require(request)
     form = await request.form()
-    theme = form.get("theme") if form.get("theme") in THEMES else "auto"
+    old = form.get("theme")
+    from .db import OLD_THEMES
+    theme, accent = OLD_THEMES.get(old, (old, form.get("accent")))  # acepta también los nombres antiguos
+    theme = theme if theme in THEMES else "auto"
+    accent = accent if accent in ACCENTS else None
     with SessionLocal() as db:
-        db.get(User, user.id).theme = theme
+        u = db.get(User, user.id)
+        u.theme = theme
+        if accent or "accent" in form:
+            u.accent = accent
         db.commit()
     flash(request, _f("Tema «{0}» aplicado.", _(THEMES[theme])))
     return go(form.get("next") or "/account")

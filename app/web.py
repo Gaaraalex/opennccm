@@ -18,7 +18,18 @@ templates.env.globals["VERSION"] = __version__
 # huella del CSS: fuerza a los navegadores a recargarlo tras cada actualización
 templates.env.globals["CSS_HASH"] = __import__("hashlib").md5(
     (BASE_DIR / "static" / "style.css").read_bytes()).hexdigest()[:8]
-templates.env.filters["dt"] = lambda d: d.strftime("%Y-%m-%d %H:%M") if d else "—"
+
+
+def icon(name: str, cls: str = "", label: str = ""):
+    """Icono SVG del sprite local (static/icons.svg). Decorativo salvo que se indique label (texto accesible)."""
+    from markupsafe import Markup, escape
+    a11y = f'role="img" aria-label="{escape(label)}"' if label else 'aria-hidden="true"'
+    return Markup(f'<svg class="ico {escape(cls)}" {a11y} focusable="false"><use href="/static/icons.svg?v={__version__}'
+                  f'#i-{escape(name)}"/></svg>')
+
+
+templates.env.globals["icon"] = icon
+templates.env.filters["dt"] =lambda d: d.strftime("%Y-%m-%d %H:%M") if d else "—"
 templates.env.filters["cron_text"] = cronutil.describe
 templates.env.filters["ymd"] = lambda d: d.strftime("%Y-%m-%d") if d else "—"
 

@@ -78,7 +78,7 @@ try:
         vid = re.search(r'href="/versions/(\d+)">ver</a>', page)
         check(f"{name}: guardó la configuración", vid and htmlmod.escape(text, quote=False)
               in s.get(f"{B}/versions/{vid.group(1)}").text.replace("&#34;", '"').replace("&quot;", '"'))
-        has_btn = "🌐 Interfaz web" in page
+        has_btn = 'aria-label="Interfaz web del equipo (ventana nueva)"' in page
         check(f"{name}: botón de interfaz web {'visible' if web == '1' else 'oculto'}", has_btn == (web == "1"))
         edit = s.get(f"{B}/devices/{dev}/edit").text
         check(f"{name}: el formulario de edición recuerda la opción web",
@@ -90,7 +90,7 @@ try:
     # sin el campo (API o formularios anteriores) el botón sigue apareciendo, como antes
     r = s.post(B + "/devices/new", data={"name": "SinCampoWeb", "host": "127.0.0.9", "device_type": "cisco_ios",
                                          "protocol": "ssh", "port": "22", "credential_id": cred})
-    check("sin el campo web_enabled el botón se muestra", "🌐 Interfaz web" in s.get(r.url).text)
+    check("sin el campo web_enabled el botón se muestra", 'aria-label="Interfaz web del equipo (ventana nueva)"' in s.get(r.url).text)
     s.post(r.url + "/delete")
 finally:
     for p in procs:

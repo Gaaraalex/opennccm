@@ -38,7 +38,8 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(16), default="viewer")  # admin | operator | viewer
     email: Mapped[str | None] = mapped_column(String(255))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
-    theme: Mapped[str] = mapped_column(String(16), default="auto")  # tema visual elegido por el usuario
+    theme: Mapped[str] = mapped_column(String(16), default="auto")  # auto | claro | oscuro | contraste
+    accent: Mapped[str | None] = mapped_column(String(16))  # color de acento (vacío: cobalto)
     lang: Mapped[str | None] = mapped_column(String(8))  # idioma de la interfaz (vacío: el del navegador)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     # seguridad
@@ -280,6 +281,23 @@ SECRET_SETTINGS = {"smtp_password", "cisco_api_secret", "dr_remote_password"}
 def init_db():
     Base.metadata.create_all(engine)
     _add_missing_columns()
+    _migrate_themes()
+
+
+# Rediseño «Señal» (1.9): los 10 temas pasan a 4 temas + un color de acento; nadie pierde «su» color.
+OLD_THEMES = {"noche": ("oscuro", "cobalto"), "bosque": ("claro", "bosque"), "arena": ("claro", "arena"),
+              "lavanda": ("claro", "lavanda"), "oceano": ("oscuro", "oceano"), "atardecer": ("oscuro", "atardecer"),
+              "grafito": ("oscuro", "grafito")}
+
+
+def _migrate_themes():
+    with SessionLocal() as db:
+        changed = False
+        for u in db.scalars(select(User).where(User.theme.in_(list(OLD_THEMES)))):
+            u.theme, u.accent = OLD_THEMES[u.theme]
+            changed = True
+        if changed:
+            db.commit()
 
 
 def _add_missing_columns():

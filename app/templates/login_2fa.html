@@ -4,7 +4,7 @@
 <p class="muted">Escriba el código de 6 dígitos que muestra su app de autenticación.</p>
 <form method="post" action="/login/2fa">
   <label for="code">Código</label>
-  <div class="field"><span class="ico" aria-hidden="true">📱</span>
+  <div class="field">{{ icon('key', 'lead') }}
     <input id="code" name="code" class="otp" required autofocus inputmode="numeric" autocomplete="one-time-code"
            pattern="[0-9 ]{6,7}" maxlength="7" placeholder="000000"></div>
   <button class="auth-submit">Verificar</button>

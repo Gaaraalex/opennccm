@@ -4,13 +4,13 @@
 <p class="muted">Ingrese con su usuario de OpenNCCM.</p>
 <form method="post" action="/login" id="login-form">
   <label for="username">Usuario</label>
-  <div class="field"><span class="ico" aria-hidden="true">👤</span>
+  <div class="field">{{ icon('user', 'lead') }}
     <input id="username" name="username" autofocus required autocomplete="username" autocapitalize="none" spellcheck="false"></div>
   <label for="password">Contraseña</label>
-  <div class="field"><span class="ico" aria-hidden="true">🔒</span>
+  <div class="field">{{ icon('lock', 'lead') }}
     <input id="password" name="password" type="password" required autocomplete="current-password">
     <button type="button" class="peek" id="peek" aria-controls="password" aria-pressed="false"
-            aria-label="Mostrar la contraseña" title="Mostrar la contraseña">👁</button></div>
+            aria-label="Mostrar la contraseña" title="Mostrar la contraseña">{{ icon('eye') }}</button></div>
   <p class="caps" id="caps" hidden role="alert">⚠ Bloq Mayús está activado</p>
   <button type="submit" class="auth-submit">Ingresar</button>
 </form>

@@ -41,20 +41,24 @@
   <form method="post" action="/account/theme">
     <fieldset class="themes"><legend class="vh">Tema</legend>
       {% set swatches = {
-        'auto': ['#f4f6f9', '#14202e', '#1f6feb', '#0f141a'],
-        'claro': ['#f4f6f9', '#ffffff', '#14202e', '#1f6feb'],
-        'oscuro': ['#0f141a', '#171e27', '#0a0f14', '#1f6feb'],
-        'noche': ['#0b1730', '#12224a', '#08112a', '#4c9bff'],
-        'bosque': ['#f1f6f2', '#ffffff', '#143424', '#1f7a4d'],
-        'arena': ['#f6f0e4', '#fffaf1', '#3b2f20', '#8f5410'],
-        'oceano': ['#06232b', '#0b2f39', '#041a20', '#3cc6c0'],
-        'atardecer': ['#1f1424', '#2a1b30', '#170e1b', '#ff8c5a'],
-        'lavanda': ['#f5f2fb', '#ffffff', '#2b2140', '#6a3fc2'],
-        'grafito': ['#151617', '#1e2022', '#0e0f10', '#c9d1d9'],
+        'auto': ['#f4f5f7', '#ffffff', '#0b0f17', '#121826'],
+        'claro': ['#f4f5f7', '#ffffff', '#101626', '#eef0f3'],
+        'oscuro': ['#0b0f17', '#121826', '#070a10', '#1a2233'],
         'contraste': ['#000000', '#000000', '#ffffff', '#ffd400']} %}
       {% for key, name in themes.items() %}
       <label><input class="vh" type="radio" name="theme" value="{{ key }}" {{ 'checked' if (user.theme or 'auto') == key }}>
         <span class="sw" aria-hidden="true">{% for c in swatches[key] %}<i style="background:{{ c }}"></i>{% endfor %}</span>{{ _(name) }}</label>
+      {% endfor %}
+    </fieldset>
+    <h3>Color de acento</h3>
+    <p class="small muted" style="margin-top:0">Cambia el color de los botones, enlaces y la primera serie de las gráficas. No se aplica al tema de alto contraste.</p>
+    <fieldset class="accents"><legend class="vh">Color de acento</legend>
+      {% set acc = {'cobalto': ['#2347e8', '#7c96ff'], 'bosque': ['#1f7a4d', '#4cc38a'], 'arena': ['#8f5410', '#e0a458'],
+                    'lavanda': ['#6a3fc2', '#b39cff'], 'oceano': ['#0e7480', '#3cc6c0'], 'atardecer': ['#b9400b', '#ff8c5a'],
+                    'grafito': ['#3d4652', '#c9d1d9']} %}
+      {% for key, name in accents.items() %}
+      <label><input class="vh" type="radio" name="accent" value="{{ key }}" {{ 'checked' if (user.accent or 'cobalto') == key }}>
+        <span class="dot" aria-hidden="true" style="background:linear-gradient(135deg,{{ acc[key][0] }} 50%,{{ acc[key][1] }} 50%)"></span>{{ _(name) }}</label>
       {% endfor %}
     </fieldset>
     <p><button>Aplicar tema</button> <span class="small muted">Se guarda en su usuario y se usa en cualquier equipo desde el que ingrese.</span></p>

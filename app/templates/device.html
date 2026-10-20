@@ -10,11 +10,11 @@
   {% endif %}
   {% if can_console and device.protocol == 'ssh' %}
   <a class="btn sec" href="/devices/{{ device.id }}/console" target="_blank" rel="noopener"
-     onclick="return abrirVentana(this.href, 'consola-{{ device.id }}', 1000, 640)" aria-label="Consola SSH (ventana nueva)">⌨ Consola</a>
+     onclick="return abrirVentana(this.href, 'consola-{{ device.id }}', 1000, 640)" aria-label="Consola SSH (ventana nueva)">{{ icon('term', 'sm') }} Consola</a>
   {% endif %}
   {% if device.web_enabled != false %}
   <a class="btn sec" href="{{ device.web_url or 'https://' ~ device.host ~ '/' }}" target="_blank" rel="noopener noreferrer"
-     onclick="return abrirVentana(this.href, 'web-{{ device.id }}', 1280, 820)" aria-label="Interfaz web del equipo (ventana nueva)">🌐 Interfaz web</a>
+     onclick="return abrirVentana(this.href, 'web-{{ device.id }}', 1280, 820)" aria-label="Interfaz web del equipo (ventana nueva)">{{ icon('globe', 'sm') }} Interfaz web</a>
   {% endif %}
   {% if user.role == 'admin' %}
   <a class="btn sec" href="/devices/{{ device.id }}/edit">Editar</a>

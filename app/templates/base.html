@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="{{ get_lang() }}" data-theme="{{ (user.theme if user and user.theme else 'auto') }}">
+<html lang="{{ get_lang() }}" data-theme="{{ (user.theme if user and user.theme else 'auto') }}" data-accent="{{ (user.accent if user and user.accent else 'cobalto') }}">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{% block title %}OpenNCCM{% endblock %} · OpenNCCM</title>
@@ -40,7 +40,7 @@
   </nav>
   <div class="who">
     <a href="/account" title="Mi cuenta y tema">{{ user.username }}</a> ({{ user.role }})
-    <a class="pw" href="/account#clave" title="Cambiar mi contraseña">🔑 <span>Cambiar contraseña</span></a>
+    <a class="pw" href="/account#clave" title="Cambiar mi contraseña">{{ icon('key', 'sm') }} <span>Cambiar contraseña</span></a>
     <a href="/logout">Salir</a>
   </div>
 </header>
