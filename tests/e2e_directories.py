@@ -101,9 +101,14 @@ def sso(user, pw):
     m = re.search(r'<form[^>]*id="kc-form-login"[^>]*action="([^"]+)"', page)
     if not m:
         return s, None, page[:300]
-    back = kc.post(html.unescape(m.group(1)), data={"username": user, "password": pw, "credentialId": ""},
-                   allow_redirects=False).headers.get("location", "")
-    return s, s.get(back) if back.startswith(B) else None, back
+    r2 = kc.post(html.unescape(m.group(1)), data={"username": user, "password": pw, "credentialId": ""},
+                 allow_redirects=False)
+    back = r2.headers.get("location", "")
+    if not back.startswith(B):  # diagnóstico: qué respondió Keycloak
+        err = re.findall(r'(?:kc-feedback-text|alert-error|instruction)[^>]*>\s*([^<]{3,200})', r2.text)
+        title = re.search(r"<title>([^<]*)", r2.text)
+        return s, None, f"{r2.status_code} {back[:150]} {title.group(1) if title else ''} {err[:2]} {to_idp[:120]}"
+    return s, s.get(back), back
 
 
 check("Keycloak · botón en la pantalla de ingreso", "Entrar con Keycloak" in requests.get(B + "/login").text)
