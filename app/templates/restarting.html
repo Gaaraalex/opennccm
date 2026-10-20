@@ -1,21 +1,32 @@
 {% extends "base.html" %}{% block title %}Aplicando zona horaria{% endblock %}
 {% block content %}
-<div class="card" style="max-width:560px;margin:8vh auto;text-align:center">
-  <h1 style="margin-bottom:8px">Aplicando la zona horaria {{ tz }}…</h1>
-  <p class="muted">OpenNCCM se está reiniciando para usar la nueva hora. Esta página se recargará sola en unos segundos.</p>
-  <p id="estado" class="small muted">Esperando al servicio…</p>
-  <p><a class="btn sec" href="/system#hora">Volver a Sistema</a></p>
-</div>
+<section class="card" style="max-width:560px;margin:8vh auto;text-align:center">
+  <h1 style="margin-bottom:8px">{{ _f('Aplicando la zona horaria {0}…', tz) }}</h1>
+  <p class="muted">OpenNCCM se está reiniciando para usar la nueva hora. Esta página vuelve sola a Sistema en cuanto termine.</p>
+  <p id="estado" class="muted sm" role="status" aria-live="polite" style="margin:10px 0">Esperando al servicio…</p>
+  <p><a class="btn" id="volver" href="/system#hora">Volver a Sistema</a></p>
+</section>
 <script>
 (function () {
-  var tries = 0, el = document.getElementById('estado');
+  // Se vuelve a Sistema solo cuando responde el proceso NUEVO (otra hora de arranque): el anterior puede contestar
+  // durante un momento antes de cerrarse, y mientras tanto nginx devolvería «502 Bad Gateway».
+  const OLD = {{ started|tojson }}, T = {{ {'wait': _('Reiniciando… ({0} s)'), 'back': _('Esperando a que OpenNCCM vuelva…'),
+                                          'ready': _('Listo. Volviendo a Sistema…')}|tojson }};
+  const el = document.getElementById('estado'), btn = document.getElementById('volver'), t0 = Date.now();
+  let ready = false;
+  function go() { el.textContent = T.ready; location.href = '/system#hora'; }
   function check() {
-    tries++;
-    fetch('/healthz', {cache: 'no-store'}).then(function (r) {
-      if (r.ok && tries > 3) { location.href = '/system#hora'; } else { setTimeout(check, 1500); }
-    }).catch(function () { el.textContent = 'Reiniciando… (' + tries + ')'; setTimeout(check, 1500); });
+    fetch('/healthz', {cache: 'no-store'}).then(r => r.ok ? r.json() : null).then(j => {
+      if (j && (j.started !== OLD || Date.now() - t0 > 45000)) { ready = true; go(); return; }
+      el.textContent = T.wait.replace('{0}', Math.round((Date.now() - t0) / 1000));
+      setTimeout(check, 1000);
+    }).catch(() => { el.textContent = T.wait.replace('{0}', Math.round((Date.now() - t0) / 1000)); setTimeout(check, 1000); });
   }
-  setTimeout(check, 2000);
+  btn.addEventListener('click', e => {  // sin esperar llevaría a un servidor que se está reiniciando
+    if (ready) return;
+    e.preventDefault(); btn.setAttribute('aria-disabled', 'true'); btn.classList.add('ghost'); btn.textContent = T.back;
+  });
+  setTimeout(check, 1000);
 })();
 </script>
 {% endblock %}

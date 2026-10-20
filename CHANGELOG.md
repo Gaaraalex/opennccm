@@ -6,6 +6,10 @@
   - Acerca de y Sistema muestran una tarjeta con las mismas opciones.
   - Tras actualizar a una versión nueva, el primer administrador que entra ve una vez un aviso con «Donar» y «Ahora no».
   - Por ahora la opción es Ko-fi. Los enlaces solo se abren si se pulsan, en una pestaña nueva, y no se envía ningún dato del servidor; la página de privacidad lo explica.
+- **Cambiar la zona horaria** ya no termina en una página en blanco («502 Bad Gateway»):
+  - la página de espera vuelve sola a Sistema cuando el servicio reiniciado responde de verdad;
+  - «Volver a Sistema» espera a que el servicio esté listo.
+- Además, mientras OpenNCCM se reinicia (zona horaria o actualización), nginx muestra una página que se recarga sola en lugar del error.
 - Los avisos flotantes vuelven a aparecer abajo a la derecha de la ventana también en las páginas largas (antes podían quedar al final del contenido, fuera de la vista).
 
 ## 2.1.0

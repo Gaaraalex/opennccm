@@ -2303,10 +2303,13 @@ def favicon():
                         headers={"Cache-Control": "public, max-age=604800"})
 
 
+STARTED = int(time.time())  # cuándo arrancó este proceso: la página de espera sabe así que el servicio ya se reinició
+
+
 @app.get("/healthz")
 def healthz():
     from . import __version__
     with SessionLocal() as db:  # también verifica que la base de datos responda
         db.scalar(select(func.count(User.id)))
-    return {"status": "ok", "version": __version__}
+    return {"status": "ok", "version": __version__, "started": STARTED}
 
