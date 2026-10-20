@@ -98,6 +98,8 @@ def sso(user, pw):
     to_idp = s.get(B + "/login/oidc", allow_redirects=False).headers.get("location", "")
     kc = requests.Session()
     page = kc.get(to_idp).text
+    for c in kc.cookies:  # Keycloak marca sus cookies «Secure»; un navegador las envía igual a 127.0.0.1, requests no
+        c.secure = False
     m = re.search(r'<form[^>]*id="kc-form-login"[^>]*action="([^"]+)"', page)
     if not m:
         return s, None, page[:300]
