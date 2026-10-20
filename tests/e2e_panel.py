@@ -107,7 +107,7 @@ sysp = adm.get(B + "/system").text
 check("Sistema: tarjeta de actualizaciones", "actualización disponible" in sysp and "Novedades de prueba" in sysp)
 check("Sistema: botón para buscar actualizaciones", "/system/update/check" in sysp)
 check("Sistema: ventana «Novedades de cada versión» con el historial", 'id="novedades"' in sysp
-      and "Versión 1.6.0" in sysp and "<b>Consola SSH web</b>" in sysp)
+      and "Versión 1.8.0" in sysp and "<b>Interfaz en español e inglés</b>" in sysp)
 check("Sistema: enlace a todas las versiones en GitHub", "github.com/Gaaraalex/opennccm/releases" in sysp)
 r = adm.post(B + "/system/update")
 if "/system/updating" in r.url:  # servidor con el servicio de actualización web (systemd)
