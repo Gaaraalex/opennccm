@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from datetime import timedelta
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import case, delete, func, or_, select
 from starlette.middleware.sessions import SessionMiddleware
@@ -266,16 +266,21 @@ async def account_theme(request: Request):
     old = form.get("theme")
     from .db import OLD_THEMES
     theme, accent = OLD_THEMES.get(old, (old, form.get("accent")))  # acepta también los nombres antiguos
-    theme = theme if theme in THEMES else "auto"
-    accent = accent if accent in ACCENTS else None
     with SessionLocal() as db:
         u = db.get(User, user.id)
-        u.theme = theme
+        if old or "theme" in form:  # el selector de la barra superior puede cambiar solo el acento
+            u.theme = theme if theme in THEMES else "auto"
         if accent or "accent" in form:
-            u.accent = accent
+            u.accent = accent if accent in ACCENTS else None
+        if form.get("density") in ("comfy", "compact"):
+            u.density = form.get("density")
         db.commit()
+        theme = u.theme
+    if form.get("quiet"):  # cambio al instante desde la barra superior o Mi cuenta: sin aviso ni redirección
+        return Response(status_code=204)
     flash(request, _f("Tema «{0}» aplicado.", _(THEMES[theme])))
-    return go(form.get("next") or "/account")
+    nxt = form.get("next") or "/account"
+    return go(nxt if nxt.startswith("/") and not nxt.startswith("//") else "/account")
 
 
 # --------------------------------------------------------------------------- panel
@@ -310,17 +315,41 @@ def dashboard(request: Request):
             v.device.name  # carga la relación antes de cerrar la sesión
         for e in events:
             e.device.name if e.device else None  # carga la relación antes de cerrar la sesión
-    from . import charts, health
+        # indicadores del panel «Señal»: nombres de los equipos afectados y tendencia de equipos (8 semanas)
+        devs = db.scalars(scoped(select(Device), Device.id).order_by(Device.name)).all()
+        week_ago = now() - timedelta(days=7)
+        # fecha de alta de cada equipo = la de su primera versión respaldada
+        first = dict(db.execute(select(ConfigVersion.device_id, func.min(ConfigVersion.created_at))
+                                .group_by(ConfigVersion.device_id)).all())
+        added = [first.get(d.id) for d in devs]
+        new_week = sum(1 for a in added if a and a >= week_ago)
+        dev_trend = [sum(1 for a in added if a and a <= now() - timedelta(weeks=w)) for w in range(7, -1, -1)]
+        backed24 = sum(1 for d in devs if d.last_status == "ok" and d.last_backup_at and d.last_backup_at >= since)
+        names = lambda ds: ", ".join(d.name for d in ds[:2]) + (f" +{len(ds) - 2}" if len(ds) > 2 else "")  # noqa: E731
+        err_names = names([d for d in devs if d.last_status == "error"])
+        drift_names = names([d for d in devs if d.baseline_drift])
+        conflict_names = names([d for d in devs if d.startup_conflict])
+        oldest = db.scalar(select(ChangeRequest.created_at).where(ChangeRequest.status == "pending")
+                           .order_by(ChangeRequest.created_at).limit(1))
+        crit_cves = db.scalar(scoped(select(func.count(Vulnerability.id)).where(Vulnerability.severity == "CRITICAL"),
+                                     Vulnerability.device_id)) or 0
+    from . import eol as eol_mod, health
     data = reports.analytics(scope, 30)
-    eol_bad = sum(n for label, n in data["eol"] if label in ("Sin soporte", "Sin parches de software"))
+    unsupported = [(d, e) for d, e, st in eol_mod.report(scope) if st in ("sin_soporte", "fin_mantenimiento")]
     comp = round(100 * cpass / (cpass + cfail)) if (cpass + cfail) else None
     server = _server_panel() if user.role == "admin" else None
-    week = [v for _d, v in data["per_day"][-7:]]
+    days = data["per_day"]
+    peak = max(days, key=lambda dv: dv[1]) if days else ("", 0)
+    vend = {}
+    for v in recent:
+        prof = PROFILE_MAP.get(v.device.device_type)
+        vend[v.device_id] = (prof.vendor if prof else v.device.device_type)[:3].upper()
     return render(request, "dashboard.html", user, total=total, ok=ok, err=err, conflicts=conflicts,
                   changes24=changes24, comp=comp, alarms=alarms, vcrit=vcrit, pending=pending, drift=drift,
-                  eol_bad=eol_bad, events=events, recent=recent, h=health.summary(scope, user.role == "admin", server),
-                  spark=charts.sparkline(week, 96, 30), week_total=sum(week),
-                  chart_changes=charts.columns(data["per_day"], " cambios", height=210, label_every=7, width=470))
+                  events=events, recent=recent, h=health.summary(scope, user.role == "admin", server),
+                  new_week=new_week, dev_trend=dev_trend, backed24=backed24, err_names=err_names,
+                  drift_names=drift_names, conflict_names=conflict_names, unsupported=unsupported, oldest=oldest,
+                  crit_cves=crit_cves, days=days, peak=peak, vend=vend, groups_n=len({d.group_id for d in devs if d.group_id}))
 
 
 def _server_panel() -> dict:
@@ -370,8 +399,13 @@ def devices(request: Request, q: str = "", group: int = 0, status: str = ""):
                                   Device.location.ilike(like)))
         if group:
             stmt = stmt.where(Device.group_id == group)
+        from . import eol as eol_mod
+        scope0 = device_scope(user)
+        unsupported = {d.id for d, _e, st in eol_mod.report(scope0) if st in ("sin_soporte", "fin_mantenimiento")}
         if status == "conflict":
             stmt = stmt.where(Device.startup_conflict.is_(True))
+        elif status == "eol":
+            stmt = stmt.where(Device.id.in_(unsupported or {0}))
         elif status == "drift":
             stmt = stmt.where(Device.baseline_drift.is_(True))
         elif status:
@@ -393,10 +427,17 @@ def devices(request: Request, q: str = "", group: int = 0, status: str = ""):
         counts = {"": len(every), "ok": sum(d.last_status == "ok" for d in every),
                   "error": sum(d.last_status == "error" for d in every),
                   "pending": sum(d.last_status == "pending" for d in every),
-                  "conflict": sum(bool(d.startup_conflict) for d in every), "drift": sum(bool(d.baseline_drift) for d in every)}
+                  "conflict": sum(bool(d.startup_conflict) for d in every), "drift": sum(bool(d.baseline_drift) for d in every),
+                  "eol": sum(d.id in unsupported for d in every)}
+        # origen del último respaldo de cada equipo (manual, programado, syslog, push) y último respaldo global
+        latest_ids = select(func.max(ConfigVersion.id)).group_by(ConfigVersion.device_id)
+        src = dict(db.execute(select(ConfigVersion.device_id, ConfigVersion.trigger)
+                              .where(ConfigVersion.id.in_(latest_ids))).all())
+        last_global = max((d.last_backup_at for d in every if d.last_backup_at), default=None)
+        n_groups = len({d.group_id for d in every if d.group_id})
     from .console import console_allowed
     return render(request, "devices.html", user, devices=devs, groups=groups, q=q, group=group, status=status,
-                  counts=counts, can_console=console_allowed(user))
+                  counts=counts, can_console=console_allowed(user), src=src, last_global=last_global, n_groups=n_groups)
 
 
 @app.post("/devices/bulk")
@@ -422,6 +463,10 @@ async def devices_bulk(request: Request):
         services.jobs.submit(_audit)
         log_action(request, user, "compliance_selected", f"{ids}")
         flash(request, _f("Auditoría de cumplimiento lanzada para {0} equipos", len(ids)))
+    elif action == "cve":
+        services.jobs.submit(services.scan_cves_many, ids)
+        log_action(request, user, "cve_selected", f"{ids}")
+        flash(request, _f("Búsqueda de CVE lanzada para {0} equipos", len(ids)))
     elif action == "move":
         gid = int(form.get("group_id") or 0) or None
         with SessionLocal() as db:
@@ -1722,8 +1767,32 @@ def api_devices(request: Request):
     with SessionLocal() as db:
         return [{"id": d.id, "name": d.name, "host": d.host, "type": d.device_type, "model": d.model,
                  "serial": d.serial, "version": d.os_version, "status": d.last_status,
+                 "platform": PROFILE_MAP[d.device_type].label if d.device_type in PROFILE_MAP else d.device_type,
                  "last_backup": d.last_backup_at.isoformat() if d.last_backup_at else None}
                 for d in db.scalars(select(Device).order_by(Device.name)) if scope is None or d.id in scope]
+
+
+@app.get("/api/config-search")
+def api_config_search(request: Request, q: str = ""):
+    """Paleta Ctrl K: las primeras líneas de configuración que contienen el texto (última versión de cada equipo)."""
+    user = require(request)
+    q = q.strip()
+    if len(q) < 2:
+        return []
+    ql, scope, hits = q.lower(), device_scope(user), []
+    with SessionLocal() as db:
+        for dev in db.scalars(select(Device).order_by(Device.name)):
+            if scope is not None and dev.id not in scope:
+                continue
+            v = services.latest_version(db, dev.id)
+            if not v:
+                continue
+            for n, line in enumerate(decrypt(v.content_enc).splitlines(), 1):
+                if ql in line.lower():
+                    hits.append({"device": dev.name, "device_id": dev.id, "line_no": n, "line": line.strip()[:120]})
+                    if len(hits) >= 4:
+                        return hits
+    return hits
 
 
 from . import routes_ops  # noqa: E402  (rutas de firmware, EOL, análisis y sistema)

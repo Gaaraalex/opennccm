@@ -53,7 +53,7 @@ try:
     for label in ("pfSense", "OPNsense", "Alpine Linux"):
         check(f"{label} aparece en Plataformas", f">{label}<" in vendors)
     form = s.get(B + "/devices/new").text
-    check("el alta pregunta si el equipo tiene interfaz web", "¿El equipo tiene interfaz web?" in form
+    check("el alta pregunta si el equipo tiene interfaz web", "El equipo tiene interfaz web" in form
           and 'name="web_enabled" value="0"' in form)
     for label in ("pfSense", "OPNsense", "Alpine Linux"):
         check(f"{label} se puede elegir al crear un equipo", f">{label}</option>" in form)
@@ -82,7 +82,7 @@ try:
         check(f"{name}: botón de interfaz web {'visible' if web == '1' else 'oculto'}", has_btn == (web == "1"))
         edit = s.get(f"{B}/devices/{dev}/edit").text
         check(f"{name}: el formulario de edición recuerda la opción web",
-              re.search(rf'name="web_enabled" value="{web}" checked', edit) is not None)
+              (re.search(r'name="web_enabled" value="1" checked', edit) is not None) == (web == "1"))
 
     lista = s.get(B + "/devices").text
     check("lista: botón web solo en los equipos con web",

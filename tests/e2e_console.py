@@ -55,7 +55,7 @@ check("la consola se muestra sin el menú (ventana propia)", 'aria-label="Menú 
 lista = adm.get(B + "/devices").text
 check("la consola se abre en una ventana aparte redimensionable",
       "abrirVentana(this.href, 'consola-1'" in lista and "resizable=yes" in lista)
-check("botón de interfaz web en cada equipo", "Abrir la interfaz web de R1" in lista and "https://127.0.0.1/" in lista)
+check("botón de interfaz web en cada equipo", "Interfaz web de R1" in lista and "https://127.0.0.1/" in lista)
 form = adm.get(B + "/devices/1/edit").text
 data = dict(re.findall(r'name="(name|host|device_type|protocol|port|credential_id|group_id)"[^>]*value="([^"]*)"', form))
 data.update({"name": "R1", "host": "127.0.0.1", "device_type": "cisco_ios", "protocol": "ssh", "port": "2222",

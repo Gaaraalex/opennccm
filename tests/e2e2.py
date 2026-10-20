@@ -172,7 +172,7 @@ check("panel funciona para restringido", o.get(B + "/").status_code == 200)
 # ---------------------------------------------------------------- análisis e informes
 a = s.get(B + "/analytics").text
 check("análisis con ≥7 gráficas SVG", a.count('<svg class="viz') >= 7, a.count('<svg class="viz'))
-check("panel con gráfica de cambios", '<svg class="viz"' in s.get(B + "/").text)
+check("panel con gráfica de cambios", 'class="vbars"' in s.get(B + "/").text)
 for k in ["inventory", "changes", "compliance", "conflicts", "baseline", "eol", "vulns", "changes_requests", "audit"]:
     r = s.get(f"{B}/reports/view/{k}")
     check(f"informe en pantalla {k}", r.status_code == 200 and "<th>" in r.text)

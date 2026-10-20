@@ -37,14 +37,15 @@ check("Sistema: gráficas de CPU y memoria (o aviso de que reúnen datos)",
       sysp0.count("últimas 24 h") >= 2 and ("<svg" in sysp0 or "Reuniendo datos" in sysp0))
 
 # --- Panel «Señal»: salud, 4 indicadores, bandeja de atención y actividad
-check("panel: puntuación de salud de 0 a 100", "Salud de la red" in html and 'class="health-ring"' in html
+check("panel: puntuación de salud de 0 a 100", "Salud de la red" in html and 'class="ring"' in html
       and any(f in html for f in ("Tu red está bien", "Casi todo en orden", "Hay trabajo pendiente", "Tu red necesita atención")))
-check("panel: 4 indicadores", len(re.findall(r'class="kpi(?: alert)?"', html)) == 4)
+check("panel: 8 indicadores", len(re.findall(r'class="kpi[ "]', html)) == 8)
 check("panel: bandeja de atención con una acción por fila (o celebración)",
-      "Qué hacer ahora" in html and ('class="queue"' in html or "Nada pendiente" in html))
-check("panel: como máximo 6 filas en la bandeja", html.count('<li class="q-') <= 6)
-check("panel: actividad reciente con tiempo relativo", "Actividad reciente" in html and ("hace " in html or "ahora mismo" in html))
-check("panel: gráfica de cambios por día", '<svg class="viz"' in html)
+      "Necesita tu atención" in html and ('class="queue"' in html or "Nada pendiente" in html))
+cola = html[html.find('id="cola-t"'):html.find('</section>', html.find('id="cola-t"'))]
+check("panel: como máximo 5 filas en la bandeja", cola.count('<span class="qi ') <= 5)
+check("panel: últimos cambios con tiempo relativo", "Últimos cambios" in html and ("hace " in html or "ahora mismo" in html))
+check("panel: gráfica de cambios por día", 'class="vbars"' in html)
 
 adm.post(B + "/users", data={"username": "lector9", "role": "viewer", "password": "Lector-2026xy",
                              "password2": "Lector-2026xy"})
@@ -64,8 +65,8 @@ def flashes(text):
 
 
 dl = adm.get(B + "/devices").text
-check("lista: chips de estado con recuento", 'class="chip on"' in dl and re.search(r'Todos <span class="num">\d+</span>', dl))
-check("lista: casillas para selección múltiple", 'name="ids"' in dl and 'id="sel-all"' in dl)
+check("lista: chips de estado con recuento", 'class="chip on"' in dl and re.search(r'Todos <span class="n">\d+</span>', dl))
+check("lista: casillas para selección múltiple", 'name="ids"' in dl and 'id="selall"' in dl)
 check("lista: barra de acciones masivas", 'action="/devices/bulk"' in dl and 'value="backup"' in dl and 'value="move"' in dl)
 check("lista: «Agregar» ofrece importar CSV en un panel lateral", 'href="/devices/import" data-sheet' in dl and 'id="importar"' not in dl)
 imp = adm.get(B + "/devices/import").text

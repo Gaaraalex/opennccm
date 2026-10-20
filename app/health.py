@@ -37,8 +37,10 @@ def summary(scope: set[int] | None, is_admin: bool = False, server: dict | None 
         for r in results:
             if not r.passed:
                 fails[r.device_id].append(r.rule.severity if r.rule else "major")
-        vuln_devs = {v.device_id for v in db.scalars(select(Vulnerability).where(Vulnerability.severity.in_(["CRITICAL", "HIGH"])))
-                     if v.device_id in ids}
+        vulns = [v for v in db.scalars(select(Vulnerability).where(Vulnerability.severity.in_(["CRITICAL", "HIGH"])))
+                 if v.device_id in ids]
+        vuln_devs = {v.device_id for v in vulns}
+        crit_cves = len({v.cve_id for v in vulns if v.severity == "CRITICAL"})
         pending = sum(1 for _c in db.scalars(select(ChangeRequest.id).where(ChangeRequest.status == "pending")))
     unsupported = {d.id for d, _e, st in eol.report(scope) if st in ("sin_soporte", "fin_mantenimiento") and d.id in ids}
     total = len(devs)
@@ -54,17 +56,19 @@ def summary(scope: set[int] | None, is_admin: bool = False, server: dict | None 
     drift = [d for d in devs if d.baseline_drift]
     conflict = [d for d in devs if d.startup_conflict]
 
-    # chips del héroe: solo lo que no está a cero, por gravedad
+    # chips del héroe: solo lo que no está a cero, por gravedad (número en negrita + texto)
     chips = []
     if errors:
-        chips.append(("hot", _f("{0} sin respaldo", len(errors)) if len(errors) != 1 else _("1 sin respaldo"), "/devices?status=error"))
+        chips.append(("hot", len(errors), _("equipo con error") if len(errors) == 1 else _("equipos con error"), "/devices?status=error"))
+    if pending:
+        chips.append(("", pending, _("cambio por aprobar") if pending == 1 else _("cambios por aprobar"), "/changes?status=pending"))
+    if crit_cves:
+        chips.append(("", crit_cves, _("CVE crítico") if crit_cves == 1 else _("CVE críticos"), "/vulns"))
     crit_devs = [i for i, sev in fails.items() if "critical" in sev]
     if crit_devs:
-        chips.append(("", _f("{0} con reglas críticas", len(crit_devs)), "/compliance"))
-    if pending:
-        chips.append(("", _f("{0} cambios por aprobar", pending) if pending != 1 else _("1 cambio por aprobar"), "/changes?status=pending"))
+        chips.append(("", len(crit_devs), _("con reglas críticas"), "/compliance"))
     if drift:
-        chips.append(("", _f("{0} fuera de su línea base", len(drift)), "/devices?status=drift"))
+        chips.append(("", len(drift), _("fuera de su línea base"), "/devices?status=drift"))
 
     # bandeja de atención
     queue = []

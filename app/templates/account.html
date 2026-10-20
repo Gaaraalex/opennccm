@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% block title %}Mi cuenta{% endblock %}
 {% block content %}
-<h1>Mi cuenta · {{ user.username }}</h1>
+<div class="ph"><div class="grow"><h1>Mi cuenta</h1><div class="sub">{{ user.username }}</div></div><a class="btn" href="/logout">{{ icon('logout', 's') }}Cerrar sesión</a></div>
 <div class="row" style="align-items:start">
 <div class="card" id="clave" style="flex:1 1 360px;max-width:460px">
   <h2 style="margin-top:0">Cambiar mi contraseña</h2>
