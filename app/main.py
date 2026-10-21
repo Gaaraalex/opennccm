@@ -66,6 +66,15 @@ async def lifespan(_app):
             log.info("Inventario actualizado desde la última salida guardada en %d equipos", n)
     except Exception:  # noqa: BLE001
         log.exception("No se pudo releer el inventario guardado")
+    try:
+        from .compliance_packs import seed_new_packs
+        with SessionLocal() as db:
+            if db.scalar(select(func.count(User.id))):  # solo en instalaciones ya creadas (las nuevas usan «seed»)
+                n = seed_new_packs(db)
+                if n:
+                    log.info("Cargados %d paquetes de cumplimiento nuevos", n)
+    except Exception:  # noqa: BLE001
+        log.exception("No se pudieron cargar los paquetes de cumplimiento nuevos")
     scheduler.start()
     yield
     scheduler.scheduler.shutdown(wait=False)
@@ -845,7 +854,9 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
                   crit_cves=sum(1 for v in vulns if (v.severity or "").upper() == "CRITICAL"),
                   open_events=sum(1 for e in events if not e.acknowledged), audit_rows=audit_rows, drift_n=drift_n,
                   audited_at=max((c.checked_at for c in comp if c.checked_at), default=None),
-                  cve_at=max((v.found_at for v in vulns if v.found_at), default=None),
+                  cve_at=services.cve_scanned_at(dev.id) or max((v.found_at for v in vulns if v.found_at),
+                                                                    default=None),
+                  cve_state=services.cve_scan_state(dev.id),
                   latest_run=next((t["id"] for t in tl if t["kind"] == "running"), None))
 
 
@@ -887,13 +898,23 @@ def device_compliance(request: Request, dev_id: int):
 def device_cve(request: Request, dev_id: int):
     user = require(request, "operator")
     check_device(user, dev_id)
-    try:
-        n = services.scan_cves(dev_id)
-        flash(request, _("Sin versión de firmware en inventario: haga un respaldo primero") if n < 0
-              else _f("{0} CVE encontrados en NVD", n), "error" if n < 0 else "ok")
-    except Exception as e:  # noqa: BLE001
-        flash(request, _f("Error consultando NVD: {0}", e), "error")
+    with SessionLocal() as db:
+        dev = db.get(Device, dev_id)
+        has_version = bool(dev and dev.os_version)
+    if not has_version:
+        flash(request, _("Sin versión de firmware en inventario: haga un respaldo primero"), "error")
+    elif services.start_cve_scan(dev_id):
+        log_action(request, user, "cve_scan", f"device={dev_id}")
     return go(f"/devices/{dev_id}#vulns")
+
+
+@app.get("/devices/{dev_id}/cve/status")
+def device_cve_status(request: Request, dev_id: int):
+    """Estado de la búsqueda de CVE en segundo plano (la pestaña Vulnerabilidades lo consulta mientras busca)."""
+    user = require(request)
+    check_device(user, dev_id)
+    st = services.cve_scan_state(dev_id)
+    return {"running": st["running"] is not None, "last_at": (st["last"] or {}).get("at")}
 
 
 @app.post("/cve/all")

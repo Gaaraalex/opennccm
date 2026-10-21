@@ -133,8 +133,14 @@
 </section>
 
 <section id="vulns" class="stack" aria-label="Vulnerabilidades">
+  {% set cve_busy = cve_state.running is not none %}{% set cve_last = cve_state.last %}
   <div class="row between"><span class="muted sm">{{ _f('Firmware {0}', device.os_version or '—') }}{% if cve_at %} · {{ _f('consultado {0} en NVD', cve_at|ago) }}{% endif %}.</span>
-    {% if can_run %}<form class="inline" method="post" action="/devices/{{ device.id }}/cve"><button class="btn s">{{ icon('search', 's') }}Buscar CVE de firmware</button></form>{% endif %}</div>
+    {% if can_run %}<form class="inline" method="post" action="/devices/{{ device.id }}/cve"><button class="btn s"{% if cve_busy %} disabled aria-disabled="true"{% endif %}>{{ icon('search', 's') }}{{ _('Buscando en NVD…') if cve_busy else _('Buscar CVE de firmware') }}</button></form>{% endif %}</div>
+  {% if cve_busy %}<div class="banner info" id="cve-busy" role="status" data-cve-status="/devices/{{ device.id }}/cve/status">{{ icon('search') }}<span class="grow">{{ _('Buscando vulnerabilidades en NVD. Con equipos que tienen muchos CVE puede tardar unos minutos; puede seguir usando OpenNCCM y esta pestaña se actualizará sola al terminar.') }}</span></div>
+  {% elif cve_last and not cve_last.ok and cve_last.tries %}<div class="banner warn" role="alert">{{ icon('alert') }}<span class="grow">{{ _f('NVD no respondió bien tras {0} intentos ({1}). Se conservan los resultados anteriores; pruebe de nuevo en unos minutos.', cve_last.tries, cve_last.error) }}</span></div>
+  {% elif cve_last and not cve_last.ok and cve_last.error %}<div class="banner warn" role="alert">{{ icon('alert') }}<span class="grow">{{ _f('Error consultando NVD: {0}', cve_last.error) }}</span></div>
+  {% elif cve_last and cve_last.ok %}<div class="banner info" role="status">{{ icon('check') }}<span class="grow">{{ _f('{0} CVE encontrados en NVD', cve_last.n) }}</span></div>{% endif %}
+  {% if profile.cve_note %}{% set note = {'extreme': _('NVD casi no registra vulnerabilidades de VOSS/Fabric Engine: Extreme las publica en sus propios avisos de seguridad. Revíselos también.')} %}<div class="banner info">{{ icon('info') }}<span class="grow">{{ note[profile.cve_note[0]] }} <a href="{{ profile.cve_note[1] }}" target="_blank" rel="noopener">{{ _('Avisos de seguridad de Extreme') }}</a></span></div>{% endif %}
   {% if vulns %}
   <section class="card flush"><div class="tw"><table class="t"><thead><tr><th>CVE</th><th>CVSS</th><th>Severidad</th><th>Afecta a</th><th>Qué permite</th><th>Solución</th></tr></thead><tbody>
   {% for v in vulns %}{% set sc = v.score or 0 %}
@@ -190,6 +196,16 @@
   <div class="row end"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn dzf" disabled>Eliminar equipo</button></div>
 </form></dialog>
 {% endif %}
+<script>
+(function () {  // búsqueda de CVE en segundo plano: recargar la pestaña cuando termine
+  const el = document.getElementById('cve-busy');
+  if (!el) return;
+  const tick = () => fetch(el.dataset.cveStatus, {cache: 'no-store'}).then(r => r.ok ? r.json() : null)
+    .then(j => { if (j && !j.running) { location.hash = 'vulns'; location.reload(); } else setTimeout(tick, 3000); })
+    .catch(() => setTimeout(tick, 5000));
+  setTimeout(tick, 3000);
+})();
+</script>
 <script>
 (function () {
   const T = {{ {'rev': _('¿Revertir {0} a la versión {1}?')}|tojson }}, name = {{ device.name|tojson }};

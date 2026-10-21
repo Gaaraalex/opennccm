@@ -1,4 +1,5 @@
-"""Paquetes de cumplimiento listos para usar: PCI DSS 4.0, HIPAA, SOX y buenas prácticas Cisco IOS.
+"""Paquetes de cumplimiento listos para usar: PCI DSS 4.0, HIPAA, SOX, buenas prácticas Cisco IOS y seguridad
+básica de Extreme VOSS y switches Ubiquiti.
 
 Las reglas comprueban la configuración de equipos con sintaxis tipo IOS (Cisco, Arista, Dell, Ruckus…)
 y Junos. Son controles técnicos de referencia: el cumplimiento normativo completo requiere además
@@ -81,6 +82,46 @@ PACKS = {
         ("Logging en búfer", "must_contain", r"^logging buffered", "minor", "logging buffered 64000"),
         ("Sin HTTP", "must_not_contain", r"^ip http server", "major", "no ip http server"),
     ]),
+    # Extreme VOSS / Fabric Engine (VSP 4000/7000/8000, 5000/7000 Fabric Engine): sintaxis ACLI de «show running-config»
+    "Extreme VOSS · Seguridad básica": (r"^extreme_vsp", "Controles de seguridad de referencia para switches Extreme "
+                                        "VOSS / Fabric Engine (servicios de gestión, SNMP, registros y hora)", [
+        ("Sin Telnet", "must_not_contain", r"^boot config flags telnetd", "critical",
+         "no boot config flags telnetd"),
+        ("SSH habilitado", "must_contain", r"^(ssh\s*$|boot config flags sshd)", "major", "ssh"),
+        ("Sin servidor FTP", "must_not_contain", r"^boot config flags ftpd", "major", "no boot config flags ftpd"),
+        ("Sin servidor TFTP", "must_not_contain", r"^boot config flags tftpd", "major",
+         "no boot config flags tftpd"),
+        ("Sin rlogin", "must_not_contain", r"^boot config flags rlogind", "major", "no boot config flags rlogind"),
+        ("Interfaz web solo por HTTPS", "must_not_contain", r"^web-server enable(?![\s\S]*^web-server secure-only)",
+         "major", "web-server secure-only"),
+        ("Sin comunidades SNMP por defecto", "must_not_contain", r'^snmp-server community "?(public|private)"?(\s|$)',
+         "critical", None),
+        ("Cierre de sesión inactiva ≤ 15 min", "must_not_contain", r"^cli timeout (90[1-9]|9[1-9]\d|[1-9]\d{3,})\b",
+         "major", "cli timeout 900"),
+        ("Autenticación centralizada (RADIUS o TACACS+)", "must_contain", r"^(radius|tacacs) server host", "major",
+         None),
+        ("Envío de logs a syslog", "must_contain", r"^syslog host \d+ address \S+", "major",
+         "syslog host 1 address 192.0.2.10\nsyslog host 1 enable"),
+        ("Sincronización horaria NTP", "must_contain", r"^ntp server \S+", "major",
+         "ntp server 192.0.2.1 enable\nntp"),
+        ("Banner de uso autorizado", "must_contain", r"^banner (custom|motd)", "minor",
+         'banner custom\nbanner motd "Acceso solo para personal autorizado"\nbanner displaymotd'),
+    ]),
+    # Ubiquiti EdgeSwitch y UniFi Switch (CLI Broadcom FastPath)
+    "Ubiquiti EdgeSwitch/UniFi · Seguridad básica": (r"^ubiquiti_(edgeswitch|unifiswitch)",
+                                                      "Controles de seguridad de referencia para switches Ubiquiti "
+                                                      "(cuenta por defecto, servicios de gestión, SNMP, registros y hora)", [
+        ("Sin la cuenta por defecto «ubnt»", "must_not_contain", r'^username "?ubnt"?\s', "critical", None),
+        ("SSH habilitado", "must_contain", r"^ip ssh server enable", "major", "ip ssh server enable"),
+        ("Sin Telnet", "must_not_contain", r"^ip telnet server enable", "critical", "no ip telnet server enable"),
+        ("Sin HTTP sin cifrar", "must_not_contain", r"^ip http server\b", "major",
+         "ip http secure-server\nno ip http server"),
+        ("Sin comunidades SNMP por defecto", "must_not_contain", r'^snmp-server community "?(public|private)"?(\s|$)',
+         "critical", None),
+        ("Envío de logs a syslog", "must_contain", r"^logging host \S+", "major", "logging host 192.0.2.10 ipv4 514"),
+        ("Sincronización horaria (SNTP)", "must_contain", r"^sntp server ", "major",
+         'sntp client mode unicast\nsntp server "192.0.2.1"'),
+    ]),
     "PCI DSS 4.0 (Junos)": (r"^juniper_junos", "Controles técnicos de PCI DSS 4.0 para Junos (formato set)", [
         ("Req 2.2.7 · Sin Telnet", "must_not_contain", r"^set system services telnet", "critical",
          "delete system services telnet"),
@@ -99,12 +140,46 @@ PACKS = {
 }
 
 
-def seed_packs(db):
+# Paquetes añadidos después de la primera versión: se cargan una sola vez en las instalaciones que se actualizan
+# (si después se borran, no vuelven a aparecer).
+ADDED_LATER = {"Extreme VOSS · Seguridad básica": "2.2.1", "Ubiquiti EdgeSwitch/UniFi · Seguridad básica": "2.2.1"}
+
+
+def _seeded() -> set:
+    import json
+
+    from .db import get_setting
+    try:
+        return set(json.loads(get_setting("compliance_packs_seeded", "[]") or "[]"))
+    except ValueError:
+        return set()
+
+
+def _mark_seeded(names):
+    import json
+
+    from .db import set_setting
+    set_setting("compliance_packs_seeded", json.dumps(sorted(_seeded() | set(names))))
+
+
+def seed_new_packs(db) -> int:
+    """Al arrancar: carga los paquetes nuevos de esta versión que la instalación aún no recibió."""
+    pending = [n for n in ADDED_LATER if n not in _seeded()]
+    if not pending:
+        return 0
+    n = seed_packs(db, only=pending)
+    _mark_seeded(pending)
+    return n
+
+
+def seed_packs(db, only=None):
     from sqlalchemy import select
 
     from .db import Policy, Rule
     created = 0
     for name, (flt, desc, rules) in PACKS.items():
+        if only is not None and name not in only:
+            continue
         if db.scalars(select(Policy).where(Policy.name == name)).first():
             continue
         p = Policy(name=name, device_type_filter=flt, description=desc, enabled=True)
@@ -114,4 +189,6 @@ def seed_packs(db):
             db.add(Rule(policy_id=p.id, name=rname, kind=kind, pattern=pattern, severity=sev, remediation=rem))
         created += 1
     db.commit()
+    if only is None:
+        _mark_seeded(PACKS)
     return created

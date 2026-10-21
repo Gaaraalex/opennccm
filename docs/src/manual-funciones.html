@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.2.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 2.2.1<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -462,10 +462,12 @@ corregir las infracciones.</p>
   <tr><td>SOX ITGC (IOS)</td><td>8</td><td>Archivo de configuración, registro y <i>accounting</i> de comandos, autenticación centralizada</td></tr>
   <tr><td>Cisco IOS · Buenas prácticas</td><td>10</td><td>Source routing, PAD, keepalives, BOOTP, timeouts de SSH</td></tr>
   <tr><td>PCI DSS 4.0 (Junos)</td><td>7</td><td>Telnet, web HTTP, root por SSH, reintentos, idle-timeout, syslog, NTP</td></tr>
+  <tr><td>Extreme VOSS · Seguridad básica</td><td>12</td><td>Sin Telnet, FTP, TFTP ni rlogin; SSH; web solo HTTPS; SNMP sin comunidades por defecto; cierre de sesión ≤ 15 min; RADIUS/TACACS+; syslog; NTP; banner</td></tr>
+  <tr><td>Ubiquiti EdgeSwitch/UniFi · Seguridad básica</td><td>7</td><td>Sin la cuenta «ubnt»; SSH; sin Telnet ni HTTP sin cifrar; SNMP sin comunidades por defecto; syslog; SNTP</td></tr>
   <tr><td>Hardening básico (Cisco, Huawei, Juniper, FortiGate)</td><td>3 – 9</td><td>Controles esenciales por fabricante</td></tr>
 </table>
 <p class="small">Las reglas son controles técnicos de referencia. El cumplimiento normativo completo requiere además procesos y evidencias
-que no dependen del equipo.</p>
+que no dependen del equipo. Los paquetes nuevos de cada versión se cargan solos al actualizar; si se borra uno, no vuelve a aparecer.</p>
 <figure><img src="img/15-cumplimiento.png"><figcaption>Cumplimiento: mapa equipo × política y políticas con sus infracciones.</figcaption></figure>
 <h2>Cómo usarlo</h2>
 <ol class="steps">
@@ -487,16 +489,21 @@ que no dependen del equipo.</p>
 <p><b>Para qué sirve:</b> saber qué equipos tienen versiones de firmware con vulnerabilidades publicadas.</p>
 <h2>Cómo funciona</h2>
 <p>Con la versión de firmware leída del inventario, OpenNCCM consulta la base pública <b>NVD</b> del NIST. Usa el identificador CPE
-del fabricante cuando existe (Cisco IOS/IOS-XE/NX-OS/IOS-XR/ASA, Junos, EOS, AOS-CX, FortiOS, PAN-OS, RouterOS) y búsqueda por
-palabras en el resto. Guarda el ID CVE, la puntuación CVSS, la severidad y el enlace, y genera una alarma crítica si hay CVE críticos.
+del fabricante cuando existe (Cisco IOS/IOS-XE/NX-OS/IOS-XR/ASA, Junos, EOS, AOS-CX, FortiOS, PAN-OS, RouterOS, Ubiquiti
+EdgeSwitch, UniFi Switch y EdgeRouter) y búsqueda por palabras en el resto. Pide los CVE en páginas pequeñas y reintenta cada una si
+NVD corta la respuesta, así que también funciona con versiones que tienen muchos CVE (por ejemplo, Cisco IOS 12.4). Para Extreme
+VOSS / Fabric Engine, NVD casi no registra vulnerabilidades: la ficha del equipo lo indica y enlaza a los avisos de seguridad de
+Extreme. Guarda el ID CVE, la puntuación CVSS, la severidad y el enlace, y genera una alarma crítica si hay CVE críticos.
 Además descarga (como mucho una vez al día) el catálogo <b>KEV</b> de CISA y marca los CVE <b>«explotado activamente»</b>.</p>
 <h2>Cómo usarlo</h2>
 <ul>
-  <li>En un equipo: menú <b>⋯ → Buscar CVE de firmware</b>. Para todos: <b>Vulnerabilidades → Escanear todos</b> o una tarea programada.</li>
+  <li>En un equipo: menú <b>⋯ → Buscar CVE de firmware</b>. La búsqueda va en segundo plano: la pestaña Vulnerabilidades muestra
+  «Buscando en NVD…» y se actualiza sola al terminar (con muchos CVE puede tardar unos minutos). Si NVD no responde, se conservan los
+  resultados anteriores. Para todos: <b>Vulnerabilidades → Escanear todos</b> o una tarea programada.</li>
   <li>La página agrupa los resultados por CVE (qué equipos afecta, qué permite y la solución: si ya hay una imagen corregida cargada,
   lo indica con un enlace). Arriba, los indicadores de críticos, explotados activamente, equipos afectados y equipos con imagen
   corregida; los filtros separan por severidad o «Explotados activamente».</li>
-  <li>Sin clave de API, NVD permite unas 5 consultas cada 30 segundos (el escaneo masivo espera entre equipos). Una clave gratuita
+  <li>Sin clave de API, NVD permite unas 5 consultas cada 30 segundos y OpenNCCM espera lo necesario. Una clave gratuita
   (<code>NCM_NVD_API_KEY</code>) lo acelera.</li>
 </ul>
 <figure><img src="img/19-vulnerabilidades.png" class="tall"><figcaption>Vulnerabilidades agrupadas por CVE, con indicadores y filtros.</figcaption></figure>
