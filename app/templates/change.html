@@ -11,11 +11,13 @@
 {% if cr.is_rollback %}<div class="banner warn">{{ icon('alert') }}<span class="grow">Comandos generados automáticamente a partir de la diferencia entre la configuración actual y la versión destino. Revísalos con cuidado antes de aprobar.</span></div>{% endif %}
 <div class="field"><span class="fl">{% if devices|length > 5 %}Comandos a aplicar (vista previa, primeros 5 equipos){% else %}Comandos a aplicar{% endif %}</span>
   {% for name, text in previews %}<div><div class="row sm b" style="margin-bottom:4px">{% for d in devices if d.name == name %}<span class="vend" style="width:24px;height:24px;font-size:9px">{{ vend[d.id] }}</span>{% endfor %}{{ name }}</div><pre class="term" style="min-height:0">{{ text }}</pre></div>{% endfor %}</div>
+{% if example and cr.status == 'pending' %}<div class="banner crit" role="alert">{{ icon('alert') }}<span class="grow"><b>{{ _('Usa direcciones de ejemplo que no existen en ninguna red:') }}</b> <span class="mono">{{ example|join(', ') }}</span>. {{ _('No se puede aprobar así: recházala y, si quieres aplicar el cambio, créalo con las direcciones reales de tus servidores.') }}</span></div>{% endif %}
+{% if risks and cr.status == 'pending' %}<div class="banner crit" role="alert">{{ icon('alert') }}<span class="grow"><b>{{ _('Dejaría a OpenNCCM sin acceso:') }}</b> {{ risks|join(' ') }}</span></div>{% endif %}
 {% if cr.status == 'pending' %}
   {% if can_review %}<form method="post" action="/changes/{{ cr.id }}/review" id="review" class="stack">
     <div class="field"><label for="chc">Comentario</label><textarea class="ta prose" id="chc" name="comment" placeholder="{{ _f('Opcional al aprobar; obligatorio al rechazar. Se avisará a {0}.', cr.requested_by) }}"></textarea></div>
     <div class="row" data-sheet-foot><span class="grow"></span><button class="btn dz" name="decision" value="reject" id="rej">Rechazar</button>
-      <button class="btn sig" name="decision" value="approve">{{ icon('check', 's') }}Aprobar y ejecutar</button></div></form>
+      <button class="btn sig" name="decision" value="approve"{% if example or risks %} disabled aria-disabled="true" title="{{ _('Usa direcciones de ejemplo: no se puede aprobar') if example else _('Dejaría a OpenNCCM sin acceso: no se puede aprobar') }}"{% endif %}>{{ icon('check', 's') }}Aprobar y ejecutar</button></div></form>
   {% else %}<div class="banner info">{{ icon('info') }}<span>Solo un administrador puede aprobar o rechazar esta solicitud{% if user.role == 'admin' %} (y no quien la pidió, según los Ajustes){% endif %}.</span></div>{% endif %}
 {% else %}
   {% if cr.reviewed_by %}<div class="sec"><h3>Revisión</h3><div class="summ">{{ icon('x' if cr.status == 'rejected' else 'check') }}<div><b>{{ _f('Rechazada por {0}', cr.reviewed_by) if cr.status == 'rejected' else _f('Aprobada por {0}', cr.reviewed_by) }}</b><div class="muted sm">{{ cr.review_comment or _('Sin comentario') }}</div></div></div></div>{% endif %}

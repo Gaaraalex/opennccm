@@ -73,6 +73,10 @@ async def lifespan(_app):
                 n = seed_new_packs(db)
                 if n:
                     log.info("Cargados %d paquetes de cumplimiento nuevos", n)
+                from .compliance_packs import drop_example_fixes
+                n = drop_example_fixes(db)
+                if n:
+                    log.info("Quitadas %d correcciones de cumplimiento con direcciones de ejemplo", n)
     except Exception:  # noqa: BLE001
         log.exception("No se pudieron cargar los paquetes de cumplimiento nuevos")
     scheduler.start()
@@ -1351,6 +1355,13 @@ def _create_cr(user, title, body, variables, ids, is_rollback=False, kind="confi
                reload=False) -> int:
     # la actualización de firmware siempre requiere aprobación
     auto = get_setting("require_approval", "1") != "1" and kind == "config"
+    if services.example_addresses(body + " " + json.dumps(variables)):
+        auto = False  # con direcciones de ejemplo nunca se ejecuta sola: alguien tiene que revisarla
+    if auto and kind == "config":
+        with SessionLocal() as db:
+            devs = list(db.scalars(select(Device).where(Device.id.in_(ids))))
+            if services.lockout_risks(body, [(d, d.credential)[0] for d in devs]):
+                auto = False  # podría dejar a OpenNCCM sin acceso: que lo revise un administrador
     with SessionLocal() as db:
         cr = ChangeRequest(title=title, body=body, variables=json.dumps(variables), device_ids=json.dumps(ids),
                            requested_by=user.username, is_rollback=is_rollback, kind=kind,
@@ -1421,13 +1432,17 @@ def change_detail(request: Request, cr_id: int):
                                                                             json.loads(cr.variables or "{}")))))
             except Exception as e:  # noqa: BLE001
                 previews.append((d.name, f"ERROR de plantilla: {e}"))
+    example = services.example_addresses((cr.body or "") + " " + (cr.variables or ""))
+    with SessionLocal() as db:
+        rdevs = list(db.scalars(select(Device).where(Device.id.in_(ids))))
+        risks = services.lockout_risks(cr.body, [(d, d.credential)[0] for d in rdevs]) if cr.kind != "firmware" else []
     can_review = ROLES[user.role] >= ROLES["admin"] and (
         cr.requested_by != user.username or get_setting("allow_self_approval", "1") == "1")
     kind_label = (_("Firmware") if cr.kind == "firmware" else _("Reversión") if cr.is_rollback
                   else _("Corrección de cumplimiento") if cr.title.startswith(("Corrección", "Corregir")) else _("Configlet"))
     vend = {d.id: (get_profile(d.device_type).vendor if d.device_type in PROFILE_MAP else d.device_type)[:3].upper() for d in devs}
     return render(request, "change.html", user, cr=cr, devices=devs, previews=previews, can_review=can_review,
-                  kind_label=kind_label, vend=vend)
+                  kind_label=kind_label, vend=vend, example=example, risks=risks)
 
 
 @app.post("/changes/{cr_id}/review")
@@ -1442,6 +1457,18 @@ async def change_review(request: Request, cr_id: int):
             return go(f"/changes/{cr_id}")
         if cr.requested_by == user.username and get_setting("allow_self_approval", "1") != "1":
             flash(request, _("No puede aprobar sus propias solicitudes (ver Ajustes)"), "error")
+            return go(f"/changes/{cr_id}")
+        bad = services.example_addresses((cr.body or "") + " " + (cr.variables or ""))
+        risks = []
+        if decision == "approve" and cr.kind != "firmware":
+            devs = list(db.scalars(select(Device).where(Device.id.in_(json.loads(cr.device_ids or "[]")))))
+            risks = services.lockout_risks(cr.body, [(d, d.credential)[0] for d in devs])
+        if risks:
+            flash(request, _("No se puede aprobar:") + " " + " ".join(risks), "error")
+            return go(f"/changes/{cr_id}")
+        if decision == "approve" and bad:
+            msg = _f("No se puede aprobar: los comandos usan direcciones de ejemplo ({0}) que no existen en ninguna red. Recházala y crea una con las direcciones reales.", ", ".join(bad))
+            flash(request, msg, "error")
             return go(f"/changes/{cr_id}")
         if decision != "approve" and not (form.get("comment") or "").strip():
             flash(request, _("Escribe por qué se rechaza: así quien la pidió sabe qué cambiar."), "error")

@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.4.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 2.4.1<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -470,7 +470,10 @@ corregir las infracciones.</p>
   <tr><td>Hardening básico (Cisco, Huawei, Juniper, FortiGate)</td><td>3 – 9</td><td>Controles esenciales por fabricante</td></tr>
 </table>
 <p class="small">Las reglas son controles técnicos de referencia. El cumplimiento normativo completo requiere además procesos y evidencias
-que no dependen del equipo. Los paquetes nuevos de cada versión se cargan solos al actualizar; si se borra uno, no vuelve a aparecer.</p>
+que no dependen del equipo. Los paquetes nuevos de cada versión se cargan solos al actualizar; si se borra uno, no vuelve a aparecer.
+Las reglas que dependen de direcciones de cada red (servidores de syslog o NTP, redes de gestión) no tienen corrección automática:
+indican qué falta y el comando se escribe con las direcciones reales. Una solicitud de cambio con direcciones de ejemplo
+(192.0.2.x, 198.51.100.x, 203.0.113.x) no se puede aprobar.</p>
 <figure><img src="img/15-cumplimiento.png"><figcaption>Cumplimiento: mapa equipo × política y políticas con sus infracciones.</figcaption></figure>
 <h2>Cómo usarlo</h2>
 <ol class="steps">
