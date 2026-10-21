@@ -766,6 +766,41 @@ def nvd_query(params: dict, sleep=time.sleep, clock=time.monotonic) -> list[dict
     return out
 
 
+# Rangos reservados para documentación (RFC 5737): nunca son la dirección real de un servidor de la red
+EXAMPLE_NET = re.compile(r"(?<![\d.])(192\.0\.2|198\.51\.100|203\.0\.113)\.(25[0-5]|2[0-4]\d|1?\d?\d)"
+                         r"(?:/\d{1,2})?(?![\d.])")
+
+
+# Comandos que apagan el acceso por el que OpenNCCM entra al equipo
+TELNET_OFF = re.compile(r"(?im)^\s*(no\s+boot config flags telnetd|no ip telnet server|/ip service set telnet\b.*\bdisabled=yes"
+                        r"|delete system services telnet\b|transport input ssh\s*$|undo telnet server)")
+SSH_OFF = re.compile(r"(?im)^\s*(no ip ssh server|no ssh\s*$|/ip service set ssh\b.*\bdisabled=yes"
+                     r"|delete system services ssh\s*$|undo stelnet server)")
+ROOT_SSH_OFF = re.compile(r"(?im)^\s*set system services ssh root-login deny")
+
+
+def lockout_risks(body: str, devices) -> list[str]:
+    """Por qué aplicar estos comandos dejaría a OpenNCCM sin acceso a alguno de los equipos (vacío si no hay riesgo).
+    Los equipos deben traer cargada su credencial."""
+    from .i18n import _f
+    out = []
+    for d in devices:
+        proto = (d.protocol or "ssh").lower()
+        if proto == "telnet" and TELNET_OFF.search(body or ""):
+            out.append(_f("OpenNCCM entra a {0} por Telnet: desactivarlo lo dejaría sin acceso. Cambie primero el equipo a SSH (Editar equipo) y vuelva a respaldarlo.", d.name))
+        if proto == "ssh" and SSH_OFF.search(body or ""):
+            out.append(_f("OpenNCCM entra a {0} por SSH: estos comandos lo desactivan y lo dejarían sin acceso.", d.name))
+        user = (d.credential.username if getattr(d, "credential", None) else "") or ""
+        if user.strip().lower() == "root" and ROOT_SSH_OFF.search(body or ""):
+            out.append(_f("OpenNCCM entra a {0} con el usuario root: bloquear root por SSH lo dejaría sin acceso. Use primero una credencial con otro usuario.", d.name))
+    return out
+
+
+def example_addresses(text: str) -> list[str]:
+    """Direcciones de ejemplo (192.0.2.x, 198.51.100.x, 203.0.113.x) que aparecen en unos comandos."""
+    return sorted({m.group(0) for m in EXAMPLE_NET.finditer(text or "")})
+
+
 def scan_cves(device_id: int) -> int:
     refresh_kev()
     with SessionLocal() as db:

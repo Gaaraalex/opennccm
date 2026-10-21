@@ -1,5 +1,24 @@
 # Historial de versiones
 
+## 2.4.1
+- **«Corregir» ya no propone direcciones de ejemplo.** Algunas reglas de los paquetes de VOSS, Ubiquiti, MikroTik, Junos
+  y FortiGate traían como corrección comandos con direcciones de documentación (192.0.2.x) o servidores que dependen de
+  cada red (syslog, NTP, y el acceso a Winbox de MikroTik, que habría quedado limitado a una red inexistente).
+  - Esas reglas siguen comprobándose, pero ya no tienen corrección automática: la dirección real la decide cada red.
+  - Al actualizar se quitan de las reglas ya cargadas, salvo que un administrador las haya modificado.
+- **Red de seguridad en las solicitudes de cambio**: si los comandos usan direcciones de ejemplo (192.0.2.x,
+  198.51.100.x o 203.0.113.x), la solicitud lo avisa y no se puede aprobar (sí rechazar). Tampoco se ejecuta sola
+  cuando la aprobación está desactivada.
+- **Protección contra quedarse sin acceso**: una solicitud no se puede aprobar (y lo explica) si dejaría a OpenNCCM sin
+  entrar al equipo:
+  - apaga Telnet en un equipo al que OpenNCCM entra por Telnet (por ejemplo, «Sin Telnet» de los paquetes de
+    cumplimiento), o apaga SSH en uno al que entra por SSH;
+  - bloquea root por SSH en un Junos al que OpenNCCM entra con el usuario root.
+- Ubiquiti: «Sin HTTP sin cifrar» ya no tiene corrección automática, porque «ip http secure-server» necesita un
+  certificado y sin él se perdería la interfaz web.
+- Revisadas una a una las correcciones de los paquetes de VOSS, Ubiquiti, MikroTik, Junos y FortiGate. En los switches
+  UniFi, el controlador puede deshacer los cambios hechos por CLI.
+
 ## 2.4.0
 - **Actualizaciones de firmware disponibles**: OpenNCCM comprueba una vez al día (o con «Comprobar ahora») si hay una
   versión más nueva del firmware de cada equipo, dice qué mejora y, cuando el fabricante lo permite, la descarga.

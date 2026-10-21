@@ -289,6 +289,51 @@ check("FortiGate: un «public» fuera de SNMP no cuenta como comunidad",
 check("FortiGate: syslog configurado pero desactivado no cuenta",
       "Envío de logs a syslog o FortiAnalyzer" in failed_rules(FGT, 'config log syslogd setting\n    set server "192.0.2.10"\nend\n'))
 
+# ---------------------------------------------------------------- correcciones sin direcciones inventadas
+from app.services import example_addresses  # noqa: E402
+
+bad = [(n, r[0]) for n, (_f, _d, rules) in PACKS.items() for r in rules
+       if r[4] and (example_addresses(r[4]) or "pool.ntp.org" in r[4])]
+check("ninguna corrección propone direcciones de ejemplo ni servidores que dependen de cada red", bad == [], bad)
+check("las reglas de syslog, NTP y Winbox siguen comprobándose, pero sin corrección automática",
+      all(r[4] is None for n, (_f, _d, rules) in PACKS.items() for r in rules
+          if r[0] in ("Envío de logs a syslog", "Sincronización horaria NTP", "Winbox limitado a redes de gestión")))
+check("se reconocen las direcciones de ejemplo (y no las reales parecidas)",
+      example_addresses("syslog host 192.0.2.10\nwinbox address=192.0.2.0/24\n203.0.113.7 198.51.100.255") ==
+      ["192.0.2.0/24", "192.0.2.10", "198.51.100.255", "203.0.113.7"]
+      and example_addresses("10.192.0.2.5 1192.0.2.1 198.51.100.300 192.0.20.1 10.0.0.154") == [])
+
+from app.services import ROOT_SSH_OFF, TELNET_OFF, lockout_risks  # noqa: E402
+
+tel = [(n, r[0]) for n, (_f, _d, rules) in PACKS.items() for r in rules if r[4] and "telnet" in r[0].lower() and "MAC" not in r[0]]
+check("cada corrección que apaga Telnet la reconoce la protección contra quedarse sin acceso",
+      tel and all(TELNET_OFF.search(dict((r[0], r[4]) for r in PACKS[n][2])[rule]) for n, rule in tel), tel)
+check("también la de Junos que bloquea root por SSH",
+      ROOT_SSH_OFF.search(dict((r[0], r[4]) for r in PACKS["Juniper Junos · Seguridad básica"][2])["Root sin acceso por SSH"]))
+check("Ubiquiti: «Sin HTTP sin cifrar» ya no se corrige sola (sin certificado se perdería la web)",
+      dict((r[0], r[4]) for r in PACKS[UBNT][2])["Sin HTTP sin cifrar"] is None)
+
+
+class _Cred:
+    def __init__(self, u):
+        self.username = u
+
+
+class _Dev:
+    def __init__(self, name, proto, user="admin"):
+        self.name, self.protocol, self.credential = name, proto, _Cred(user)
+
+
+check("Telnet: aviso si OpenNCCM entra por Telnet y el cambio lo apaga",
+      len(lockout_risks("/ip service set telnet disabled=yes", [_Dev("MK", "telnet")])) == 1
+      and lockout_risks("/ip service set telnet disabled=yes", [_Dev("MK", "ssh")]) == [])
+check("SSH: aviso si OpenNCCM entra por SSH y el cambio lo apaga",
+      len(lockout_risks("/ip service set ssh disabled=yes", [_Dev("MK", "ssh")])) == 1
+      and lockout_risks("/ip service set ssh address=10.0.0.0/8", [_Dev("MK", "ssh")]) == [])
+check("root: aviso si OpenNCCM entra como root y el cambio bloquea root por SSH",
+      len(lockout_risks("set system services ssh root-login deny", [_Dev("SRX", "ssh", "root")])) == 1
+      and lockout_risks("set system services ssh root-login deny", [_Dev("SRX", "ssh", "netops")]) == [])
+
 # instalación que se actualiza: los paquetes nuevos llegan una vez; si se borran no vuelven
 init_db()
 with SessionLocal() as db:
@@ -306,6 +351,25 @@ with SessionLocal() as db:
     seed_packs(db)
     total = len(set(db.scalars(select(Policy.name))))
 check("«opennccm seed» carga todos los paquetes", total == len(PACKS), total)
+
+# instalaciones con las correcciones antiguas: se quitan solo si siguen como se publicaron
+from app.compliance_packs import EXAMPLE_FIXES, drop_example_fixes  # noqa: E402
+from app.db import Rule  # noqa: E402
+
+(pol, r1), old1 = next(iter(EXAMPLE_FIXES.items()))
+(_pol2, r2), old2 = list(EXAMPLE_FIXES.items())[1]
+with SessionLocal() as db:
+    p = db.scalars(select(Policy).where(Policy.name == pol)).first()
+    rules = {r.name: r for r in p.rules}
+    rules[r1].remediation = old1                       # como se publicó en 2.2.1
+    rules[r2].remediation = "ntp server 10.1.1.1 enable\nntp"  # editada por el administrador
+    db.commit()
+    n = drop_example_fixes(db)
+    rem = {r.name: r.remediation for r in db.scalars(select(Rule).where(Rule.policy_id == p.id))}
+check("al actualizar se quita la corrección con dirección de ejemplo", n == 1 and rem[r1] is None, (n, rem[r1]))
+check("una corrección editada por el administrador se respeta", rem[r2] == "ntp server 10.1.1.1 enable\nntp", rem[r2])
+with SessionLocal() as db:
+    check("volver a arrancar no cambia nada más", drop_example_fixes(db) == 0)
 
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)

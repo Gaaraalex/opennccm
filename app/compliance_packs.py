@@ -101,9 +101,9 @@ PACKS = {
         ("Autenticación centralizada (RADIUS o TACACS+)", "must_contain", r"^(radius|tacacs) server host", "major",
          None),
         ("Envío de logs a syslog", "must_contain", r"^syslog host \d+ address \S+", "major",
-         "syslog host 1 address 192.0.2.10\nsyslog host 1 enable"),
+         None),
         ("Sincronización horaria NTP", "must_contain", r"^ntp server \S+", "major",
-         "ntp server 192.0.2.1 enable\nntp"),
+         None),
         ("Banner de uso autorizado", "must_contain", r"^banner (custom|motd)", "minor",
          'banner custom\nbanner motd "Acceso solo para personal autorizado"\nbanner displaymotd'),
     ]),
@@ -114,13 +114,13 @@ PACKS = {
         ("Sin la cuenta por defecto «ubnt»", "must_not_contain", r'^username "?ubnt"?\s', "critical", None),
         ("SSH habilitado", "must_contain", r"^ip ssh server enable", "major", "ip ssh server enable"),
         ("Sin Telnet", "must_not_contain", r"^ip telnet server enable", "critical", "no ip telnet server enable"),
-        ("Sin HTTP sin cifrar", "must_not_contain", r"^ip http server\b", "major",
-         "ip http secure-server\nno ip http server"),
+        # sin corrección automática: «ip http secure-server» necesita un certificado y, sin él, se perdería la web
+        ("Sin HTTP sin cifrar", "must_not_contain", r"^ip http server\b", "major", None),
         ("Sin comunidades SNMP por defecto", "must_not_contain", r'^snmp-server community "?(public|private)"?(\s|$)',
          "critical", None),
-        ("Envío de logs a syslog", "must_contain", r"^logging host \S+", "major", "logging host 192.0.2.10 ipv4 514"),
+        ("Envío de logs a syslog", "must_contain", r"^logging host \S+", "major", None),
         ("Sincronización horaria (SNTP)", "must_contain", r"^sntp server ", "major",
-         'sntp client mode unicast\nsntp server "192.0.2.1"'),
+         None),
     ]),
     # MikroTik RouterOS («/export terse»: solo aparece lo que difiere de fábrica; Telnet, FTP, www y API vienen activos)
     "MikroTik RouterOS · Seguridad básica": (r"^mikrotik_routeros", "Controles de seguridad de referencia para "
@@ -133,7 +133,7 @@ PACKS = {
         ("Sin API sin cifrar", "must_contain", r"^/ip service set api .*\bdisabled=yes", "major",
          "/ip service set api disabled=yes"),
         ("Winbox limitado a redes de gestión", "must_contain", r"^/ip service set winbox .*\baddress=\S+", "minor",
-         "/ip service set winbox address=192.0.2.0/24"),
+         None),
         ("Acceso por MAC (MAC-Telnet/MAC-Winbox) limitado", "must_contain",
          r"^/tool mac-server (set .*\ballowed-interface-list=\S+|set .*\bdisabled=yes|mac-winbox set .*\ballowed-interface-list=\S+)",
          "major", "/tool mac-server set allowed-interface-list=none\n/tool mac-server mac-winbox set allowed-interface-list=none"),
@@ -149,9 +149,9 @@ PACKS = {
         ("Sin comunidad SNMP «public»", "must_not_contain", r"^/snmp community (add|set) .*\bname=(public|private)\b",
          "critical", None),
         ("Envío de logs a syslog", "must_contain", r"^/system logging action (add|set) .*\bremote=\d", "major",
-         "/system logging action set [find name=remote] remote=192.0.2.10\n/system logging add action=remote topics=info"),
+         None),
         ("Sincronización horaria NTP", "must_contain", r"^/system ntp client set .*\benabled=yes", "major",
-         "/system ntp client set enabled=yes servers=pool.ntp.org"),
+         None),
     ]),
     # Juniper Junos (formato set)
     "Juniper Junos · Seguridad básica": (r"^juniper_junos", "Controles de seguridad de referencia para Junos: "
@@ -173,9 +173,9 @@ PACKS = {
         ("Sin comunidades SNMP por defecto", "must_not_contain", r'^set snmp community "?(public|private)"?(\s|$)',
          "critical", "delete snmp community public\ndelete snmp community private"),
         ("Envío de logs a syslog", "must_contain", r"^set system syslog host \S+", "major",
-         "set system syslog host 192.0.2.10 any notice"),
+         None),
         ("Sincronización horaria NTP", "must_contain", r"^set system ntp server \S+", "major",
-         "set system ntp server 192.0.2.1"),
+         None),
         ("Banner de uso autorizado", "must_contain", r"^set system login message ", "minor",
          'set system login message "Acceso solo para personal autorizado"'),
     ]),
@@ -196,7 +196,7 @@ PACKS = {
          r'^config system snmp community\n(?:(?!^end)[\s\S])*?set name "(public|private)"', "critical", None),
         ("Envío de logs a syslog o FortiAnalyzer", "must_contain",
          r"^config log (syslogd\d?|fortianalyzer\d?|fortianalyzer-cloud) setting\n(?:\s+set (?!status).*\n)*\s+set status enable",
-         "major", 'config log syslogd setting\n    set status enable\n    set server "192.0.2.10"\nend'),
+         "major", None),
         ("Sincronización horaria NTP activa", "must_not_contain", r"^\s*set ntpsync disable", "major",
          "config system ntp\n    set ntpsync enable\nend"),
         ("Banner antes del inicio de sesión", "must_contain", r"^\s*set pre-login-banner enable", "minor",
@@ -244,6 +244,52 @@ def _mark_seeded(names):
 
     from .db import set_setting
     set_setting("compliance_packs_seeded", json.dumps(sorted(_seeded() | set(names))))
+
+
+# Correcciones publicadas en 2.2.1–2.4.0 que no deben aplicarse tal cual: con una dirección de ejemplo (192.0.2.x), un
+# servidor que depende de cada red, o que puede dejar sin la web (HTTPS sin certificado en Ubiquiti). Se quitan de las
+# instalaciones que las tengan sin modificar.
+EXAMPLE_FIXES = {
+    ('Ubiquiti EdgeSwitch/UniFi · Seguridad básica', 'Sin HTTP sin cifrar'):
+        'ip http secure-server\nno ip http server',
+    ('Extreme VOSS · Seguridad básica', 'Envío de logs a syslog'):
+        'syslog host 1 address 192.0.2.10\nsyslog host 1 enable',
+    ('Extreme VOSS · Seguridad básica', 'Sincronización horaria NTP'):
+        'ntp server 192.0.2.1 enable\nntp',
+    ('Ubiquiti EdgeSwitch/UniFi · Seguridad básica', 'Envío de logs a syslog'):
+        'logging host 192.0.2.10 ipv4 514',
+    ('Ubiquiti EdgeSwitch/UniFi · Seguridad básica', 'Sincronización horaria (SNTP)'):
+        'sntp client mode unicast\nsntp server "192.0.2.1"',
+    ('MikroTik RouterOS · Seguridad básica', 'Winbox limitado a redes de gestión'):
+        '/ip service set winbox address=192.0.2.0/24',
+    ('MikroTik RouterOS · Seguridad básica', 'Envío de logs a syslog'):
+        '/system logging action set [find name=remote] remote=192.0.2.10\n/system logging add action=remote topics=info',
+    ('MikroTik RouterOS · Seguridad básica', 'Sincronización horaria NTP'):
+        '/system ntp client set enabled=yes servers=pool.ntp.org',
+    ('Juniper Junos · Seguridad básica', 'Envío de logs a syslog'):
+        'set system syslog host 192.0.2.10 any notice',
+    ('Juniper Junos · Seguridad básica', 'Sincronización horaria NTP'):
+        'set system ntp server 192.0.2.1',
+    ('FortiGate · Seguridad básica', 'Envío de logs a syslog o FortiAnalyzer'):
+        'config log syslogd setting\n    set status enable\n    set server "192.0.2.10"\nend',
+}
+
+
+def drop_example_fixes(db) -> int:
+    """Quita esas correcciones de las reglas ya cargadas, solo si siguen exactamente como se publicaron."""
+    from sqlalchemy import select
+
+    from .db import Policy
+    n = 0
+    for p in db.scalars(select(Policy).where(Policy.name.in_({k[0] for k in EXAMPLE_FIXES}))):
+        for r in p.rules:
+            old = EXAMPLE_FIXES.get((p.name, r.name))
+            if old and (r.remediation or "").strip() == old.strip():
+                r.remediation = None
+                n += 1
+    if n:
+        db.commit()
+    return n
 
 
 def seed_new_packs(db) -> int:
