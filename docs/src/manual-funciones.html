@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.2.1<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 2.3.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -464,6 +464,9 @@ corregir las infracciones.</p>
   <tr><td>PCI DSS 4.0 (Junos)</td><td>7</td><td>Telnet, web HTTP, root por SSH, reintentos, idle-timeout, syslog, NTP</td></tr>
   <tr><td>Extreme VOSS · Seguridad básica</td><td>12</td><td>Sin Telnet, FTP, TFTP ni rlogin; SSH; web solo HTTPS; SNMP sin comunidades por defecto; cierre de sesión ≤ 15 min; RADIUS/TACACS+; syslog; NTP; banner</td></tr>
   <tr><td>Ubiquiti EdgeSwitch/UniFi · Seguridad básica</td><td>7</td><td>Sin la cuenta «ubnt»; SSH; sin Telnet ni HTTP sin cifrar; SNMP sin comunidades por defecto; syslog; SNTP</td></tr>
+  <tr><td>MikroTik RouterOS · Seguridad básica</td><td>13</td><td>Telnet, FTP, www y API desactivados; Winbox y MAC-Telnet limitados; cortafuegos de entrada; SNMP; syslog; NTP</td></tr>
+  <tr><td>Juniper Junos · Seguridad básica</td><td>13</td><td>Sin Telnet, FTP ni J-Web HTTP; root sin SSH; bloqueo por intentos; sesión inactiva; RADIUS/TACACS+; SNMP; syslog; NTP; banner</td></tr>
+  <tr><td>FortiGate · Seguridad básica</td><td>11</td><td>Sin Telnet ni HTTP en interfaces; sesión ≤ 15 min; hosts de confianza; política de contraseñas; cifrado fuerte; SNMP; syslog/FortiAnalyzer; NTP</td></tr>
   <tr><td>Hardening básico (Cisco, Huawei, Juniper, FortiGate)</td><td>3 – 9</td><td>Controles esenciales por fabricante</td></tr>
 </table>
 <p class="small">Las reglas son controles técnicos de referencia. El cumplimiento normativo completo requiere además procesos y evidencias
@@ -490,7 +493,8 @@ que no dependen del equipo. Los paquetes nuevos de cada versión se cargan solos
 <h2>Cómo funciona</h2>
 <p>Con la versión de firmware leída del inventario, OpenNCCM consulta la base pública <b>NVD</b> del NIST. Usa el identificador CPE
 del fabricante cuando existe (Cisco IOS/IOS-XE/NX-OS/IOS-XR/ASA, Junos, EOS, AOS-CX, FortiOS, PAN-OS, RouterOS, Ubiquiti
-EdgeSwitch, UniFi Switch y EdgeRouter) y búsqueda por palabras en el resto. Pide los CVE en páginas pequeñas y reintenta cada una si
+EdgeSwitch, UniFi Switch y EdgeRouter, WatchGuard Fireware). En Junos convierte la versión al formato de NVD, que separa versión y
+actualización («21.4R3-S5» se busca como «21.4:r3-s5») y búsqueda por palabras en el resto. Pide los CVE en páginas pequeñas y reintenta cada una si
 NVD corta la respuesta, así que también funciona con versiones que tienen muchos CVE (por ejemplo, Cisco IOS 12.4). Para Extreme
 VOSS / Fabric Engine, NVD casi no registra vulnerabilidades: la ficha del equipo lo indica y enlaza a los avisos de seguridad de
 Extreme. Guarda el ID CVE, la puntuación CVSS, la severidad y el enlace, y genera una alarma crítica si hay CVE críticos.

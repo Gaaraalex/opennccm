@@ -40,8 +40,12 @@ def totp_verify(user: User, code: str) -> bool:
 
 def _qr_svg(uri: str) -> str:
     buf = io.BytesIO()
-    segno.make(uri, error="m").save(buf, kind="svg", scale=5, border=2, dark="#000000", light="#ffffff",
-                                    xmldecl=False, svgns=True, title=_("Código QR para la app de autenticación"))
+    # omitsize: solo viewBox, sin width/height. El CSS fija el tamaño (220 px) y el navegador escala el código; con
+    # width/height fijos y sin viewBox lo recortaba (se perdían el borde derecho e inferior y no se podía escanear).
+    # Margen de 4 módulos: el mínimo que pide la norma QR para que las cámaras lo encuentren.
+    segno.make(uri, error="m").save(buf, kind="svg", scale=1, border=4, dark="#000000", light="#ffffff",
+                                    xmldecl=False, svgns=True, omitsize=True,
+                                    title=_("Código QR para la app de autenticación"))
     return buf.getvalue().decode()
 
 

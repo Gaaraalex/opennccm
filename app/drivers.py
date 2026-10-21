@@ -35,6 +35,7 @@ class Profile:
     ignore: list[str] = field(default_factory=list)  # regex de líneas volátiles a descartar
     cpe: str | tuple[str, ...] | None = None  # prefijo(s) CPE para buscar CVE en NVD
     cpe_version: str | None = None  # regex que extrae de la versión del equipo la que usa NVD (p. ej. sin n.º de compilación)
+    cpe_format: str | None = None   # "junos": NVD separa versión y actualización («21.4R3-S5.4» → «21.4:r3-s5»)
     cve_note: tuple[str, str] | None = None  # (clave, enlace): aviso en Vulnerabilidades si el fabricante publica sus CVE fuera de NVD
     version_re: list[str] = field(default_factory=list)
     model_re: list[str] = field(default_factory=list)
@@ -101,6 +102,7 @@ PROFILES: list[Profile] = [
     Profile("juniper_junos", "Juniper Junos (formato set)", "Juniper",
             "show configuration | display set | no-more", None, family=SET, commit=True, save=False,
             telnet=True, ignore=[r"^## Last commit", r"^## Last changed"], cpe="cpe:2.3:o:juniper:junos",
+            cpe_format="junos",
             version_re=[r"Junos: (\S+)", r"JUNOS .*\[(\S+)\]"], model_re=[r"Model: (\S+)"],
             serial_re=[r"Chassis\s+(\S+)"]),
     # ---------------- Arista ----------------
@@ -386,8 +388,14 @@ PROFILES += [
             inventory="get system", family=MERGE),
     Profile("hillstone_stoneos", "Hillstone StoneOS", "Hillstone", "show configuration", None,
             family=MERGE, note=VERIFY),
+    # Fireware CLI: «show sysinfo» trae modelo, serie y versión («12.10.3.B704297» → NVD usa «12.10.3»)
     Profile("watchguard_fireware", "WatchGuard Fireware", "WatchGuard", "show running-config", None,
-            family=MERGE, save=False, note=VERIFY),
+            inventory="show sysinfo", family=MERGE, save=False, note=VERIFY,
+            cpe="cpe:2.3:o:watchguard:fireware", cpe_version=r"^v?(\d+\.\d+(?:\.\d+)?)",
+            version_re=[r"(?i)(?:software|fireware|os|system)[ _-]*version\s*[:=]?\s*v?(\d+\.\d+[\w.]*)",
+                        r"(?i)Fireware(?: OS)?\s+v?(\d+\.\d+[\w.]*)"],
+            model_re=[r"(?im)^\s*(?:model|system model|appliance model)\s*[:=]\s*(\S+)"],
+            serial_re=[r"(?im)^\s*serial[ _-]*(?:number|no\.?)?\s*[:=]\s*(\S+)"]),
     # Consolas / acceso fuera de banda
     Profile("opengear_linux", "Opengear", "Opengear", "config -g config", None, inventory="cat /etc/version",
             family=MERGE, save=False),

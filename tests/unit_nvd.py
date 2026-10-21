@@ -164,6 +164,27 @@ check("EdgeRouter: EdgeOS y firmware EdgeMAX con «2.0.9»", [x["virtualMatchStr
       ["cpe:2.3:o:ui:edgeos:2.0.9", "cpe:2.3:o:ui:edgemax_edgerouter_firmware:2.0.9"], s)
 s = services.nvd_searches(get_profile("cisco_ios"), "12.4(25d)")
 check("Cisco IOS: la versión se escapa como pide NVD", s == [{"virtualMatchString": "cpe:2.3:o:cisco:ios:12.4\\(25d\\)"}], s)
+for v, want in (("21.4R3-S5.4", "21.4:r3-s5"), ("22.2R1.9", "22.2:r1"), ("15.1X49-D200.3", "15.1x49:d200"),
+                ("18.4R2-S7", "18.4:r2-s7")):
+    s = services.nvd_searches(get_profile("juniper_junos"), v)
+    check(f"Junos {v}: versión y actualización separadas como en NVD ({want})",
+          s == [{"virtualMatchString": f"cpe:2.3:o:juniper:junos:{want}"}], s)
+s = services.nvd_searches(get_profile("fortinet"), "7.2.5")
+check("FortiGate: CPE fortios", s == [{"virtualMatchString": "cpe:2.3:o:fortinet:fortios:7.2.5"}], s)
+s = services.nvd_searches(get_profile("mikrotik_routeros"), "7.12.1")
+check("MikroTik: CPE routeros", s == [{"virtualMatchString": "cpe:2.3:o:mikrotik:routeros:7.12.1"}], s)
+s = services.nvd_searches(get_profile("watchguard_fireware"), "12.10.3.B704297")
+check("WatchGuard: CPE fireware con la versión sin compilación",
+      s == [{"virtualMatchString": "cpe:2.3:o:watchguard:fireware:12.10.3"}], s)
+from app.drivers import parse_inventory  # noqa: E402
+
+for sysinfo in ("System Name     : WG-Central\nModel           : M370\nSerial Number   : 80B2012345678\n"
+                "Software Version: 12.10.3.B704297\n",
+                "model: T45\nserial_number: 2B42012345678\nsystem_version: 12.8.2.B666625\n",
+                "WatchGuard Fireware OS v12.9.4\nModel: M590\nSerial No: 80C1012345678\n"):
+    inv = parse_inventory(sysinfo, get_profile("watchguard_fireware"))
+    check(f"WatchGuard: inventario de «show sysinfo» ({inv.get('model')})",
+          inv.get("os_version", "").startswith("12.") and inv.get("model") and inv.get("serial"), inv)
 vsp = get_profile("extreme_vsp")
 check("VOSS: se busca por su CPE (Avaya VSP OS) y avisa de los avisos de Extreme",
       services.nvd_searches(vsp, "8.10.0.0")[0]["virtualMatchString"].startswith("cpe:2.3:a:avaya:vsp_operating_system")
