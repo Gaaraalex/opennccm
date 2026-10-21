@@ -33,7 +33,9 @@ class Profile:
     note: str | None = None       # advertencia mostrada al usuario (p. ej. comando a verificar)
     firmware: dict | None = None  # {"fs":..., "boot":[config], "exec":[exec], "reload":cmd} para actualizar firmware
     ignore: list[str] = field(default_factory=list)  # regex de líneas volátiles a descartar
-    cpe: str | None = None        # prefijo CPE para buscar CVE en NVD
+    cpe: str | tuple[str, ...] | None = None  # prefijo(s) CPE para buscar CVE en NVD
+    cpe_version: str | None = None  # regex que extrae de la versión del equipo la que usa NVD (p. ej. sin n.º de compilación)
+    cve_note: tuple[str, str] | None = None  # (clave, enlace): aviso en Vulnerabilidades si el fabricante publica sus CVE fuera de NVD
     version_re: list[str] = field(default_factory=list)
     model_re: list[str] = field(default_factory=list)
     serial_re: list[str] = field(default_factory=list)
@@ -60,6 +62,8 @@ FASTPATH_IGNORE = [r"^!System Up Time", r"^!Current SNTP Synchronized Time", r"^
 FASTPATH_VERSION = [r"Software Version\s*:\s*(\S+)"]
 FASTPATH_MODEL = [r"Machine Model\s*:\s*(.+)", r"Machine Type\s*:\s*(.+)"]
 FASTPATH_SERIAL = [r"Serial Number\s*:\s*(\S+)"]
+SEMVER3 = r"^v?(\d+\.\d+\.\d+)"  # «1.9.3.5263085» o «v2.0.9-hotfix.7» → «1.9.3», «2.0.9», como las publica NVD
+VOSS_CVE_NOTE = ("extreme", "https://www.extremenetworks.com/support/security-advisories")  # (aviso, enlace)
 
 PROFILES: list[Profile] = [
     # ---------------- Cisco ----------------
@@ -171,6 +175,7 @@ PROFILES: list[Profile] = [
     # VOSS no tiene «show version»: el modelo, la serie y la versión salen de «show sys-info»
     Profile("extreme_vsp", "Extreme VSP (VOSS)", "Extreme", "show running-config", None,
             inventory="show sys-info", ignore=CISCO_IGNORE,
+            cpe="cpe:2.3:a:avaya:vsp_operating_system_software", cve_note=VOSS_CVE_NOTE,  # VOSS era «Avaya VSP OS»
             version_re=[r"SysDescr\s*:.*?\((\d[\w.\-]*)\)", r"Software Version\s*:\s*(\S+)"],
             model_re=[r"ModelName\s*:\s*(\S+)", r"BoxType\s*:\s*(\S+)", r"^\s*Chassis\s*:\s*(\S+)"],
             serial_re=[r"Serial#\s*:\s*(\S+)", r"Serial Number\s*:\s*(\S+)"]),
@@ -184,10 +189,12 @@ PROFILES: list[Profile] = [
     Profile("vyos", "VyOS", "VyOS", "show configuration commands", None, family=SET, commit=True,
             save=True, version_re=[r"Version:\s+VyOS (\S+)"]),
     Profile("ubiquiti_edgerouter", "Ubiquiti EdgeRouter", "Ubiquiti", "show configuration commands", None,
-            family=SET, commit=True, version_re=[r"Version:\s+v(\S+)"]),
+            family=SET, commit=True, version_re=[r"Version:\s+v(\S+)"],
+            cpe=("cpe:2.3:o:ui:edgeos", "cpe:2.3:o:ui:edgemax_edgerouter_firmware"), cpe_version=SEMVER3),
     Profile("ubiquiti_edgeswitch", "Ubiquiti EdgeSwitch", "Ubiquiti", "show running-config", None,
             family=FASTPATH, ignore=CISCO_IGNORE + FASTPATH_IGNORE, version_re=FASTPATH_VERSION,
-            model_re=FASTPATH_MODEL, serial_re=FASTPATH_SERIAL),
+            model_re=FASTPATH_MODEL, serial_re=FASTPATH_SERIAL,
+            cpe=("cpe:2.3:o:ui:edgeswitch_firmware", "cpe:2.3:o:ubnt:edgeswitch_firmware"), cpe_version=SEMVER3),
     Profile("tplink_jetstream", "TP-Link JetStream", "TP-Link", "show running-config", "show startup-config",
             inventory="show system-info", ignore=CISCO_IGNORE),
     Profile("zte_zxros", "ZTE ZXROS", "ZTE", "show running-config", None, telnet=True, ignore=CISCO_IGNORE),
@@ -360,7 +367,7 @@ PROFILES += [
     Profile("supermicro_smis", "Supermicro", "Supermicro", "show running-config", None, ignore=CISCO_IGNORE),
     Profile("ubiquiti_unifiswitch", "Ubiquiti UniFi Switch", "Ubiquiti", "show running-config", None,
             ignore=CISCO_IGNORE + FASTPATH_IGNORE, version_re=FASTPATH_VERSION, model_re=FASTPATH_MODEL,
-            serial_re=FASTPATH_SERIAL),
+            serial_re=FASTPATH_SERIAL, cpe="cpe:2.3:o:ui:unifi_switch_firmware", cpe_version=SEMVER3),
     Profile("eltex", "Eltex MES", "Eltex", "show running-config", "show startup-config", ignore=CISCO_IGNORE),
     Profile("eltex_esr", "Eltex ESR", "Eltex", "show running-config", None, commit=True, ignore=CISCO_IGNORE),
     Profile("ekinops_ek360", "Ekinops 360", "Ekinops", "show running-config", None, family=MERGE, note=VERIFY),

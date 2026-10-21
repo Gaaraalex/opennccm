@@ -1,5 +1,26 @@
 # Historial de versiones
 
+## 2.2.1
+- **Buscar CVE de firmware** ya no falla con «Error consultando NVD: Response ended prematurely» en equipos con muchos CVE,
+  como Cisco IOS 12.4:
+  - OpenNCCM pide los CVE a NVD en páginas pequeñas (40 por petición, menos si NVD corta la respuesta) en lugar de 200 de
+    una vez; antes una sola respuesta podía pesar más de 1,5 MB, tardar casi un minuto y cortarse a medias;
+  - cada página se reintenta hasta 4 veces ante cortes, tiempos agotados o el límite de peticiones de NVD, que ahora se
+    respeta también entre búsquedas;
+  - la búsqueda va en segundo plano: el botón responde al instante y la pestaña Vulnerabilidades muestra «Buscando en
+    NVD…» y se actualiza sola al terminar;
+  - si NVD no responde, se conservan los CVE de la búsqueda anterior y el aviso explica qué pasó.
+- **Vulnerabilidades de switches Ubiquiti**: EdgeSwitch, UniFi Switch y EdgeRouter se buscan ahora por sus nombres en
+  NVD (antes se buscaba por texto y no se encontraba nada). La versión se compara sin el número de compilación.
+- **Extreme VOSS / Fabric Engine**: NVD casi no registra sus vulnerabilidades; la pestaña Vulnerabilidades lo indica y
+  enlaza a los avisos de seguridad de Extreme. También se consulta el nombre antiguo del producto (Avaya VSP).
+- **Nuevos paquetes de cumplimiento** (llegan solos al actualizar):
+  - **Extreme VOSS · Seguridad básica** (12 reglas): sin Telnet, FTP, TFTP ni rlogin; SSH; web solo por HTTPS; sin
+    comunidades SNMP por defecto; cierre de sesión inactiva; RADIUS o TACACS+; syslog; NTP y banner.
+  - **Ubiquiti EdgeSwitch/UniFi · Seguridad básica** (7 reglas): sin la cuenta por defecto «ubnt»; SSH; sin Telnet ni HTTP
+    sin cifrar; sin comunidades SNMP por defecto; syslog y SNTP.
+  - Muchas reglas traen el comando para corregirlas con «Corregir». Si se borra un paquete, no vuelve a aparecer.
+
 ## 2.2.0
 - **Apoya OpenNCCM**: forma de apoyar el proyecto con una donación, opcional y sin rastreo.
   - Los administradores ven un botón en la barra superior que abre las opciones (en el móvil, en un diálogo).

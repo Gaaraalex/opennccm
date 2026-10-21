@@ -703,6 +703,69 @@ def kev_ids() -> frozenset:
     return _kev_cache[1]
 
 
+NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+NVD_PAGE = 40      # CVE por petición. Los de equipos muy usados (Cisco IOS…) traen miles de CPE cada uno: una página de 200
+                   # pesaba más de 1,5 MB, tardaba casi un minuto en NVD y la conexión solía cortarse a medias
+NVD_MIN_PAGE = 5   # si una página se corta, se reintenta con la mitad de CVE hasta este mínimo
+NVD_MAX = 2000     # tope de CVE por equipo
+NVD_TRIES = 4      # intentos por página ante cortes, tiempos agotados, límite de peticiones (403/429) o errores 5xx
+_nvd_sent: list[float] = []  # momentos de las últimas peticiones, para respetar el límite de NVD entre búsquedas
+_nvd_lock = threading.Lock()
+
+
+class NvdError(RuntimeError):
+    def __init__(self, tries: int, last: str):
+        super().__init__(f"NVD: {tries} intentos ({last})")
+        self.tries, self.last = tries, last
+
+
+def _nvd_wait(sleep, clock):
+    """Límite público de NVD: 5 peticiones cada 30 s sin clave, 50 con clave (ventana móvil)."""
+    limit = 50 if NVD_API_KEY else 5
+    with _nvd_lock:
+        now = clock()
+        _nvd_sent[:] = [t for t in _nvd_sent if now - t < 30]
+        if len(_nvd_sent) >= limit:
+            sleep(30.5 - (now - _nvd_sent[0]))
+            now = clock()
+        _nvd_sent.append(now)
+
+
+def nvd_query(params: dict, sleep=time.sleep, clock=time.monotonic) -> list[dict]:
+    """Todos los CVE de una búsqueda en la API 2.0 de NVD, en páginas pequeñas y con reintentos por página.
+    Si una página falla tras todos los intentos se lanza NvdError (y el resultado anterior del equipo se conserva)."""
+    headers = {"apiKey": NVD_API_KEY} if NVD_API_KEY else {}
+    out, start, total, size = [], 0, None, NVD_PAGE
+    while total is None or start < min(total, NVD_MAX):
+        last = ""
+        for attempt in range(NVD_TRIES):
+            if attempt:
+                sleep(2 * attempt)
+            _nvd_wait(sleep, clock)
+            try:
+                r = requests.get(NVD_URL, params={**params, "resultsPerPage": size, "startIndex": start},
+                                 headers=headers, timeout=(10, 90))  # NVD a veces envía CVE grandes muy despacio
+                if r.status_code in (403, 429) or r.status_code >= 500:
+                    last = f"HTTP {r.status_code}"
+                    continue
+                r.raise_for_status()
+                data = r.json()
+                break
+            except (requests.ConnectionError, requests.Timeout, requests.exceptions.ChunkedEncodingError,
+                    ValueError) as e:  # «Response ended prematurely», JSON cortado…
+                last = str(e) or type(e).__name__
+                size = max(NVD_MIN_PAGE, size // 2)  # respuesta demasiado grande: la próxima, más pequeña
+        else:
+            raise NvdError(NVD_TRIES, last)
+        total = int(data.get("totalResults") or 0)
+        page = data.get("vulnerabilities", [])
+        out += page
+        if not page:
+            break
+        start += len(page)
+    return out
+
+
 def scan_cves(device_id: int) -> int:
     refresh_kev()
     with SessionLocal() as db:
@@ -710,19 +773,15 @@ def scan_cves(device_id: int) -> int:
         prof = get_profile(dev.device_type)
         if not dev.os_version:
             return -1
-        params = {"resultsPerPage": 200}
-        if prof.cpe:
-            params["virtualMatchString"] = f"{prof.cpe}:{_cpe_escape(dev.os_version)}"
-        else:
-            params["keywordSearch"] = f"{prof.vendor} {dev.os_version}"
-        headers = {"apiKey": NVD_API_KEY} if NVD_API_KEY else {}
-        r = requests.get("https://services.nvd.nist.gov/rest/json/cves/2.0", params=params,
-                         headers=headers, timeout=60)
-        r.raise_for_status()
-        data = r.json()
+        items = []  # se consulta todo antes de borrar nada: si NVD falla se conserva el último resultado
+        for params in nvd_searches(prof, dev.os_version):
+            items += nvd_query(params)
         db.execute(delete(Vulnerability).where(Vulnerability.device_id == device_id))
-        count = 0
-        for item in data.get("vulnerabilities", []):
+        count, seen = 0, set()
+        for item in items:
+            if item["cve"]["id"] in seen:  # NVD puede repetir un CVE entre páginas si se publica uno durante la consulta
+                continue
+            seen.add(item["cve"]["id"])
             cve = item["cve"]
             score = severity = None
             metrics = cve.get("metrics", {})
@@ -745,17 +804,87 @@ def scan_cves(device_id: int) -> int:
             add_event("critical", "Vulnerabilidad de firmware",
                       f"{dev.name} ({dev.os_version}) tiene {len(crit)} CVE críticos: "
                       + ", ".join(v.cve_id for v in crit[:10]), device_id)
-        return count
+    _cve_mark_scanned(device_id)
+    return count
+
+
+def nvd_searches(prof, os_version: str) -> list[dict]:
+    """Búsquedas en NVD para un perfil y una versión: una por CPE (algunos productos tienen varios nombres en NVD).
+    Sin CPE se busca por texto (fabricante + versión)."""
+    cpes = (prof.cpe,) if isinstance(prof.cpe, str) else tuple(prof.cpe or ())
+    if not cpes:
+        return [{"keywordSearch": f"{prof.vendor} {os_version}"}]
+    ver = os_version
+    if prof.cpe_version and (m := re.search(prof.cpe_version, os_version)):
+        ver = m.group(1)
+    return [{"virtualMatchString": f"{c}:{_cpe_escape(ver)}"} for c in cpes]
+
+
+# búsqueda de CVE de un equipo en segundo plano (NVD puede tardar minutos con equipos que tienen muchos CVE)
+_cve_running: dict[int, float] = {}
+_cve_last: dict[int, dict] = {}
+_cve_lock = threading.Lock()
+
+
+def _cve_mark_scanned(device_id: int):
+    from .db import set_setting
+    with _cve_lock:
+        try:
+            seen = json.loads(get_setting("cve_scanned", "{}") or "{}")
+        except ValueError:
+            seen = {}
+        seen[str(device_id)] = now().isoformat()
+        set_setting("cve_scanned", json.dumps(seen))
+
+
+def cve_scanned_at(device_id: int):
+    """Cuándo se consultó NVD por última vez para el equipo (también si no se encontró ningún CVE)."""
+    from datetime import datetime
+    try:
+        v = json.loads(get_setting("cve_scanned", "{}") or "{}").get(str(device_id))
+        return datetime.fromisoformat(v) if v else None
+    except ValueError:
+        return None
+
+
+def cve_scan_state(device_id: int) -> dict:
+    """{"running": desde (epoch) o None, "last": {"ok", "n", "tries", "error", "at"} o None}."""
+    return {"running": _cve_running.get(device_id), "last": _cve_last.get(device_id)}
+
+
+def start_cve_scan(device_id: int) -> bool:
+    """Lanza la búsqueda en segundo plano; False si ya hay una en curso para el equipo."""
+    with _cve_lock:
+        if device_id in _cve_running:
+            return False
+        _cve_running[device_id] = time.time()
+    jobs.submit(_cve_job, device_id)
+    return True
+
+
+def _cve_job(device_id: int):
+    res = {"ok": False, "n": None, "tries": None, "error": None, "at": time.time()}
+    try:
+        n = scan_cves(device_id)
+        res.update(ok=n >= 0, n=n)
+    except NvdError as e:
+        res.update(tries=e.tries, error=e.last)
+    except Exception as e:  # noqa: BLE001
+        log.warning("CVE scan falló para %s: %s", device_id, e)
+        res["error"] = str(e) or type(e).__name__
+    finally:
+        res["at"] = time.time()
+        with _cve_lock:
+            _cve_last[device_id] = res
+            _cve_running.pop(device_id, None)
 
 
 def scan_cves_many(ids: list[int]):
-    delay = 0.7 if NVD_API_KEY else 6.5  # límite de la API pública NVD
-    for i in ids:
+    for i in ids:  # nvd_query ya respeta el límite de peticiones de NVD
         try:
             scan_cves(i)
         except Exception as e:  # noqa: BLE001
             log.warning("CVE scan falló para %s: %s", i, e)
-        time.sleep(delay)
 
 
 # --------------------------------------------------------------------------- resumen de un diff en palabras
