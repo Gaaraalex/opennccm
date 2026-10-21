@@ -219,4 +219,8 @@ def start():
                       replace_existing=True)
     scheduler.add_job(updates.check_latest, IntervalTrigger(hours=24), id="update-check", replace_existing=True,
                       next_run_time=datetime.now() + timedelta(minutes=2))
+    # actualizaciones de firmware de los equipos (MikroTik, Ubiquiti y NVD), una vez al día
+    from . import fwupdates
+    scheduler.add_job(fwupdates.scheduled, IntervalTrigger(hours=24), id="fw-update-check", replace_existing=True,
+                      next_run_time=datetime.now() + timedelta(minutes=20))
     start_syslog()

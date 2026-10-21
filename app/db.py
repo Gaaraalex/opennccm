@@ -271,6 +271,28 @@ class FirmwareImage(Base):
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=now)
 
 
+class FirmwareUpdate(Base):
+    """Última comprobación de actualizaciones de firmware de un equipo (ver fwupdates.py)."""
+    __tablename__ = "firmware_updates"
+    device_id: Mapped[int] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"), primary_key=True)
+    status: Mapped[str] = mapped_column(String(16), default="unknown")  # update | current | unknown | error
+    source: Mapped[str | None] = mapped_column(String(16))   # mikrotik | ubiquiti | nvd
+    current: Mapped[str | None] = mapped_column(String(128))
+    target: Mapped[str | None] = mapped_column(String(64))   # versión recomendada (la más nueva de su rama)
+    latest: Mapped[str | None] = mapped_column(String(64))   # la más nueva conocida (puede ser otra rama)
+    notes_url: Mapped[str | None] = mapped_column(String(512))
+    changelog: Mapped[str | None] = mapped_column(Text)
+    download_url: Mapped[str | None] = mapped_column(String(512))
+    sha256: Mapped[str | None] = mapped_column(String(64))
+    size: Mapped[int | None] = mapped_column(Integer)
+    fixed_cves: Mapped[str | None] = mapped_column(Text)     # JSON [[id, severidad], …]: CVE que la nueva ya no tiene
+    fixed_for: Mapped[str | None] = mapped_column(String(64))
+    open_cves: Mapped[int | None] = mapped_column(Integer)   # CVE que siguen afectando a la versión nueva
+    detail: Mapped[str | None] = mapped_column(Text)         # motivo cuando no hay fuente o hubo un error
+    notified: Mapped[str | None] = mapped_column(String(64))  # versión ya avisada en Alarmas
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
 class Setting(Base):
     __tablename__ = "settings"
     key: Mapped[str] = mapped_column(String(64), primary_key=True)

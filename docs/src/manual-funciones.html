@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.3.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 2.4.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -553,6 +553,31 @@ Además descarga (como mucho una vez al día) el catálogo <b>KEV</b> de CISA y 
   <li>Tras el reinicio, OpenNCCM vuelve a respaldar el equipo a los 15 minutos para actualizar la versión en el inventario.</li>
 </ol>
 <figure><img src="img/17-firmware.png"><figcaption>Firmware y ciclo de vida: pestaña Imágenes.</figcaption></figure>
+<h2>Actualizaciones disponibles</h2>
+<p>OpenNCCM comprueba una vez al día si hay una versión más nueva del firmware de cada equipo, y lo que mejora. La pestaña
+<b>Actualizaciones disponibles</b> de <b>Firmware y ciclo de vida</b> lista todos los equipos (primero los que tienen versión nueva);
+cada equipo muestra la etiqueta <b>Firmware X disponible</b> y, en su pestaña Firmware, la sección <b>Actualizaciones de firmware</b>.
+Cuando aparece una versión nueva se registra un aviso en Alarmas, una sola vez por versión.</p>
+<table>
+  <tr><th>Equipos</th><th>De dónde sale la versión</th><th>Descarga</th></tr>
+  <tr><td>MikroTik RouterOS</td><td>Sitio oficial de MikroTik (estable y long-term), con sus novedades</td><td>Sí, el archivo de la arquitectura del equipo</td></tr>
+  <tr><td>Ubiquiti EdgeSwitch, EdgeRouter, UniFi Switch</td><td>Catálogo oficial de Ubiquiti, por modelo</td><td>Sí</td></tr>
+  <tr><td>Cisco, Fortinet, Juniper, Palo Alto, Arista, WatchGuard y otros con CPE</td><td>Diccionario de versiones de NVD (NIST): la más nueva de su rama y la más reciente</td><td>No: el fabricante pide cuenta</td></tr>
+</table>
+<ul>
+  <li><b>Qué mejora</b>: cuántos CVE de la versión instalada ya no afectan a la nueva (con los críticos y altos), las novedades del
+  fabricante cuando las publica y el enlace a sus notas de la versión.</li>
+  <li><b>Descargar a la biblioteca</b> (administradores, MikroTik y Ubiquiti): baja el archivo del sitio oficial, comprueba la suma
+  SHA-256 que publica el fabricante y lo guarda en Imágenes. Si la suma no coincide, el archivo se descarta. Después se instala como
+  cualquier imagen: solicitud, aprobación y respaldo previo.</li>
+  <li>Para los fabricantes que piden cuenta, OpenNCCM avisa de la versión nueva y lo que mejora; el archivo se descarga del portal
+  del fabricante y se sube con <b>Cargar imagen</b>.</li>
+  <li><b>Comprobar ahora</b> (en la ficha del equipo) y <b>Comprobar todos ahora</b> lo hacen al momento, en segundo plano. Un
+  administrador puede desactivar la comprobación diaria con <b>Comprobar a diario</b>. Solo se consultan los sitios de MikroTik,
+  Ubiquiti y NVD, sin enviar datos de los equipos.</li>
+</ul>
+<p class="small">La versión de NVD es la más reciente que NVD conoce, no un anuncio oficial: confírmela con el fabricante. Si NVD
+no conoce ninguna versión igual o posterior a la instalada, OpenNCCM indica que no puede saber si hay una más nueva.</p>
 <div class="warn"><b>Antes de actualizar en producción</b>Lea las notas del fabricante (espacio libre, rutas de actualización, modo
 <i>install</i> en IOS-XE) y pruebe en un equipo de laboratorio. En Cisco, habilite <code>ip scp server enable</code>.</div>
 </section>
