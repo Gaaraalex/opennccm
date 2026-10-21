@@ -142,6 +142,153 @@ check("los filtros de equipo apuntan a los perfiles correctos",
       re.search(PACKS[VOSS][0], "extreme_vsp") and re.search(PACKS[UBNT][0], "ubiquiti_unifiswitch")
       and re.search(PACKS[UBNT][0], "ubiquiti_edgeswitch") and not re.search(PACKS[UBNT][0], "ubiquiti_edgerouter"))
 
+# ---------------------------------------------------------------- MikroTik RouterOS («/export terse»)
+MKT = "MikroTik RouterOS · Seguridad básica"
+MKT_SECURE = """# 2026-10-21 10:00:00 by RouterOS 7.12.1
+# software id = ABCD-1234
+/interface list add name=MGMT
+/ip firewall filter add action=accept chain=input connection-state=established,related comment="defconf"
+/ip firewall filter add action=accept chain=input in-interface-list=MGMT
+/ip firewall filter add action=drop chain=input comment="defconf: drop all not coming from LAN" in-interface-list=!LAN
+/ip neighbor discovery-settings set discover-interface-list=MGMT
+/ip service set telnet disabled=yes
+/ip service set ftp disabled=yes
+/ip service set www disabled=yes
+/ip service set ssh port=2200
+/ip service set api disabled=yes
+/ip service set winbox address=192.0.2.0/24
+/ip ssh set strong-crypto=yes
+/snmp community set [ find default=yes ] name=Red-Lectura-7x
+/system logging action set 3 remote=192.0.2.10
+/system logging add action=remote topics=info
+/system ntp client set enabled=yes servers=192.0.2.1
+/tool bandwidth-server set enabled=no
+/tool mac-server set allowed-interface-list=MGMT
+/tool mac-server mac-winbox set allowed-interface-list=MGMT
+"""
+MKT_DEFAULT = """# 2026-10-21 10:00:00 by RouterOS 7.12.1
+/ip address add address=192.168.88.1/24 interface=bridge network=192.168.88.0
+/snmp community add name=public addresses=0.0.0.0/0
+/system identity set name=MikroTik
+"""
+check("MikroTik: una configuración segura pasa todas las reglas", failed_rules(MKT, MKT_SECURE) == [],
+      failed_rules(MKT, MKT_SECURE))
+bad = failed_rules(MKT, MKT_DEFAULT)
+check("MikroTik de fábrica: falla todas las reglas", len(bad) == len(PACKS[MKT][2]), sorted(set(r[0] for r in PACKS[MKT][2]) - set(bad)))
+check("MikroTik: «/ip service set telnet address=…» sin desactivar sigue fallando",
+      "Sin Telnet" in failed_rules(MKT, "/ip service set telnet address=10.0.0.0/8\n"))
+check("MikroTik: «/ip service set www-ssl disabled=yes» no cuenta como www desactivado",
+      "Sin web HTTP (www)" in failed_rules(MKT, "/ip service set www-ssl disabled=yes\n"))
+check("MikroTik: «/ip service set api-ssl disabled=yes» no cuenta como API desactivada",
+      "Sin API sin cifrar" in failed_rules(MKT, "/ip service set api-ssl disabled=yes\n"))
+check("MikroTik RouterOS 6: «/tool mac-server set [ find default=yes ] disabled=yes» cuenta como limitado",
+      "Acceso por MAC (MAC-Telnet/MAC-Winbox) limitado" not in
+      failed_rules(MKT, "/tool mac-server set [ find default=yes ] disabled=yes\n"))
+
+# ---------------------------------------------------------------- Juniper Junos (formato set)
+JUN = "Juniper Junos · Seguridad básica"
+JUN_SECURE = """set version 21.4R3-S5.4
+set system host-name SRX-Borde
+set system root-authentication encrypted-password "$6$abc$def"
+set system login message "Acceso solo para personal autorizado"
+set system login class operadores idle-timeout 10
+set system login retry-options tries-before-disconnect 5
+set system login retry-options lockout-period 30
+set system tacplus-server 192.0.2.20 secret "$9$xyz"
+set system services ssh root-login deny
+set system services ssh protocol-version v2
+set system services netconf ssh
+set system services web-management https system-generated-certificate
+set system syslog host 192.0.2.10 any notice
+set system ntp server 192.0.2.1
+set snmp community Red-Lectura-7x authorization read-only
+"""
+JUN_DEFAULT = """set version 21.4R3-S5.4
+set system services telnet
+set system services ftp
+set system services web-management http interface fxp0.0
+set snmp community public authorization read-only
+"""
+check("Junos: una configuración segura pasa todas las reglas", failed_rules(JUN, JUN_SECURE) == [],
+      failed_rules(JUN, JUN_SECURE))
+bad = failed_rules(JUN, JUN_DEFAULT)
+check("Junos de fábrica: falla todas las reglas", len(bad) == len(PACKS[JUN][2]), sorted(set(r[0] for r in PACKS[JUN][2]) - set(bad)))
+check("Junos: J-Web por HTTPS no cuenta como HTTP",
+      "Sin J-Web por HTTP" not in failed_rules(JUN, "set system services web-management https system-generated-certificate\n"))
+
+# ---------------------------------------------------------------- FortiGate («show»)
+FGT = "FortiGate · Seguridad básica"
+FGT_SECURE = """#config-version=FGT60F-7.2.5-FW-build1517-230606:opmode=0:vdom=0:user=red-admin
+config system global
+    set admintimeout 10
+    set hostname "FGT-Central"
+    set pre-login-banner enable
+    set timezone 04
+end
+config system password-policy
+    set status enable
+    set minimum-length 12
+end
+config system interface
+    edit "wan1"
+        set ip 203.0.113.2 255.255.255.252
+        set allowaccess ping https ssh
+    next
+    edit "internal"
+        set allowaccess ping https ssh fgfm
+    next
+end
+config system admin
+    edit "red-admin"
+        set accprofile "super_admin"
+        set trusthost1 192.0.2.0 255.255.255.0
+    next
+end
+config system snmp community
+    edit 1
+        set name "Red-Lectura-7x"
+    next
+end
+config log syslogd setting
+    set status enable
+    set server "192.0.2.10"
+end
+"""
+FGT_DEFAULT = """config system global
+    set admintimeout 480
+    set hostname "FortiGate-60F"
+    set strong-crypto disable
+end
+config system ntp
+    set ntpsync disable
+end
+config system interface
+    edit "wan1"
+        set allowaccess ping https ssh http telnet
+    next
+end
+config system admin
+    edit "admin"
+        set accprofile "super_admin"
+    next
+end
+config system snmp community
+    edit 1
+        set name "public"
+    next
+end
+"""
+check("FortiGate: una configuración segura pasa todas las reglas", failed_rules(FGT, FGT_SECURE) == [],
+      failed_rules(FGT, FGT_SECURE))
+bad = failed_rules(FGT, FGT_DEFAULT)
+check("FortiGate de fábrica: falla todas las reglas", len(bad) == len(PACKS[FGT][2]), sorted(set(r[0] for r in PACKS[FGT][2]) - set(bad)))
+check("FortiGate: «https» en allowaccess no cuenta como HTTP",
+      "Sin HTTP en las interfaces" not in failed_rules(FGT, "        set allowaccess ping https ssh\n"))
+check("FortiGate: un «public» fuera de SNMP no cuenta como comunidad",
+      "Sin comunidades SNMP por defecto" not in failed_rules(FGT, 'config system snmp community\n    edit 1\n        set name "Red-7x"\n    next\nend\nconfig user local\n    edit "x"\n        set name "public"\n    next\nend\n'))
+check("FortiGate: syslog configurado pero desactivado no cuenta",
+      "Envío de logs a syslog o FortiAnalyzer" in failed_rules(FGT, 'config log syslogd setting\n    set server "192.0.2.10"\nend\n'))
+
 # instalación que se actualiza: los paquetes nuevos llegan una vez; si se borran no vuelven
 init_db()
 with SessionLocal() as db:

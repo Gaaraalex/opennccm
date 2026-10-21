@@ -1,5 +1,5 @@
 """Paquetes de cumplimiento listos para usar: PCI DSS 4.0, HIPAA, SOX, buenas prácticas Cisco IOS y seguridad
-básica de Extreme VOSS y switches Ubiquiti.
+básica de Extreme VOSS, switches Ubiquiti, MikroTik RouterOS, Juniper Junos y FortiGate.
 
 Las reglas comprueban la configuración de equipos con sintaxis tipo IOS (Cisco, Arista, Dell, Ruckus…)
 y Junos. Son controles técnicos de referencia: el cumplimiento normativo completo requiere además
@@ -122,6 +122,88 @@ PACKS = {
         ("Sincronización horaria (SNTP)", "must_contain", r"^sntp server ", "major",
          'sntp client mode unicast\nsntp server "192.0.2.1"'),
     ]),
+    # MikroTik RouterOS («/export terse»: solo aparece lo que difiere de fábrica; Telnet, FTP, www y API vienen activos)
+    "MikroTik RouterOS · Seguridad básica": (r"^mikrotik_routeros", "Controles de seguridad de referencia para "
+                                             "RouterOS: servicios de gestión, acceso por MAC, cortafuegos, registros y hora", [
+        ("Sin Telnet", "must_contain", r"^/ip service set telnet .*\bdisabled=yes", "critical",
+         "/ip service set telnet disabled=yes"),
+        ("Sin FTP", "must_contain", r"^/ip service set ftp .*\bdisabled=yes", "major", "/ip service set ftp disabled=yes"),
+        ("Sin web HTTP (www)", "must_contain", r"^/ip service set www .*\bdisabled=yes", "major",
+         "/ip service set www disabled=yes"),
+        ("Sin API sin cifrar", "must_contain", r"^/ip service set api .*\bdisabled=yes", "major",
+         "/ip service set api disabled=yes"),
+        ("Winbox limitado a redes de gestión", "must_contain", r"^/ip service set winbox .*\baddress=\S+", "minor",
+         "/ip service set winbox address=192.0.2.0/24"),
+        ("Acceso por MAC (MAC-Telnet/MAC-Winbox) limitado", "must_contain",
+         r"^/tool mac-server (set .*\ballowed-interface-list=\S+|set .*\bdisabled=yes|mac-winbox set .*\ballowed-interface-list=\S+)",
+         "major", "/tool mac-server set allowed-interface-list=none\n/tool mac-server mac-winbox set allowed-interface-list=none"),
+        ("Descubrimiento de vecinos limitado", "must_contain", r"^/ip neighbor discovery-settings set .*\bdiscover-interface-list=\S+",
+         "minor", "/ip neighbor discovery-settings set discover-interface-list=none"),
+        ("Sin servidor de bandwidth-test", "must_contain", r"^/tool bandwidth-server set .*\benabled=no", "minor",
+         "/tool bandwidth-server set enabled=no"),
+        ("SSH con cifrado fuerte", "must_contain", r"^/ip ssh set .*\bstrong-crypto=yes", "minor",
+         "/ip ssh set strong-crypto=yes"),
+        ("Cortafuegos: descarta lo no permitido hacia el router", "must_contain",
+         r"^/ip firewall filter add .*\bchain=input\b.*\baction=drop|^/ip firewall filter add .*\baction=drop\b.*\bchain=input\b",
+         "critical", None),
+        ("Sin comunidad SNMP «public»", "must_not_contain", r"^/snmp community (add|set) .*\bname=(public|private)\b",
+         "critical", None),
+        ("Envío de logs a syslog", "must_contain", r"^/system logging action (add|set) .*\bremote=\d", "major",
+         "/system logging action set [find name=remote] remote=192.0.2.10\n/system logging add action=remote topics=info"),
+        ("Sincronización horaria NTP", "must_contain", r"^/system ntp client set .*\benabled=yes", "major",
+         "/system ntp client set enabled=yes servers=pool.ntp.org"),
+    ]),
+    # Juniper Junos (formato set)
+    "Juniper Junos · Seguridad básica": (r"^juniper_junos", "Controles de seguridad de referencia para Junos: "
+                                         "servicios de gestión, cuentas, SNMP, registros y hora", [
+        ("Sin Telnet", "must_not_contain", r"^set system services telnet", "critical", "delete system services telnet"),
+        ("Sin FTP", "must_not_contain", r"^set system services ftp", "major", "delete system services ftp"),
+        ("Sin J-Web por HTTP", "must_not_contain", r"^set system services web-management http\b", "major",
+         "delete system services web-management http"),
+        ("SSH habilitado", "must_contain", r"^set system services ssh", "major", "set system services ssh"),
+        ("Root sin acceso por SSH", "must_contain", r"^set system services ssh root-login deny", "major",
+         "set system services ssh root-login deny"),
+        ("Contraseña de root configurada", "must_contain", r"^set system root-authentication encrypted-password",
+         "critical", None),
+        ("Bloqueo tras intentos fallidos", "must_contain", r"^set system login retry-options tries-before-disconnect",
+         "major", "set system login retry-options tries-before-disconnect 5\nset system login retry-options lockout-period 30"),
+        ("Cierre de sesión inactiva", "must_contain", r"^set system login class \S+ idle-timeout", "major", None),
+        ("Autenticación centralizada (RADIUS o TACACS+)", "must_contain", r"^set system (radius-server|tacplus-server) ",
+         "major", None),
+        ("Sin comunidades SNMP por defecto", "must_not_contain", r'^set snmp community "?(public|private)"?(\s|$)',
+         "critical", "delete snmp community public\ndelete snmp community private"),
+        ("Envío de logs a syslog", "must_contain", r"^set system syslog host \S+", "major",
+         "set system syslog host 192.0.2.10 any notice"),
+        ("Sincronización horaria NTP", "must_contain", r"^set system ntp server \S+", "major",
+         "set system ntp server 192.0.2.1"),
+        ("Banner de uso autorizado", "must_contain", r"^set system login message ", "minor",
+         'set system login message "Acceso solo para personal autorizado"'),
+    ]),
+    # Fortinet FortiGate («show»: solo aparece lo que difiere de fábrica)
+    "FortiGate · Seguridad básica": (r"^fortinet", "Controles de seguridad de referencia para FortiOS: acceso de "
+                                     "administración, contraseñas, SNMP, registros y cifrado", [
+        ("Sin Telnet en las interfaces", "must_not_contain", r"^\s*set allowaccess .*\btelnet\b", "critical", None),
+        ("Sin HTTP en las interfaces", "must_not_contain", r"^\s*set allowaccess .*\bhttp\b", "major", None),
+        ("Cierre de sesión de administración ≤ 15 min", "must_not_contain",
+         r"^\s*set admintimeout (1[6-9]|[2-9]\d|\d{3,})\b", "major", "config system global\n    set admintimeout 10\nend"),
+        ("Administradores con hosts de confianza", "must_contain", r"^\s*set trusthost\d+ ", "major", None),
+        ("Política de contraseñas activa", "must_contain",
+         r"^config system password-policy\n(?:\s+set (?!status).*\n)*\s+set status enable", "major",
+         "config system password-policy\n    set status enable\n    set minimum-length 12\nend"),
+        ("Cifrado fuerte", "must_not_contain", r"^\s*set strong-crypto disable", "major",
+         "config system global\n    set strong-crypto enable\nend"),
+        ("Sin comunidades SNMP por defecto", "must_not_contain",
+         r'^config system snmp community\n(?:(?!^end)[\s\S])*?set name "(public|private)"', "critical", None),
+        ("Envío de logs a syslog o FortiAnalyzer", "must_contain",
+         r"^config log (syslogd\d?|fortianalyzer\d?|fortianalyzer-cloud) setting\n(?:\s+set (?!status).*\n)*\s+set status enable",
+         "major", 'config log syslogd setting\n    set status enable\n    set server "192.0.2.10"\nend'),
+        ("Sincronización horaria NTP activa", "must_not_contain", r"^\s*set ntpsync disable", "major",
+         "config system ntp\n    set ntpsync enable\nend"),
+        ("Banner antes del inicio de sesión", "must_contain", r"^\s*set pre-login-banner enable", "minor",
+         "config system global\n    set pre-login-banner enable\nend"),
+        ("Cuenta «admin» por defecto renombrada", "must_not_contain", r'^config system admin\n\s+edit "admin"$', "minor",
+         None),
+    ]),
     "PCI DSS 4.0 (Junos)": (r"^juniper_junos", "Controles técnicos de PCI DSS 4.0 para Junos (formato set)", [
         ("Req 2.2.7 · Sin Telnet", "must_not_contain", r"^set system services telnet", "critical",
          "delete system services telnet"),
@@ -142,7 +224,9 @@ PACKS = {
 
 # Paquetes añadidos después de la primera versión: se cargan una sola vez en las instalaciones que se actualizan
 # (si después se borran, no vuelven a aparecer).
-ADDED_LATER = {"Extreme VOSS · Seguridad básica": "2.2.1", "Ubiquiti EdgeSwitch/UniFi · Seguridad básica": "2.2.1"}
+ADDED_LATER = {"Extreme VOSS · Seguridad básica": "2.2.1", "Ubiquiti EdgeSwitch/UniFi · Seguridad básica": "2.2.1",
+               "MikroTik RouterOS · Seguridad básica": "2.3.0", "Juniper Junos · Seguridad básica": "2.3.0",
+               "FortiGate · Seguridad básica": "2.3.0"}
 
 
 def _seeded() -> set:

@@ -814,10 +814,25 @@ def nvd_searches(prof, os_version: str) -> list[dict]:
     cpes = (prof.cpe,) if isinstance(prof.cpe, str) else tuple(prof.cpe or ())
     if not cpes:
         return [{"keywordSearch": f"{prof.vendor} {os_version}"}]
+    if prof.cpe_format == "junos" and (jv := junos_cpe_version(os_version)):
+        return [{"virtualMatchString": f"{c}:{jv}"} for c in cpes]
     ver = os_version
     if prof.cpe_version and (m := re.search(prof.cpe_version, os_version)):
         ver = m.group(1)
     return [{"virtualMatchString": f"{c}:{_cpe_escape(ver)}"} for c in cpes]
+
+
+def junos_cpe_version(v: str) -> str | None:
+    """Versión de Junos como la registra NVD: versión y actualización en campos separados.
+    «21.4R3-S5.4» → «21.4:r3-s5», «22.2R1.9» → «22.2:r1», «15.1X49-D200.3» → «15.1x49:d200»."""
+    m = re.match(r"^(\d+\.\d+)(R\d+)(?:-(S\d+))?", v.strip(), re.I)
+    if m:
+        upd = m.group(2) + (f"-{m.group(3)}" if m.group(3) else "")
+        return f"{_cpe_escape(m.group(1))}:{_cpe_escape(upd)}"
+    m = re.match(r"^(\d+\.\d+X\d+)-(D\d+)", v.strip(), re.I)
+    if m:
+        return f"{_cpe_escape(m.group(1))}:{_cpe_escape(m.group(2))}"
+    return None
 
 
 # búsqueda de CVE de un equipo en segundo plano (NVD puede tardar minutos con equipos que tienen muchos CVE)

@@ -83,6 +83,13 @@ check("las demás sesiones de ese usuario se cierran", not logged_in(s1))
 page = s2.get(B + "/account/2fa/setup").text
 secret = re.search(r"user-select:all\">([A-Z2-7]{16,})</code>", page).group(1)
 check("configuración 2FA muestra código QR", "<svg" in page and "Código QR" in page)
+qr_tag = re.search(r'<div class="qr"[^>]*>\s*(<svg[^>]*>)', page)
+check("el QR se escala sin recortarse: solo viewBox, sin ancho ni alto fijos",
+      qr_tag and "viewBox=" in qr_tag.group(1) and not re.search(r"\s(width|height)=", qr_tag.group(1)),
+      qr_tag and qr_tag.group(1))
+check("el QR lleva el margen de 4 módulos que exigen los lectores",
+      qr_tag and re.search(r'viewBox="0 0 (\d+) \1"', qr_tag.group(1))
+      and (int(re.search(r'viewBox="0 0 (\d+)', qr_tag.group(1)).group(1)) - 8 - 21) % 4 == 0)
 r = s2.post(B + "/account/2fa/setup", data={"code": "000000"})
 check("código incorrecto no activa 2FA", "no coincide" in flashes(r.text))
 r = s2.post(B + "/account/2fa/setup", data={"code": pyotp.TOTP(secret).now()})

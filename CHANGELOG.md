@@ -1,5 +1,26 @@
 # Historial de versiones
 
+## 2.3.0
+- **El código QR de la verificación en dos pasos vuelve a poder escanearse.** Se mostraba recortado: el navegador cortaba
+  el borde derecho e inferior (con parte de las esquinas de posición) en lugar de reducirlo al tamaño de la página, y las
+  apps de autenticación no lo reconocían. Ahora se escala completo y lleva el margen blanco que piden los lectores.
+- **Nuevos paquetes de cumplimiento** (llegan solos al actualizar; si se borra uno, no vuelve a aparecer):
+  - **MikroTik RouterOS · Seguridad básica** (13 reglas): Telnet, FTP, web HTTP y API desactivados; Winbox y acceso por
+    MAC limitados; descubrimiento de vecinos limitado; sin bandwidth-test; SSH con cifrado fuerte; cortafuegos que descarta
+    lo no permitido hacia el router; sin comunidad SNMP «public»; syslog y NTP.
+  - **Juniper Junos · Seguridad básica** (13 reglas): sin Telnet, FTP ni J-Web por HTTP; SSH sin acceso de root;
+    contraseña de root; bloqueo por intentos; cierre de sesión inactiva; RADIUS o TACACS+; sin comunidades SNMP por
+    defecto; syslog, NTP y banner.
+  - **FortiGate · Seguridad básica** (11 reglas): sin Telnet ni HTTP en las interfaces; cierre de sesión ≤ 15 min; hosts
+    de confianza para los administradores; política de contraseñas; cifrado fuerte; sin comunidades SNMP por defecto;
+    syslog o FortiAnalyzer; NTP; banner y cuenta «admin» renombrada.
+  - Muchas reglas traen el comando para corregirlas con «Corregir».
+- **Vulnerabilidades de Juniper**: NVD registra Junos con la versión y la actualización por separado («21.4:r3-s5»).
+  OpenNCCM enviaba «21.4R3-S5.4» y encontraba menos de la mitad de los CVE (38 de 87 en Junos 21.4R3-S5). Ahora convierte
+  la versión, también en las ramas X de los SRX («15.1X49-D200» → «15.1x49:d200»).
+- **Vulnerabilidades de WatchGuard**: Fireware se busca en NVD por su CPE (antes no se buscaba). El inventario usa
+  «show sysinfo» para leer el modelo, la serie y la versión.
+
 ## 2.2.1
 - **Buscar CVE de firmware** ya no falla con «Error consultando NVD: Response ended prematurely» en equipos con muchos CVE,
   como Cisco IOS 12.4:
