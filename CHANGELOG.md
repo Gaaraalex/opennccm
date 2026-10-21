@@ -1,5 +1,30 @@
 # Historial de versiones
 
+## 2.4.0
+- **Actualizaciones de firmware disponibles**: OpenNCCM comprueba una vez al día (o con «Comprobar ahora») si hay una
+  versión más nueva del firmware de cada equipo, dice qué mejora y, cuando el fabricante lo permite, la descarga.
+  - **MikroTik**: versión estable y long-term desde el sitio oficial, con las novedades del fabricante y el archivo para
+    la arquitectura del equipo.
+  - **Ubiquiti** (EdgeSwitch, EdgeRouter y UniFi Switch): la versión para el modelo exacto, desde el catálogo oficial.
+  - **Resto de equipos con CPE** (Cisco, Fortinet, Juniper, Palo Alto, Arista, WatchGuard, Aruba…): la versión más nueva
+    de su rama según el diccionario de NVD (NIST), y la más reciente aunque sea de otra rama. En Cisco IOS solo se
+    recomienda la misma serie, porque las series dependen del hardware.
+  - **Qué mejora**: cuántos CVE de la versión instalada corrige la nueva (con los críticos y altos), las novedades del
+    fabricante cuando las publica y el enlace a las notas de la versión (Fortinet, Palo Alto y otros).
+  - **Descarga a la biblioteca de Firmware** (MikroTik y Ubiquiti, solo administradores): desde el sitio oficial y
+    verificando la suma SHA-256 del fabricante; si no coincide, el archivo se descarta. Después se instala con el flujo de
+    siempre (solicitud, aprobación y respaldo previo).
+  - Los fabricantes que piden cuenta para descargar se indican con un aviso: la versión nueva y lo que mejora se muestran
+    igual, y el archivo se baja del portal del fabricante y se sube en Firmware › Cargar imagen.
+  - Dónde se ve: una etiqueta «Firmware X disponible» en la cabecera del equipo, la sección «Actualizaciones de firmware»
+    de su pestaña Firmware y la pestaña nueva **Actualizaciones disponibles** en Firmware y ciclo de vida. Además, un
+    aviso en Alarmas una sola vez por versión.
+  - La comprobación diaria se puede desactivar en esa pestaña. Solo consulta los sitios de MikroTik, Ubiquiti y NVD; no
+    envía datos de los equipos.
+- **Más equipos con búsqueda de CVE y de versiones**: Cisco WLC, Aruba OS-Switch y ProCurve, ArubaOS, Check Point Gaia,
+  F5 BIG-IP, ExtremeXOS, VyOS y Brocade Fabric OS ahora tienen su nombre de producto en NVD (antes se buscaban por texto
+  y casi nunca se encontraba nada). pfSense compara su versión sin el sufijo «-RELEASE».
+
 ## 2.3.0
 - **El código QR de la verificación en dos pasos vuelve a poder escanearse.** Se mostraba recortado: el navegador cortaba
   el borde derecho e inferior (con parte de las esquinas de posición) en lugar de reducirlo al tamaño de la página, y las

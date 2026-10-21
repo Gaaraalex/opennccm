@@ -13,6 +13,7 @@
     {% if device.last_status == 'ok' %}<span class="pill ok live">En línea</span>{% elif device.last_status == 'error' %}<span class="pill crit">Sin conexión</span>{% else %}<span class="pill warn">Pendiente</span>{% endif %}
     {% if device.baseline_drift %}<span class="pill major">Difiere de la base</span>{% endif %}
     {% if device.startup_conflict %}<span class="pill warn">Startup ≠ running</span>{% endif %}
+    {% if fwu and fwu.status == 'update' %}<a class="pill info" href="#firmware" data-tab-link title="{{ _('Ver qué mejora y cómo obtenerla') }}">{{ _f('Firmware {0} disponible', fwu.target) }}</a>{% endif %}
     {% if not device.enabled %}<span class="tag">deshabilitado</span>{% endif %}</div>
     <div class="muted" style="margin-top:2px">{{ profile.label }} · <span class="mono">{{ device.host }}{{ ':' ~ device.port if device.port != (23 if device.protocol == 'telnet' else 22) }}</span> ({{ device.protocol|upper }}) · {{ _f('respaldado {0}', device.last_backup_at|ago) if device.last_backup_at else _('sin respaldar todavía') }}</div></div></div>
   {% if can_console and device.protocol == 'ssh' %}<a class="btn" href="/devices/{{ device.id }}/console" target="_blank" rel="noopener" data-console="{{ device.id }}" data-name="{{ device.name }}" data-vend="{{ profile.vendor[:3]|upper }}" aria-label="{{ _f('Consola SSH de {0}', device.name) }}">{{ icon('term', 's') }}Consola</a>{% endif %}
@@ -152,7 +153,49 @@
   {% else %}<section class="card"><div class="empty">{{ empty_art('search') }}<h2>{{ _('Sin vulnerabilidades conocidas') if cve_at else _('Aún no se han buscado vulnerabilidades') }}</h2><p>{{ _('No hay CVE publicados que afecten a esta versión de firmware.') if cve_at else _('Usa «Buscar CVE de firmware» para comparar su versión con la base del NIST.') }}</p></div></section>{% endif %}
 </section>
 
-<section id="firmware" aria-label="Firmware">
+<section id="firmware" class="stack" aria-label="Firmware">
+  {% set fw_busy = fw_state.running %}{% set dl_busy = fw_dl and fw_dl.running %}
+  <section class="card" id="fw-update" aria-labelledby="fwu-h"{% if fw_busy or dl_busy %} data-fw-poll="/firmware/updates/status?device_id={{ device.id }}"{% endif %}>
+    <div class="card-h"><h2 id="fwu-h">{{ _('Actualizaciones de firmware') }}</h2>
+      <div class="row">{% if fwu and fwu.checked_at %}<span class="muted sm">{{ _f('comprobado {0}', fwu.checked_at|ago) }}</span>{% endif %}
+      {% if can_run %}<form class="inline" method="post" action="/firmware/updates/check"><input type="hidden" name="device_id" value="{{ device.id }}"><button class="btn s"{% if fw_busy %} disabled aria-disabled="true"{% endif %}>{{ icon('refresh', 's') }}{{ _('Comprobando…') if fw_busy else _('Comprobar ahora') }}</button></form>{% endif %}</div></div>
+    {% if fw_busy %}<div class="banner info" role="status">{{ icon('refresh') }}<span class="grow">{{ _('Buscando versiones nuevas y lo que corrigen. Puede tardar unos minutos; esta sección se actualizará sola.') }}</span></div>{% endif %}
+    {% if not fwu %}<p class="muted">{{ _('Aún no se ha comprobado si hay una versión más nueva. OpenNCCM lo hace una vez al día, o ahora con «Comprobar ahora».') }}</p>
+    {% elif fwu.status == 'update' %}
+      <div class="row" style="gap:10px;align-items:baseline"><span class="mono">{{ fwu.current }}</span><span aria-hidden="true">→</span><b class="mono" style="font-size:18px">{{ fwu.target }}</b><span class="pill info">{{ _('Disponible') }}</span></div>
+      {% if fwu.latest and fwu.latest != fwu.target %}<p class="muted sm" style="margin-top:6px">{{ _f('La más reciente es {0}, de otra rama: antes de saltar de rama, compruebe que su modelo la admite.', fwu.latest) }}</p>{% endif %}
+      <h3 style="margin-top:16px">{{ _('Qué mejora') }}</h3>
+      <ul class="stack" style="gap:6px;margin:8px 0 0;padding-left:18px">
+        {% if fwu.fixed is not none %}
+          {% if fwu.fixed %}<li>{{ _f('Corrige {0} vulnerabilidades (CVE) de la versión instalada', fwu.fixed|length) }}{% if fwu.fixed_crit or fwu.fixed_high %}: {% if fwu.fixed_crit %}<span class="tag crit">{{ _f('{0} críticas', fwu.fixed_crit) }}</span>{% endif %} {% if fwu.fixed_high %}<span class="tag major">{{ _f('{0} altas', fwu.fixed_high) }}</span>{% endif %}{% endif %}
+            <details style="margin-top:6px"><summary class="sm">{{ _('Ver los CVE corregidos') }}</summary><div class="sm mono" style="margin-top:6px;line-height:1.9">{% for c, s in fwu.fixed[:60] %}<a href="https://nvd.nist.gov/vuln/detail/{{ c }}" target="_blank" rel="noopener">{{ c }}</a>{% if s %} <span class="muted">({{ s|lower }})</span>{% endif %}{{ ', ' if not loop.last }}{% endfor %}{% if fwu.fixed|length > 60 %} {{ _f('y {0} más', fwu.fixed|length - 60) }}{% endif %}</div></details></li>
+          {% else %}<li>{{ _('No corrige ningún CVE conocido de la versión instalada.') }}</li>{% endif %}
+          {% if fwu.open_cves %}<li class="muted">{{ _f('{0} CVE conocidos siguen afectando a {1}.', fwu.open_cves, fwu.target) }}</li>{% endif %}
+        {% elif fw_busy %}<li class="muted">{{ _('Calculando qué vulnerabilidades corrige…') }}</li>{% endif %}
+        {% if fwu.changelog %}<li><details><summary>{{ _f('Novedades de {0} según el fabricante', fwu.target) }}</summary><pre class="mono sm" style="white-space:pre-wrap;max-height:320px;overflow:auto;margin-top:8px">{{ fwu.changelog }}</pre></details></li>{% endif %}
+        {% if fwu.notes_url %}<li><a href="{{ fwu.notes_url }}" target="_blank" rel="noopener">{{ _('Notas de la versión del fabricante') }}</a></li>{% endif %}
+      </ul>
+      <div style="margin-top:16px">
+      {% if fwu.download_url %}
+        {% if dl_busy %}<div class="banner info" role="status">{{ icon('dl') }}<span class="grow">{{ _('Descargando y verificando el archivo (SHA-256)…') }}</span></div>
+        {% elif fw_dl and fw_dl.error %}<div class="banner warn" role="alert">{{ icon('alert') }}<span class="grow">{{ _f('La descarga falló: {0}', fw_dl.error) }}</span></div>
+        {% elif fw_dl and fw_dl.image %}<div class="banner info" role="status">{{ icon('check') }}<span class="grow">{{ _f('{0} está en la biblioteca de Firmware, verificado con su SHA-256.', fw_dl.image) }} <a href="/firmware">{{ _('Ver la biblioteca') }}</a></span></div>{% endif %}
+        {% if fw_have and not (fw_dl and fw_dl.image) %}<div class="banner info" role="status">{{ icon('check') }}<span class="grow">{{ _f('{0} ya está en la biblioteca de Firmware.', fw_have) }} <a href="/firmware">{{ _('Ver la biblioteca') }}</a></span></div>{% endif %}
+        {% if is_admin and not dl_busy and not fw_have %}<form class="inline" method="post" action="/firmware/updates/{{ device.id }}/download"><button class="btn pri">{{ icon('dl', 's') }}{{ _('Descargar a la biblioteca') }}{% if fwu.size %} · {{ fwu.size|filesizeformat }}{% endif %}</button></form>
+          <span class="muted sm">{{ _f('Desde el sitio oficial de {0}; se verifica la suma SHA-256 antes de guardarlo.', profile.vendor) }}</span>
+        {% elif not is_admin and not fw_have %}<p class="muted sm">{{ _('Un administrador puede descargarla a la biblioteca de Firmware.') }}</p>{% endif %}
+      {% else %}<div class="banner info">{{ icon('info') }}<span class="grow">{{ _f('{0} pide una cuenta de soporte para descargar su firmware, así que OpenNCCM no puede descargarlo por usted. Descárguelo desde el portal del fabricante y súbalo en Firmware › Cargar imagen.', profile.vendor) }}</span></div>{% endif %}
+      </div>
+      {% if fwu.source == 'nvd' %}<p class="muted sm" style="margin-top:10px">{{ _('Versiones según el diccionario de NVD (NIST): es la más reciente que NVD conoce para esta rama. Confírmela con el fabricante antes de instalarla.') }}</p>{% endif %}
+      {% if fwu.detail == 'arch' %}<p class="muted sm" style="margin-top:6px">{{ _('No se pudo leer la arquitectura del equipo para elegir el archivo; haga un respaldo para releer el inventario.') }}</p>{% endif %}
+    {% elif fwu.status == 'current' %}
+      <div class="banner info" role="status">{{ icon('check') }}<span class="grow">{{ _f('Al día: {0} es la versión más reciente según {1}.', fwu.current, _(fw_sources.get(fwu.source, fwu.source or ''))) }}</span></div>
+    {% elif fwu.status == 'error' %}
+      <div class="banner warn" role="alert">{{ icon('alert') }}<span class="grow">{{ _f('No se pudo comprobar: {0}', fwu.detail) }}</span></div>
+    {% else %}
+      <p class="muted">{% if fwu.detail == 'nvd_behind' %}{{ _('NVD no conoce ninguna versión igual o posterior a la instalada, así que no se puede saber si hay una más nueva. Consulte al fabricante.') }}{% elif fwu.detail == 'noversion' %}{{ _('Aún no se conoce la versión instalada: haga un respaldo para leer el inventario.') }}{% else %}{{ _f('No hay una fuente pública de versiones para {0}.', profile.label) }}{% endif %}</p>
+    {% endif %}
+  </section>
   <section class="card"><div class="card-h"><h2>Actualizar firmware</h2><span class="muted sm">Instalado: <span class="mono">{{ device.os_version or '—' }}</span></span></div>
   {% if images and can_run %}
   <form method="post" action="/firmware/upgrade"><input type="hidden" name="device_ids" value="{{ device.id }}">
@@ -196,6 +239,16 @@
   <div class="row end"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn dzf" disabled>Eliminar equipo</button></div>
 </form></dialog>
 {% endif %}
+<script>
+(function () {  // comprobación o descarga de firmware en segundo plano: recargar la pestaña cuando termine
+  const el = document.querySelector('[data-fw-poll]');
+  if (!el) return;
+  const tick = () => fetch(el.dataset.fwPoll, {cache: 'no-store'}).then(r => r.ok ? r.json() : null)
+    .then(j => { if (j && !j.running && !j.downloading) { location.hash = 'firmware'; location.reload(); } else setTimeout(tick, 3000); })
+    .catch(() => setTimeout(tick, 5000));
+  setTimeout(tick, 3000);
+})();
+</script>
 <script>
 (function () {  // búsqueda de CVE en segundo plano: recargar la pestaña cuando termine
   const el = document.getElementById('cve-busy');

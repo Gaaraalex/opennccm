@@ -843,6 +843,8 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
     for g in groups.values():
         g["results"].sort(key=lambda c: (c.passed, sev_rank.get(c.rule.severity, 3), c.rule.name))
     comp_groups = sorted(groups.values(), key=lambda g: (-g["crit"], -g["fails"], g["policy"].name))
+    from . import fwupdates as _fwu
+    from .routes_ops import FW_SOURCES as _FW_SOURCES
     from .console import console_allowed
     return render(request, "device.html", user, can_console=console_allowed(user, dev.id), device=dev,
                   versions=versions, comp=comp, vulns=vulns, comp_groups=comp_groups,
@@ -857,6 +859,8 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
                   cve_at=services.cve_scanned_at(dev.id) or max((v.found_at for v in vulns if v.found_at),
                                                                     default=None),
                   cve_state=services.cve_scan_state(dev.id),
+                  fwu=_fwu.for_device(dev.id), fw_state=_fwu.state(), fw_dl=_fwu.download_state(dev.id), fw_sources=_FW_SOURCES,
+                  fw_have=_fwu.in_library(dev.device_type, (_fwu.for_device(dev.id) or {}).get("target")),
                   latest_run=next((t["id"] for t in tl if t["kind"] == "running"), None))
 
 

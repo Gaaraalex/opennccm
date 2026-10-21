@@ -8,7 +8,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy import select
 
-from . import __version__, cronutil, eol, firmware, reports, sysbackup, updates
+from . import __version__, cronutil, eol, firmware, fwupdates, reports, sysbackup, updates
 from .config import UPDATE_REPO
 from .auth import Forbidden, device_scope, filter_ids, require
 from .db import Device, DeviceGroup, EolEntry, FirmwareImage, SessionLocal
@@ -75,7 +75,12 @@ def _fw_page(request: Request, tab: str, status: str = "", img: int = 0, vend: s
     if vend:
         entries = [e for e in entries if e.vendor == vend]
     from datetime import datetime
+    from .db import get_setting
+    fw_rows = fwupdates.all_rows(scope)
     return render(request, "firmware.html", user, tab=tab, images=images, devices=devs, groups=groups, compat=compat,
+                  fw_rows=fw_rows, fw_n=sum(1 for r in fw_rows if r["status"] == "update"),
+                  fw_state=fwupdates.state(), fw_enabled=get_setting("fw_update_check", "1") != "0",
+                  fw_checked=get_setting("fw_update_checked_at", ""), fw_labels=FW_SOURCES,
                   life=life, no_data=sum(1 for r in rows if r[1] is None), rows=rows, entries=entries,
                   counts=counts, status=status, labels=eol.STATUS_LABEL, sev=eol.STATUS_SEV, sel_img=img,
                   vendors=vendors, vend=vend, today=datetime.now(),
@@ -85,6 +90,66 @@ def _fw_page(request: Request, tab: str, status: str = "", img: int = 0, vend: s
 @router.get("/firmware")
 def firmware_page(request: Request, img: int = 0):
     return _fw_page(request, "imagenes", img=img)
+
+
+# --------------------------------------------------------------------------- actualizaciones de firmware disponibles
+FW_SOURCES = {"mikrotik": N_("MikroTik"), "ubiquiti": N_("Ubiquiti"), "nvd": N_("NVD (NIST)")}
+
+
+@router.post("/firmware/updates/check")
+async def fw_updates_check(request: Request):
+    """«Comprobar ahora»: un equipo (device_id) o todos los que el usuario puede ver, en segundo plano."""
+    user = require(request, "operator")
+    form = await request.form()
+    one = int(form.get("device_id") or 0)
+    if one:
+        ids = filter_ids(user, [one])
+        if not ids:
+            raise Forbidden()
+    else:
+        scope = device_scope(user)
+        ids = None if scope is None else sorted(scope)
+    started = fwupdates.start_check(ids)
+    log_action(request, user, "fw_update_check", f"device={one}" if one else "todos")
+    if not started:
+        flash(request, _("Ya hay una comprobación en curso; espere a que termine."), "error")
+    back = form.get("back") or ("/devices/%d#firmware" % one if one else "/firmware#disponibles")
+    return go(back if back.startswith("/") and not back.startswith("//") else "/firmware#disponibles")
+
+
+@router.get("/firmware/updates/status")
+def fw_updates_status(request: Request, device_id: int = 0):
+    require(request)
+    st = fwupdates.state()
+    dl = fwupdates.download_state(device_id) if device_id else None
+    return {"running": st["running"], "done": st["done"], "total": st["total"],
+            "downloading": bool(dl and dl.get("running"))}
+
+
+@router.post("/firmware/updates/{device_id}/download")
+def fw_updates_download(request: Request, device_id: int):
+    user = require(request, "admin")
+    if not filter_ids(user, [device_id]):
+        raise Forbidden()
+    up = fwupdates.for_device(device_id)
+    if not up or not up.get("download_url"):
+        flash(request, _("Este equipo no tiene una descarga pública de firmware."), "error")
+    elif fwupdates.start_download(device_id, user.username):
+        log_action(request, user, "fw_download", f"device={device_id} {up.get('target')} {up.get('download_url')}")
+    return go(f"/devices/{device_id}#firmware")
+
+
+@router.post("/firmware/updates/settings")
+async def fw_updates_settings(request: Request):
+    from .db import set_setting
+    user = require(request, "admin")
+    form = await request.form()
+    on = form.get("enabled") == "on"
+    set_setting("fw_update_check", "1" if on else "0")
+    log_action(request, user, "fw_update_settings", "on" if on else "off")
+    flash(request, _("Se comprobarán las actualizaciones de firmware una vez al día.") if on
+          else _("Comprobación diaria de actualizaciones de firmware desactivada."))
+    return go("/firmware#disponibles")
 
 
 @router.get("/firmware/new")

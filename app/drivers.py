@@ -420,6 +420,27 @@ _FW = {
                       "reload": "request system reboot"},
 }
 
+# CPE de NVD de perfiles que se definieron sin él (nombres comprobados en el diccionario de NVD): sirven para buscar
+# CVE y versiones de firmware nuevas. La regex deja la versión como la escribe NVD («WC.16.11.0012» → «16.11.0012»).
+_V3 = r"(\d+\.\d+\.\d+)"
+_V2_4 = r"^v?(\d+\.\d+(?:\.\d+){0,2})"
+CPE_EXTRA = {
+    "cisco_wlc": ("cpe:2.3:o:cisco:wireless_lan_controller_software", _V2_4),
+    "hp_procurve": ("cpe:2.3:o:hpe:arubaos-switch", r"(\d+\.\d+\.\d{4})"),
+    "aruba_osswitch": ("cpe:2.3:o:hpe:arubaos-switch", r"(\d+\.\d+\.\d{4})"),
+    "aruba_os": ("cpe:2.3:o:arubanetworks:arubaos", _V2_4),
+    "checkpoint_gaia": ("cpe:2.3:o:checkpoint:gaia_os", r"^(R\d+(?:\.\d+)?)"),
+    "f5_tmsh": ("cpe:2.3:a:f5:big-ip_local_traffic_manager", _V3),
+    "extreme_exos": ("cpe:2.3:o:extremenetworks:extremexos", _V3),
+    "vyos": ("cpe:2.3:o:vyos:vyos", r"^(\d+\.\d+(?:\.\d+)?)"),
+    "brocade_fos": ("cpe:2.3:o:broadcom:fabric_operating_system", None),
+    "pfsense": (None, r"^(\d+\.\d+(?:\.\d+)?)"),  # «2.7.2-RELEASE» → «2.7.2»
+}
+for _p in PROFILES:
+    if _p.key in CPE_EXTRA:
+        _cpe, _rx = CPE_EXTRA[_p.key]
+        _p.cpe = _p.cpe or _cpe
+        _p.cpe_version = _p.cpe_version or _rx
 PROFILE_MAP = {p.key: p for p in PROFILES}
 for _k, _fw in _FW.items():
     PROFILE_MAP[_k].firmware = _fw

@@ -11,6 +11,7 @@
 
 <nav class="tabs" data-tabs aria-label="Firmware y ciclo de vida">
   <a href="#imagenes">Imágenes <span class="cnt2">{{ images|length }}</span></a>
+  <a href="#disponibles">{{ _('Actualizaciones disponibles') }}{% if fw_n %} <span class="cnt2">{{ fw_n }}</span>{% endif %}</a>
   {% if ROLES[user.role] >= 1 %}<a href="#actualizar">Actualizar equipos</a>{% endif %}
   <a href="#eol">Fin de vida (EOL/EOS) <span class="cnt2">{{ entries|length }}</span></a>
 </nav>
@@ -25,6 +26,31 @@
       <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi crit">{{ icon('trash') }}</span><div><h2>{{ _f('¿Eliminar {0}?', i.filename) }}</h2><p class="muted" style="margin-top:6px">Se borra el archivo del repositorio. Los equipos ya actualizados no cambian.</p></div></div>
       <div class="row end"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn dzf">Eliminar</button></div></form></dialog>{% endif %}</div></td></tr>
 {% else %}<tr><td colspan="7"><div class="empty">{{ empty_art('plus') }}<h2>Aún no hay imágenes de firmware</h2><p>Carga una imagen para poder actualizar equipos desde OpenNCCM. Las vulnerabilidades de cada versión se consultan en <a href="/vulns">Vulnerabilidades</a>.</p>{% if is_admin %}<a class="btn pri" href="/firmware/new" data-sheet data-title="Cargar imagen">{{ icon('ul', 's') }}Cargar imagen</a>{% endif %}</div></td></tr>{% endfor %}
+</tbody></table></div></section>
+</div>
+
+<div id="disponibles" class="stack"{% if fw_state.running %} data-fw-poll="/firmware/updates/status"{% endif %}>
+<section class="card"><div class="row between" style="align-items:center;gap:12px">
+  <div><b>{{ _('Versiones nuevas del firmware de tus equipos') }}</b>
+    <div class="muted sm">{{ _('MikroTik y Ubiquiti se consultan en sus sitios oficiales y su firmware se puede descargar a la biblioteca. Para el resto, la versión sale del diccionario de NVD (NIST) y el firmware se descarga desde el portal del fabricante, que pide cuenta.') }}</div>
+    {% if fw_checked %}<div class="muted sm" style="margin-top:4px">{{ _f('Última comprobación: {0}', fw_checked.replace('T', ' ')) }}</div>{% endif %}</div>
+  <div class="row" style="gap:8px">
+    {% if ROLES[user.role] >= 1 %}<form class="inline" method="post" action="/firmware/updates/check"><button class="btn"{% if fw_state.running %} disabled aria-disabled="true"{% endif %}>{{ icon('refresh', 's') }}{{ _f('Comprobando… ({0}/{1})', fw_state.done, fw_state.total) if fw_state.running else _('Comprobar todos ahora') }}</button></form>{% endif %}
+    {% if is_admin %}<form class="inline" method="post" action="/firmware/updates/settings"><label class="ck"><input type="checkbox" name="enabled"{% if fw_enabled %} checked{% endif %} onchange="this.form.requestSubmit()"> {{ _('Comprobar a diario') }}</label><noscript><button class="btn s">{{ _('Guardar') }}</button></noscript></form>{% endif %}
+  </div></div></section>
+<section class="card flush"><div class="tw"><table class="t"><thead><tr><th>{{ _('Equipo') }}</th><th>{{ _('Instalada') }}</th><th>{{ _('Disponible') }}</th><th>{{ _('Qué mejora') }}</th><th>{{ _('Fuente') }}</th><th>{{ _('Descarga') }}</th></tr></thead><tbody>
+{% for r in fw_rows %}<tr>
+  <td><a href="/devices/{{ r.device_id }}#firmware"><b>{{ r.name }}</b></a></td>
+  <td class="mono">{{ r.current or '—' }}</td>
+  <td>{% if r.status == 'update' %}<span class="mono"><b>{{ r.target }}</b></span>{% if r.latest and r.latest != r.target %}<div class="muted sm">{{ _f('más reciente: {0}', r.latest) }}</div>{% endif %}
+    {% elif r.status == 'current' %}<span class="pill ok">{{ _('Al día') }}</span>
+    {% elif r.status == 'error' %}<span class="pill warn" title="{{ r.detail }}">{{ _('No se pudo comprobar') }}</span>
+    {% else %}<span class="muted sm">{{ _('Sin fuente pública') if r.detail != 'nvd_behind' else _('NVD no la conoce') }}</span>{% endif %}</td>
+  <td class="sm">{% if r.status == 'update' %}{% if r.fixed is not none %}{% if r.fixed %}{{ _f('Corrige {0} CVE', r.fixed|length) }}{% if r.fixed_crit %} <span class="tag crit">{{ _f('{0} críticas', r.fixed_crit) }}</span>{% endif %}{% else %}{{ _('Sin CVE corregidos') }}{% endif %}{% endif %}
+    {% if r.changelog or r.notes_url %}<div><a href="{{ '/devices/%d#firmware'|format(r.device_id) if r.changelog else r.notes_url }}"{% if not r.changelog %} target="_blank" rel="noopener"{% endif %}>{{ _('Ver novedades') }}</a></div>{% endif %}{% else %}—{% endif %}</td>
+  <td class="sm">{{ _(fw_labels.get(r.source, '')) if r.source else '—' }}</td>
+  <td class="sm">{% if r.status == 'update' %}{% if r.download_url %}<a class="btn s" href="/devices/{{ r.device_id }}#firmware">{{ icon('dl', 's') }}{{ _('Descargar') }}</a>{% else %}<span class="muted">{{ _('Requiere cuenta del fabricante') }}</span>{% endif %}{% else %}—{% endif %}</td>
+</tr>{% else %}<tr><td colspan="6"><div class="empty">{{ empty_art('search') }}<h2>{{ _('Aún no se ha comprobado') }}</h2><p>{{ _('OpenNCCM busca versiones nuevas una vez al día. Usa «Comprobar todos ahora» para hacerlo ya.') }}</p></div></td></tr>{% endfor %}
 </tbody></table></div></section>
 </div>
 
@@ -65,6 +91,10 @@
 </div></div>
 <script>
 (function () {
+  const poll = document.querySelector('[data-fw-poll]');  // «Comprobar todos ahora»: recargar al terminar
+  if (poll) { const tick = () => fetch(poll.dataset.fwPoll, {cache: 'no-store'}).then(r => r.ok ? r.json() : null)
+    .then(j => { if (j && !j.running) { location.hash = 'disponibles'; location.reload(); } else setTimeout(tick, 4000); })
+    .catch(() => setTimeout(tick, 6000)); setTimeout(tick, 4000); }
   document.addEventListener('oc-tab', e => document.querySelectorAll('[data-tab-only]').forEach(el => { el.hidden = el.dataset.tabOnly !== e.detail; }));
   const sel = document.getElementById('fwsel'); if (!sel) return;
   const T = {{ {'n': _('Equipos compatibles ({0})')}|tojson }};
