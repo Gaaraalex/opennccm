@@ -23,6 +23,10 @@
       <div class="field"><span class="fl">Densidad de tablas</span><div class="seg" role="group" aria-label="{{ _('Densidad de tablas') }}">{% for k, l in [('comfy', _('Cómoda')), ('compact', _('Compacta'))] %}<button type="button" class="{{ 'on' if (user.density or 'comfy') == k }}" data-density="{{ k }}" aria-pressed="{{ 'true' if (user.density or 'comfy') == k else 'false' }}">{{ l }}</button>{% endfor %}</div></div>
       <div class="field" id="idioma"><span class="fl">Idioma</span><div class="seg">{% for code, name in LANGS.items() %}<a class="{{ 'on' if get_lang() == code }}" href="/lang/{{ code }}?next=/account%23idioma" lang="{{ code }}" hreflang="{{ code }}"{{ ' aria-current="true"'|safe if get_lang() == code }}>{{ name }}</a>{% endfor %}</div>
         </div></div>
+    <div class="field" style="margin-top:18px"><span class="fl">{{ _('Vista previa de la densidad') }}</span>
+      <div class="card flush" style="overflow:hidden;max-width:520px" aria-hidden="true"><table class="t"><tbody>
+        {% for n, h, v in [('CORE-SW1', '10.0.0.1', 'CIS'), ('FW-Borde', '10.0.0.2', 'FOR'), ('MK-Sucursal', '10.0.0.3', 'MIK')] %}<tr><td><div class="dev"><span class="vend">{{ v }}</span><div>{{ n }}<div class="muted sm" style="font-weight:400">{{ h }}</div></div></div></td><td class="muted sm">{{ _('respaldado hace 2 h') }}</td></tr>{% endfor %}
+      </tbody></table></div></div>
   </section>
 
   <section class="card c5" id="dospasos"><div class="card-h"><h2>Verificación en dos pasos</h2>{% if user.totp_enabled %}<span class="pill ok">Activa</span>{% else %}<span class="pill warn">Sin activar</span>{% endif %}</div>
@@ -51,9 +55,10 @@
 (function () {
   document.querySelectorAll('[data-set-theme]').forEach(l => l.addEventListener('click', () => {
     document.querySelectorAll('.tcard').forEach(x => x.classList.toggle('on', x === l)); }));
-  document.querySelectorAll('[data-density]').forEach(b => b.addEventListener('click', () => {
+  // solo los botones: <html> también tiene data-density y, con «[data-density]», cualquier clic en la página guardaba
+  document.querySelectorAll('button[data-density]').forEach(b => b.addEventListener('click', () => {
     document.documentElement.dataset.density = b.dataset.density;
-    document.querySelectorAll('[data-density]').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)); });
+    document.querySelectorAll('button[data-density]').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)); });
     if (window.ocSavePref) window.ocSavePref({density: b.dataset.density});
   }));
   const a = document.getElementById('pw-new'), b = document.getElementById('pw-new2'), ul = document.getElementById('pwrules');
