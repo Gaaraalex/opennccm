@@ -12,6 +12,8 @@
       <button type="button" class="tbtn" style="width:30px;height:30px" id="peek" aria-controls="password" aria-pressed="false"
               aria-label="Mostrar la contraseña" title="Mostrar la contraseña">{{ icon('eye', 's') }}</button></div>
     <span class="help" id="caps" hidden role="alert" style="color:var(--warn)">Bloq Mayús está activado</span></div>
+  {% if remember_days %}<label class="ck" for="remember"><input type="checkbox" id="remember" name="remember"> {{ _f('Recordarme en este equipo ({0} días)', remember_days) }}</label>
+  <p class="muted sm" style="margin-top:-8px">{{ _('Recuerda tu usuario y mantiene la sesión abierta. No lo uses en equipos compartidos.') }}</p>{% endif %}
   <button type="submit" class="btn pri" style="height:46px;font-size:15px">Entrar</button>
 </form>
 <script>
@@ -26,7 +28,13 @@
     pw.focus();
   });
   pw.addEventListener('keyup', function (e) { caps.hidden = !(e.getModifierState && e.getModifierState('CapsLock')); });
-  document.getElementById('login-form').addEventListener('submit', function () { pw.type = 'password'; });
+  const user = document.getElementById('username'), rem = document.getElementById('remember');
+  // «Recordarme»: solo se guarda el nombre de usuario en este navegador (nunca la contraseña)
+  try { const u = localStorage.getItem('oc-user'); if (u && rem && !user.value) { user.value = u; rem.checked = true; pw.focus(); } } catch (e) {}
+  document.getElementById('login-form').addEventListener('submit', function () {
+    pw.type = 'password';
+    try { if (rem && rem.checked) localStorage.setItem('oc-user', user.value.trim()); else localStorage.removeItem('oc-user'); } catch (e) {}
+  });
 })();
 </script>
 {% endblock %}

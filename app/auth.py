@@ -39,15 +39,34 @@ def clear_settings_cache():
     _settings_cache.clear()
 
 
+SESSION_HOURS = 12      # una sesión normal dura como mucho esto (y se cierra antes por inactividad)
+REMEMBER_MAX_DAYS = 30  # tope de «Recordarme» (también es la vida máxima de la cookie)
+
+
+def remember_days() -> int:
+    """Días que dura una sesión con «Recordarme» (0: la opción está desactivada en Ajustes)."""
+    try:
+        return min(max(int(cached_setting("remember_days", "14") or 0), 0), REMEMBER_MAX_DAYS)
+    except ValueError:
+        return 14
+
+
 def start_session(request: Request, user: User) -> None:
-    """Sesión nueva tras un ingreso correcto (contraseña y, si aplica, segundo paso)."""
+    """Sesión nueva tras un ingreso correcto (contraseña y, si aplica, segundo paso).
+    Con «Recordarme» (marcado en el formulario o guardado mientras se espera el segundo paso) dura varios días y no se
+    cierra por inactividad; si no, como mucho SESSION_HOURS horas y se cierra tras los minutos de inactividad."""
     lang = getattr(user, "lang", None) or request.session.get("lang")
+    remember = bool(getattr(request.state, "remember", False) or request.session.get("pending_rem")) and remember_days() > 0
     request.session.clear()
     if lang:
         request.session["lang"] = lang
+    now = int(time.time())
     request.session["uid"] = user.id
     request.session["sv"] = user.session_version or 0
-    request.session["seen"] = int(time.time())
+    request.session["seen"] = now
+    request.session["exp"] = now + (remember_days() * 86400 if remember else SESSION_HOURS * 3600)
+    if remember:
+        request.session["rem"] = 1
 
 
 def current_user(request: Request) -> User | None:
@@ -57,7 +76,11 @@ def current_user(request: Request) -> User | None:
     now = int(time.time())
     idle = int(cached_setting("session_idle_minutes", "30") or 30) * 60
     seen = int(request.session.get("seen", now))
-    if idle > 0 and now - seen > idle:  # cierre por inactividad
+    remembered = bool(request.session.get("rem")) and remember_days() > 0  # si se desactiva, vuelven a las reglas normales
+    exp = int(request.session.get("exp") or seen + SESSION_HOURS * 3600)
+    if remembered:
+        exp = min(exp, seen + remember_days() * 86400)  # bajar los días en Ajustes también acorta las ya abiertas
+    if now > exp or (not remembered and idle > 0 and now - seen > idle):  # caducidad o cierre por inactividad
         request.session.clear()
         request.session["expired"] = 1
         return None
