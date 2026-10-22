@@ -186,6 +186,10 @@ form.inline{display:inline-flex;margin:0}
 .input input:focus,.input select:focus{box-shadow:none;border:0}
 .input select{cursor:pointer}
 .input select option{background:var(--surface);color:var(--ink)}
+/* encabezados de grupo («A10 Networks», «Adtran»…): sin esto el navegador los pinta con fondo blanco y heredan el
+   texto claro del tema oscuro, y quedan en blanco */
+select optgroup{background:var(--surface-2);color:var(--muted);font-style:normal;font-weight:600}
+select optgroup option,select option{background:var(--surface);color:var(--ink);font-weight:400}
 .input.mono input{font-family:var(--f-mono);font-size:13px}
 .field{display:flex;flex-direction:column;gap:6px;min-width:0}
 .field>label,.field>.fl{font-size:13px;font-weight:600;margin:0}
