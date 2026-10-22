@@ -87,7 +87,7 @@ async def lifespan(_app):
 app = FastAPI(title="OpenNCCM", lifespan=lifespan, docs_url=None, redoc_url=None)
 app.add_middleware(LangMiddleware)  # va dentro de la sesión: lee el idioma elegido
 app.add_middleware(SessionMiddleware, secret_key=session_secret(), same_site="strict",
-                   https_only=os.environ.get("NCM_SECURE_COOKIE", "0") == "1", max_age=12 * 3600,
+                   https_only=os.environ.get("NCM_SECURE_COOKIE", "0") == "1", max_age=30 * 24 * 3600,  # cada sesión lleva su caducidad (auth.start_session)
                    session_cookie="opennccm")
 
 # Cabeceras de seguridad en todas las respuestas (también sin nginx)
@@ -141,7 +141,9 @@ ACCOUNT_LOCK_MINUTES = 15
 def login_form(request: Request):
     if request.session.pop("expired", None):
         flash(request, _("Su sesión se cerró por inactividad. Vuelva a ingresar."), "error")
+    from .auth import remember_days
     return render(request, "login.html", None, ca_available=TLS_CA.is_file(), oidc=extauth.oidc_enabled(),
+                  remember_days=remember_days(),
                   oidc_label=get_setting("oidc_button", "") or _("Entrar con Microsoft"), ldap=extauth.ldap_enabled())
 
 
@@ -165,6 +167,7 @@ async def login(request: Request):
         flash(request, _("Demasiados intentos desde su dirección. Espere 15 minutos."), "error")
         return go("/login")
     username, password = form.get("username", "").strip(), form.get("password", "")
+    request.state.remember = form.get("remember") == "on"  # «Recordarme» (auth.start_session)
     with SessionLocal() as db:
         user = db.scalars(select(User).where(User.username == username)).first()
         if user is None and "@" in username:  # cuentas de Azure / AD guardadas en minúsculas
@@ -188,6 +191,7 @@ async def login(request: Request):
                 request.session.clear()
                 request.session["pending_uid"] = user.id
                 request.session["pending_at"] = int(time.time())
+                request.session["pending_rem"] = int(bool(request.state.remember))  # se aplica tras el segundo paso
                 return go("/login/2fa")
             _finish_login(request, db, user, addr)
             return go("/")
@@ -223,6 +227,7 @@ def _external_ok(request: Request, db, user: User, addr: str, source: str):
         request.session.clear()
         request.session["pending_uid"] = user.id
         request.session["pending_at"] = int(time.time())
+        request.session["pending_rem"] = int(bool(getattr(request.state, "remember", False)))
         return go("/login/2fa")
     _finish_login(request, db, user, addr)
     return go("/")
@@ -2169,7 +2174,7 @@ SETTING_KEYS = ["smtp_host", "smtp_port", "smtp_security", "smtp_user", "smtp_fr
                 "webhook_url", "telegram_token", "telegram_chat_id", "alert_min_severity", "require_approval",
                 "allow_self_approval", "notify_compliance", "retention_versions", "cisco_api_client_id",
                 "dr_keep", "dr_remote_host", "dr_remote_port", "dr_remote_user", "dr_remote_path",
-                "session_idle_minutes", "require_2fa_admins", "console_access", "console_autologin", "update_check",
+                "session_idle_minutes", "remember_days", "require_2fa_admins", "console_access", "console_autologin", "update_check",
                 "org_name", "org_contact", "org_address", "default_lang",
                 "ldap_enabled", "ldap_url", "ldap_starttls", "ldap_verify_tls", "ldap_bind_dn", "ldap_base_dn",
                 "ldap_user_filter", "ldap_group_admin", "ldap_group_operator", "ldap_group_viewer", "ldap_default_role",
@@ -2178,7 +2183,7 @@ SETTING_KEYS = ["smtp_host", "smtp_port", "smtp_security", "smtp_user", "smtp_fr
 CHECKBOX_KEYS = ("require_approval", "allow_self_approval", "notify_compliance", "require_2fa_admins",
                  "console_autologin", "update_check", "ldap_enabled", "ldap_starttls", "ldap_verify_tls", "oidc_enabled")
 # valores por defecto cuando el ajuste nunca se guardó
-SETTING_DEFAULTS = {"allow_self_approval": "1", "session_idle_minutes": "30", "require_2fa_admins": "0",
+SETTING_DEFAULTS = {"allow_self_approval": "1", "session_idle_minutes": "30", "remember_days": "14", "require_2fa_admins": "0",
                     "console_access": "admin", "console_autologin": "0", "update_check": "1",
                     "ldap_verify_tls": "1", "ldap_user_filter": "(&(objectClass=user)(sAMAccountName={username}))"}
 SECRET_FORM_KEYS = ["smtp_password", "cisco_api_secret", "dr_remote_password", "ldap_bind_password", "oidc_client_secret"]
@@ -2232,6 +2237,11 @@ async def settings_save(request: Request):
             continue
         if k in CHECKBOX_KEYS:
             set_setting(k, "1" if form.get(k) == "on" else "0")
+        elif k == "remember_days":
+            if k not in form:  # formulario sin este campo (otra página o una versión anterior): no se toca
+                continue
+            v = (form.get(k) or "0").strip()
+            set_setting(k, str(min(max(int(v), 0), 30)) if v.isdigit() else "14")
         elif k == "session_idle_minutes":
             v = (form.get(k) or "30").strip()
             set_setting(k, str(min(max(int(v), 5), 720)) if v.isdigit() else "30")

@@ -100,6 +100,9 @@ time.sleep(1)
 html = adm.get(B + "/").text
 check("aviso emergente de actualización para administradores", 'id="upd-popup"' in html and "99.0.0" in html)
 check("el lector no ve el aviso", 'id="upd-popup"' not in lec.get(B + "/").text)
+_pop = html[html.find('id="upd-popup"'):html.find("</dialog>", html.find('id="upd-popup"'))]
+check("sin el servicio de actualización web, el aviso lleva a «Cómo actualizar» (y ya no a un enlace que no hacía nada)",
+      "Cómo actualizar" in _pop and "data-upd-go" in _pop and "Ver y actualizar" not in _pop)
 r = adm.post(B + "/system/update/dismiss")
 check("«Más tarde» cierra el aviso", r.status_code == 204)
 check("tras «Más tarde» no vuelve a salir en esta sesión", 'id="upd-popup"' not in adm.get(B + "/").text)

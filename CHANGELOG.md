@@ -1,5 +1,23 @@
 # Historial de versiones
 
+## 2.5.0
+- **«Recordarme en este equipo»** en el inicio de sesión:
+  - recuerda el usuario en ese navegador y mantiene la sesión abierta varios días (14 por omisión), aunque se cierre el
+    navegador y sin cierre por inactividad;
+  - la contraseña no la guarda OpenNCCM: el formulario permite que la guarde el gestor de contraseñas del navegador;
+  - en Ajustes se elige la duración (1 a 30 días; 0 quita la opción). Bajarla acorta también las sesiones ya abiertas, y
+    cambiar la contraseña las cierra todas;
+  - funciona con la verificación en dos pasos, Active Directory y Microsoft Entra ID.
+- **Aviso «Actualización disponible»**: su botón principal no hacía nada si ya se estaba en Sistema (solo cambiaba el
+  ancla de la página y el aviso seguía tapándola).
+  - Si el servidor puede actualizarse desde la web, el aviso tiene un botón «Actualizar ahora» que inicia la actualización
+    (copia previa y vuelta atrás automática si falla).
+  - «Ver detalles» o «Cómo actualizar» cierran el aviso y llevan a la sección Actualizaciones.
+- **Densidad de tablas**: la opción «Compacta» casi no se notaba. Ahora acorta también las filas de Dispositivos, Cambios
+  y Alarmas, y Mi cuenta muestra una vista previa. Además, cualquier clic en Mi cuenta volvía a guardar la preferencia.
+- **Selector de fabricante** al agregar o editar un equipo: los nombres de grupo («A10 Networks», «Adtran»…) salían en
+  blanco en el tema oscuro y casi ilegibles en el claro. Ahora usan los colores del tema con buen contraste.
+
 ## 2.4.1
 - **«Corregir» ya no propone direcciones de ejemplo.** Algunas reglas de los paquetes de VOSS, Ubiquiti, MikroTik, Junos
   y FortiGate traían como corrección comandos con direcciones de documentación (192.0.2.x) o servidores que dependen de
