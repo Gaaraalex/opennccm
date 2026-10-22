@@ -67,6 +67,18 @@ webupdate)
   systemctl is-enabled opennccm-webupdate.path >/dev/null || fail "opennccm-webupdate.path no está habilitado"
   sudo rm -f /var/lib/opennccm/update.log
   login
+  # el aviso emergente de «Actualización disponible» tiene que ofrecer el botón que actualiza (antes solo enlazaba a
+  # /system#actualizaciones y, estando ya en Sistema, no hacía nada)
+  db=/var/lib/opennccm/opennccm.db
+  sudo sqlite3 "$db" "INSERT OR REPLACE INTO settings(key, value) VALUES ('update_latest', '99.0.0')"
+  sleep 1
+  page=$(curl -sk -b "$JAR" $B/system)
+  sudo sqlite3 "$db" "DELETE FROM settings WHERE key = 'update_latest'"
+  popup=$(printf '%s' "$page" | sed -n '/id="upd-popup"/,/<\/dialog>/p')
+  [[ -n $popup ]] || fail "no apareció el aviso de actualización disponible"
+  grep -q 'action="/system/update"' <<<"$popup" || fail "el aviso no tiene el formulario que actualiza"
+  grep -q 'Actualizar ahora' <<<"$popup" || fail "el aviso no tiene el botón «Actualizar ahora»"
+  echo "OK el aviso ofrece «Actualizar ahora»"
   loc=$(curl -sk -b "$JAR" -o /dev/null -w '%{redirect_url}' -X POST $B/system/update)
   [[ $loc == */system/updating ]] || fail "no se abrió la página de progreso ($loc)"
   for _ in $(seq 1 180); do

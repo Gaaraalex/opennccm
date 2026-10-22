@@ -134,9 +134,12 @@
   <div class="row"><span class="qi info">{{ icon('spark') }}</span><h2 class="grow" id="upd-title">Actualización disponible</h2></div>
   <p>Hay una versión nueva de OpenNCCM: <b>{{ update_popup.latest }}</b> (instalada: {{ update_popup.current }}).</p>
   {% if update_popup.notes %}<pre class="cv" style="padding:10px 12px;white-space:pre-wrap;max-height:220px">{{ update_popup.notes[:1500] }}</pre>{% endif %}
-  <div class="row end"><button type="button" class="btn ghost" id="upd-later">Más tarde</button>
+  {% if update_popup.web_update %}<p class="muted sm">{{ _('Se hará una copia previa y OpenNCCM se detendrá 1-2 minutos. Si la versión nueva no arranca, se vuelve sola a la anterior.') }}</p>{% endif %}
+  <form method="post" action="/system/update" style="margin:0"><div class="row end"><button type="button" class="btn ghost" id="upd-later">Más tarde</button>
     {% if update_popup.url %}<a class="btn" href="{{ update_popup.url }}" target="_blank" rel="noopener">Novedades en GitHub</a>{% endif %}
-    <a class="btn pri" href="/system#actualizaciones">Ver y actualizar</a></div>
+    {% if update_popup.web_update %}<a class="btn" href="/system#actualizaciones" data-upd-go>{{ _('Ver detalles') }}</a>
+    <button class="btn pri">{{ icon('spark', 's') }}{{ _('Actualizar ahora') }}</button>
+    {% else %}<a class="btn pri" href="/system#actualizaciones" data-upd-go>{{ _('Cómo actualizar') }}</a>{% endif %}</div></form>
 </dialog>
 <script>
 (function () {
@@ -146,6 +149,15 @@
   const later = () => { fetch('/system/update/dismiss', {method: 'POST', credentials: 'same-origin'}); d.close(); };
   document.getElementById('upd-later').addEventListener('click', later);
   d.addEventListener('cancel', later);
+  // «Ver detalles» / «Cómo actualizar»: en la propia página de Sistema el enlace solo cambiaba el #ancla y el aviso
+  // (modal) seguía tapando todo; ahora se cierra el aviso y se va a la sección, también desde otras páginas
+  d.querySelectorAll('[data-upd-go]').forEach(a => a.addEventListener('click', e => {
+    e.preventDefault();
+    later();
+    const target = document.getElementById('actualizaciones');
+    if (location.pathname === '/system' && target) { history.replaceState(null, '', '#actualizaciones'); target.scrollIntoView({behavior: 'smooth', block: 'start'}); }
+    else location.href = a.getAttribute('href');
+  }));
 })();
 </script>
 {% endif %}
