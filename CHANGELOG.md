@@ -1,5 +1,16 @@
 # Historial de versiones
 
+## 2.6.0
+- **Paginador** debajo de las listas de Cumplimiento, Vulnerabilidades, Alarmas, Usuarios, Credenciales, Grupos y Auditoría:
+  - 15 por página por omisión, con la opción de ver 25, 50 o 100;
+  - la elección no se guarda: al salir de la página vuelve a 15;
+  - en Alarmas, los filtros (severidad, «Sin reconocer») se mantienen al cambiar de página.
+- **Cumplimiento y Vulnerabilidades vuelven a verse como en la 2.4.1.** La densidad «Compacta» de la 2.5.0 también
+  cambiaba esas tablas; ahora solo acorta Dispositivos, Cambios y Alarmas, como se pidió.
+- **«Recordarme»** ahora pide además al gestor de contraseñas del navegador que guarde la contraseña (OpenNCCM no la guarda).
+  Los navegadores solo lo hacen si confían en el certificado del servidor: si muestran «No es seguro», instala el
+  certificado con el enlace del inicio de sesión.
+
 ## 2.5.0
 - **«Recordarme en este equipo»** en el inicio de sesión:
   - recuerda el usuario en ese navegador y mantiene la sesión abierta varios días (14 por omisión), aunque se cierre el

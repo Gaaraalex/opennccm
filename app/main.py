@@ -1881,7 +1881,7 @@ EV_SEV = {"crit": ("critical",), "major": ("major", "error"), "minor": ("warning
 
 
 @app.get("/events")
-def events(request: Request, sev: str = "", unack: int | None = None, page: int = 1):
+def events(request: Request, sev: str = "", unack: int | None = None, page: int = 1, per: int = 15):
     """Alarmas y eventos (prototipo): chips por severidad con recuento, «Sin reconocer / Todas» y cola."""
     from .web import _event_title
     user = require(request)
@@ -1906,13 +1906,17 @@ def events(request: Request, sev: str = "", unack: int | None = None, page: int 
             stmt = stmt.where(Event.severity.in_(EV_SEV[sev]))
         elif sev:  # compatibilidad con enlaces antiguos (?sev=critical)
             stmt = stmt.where(Event.severity == sev)
-        items = db.scalars(stmt.offset((page - 1) * 100).limit(100)).all()
+        per = per if per in (15, 25, 50, 100) else 15  # 15 por omisión; el tamaño va en el enlace, no se guarda
+        shown = db.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0
+        pages = max(1, -(-shown // per))
+        page = min(max(page, 1), pages)
+        items = db.scalars(stmt.offset((page - 1) * per).limit(per)).all()
         for e in items:
             e.device.name if e.device else None  # carga la relación antes de cerrar la sesión
             e.title = _event_title(e)
         open_n = db.scalar(select(func.count(Event.id)).where(Event.acknowledged.is_(False),
                                                               *([Event.device_id.in_(scope)] if scope is not None else []))) or 0
-    return render(request, "events.html", user, items=items, sev=sev, unack=unack, page=page, counts=counts,
+    return render(request, "events.html", user, items=items, sev=sev, unack=unack, page=page, per=per, shown=shown, pages=pages, counts=counts,
                   total=total, open_n=open_n, min_sev=get_setting("alert_min_severity", "warning"))
 
 

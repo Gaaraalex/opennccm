@@ -1,0 +1,15 @@
+{# Paginador en el servidor (mismo aspecto que el de shell.js). «qs»: el resto de parámetros de la página.
+   El tamaño (15 por omisión; 25/50/100) solo viaja en el enlace: al salir de la página vuelve a 15. #}
+{% macro pager(page, pages, per, shown, qs) %}{% if shown %}
+<nav class="pager" aria-label="{{ _('Paginación') }}">
+  <span class="pg-info">{{ _f('Mostrando {0}–{1} de {2}', (page - 1) * per + 1, [page * per, shown]|min, shown) }}</span>
+  {% if pages > 1 %}<span class="pg-pages">
+    <a href="?{{ qs }}&amp;per={{ per }}&amp;page={{ page - 1 }}"{% if page == 1 %} class="off" aria-disabled="true" tabindex="-1"{% endif %} aria-label="{{ _('Página anterior') }}">{{ icon('left', 's') }}</a>
+    {% set ns = namespace(last=0) %}{% for k in range(1, pages + 1) if k == 1 or k == pages or (k - page)|abs <= 1 %}
+    {% if k - ns.last > 1 %}<span class="gap" aria-hidden="true">…</span>{% endif %}
+    <a href="?{{ qs }}&amp;per={{ per }}&amp;page={{ k }}"{% if k == page %} aria-current="page"{% endif %} aria-label="{{ _f('Página {0}', k) }}">{{ k }}</a>{% set ns.last = k %}{% endfor %}
+    <a href="?{{ qs }}&amp;per={{ per }}&amp;page={{ page + 1 }}"{% if page == pages %} class="off" aria-disabled="true" tabindex="-1"{% endif %} aria-label="{{ _('Página siguiente') }}">{{ icon('right', 's') }}</a></span>{% endif %}
+  <form method="get" class="pg-per" style="margin:0">{% for k, v in qs_items(qs) %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    <label>{{ _('Por página') }} <select name="per" onchange="this.form.submit()">{% for s in (15, 25, 50, 100) %}<option{% if s == per %} selected{% endif %}>{{ s }}</option>{% endfor %}</select></label>
+    <noscript><button class="btn s">{{ _('Aplicar') }}</button></noscript></form>
+</nav>{% endif %}{% endmacro %}

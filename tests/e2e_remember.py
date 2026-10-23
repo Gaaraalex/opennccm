@@ -52,6 +52,8 @@ check("inicio de sesión: casilla «Recordarme» con los días", 'name="remember
 check("el navegador puede guardar la contraseña (autocompletado de usuario y contraseña actual)",
       'autocomplete="username"' in page and 'autocomplete="current-password"' in page)
 check("la página avisa de no usarlo en equipos compartidos", "No lo uses en equipos compartidos" in page)
+check("con «Recordarme» se pide al navegador que guarde la contraseña (gestor del navegador, no OpenNCCM)",
+      "PasswordCredential" in page and "navigator.credentials.store" in page)
 
 s = requests.Session()
 r = s.post(B + "/login", data={"username": "admin", "password": "Admin12345", "remember": "on"}, allow_redirects=False)

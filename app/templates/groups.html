@@ -3,7 +3,7 @@
 {% block content %}
 {% include "_admin_tabs.html" %}
 <section class="card flush"><div class="card-h"><h2>Grupos de dispositivos</h2><span class="muted sm">Sirven para filtrar, programar tareas y limitar qué equipos ve cada usuario.</span></div>
-  {% if groups %}<div class="tw"><table class="t"><tbody>
+  {% if groups %}<div class="tw"><table class="t"><tbody data-pager>
   {% for g in groups %}<tr><td><div class="dev">{{ icon('folder', 's') }}{{ g.name }}</div></td><td class="muted">{{ _('1 equipo') if counts.get(g.id, 0) == 1 else _f('{0} equipos', counts.get(g.id, 0)) }}</td>
     <td><div class="acts"><a class="btn s ghost" href="/devices?group={{ g.id }}">Ver equipos</a>
       <button type="button" class="btn s icon" data-dialog="grp-del-{{ g.id }}" aria-label="{{ _f('Eliminar {0}', g.name) }}" title="Eliminar">{{ icon('trash', 's') }}</button>

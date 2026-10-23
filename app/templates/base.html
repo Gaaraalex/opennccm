@@ -105,7 +105,9 @@
 <template id="help-tpl"><div class="row"><h2 class="grow">Atajos de teclado</h2><button type="button" class="tbtn" data-close aria-label="Cerrar">{{ icon('x') }}</button></div>
   <dl class="kv">{% for k, d in [('Ctrl K', _('Buscar o ir a cualquier sitio')), ('/', _('También abre la búsqueda')), ('g p', _('Ir al Panel')), ('g d', _('Ir a Dispositivos')), ('g c', _('Ir a Cambios')), ('g a', _('Ir a Alarmas')), ('n / p', _('Cambio siguiente o anterior en una comparación')), ('Esc', _('Cerrar panel o diálogo')), ('?', _('Esta ayuda'))] %}<dt><kbd>{{ k }}</kbd></dt><dd>{{ d }}</dd>{% endfor %}</dl></template>
 <script>window.OC = {{ {'admin': user.role == 'admin', 'op': user.role != 'viewer',
-  't': {'pages': _('Páginas'), 'devices': _('Equipos'), 'actions': _('Acciones'), 'configs': _('En configuraciones'),
+  't': {'pg_label': _('Paginación'), 'pg_info': _('Mostrando {0}–{1} de {2}'), 'pg_prev': _('Página anterior'),
+        'pg_next': _('Página siguiente'), 'pg_per': _('Por página'), 'pg_page': _('Página {0}'),
+        'pages': _('Páginas'), 'devices': _('Equipos'), 'actions': _('Acciones'), 'configs': _('En configuraciones'),
         'search_in': _('Buscar «{0}» en las configuraciones'), 'none': _('Nada coincide con «{0}».'), 'close': _('Cerrar'),
         'go': _('Ir a'), 'device': _('Equipo'), 'config': _('Configuración'), 'line': _('línea {0}'),
         'ph': _('Equipos, IPs, texto en configuraciones, páginas o acciones…'), 'move': _('moverse'), 'open': _('abrir'),
