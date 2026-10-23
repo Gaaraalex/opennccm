@@ -253,6 +253,13 @@ def _normalize_for_compare(text: str) -> list[str]:
             if l.strip() and not re.match(r"^\s*(!|#|Building|Current configuration|Using \d+ out of)", l)]
 
 
+def same_config(prev_text: str, new_clean: str, prof) -> bool:
+    """¿La versión guardada es igual a la nueva si se limpia con las reglas actuales? Las versiones guardadas antes de
+    ampliar las líneas que se ignoran (fechas, horas, tiempo encendido) aún las contienen: sin esto, el primer respaldo
+    tras actualizar OpenNCCM las vería como un cambio."""
+    return compare_text(clean_config(prev_text, prof)) == compare_text(new_clean)
+
+
 # --------------------------------------------------------------------------- respaldo
 def backup_device(device_id: int, trigger="manual", username: str | None = None) -> str:
     lock = device_lock(device_id)
@@ -346,9 +353,9 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
 
         sha = hashlib.sha256(compare_text(running).encode()).hexdigest()
         prev = latest_version(db, dev.id)
-        changed = prev is None or prev.sha256 != sha
-        result = "unchanged"
         prev_text = decrypt(prev.content_enc) if prev else ""
+        changed = prev is None or (prev.sha256 != sha and not same_config(prev_text, running, prof))
+        result = "unchanged"
         if changed:
             added, removed = diff_stats(prev_text, running) if prev else (len(running.splitlines()), 0)
             db.add(ConfigVersion(device_id=dev.id, kind="running", content_enc=encrypt(running), sha256=sha,

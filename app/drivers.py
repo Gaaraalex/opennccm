@@ -58,7 +58,8 @@ CISCO_IGNORE = [
 ]
 
 # Broadcom FastPath (EdgeSwitch, UniFi Switch): líneas del encabezado que cambian en cada lectura
-FASTPATH_IGNORE = [r"^!System Up Time", r"^!Current SNTP Synchronized Time", r"^!Current Configuration:"]
+FASTPATH_IGNORE = [r"^!\s*System Up Time", r"^!\s*Current SNTP Synchronized Time", r"^!\s*Current Configuration:",
+                   r"^!\s*Config Created Time"]
 # «show version» de FastPath usa relleno con puntos («Serial Number....... X»); parse_inventory lo convierte a «:»
 FASTPATH_VERSION = [r"Software Version\s*:\s*(\S+)"]
 FASTPATH_MODEL = [r"Machine Model\s*:\s*(.+)", r"Machine Type\s*:\s*(.+)"]
@@ -474,7 +475,13 @@ def get_profile(key: str) -> Profile:
 # Líneas de comentario con fecha/hora o contadores que muchos fabricantes añaden al mostrar la configuración.
 # Se quitan en todas las plataformas: no son configuración y generarían un «cambio» en cada respaldo.
 GLOBAL_IGNORE = [
-    r"^!System Up Time", r"^!Current SNTP Synchronized Time",                     # Broadcom FastPath, Dell, Netgear
+    r"^!\s*System Up Time", r"^!\s*Current SNTP Synchronized Time",              # Broadcom FastPath, Dell, Netgear
+    r"^!\s*Config Created Time",                                                 # Ubiquiti EdgeSwitch, FastPath
+    # Cualquier marca: líneas de COMENTARIO (empiezan por !, #, ; o //) con una hora («14:00:09») o un tiempo encendido
+    # («174 days, 10 hours…») junto a una palabra de fecha u hora. Son cabeceras que el equipo reescribe en cada lectura;
+    # la configuración real nunca está en un comentario, así que no se pierde nada.
+    r"(?i)^\s*(!|#|;|//).*\b(up ?time|time|date|created|generated|modified|updated|saved|changed|exported|written|"
+    r"last|current)\b.*(\b\d{1,2}:\d{2}(:\d{2})?\b|\b\d+\s*(days?|hours?|hrs?|mins?|minutes?|secs?|seconds?)\b)",
     r"^## Last (commit|changed)", r"^## Generated at ",                           # Junos, Mellanox
     r"^!Last configuration was (updated|saved)",                                  # Huawei
     r"^# \w{3}/\d{2}/\d{4} \d{2}:\d{2}:\d{2} by RouterOS",                        # MikroTik 6.x
