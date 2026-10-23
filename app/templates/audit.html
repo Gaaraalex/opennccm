@@ -4,7 +4,7 @@
 {% include "_admin_tabs.html" %}
 <div class="row"><form method="get" class="grow" style="max-width:360px"><label class="input" for="audq">{{ icon('search', 's') }}<input id="audq" name="q" value="{{ q }}" placeholder="{{ _('Buscar usuario, acción o IP') }}"></label></form>
   <span class="grow"></span><a class="btn" href="/reports/audit.csv?days=90">{{ icon('dl', 's') }}Exportar 90 días</a></div>
-<section class="card flush"><div class="tw"><table class="t"><thead><tr><th>Cuándo</th><th>Usuario</th><th>Acción</th><th>Desde</th></tr></thead><tbody>
+<section class="card flush"><div class="tw"><table class="t"><thead><tr><th>Cuándo</th><th>Usuario</th><th>Acción</th><th>Desde</th></tr></thead><tbody data-pager>
 {% for a in items %}<tr><td class="muted" style="white-space:nowrap" title="{{ a.created_at|dt }}">{{ a.created_at|ago }}</td><td>{{ a.username }}</td>
   <td><code>{{ a.action }}</code>{% if a.detail %} <span class="sm">{{ a.detail|truncate(160) }}</span>{% endif %}</td><td class="mono">{{ a.ip or '—' }}</td></tr>
 {% else %}<tr><td colspan="4"><div class="empty">{{ empty_art('search') }}<h2>Sin resultados</h2><p>Nada coincide con la búsqueda.</p></div></td></tr>{% endfor %}

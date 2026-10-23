@@ -228,6 +228,61 @@
     } else if (!w.classList.contains('err')) autoClose(w, 5200);
   });
   if (undo) undo.remove();
+  /* Paginador de listas largas: <tbody data-pager> (o <ul data-pager>). Muestra 15 por página; 25, 50 o 100 solo mientras
+     se está en esa página: no se guarda en ningún sitio, así que al salir y volver vuelve a 15. Las filas de «sin datos»
+     (.empty) no cuentan. Sin JavaScript se ven todas las filas, como antes. */
+  function pager(box) {
+    var size = 15, page = 1, sizes = [15, 25, 50, 100];
+    var rows = function () { return Array.prototype.filter.call(box.children, function (r) { return !r.querySelector('.empty'); }); };
+    var host = box.closest('.card') || box.closest('table') || box;
+    var bar = document.createElement('nav');
+    bar.className = 'pager';
+    bar.setAttribute('aria-label', T.pg_label || 'Paginación');
+    host.parentNode.insertBefore(bar, host.nextSibling);
+    var fmt = function (s, a) { return String(s).replace(/\{(\d)\}/g, function (_m, i) { return a[+i]; }); };
+    function draw() {
+      var all = rows(), n = all.length, pages = Math.max(1, Math.ceil(n / size));
+      if (page > pages) page = pages;
+      var from = (page - 1) * size;
+      all.forEach(function (r, i) { r.hidden = i < from || i >= from + size; });
+      bar.hidden = n === 0;
+      var nums = [], i;
+      for (i = 1; i <= pages; i++) if (i === 1 || i === pages || Math.abs(i - page) <= 1) nums.push(i);
+      var html = '<span class="pg-info">' + esc(fmt(T.pg_info || 'Mostrando {0}–{1} de {2}', [n ? from + 1 : 0, Math.min(n, from + size), n])) + '</span>';
+      if (pages > 1) {
+        html += '<span class="pg-pages"><button type="button" data-pg="' + (page - 1) + '"' + (page === 1 ? ' disabled' : '') +
+          ' aria-label="' + esc(T.pg_prev || 'Página anterior') + '">' + icon('left', 's') + '</button>';
+        var last = 0;
+        nums.forEach(function (k) {
+          if (k - last > 1) html += '<span class="gap" aria-hidden="true">…</span>';
+          html += '<button type="button" data-pg="' + k + '"' + (k === page ? ' aria-current="page"' : '') +
+            ' aria-label="' + esc(fmt(T.pg_page || 'Página {0}', [k])) + '">' + k + '</button>';
+          last = k;
+        });
+        html += '<button type="button" data-pg="' + (page + 1) + '"' + (page === pages ? ' disabled' : '') +
+          ' aria-label="' + esc(T.pg_next || 'Página siguiente') + '">' + icon('right', 's') + '</button></span>';
+      }
+      html += '<label class="pg-per">' + esc(T.pg_per || 'Por página') + ' <select>' + sizes.map(function (s) {
+        return '<option' + (s === size ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select></label>';
+      bar.innerHTML = html;
+    }
+    bar.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-pg]');
+      if (!b || b.disabled) return;
+      page = +b.getAttribute('data-pg');
+      draw();
+      host.scrollIntoView({block: 'nearest'});
+    });
+    bar.addEventListener('change', function (e) {
+      if (e.target.tagName !== 'SELECT') return;
+      size = +e.target.value;
+      page = 1;
+      draw();
+    });
+    draw();
+  }
+  $$('[data-pager]').forEach(pager);
+
   window.ocToast = function (msg, kind, sub) {
     var box = $('.toasts') || document.body.appendChild(Object.assign(document.createElement('div'), {className: 'toasts'}));
     var f = document.createElement('div');

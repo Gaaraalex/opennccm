@@ -13,7 +13,7 @@
               aria-label="Mostrar la contraseña" title="Mostrar la contraseña">{{ icon('eye', 's') }}</button></div>
     <span class="help" id="caps" hidden role="alert" style="color:var(--warn)">Bloq Mayús está activado</span></div>
   {% if remember_days %}<label class="ck" for="remember"><input type="checkbox" id="remember" name="remember"> {{ _f('Recordarme en este equipo ({0} días)', remember_days) }}</label>
-  <p class="muted sm" style="margin-top:-8px">{{ _('Recuerda tu usuario y mantiene la sesión abierta. No lo uses en equipos compartidos.') }}</p>{% endif %}
+  <p class="muted sm" style="margin-top:-8px">{{ _('Recuerda tu usuario y mantiene la sesión abierta. Tu navegador te ofrecerá guardar la contraseña. No lo uses en equipos compartidos.') }}</p>{% endif %}
   <button type="submit" class="btn pri" style="height:46px;font-size:15px">Entrar</button>
 </form>
 <script>
@@ -31,9 +31,21 @@
   const user = document.getElementById('username'), rem = document.getElementById('remember');
   // «Recordarme»: solo se guarda el nombre de usuario en este navegador (nunca la contraseña)
   try { const u = localStorage.getItem('oc-user'); if (u && rem && !user.value) { user.value = u; rem.checked = true; pw.focus(); } } catch (e) {}
-  document.getElementById('login-form').addEventListener('submit', function () {
+  const form = document.getElementById('login-form');
+  let saved = false;
+  form.addEventListener('submit', function (e) {
     pw.type = 'password';
-    try { if (rem && rem.checked) localStorage.setItem('oc-user', user.value.trim()); else localStorage.removeItem('oc-user'); } catch (e) {}
+    try { if (rem && rem.checked) localStorage.setItem('oc-user', user.value.trim()); else localStorage.removeItem('oc-user'); } catch (err) {}
+    // «Recordarme»: se pide al gestor de contraseñas del navegador que guarde usuario y contraseña (OpenNCCM no la
+    // guarda). Los navegadores solo lo permiten si el certificado es de confianza; si no, se entra igual.
+    if (saved || !rem || !rem.checked || !window.PasswordCredential || !navigator.credentials || !window.isSecureContext) return;
+    e.preventDefault();
+    saved = true;
+    const go = () => form.submit();
+    let cred = null;
+    try { cred = new PasswordCredential({id: user.value.trim(), password: pw.value, name: user.value.trim()}); } catch (err) {}
+    if (!cred) return go();
+    Promise.race([navigator.credentials.store(cred), new Promise(r => setTimeout(r, 1500))]).then(go, go);
   });
 })();
 </script>

@@ -60,6 +60,8 @@ def ago(d) -> str:
 
 
 templates.env.globals["icon"] = icon
+# parámetros de una consulta («sev=x&unack=1») como pares, para repetirlos en formularios GET (paginador de _pager.html)
+templates.env.globals["qs_items"] = lambda qs: __import__("urllib.parse").parse.parse_qsl(qs or "", keep_blank_values=True)
 
 
 def logo(size: int = 30):

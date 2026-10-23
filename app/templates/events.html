@@ -23,6 +23,5 @@
 {% elif unack %}<div class="empty">{{ empty_art('check') }}<h2>Sin alarmas</h2><p>Nada pendiente. Tu red está en orden.</p></div>
 {% else %}<div class="empty">{{ empty_art('plus') }}<h2>Aún no hay eventos</h2><p>Aquí aparecerán los respaldos fallidos, los cambios detectados por syslog y las alertas de cumplimiento.</p></div>{% endif %}
 </section>
-{% if page > 1 or items|length == 100 %}<div class="row end">{% if page > 1 %}<a class="btn s" href="?sev={{ sev }}&amp;unack={{ unack }}&amp;page={{ page - 1 }}">{{ icon('left', 's') }}Anterior</a>{% endif %}
-  {% if items|length == 100 %}<a class="btn s" href="?sev={{ sev }}&amp;unack={{ unack }}&amp;page={{ page + 1 }}">Siguiente{{ icon('right', 's') }}</a>{% endif %}</div>{% endif %}
+{% from "_pager.html" import pager %}{{ pager(page, pages, per, shown, 'sev=' ~ (sev|urlencode) ~ '&unack=' ~ unack) }}
 {% endblock %}

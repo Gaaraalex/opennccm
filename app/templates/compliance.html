@@ -9,7 +9,7 @@
 
 {% if matrix %}
 <section class="card flush"><div class="card-h"><h2>Mapa: equipo × política</h2><span class="muted sm">% de reglas cumplidas · clic para ver el equipo</span></div>
-  <div class="tw"><table class="t"><thead><tr><th>Equipo</th>{% for p in policies %}<th style="text-align:center" title="{{ p.name }}">{{ p.name|replace(' (IOS)', '')|replace(' (Junos)', '')|replace('Cisco IOS · ', '')|truncate(26) }}</th>{% endfor %}</tr></thead><tbody>
+  <div class="tw"><table class="t"><thead><tr><th>Equipo</th>{% for p in policies %}<th style="text-align:center" title="{{ p.name }}">{{ p.name|replace(' (IOS)', '')|replace(' (Junos)', '')|replace('Cisco IOS · ', '')|truncate(26) }}</th>{% endfor %}</tr></thead><tbody data-pager>
   {% for d, vals in matrix %}<tr class="click" data-href="/devices/{{ d.id }}#compliance"><td><div class="dev"><span class="vend">{{ vend[d.id] }}</span>{{ d.name }}</div></td>
     {% for v in vals %}<td style="text-align:center">{% if v is none %}<span class="muted sm">no aplica</span>{% else %}<span class="mc {{ 'ok' if v >= 90 else 'warn' if v >= 60 else 'crit' }}">{{ v }}%</span>{% endif %}</td>{% endfor %}</tr>{% endfor %}
   </tbody></table></div></section>

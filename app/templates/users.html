@@ -4,7 +4,7 @@
 {% include "_admin_tabs.html" %}
 {% set RN = {'admin': _('Administrador'), 'operator': _('Operador'), 'viewer': _('Lector')} %}
 <section class="card flush"><div class="card-h"><h2>Usuarios y roles</h2><a class="btn s pri" href="/users/new" data-sheet data-title="Crear usuario">{{ icon('plus', 's') }}Crear usuario</a></div>
-  <div class="tw"><table class="t"><thead><tr><th>Usuario</th><th>Rol</th><th>Equipos</th><th>Verificación en dos pasos</th><th>Último acceso</th><th><span class="vh">Acciones</span></th></tr></thead><tbody>
+  <div class="tw"><table class="t"><thead><tr><th>Usuario</th><th>Rol</th><th>Equipos</th><th>Verificación en dos pasos</th><th>Último acceso</th><th><span class="vh">Acciones</span></th></tr></thead><tbody data-pager>
   {% for u in items %}<tr class="click" data-href="/users/{{ u.id }}/edit">
     <td><div class="dev"><span class="av {{ '' if u.role == 'admin' else 'alt' }}" style="width:30px;height:30px;font-size:11px">{{ u.username[:2]|upper }}</span><div><b>{{ u.username }}</b>{% if u.id == user.id %} <span class="muted sm" style="font-weight:400">(tú)</span>{% endif %}<div class="muted sm" style="font-weight:400">{{ u.email or _('sin correo') }}</div></div></div></td>
     <td>{{ RN[u.role] }}{% if (u.auth_source or 'local') == 'ldap' %} <span class="tag" title="{{ _('Cuenta de Active Directory') }}">AD</span>{% elif u.auth_source == 'oidc' %} <span class="tag" title="{{ _('Cuenta de Microsoft Entra ID') }}">Microsoft</span>{% endif %}{% if not u.active %} <span class="pill crit">bloqueado</span>{% endif %}</td>

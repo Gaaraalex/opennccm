@@ -24,7 +24,7 @@
       <div class="field" id="idioma"><span class="fl">Idioma</span><div class="seg">{% for code, name in LANGS.items() %}<a class="{{ 'on' if get_lang() == code }}" href="/lang/{{ code }}?next=/account%23idioma" lang="{{ code }}" hreflang="{{ code }}"{{ ' aria-current="true"'|safe if get_lang() == code }}>{{ name }}</a>{% endfor %}</div>
         </div></div>
     <div class="field" style="margin-top:18px"><span class="fl">{{ _('Vista previa de la densidad') }}</span>
-      <div class="card flush" style="overflow:hidden;max-width:520px" aria-hidden="true"><table class="t"><tbody>
+      <div class="card flush" style="overflow:hidden;max-width:520px" aria-hidden="true"><table class="t dens-prev"><tbody>
         {% for n, h, v in [('CORE-SW1', '10.0.0.1', 'CIS'), ('FW-Borde', '10.0.0.2', 'FOR'), ('MK-Sucursal', '10.0.0.3', 'MIK')] %}<tr><td><div class="dev"><span class="vend">{{ v }}</span><div>{{ n }}<div class="muted sm" style="font-weight:400">{{ h }}</div></div></div></td><td class="muted sm">{{ _('respaldado hace 2 h') }}</td></tr>{% endfor %}
       </tbody></table></div></div>
   </section>

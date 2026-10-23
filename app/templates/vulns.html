@@ -15,7 +15,7 @@
 
 <div class="row">{% for key, l in [('all', _('Todos')), ('crit', _('Críticos')), ('major', _('Mayores')), ('minor', _('Menores')), ('kev', _('Explotados activamente'))] %}<a class="chip {{ 'on' if f == key }}" href="?f={{ key }}">{{ l }}</a>{% endfor %}</div>
 
-{% if rows %}<section class="card flush"><div class="tw"><table class="t"><thead><tr><th>CVE</th><th>CVSS</th><th>Severidad</th><th>Afecta a</th><th>Qué permite</th><th>Solución</th></tr></thead><tbody>
+{% if rows %}<section class="card flush"><div class="tw"><table class="t"><thead><tr><th>CVE</th><th>CVSS</th><th>Severidad</th><th>Afecta a</th><th>Qué permite</th><th>Solución</th></tr></thead><tbody data-pager>
 {% for g in rows %}{% set c = g.score or 0 %}
 <tr><td class="mono" style="white-space:nowrap"><a href="{{ g.url }}" target="_blank" rel="noopener" style="color:inherit">{{ g.id }}</a>{% if g.kev %}<div style="margin-top:4px"><span class="tag crit">explotado activamente</span></div>{% endif %}</td>
   <td>{% if g.score is not none %}<span class="mc num" style="background:var(--{{ 'crit' if c >= 9 else 'major' if c >= 7 else 'warn' }}-soft);color:var(--{{ 'crit' if c >= 9 else 'major' if c >= 7 else 'warn' }})">{{ '%.1f'|format(c) }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
