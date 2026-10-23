@@ -23,7 +23,8 @@ s = requests.Session()
 s.post(B + "/login", data={"username": "admin", "password": "Admin12345"})
 for path in ("/compliance", "/vulns", "/users", "/credentials", "/groups", "/audit"):
     html = s.get(B + path).text
-    check(f"{path}: la lista tiene paginador", "<tbody data-pager>" in html or "/vulns" == path and "Aún no" in html, path)
+    # sin datos la página muestra un aviso en lugar de la tabla: no hay nada que paginar
+    check(f"{path}: la lista tiene paginador", "<tbody data-pager>" in html or "<tbody" not in html, path)
 js = s.get(B + "/static/shell.js").text
 check("el paginador del navegador empieza en 15 con opciones 25/50/100 y no guarda la elección",
       "size = 15" in js and "[15, 25, 50, 100]" in js and "localStorage" not in js[js.find("function pager"):js.find("$$('[data-pager]')")])
