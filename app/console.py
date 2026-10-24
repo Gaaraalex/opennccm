@@ -113,16 +113,29 @@ async def _read_line(ws: WebSocket, prompt: str, secret: bool) -> str | None:
                     await ws.send_text(ch)
 
 
+async def _refuse(ws: WebSocket, why: str, log_detail: str):
+    """Rechaza la consola explicando el motivo en el propio terminal. Cerrar antes de aceptar la conexión hace que el
+    navegador solo vea un corte genérico («[Desconectado]») sin saber por qué."""
+    log.warning("Consola rechazada: %s", log_detail)
+    await ws.accept()
+    await ws.send_text("\r\n\x1b[31m" + why + "\x1b[0m\r\n")
+    await ws.close(code=1008)
+
+
 @router.websocket("/devices/{dev_id}/console/ws")
 async def console_ws(ws: WebSocket, dev_id: int):
     origin = ws.headers.get("origin")
     if origin and urlparse(origin).netloc != ws.headers.get("host"):
-        await ws.close(code=1008)  # otro sitio intentando abrir la consola
-        return
+        # otro sitio intentando abrir la consola, o un proxy que no reenvía la cabecera Host original
+        return await _refuse(ws, _f("No se pudo abrir la consola: la página se abrió como {0} pero el servidor recibió {1}. Si hay un proxy delante de OpenNCCM, debe reenviar la cabecera Host original.", urlparse(origin).netloc, ws.headers.get("host") or "?"),
+                             f"origen {origin!r} distinto de Host {ws.headers.get('host')!r}")
     user = current_user(ws)  # type: ignore[arg-type]  (misma sesión que las páginas)
-    if user is None or not console_allowed(user, dev_id):
-        await ws.close(code=1008)
-        return
+    if user is None:
+        return await _refuse(ws, _("No se pudo abrir la consola: la sesión caducó. Vuelva a iniciar sesión y abra la consola otra vez."),
+                             "sin sesión")
+    if not console_allowed(user, dev_id):
+        return await _refuse(ws, _("No se pudo abrir la consola: su usuario no tiene permiso (Ajustes › Consola SSH)."),
+                             f"{user.username} sin permiso para el equipo {dev_id}")
     await ws.accept()
     addr = ws.headers.get("x-real-ip") or (ws.client.host if ws.client else "")
     with SessionLocal() as db:

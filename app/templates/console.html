@@ -19,7 +19,8 @@
 <script src="/static/vendor/xterm/xterm.js?v={{ VERSION }}"></script>
 <script src="/static/vendor/xterm/addon-fit.js?v={{ VERSION }}"></script>
 <script>
-const T = {{ {'connecting': _('conectando…'), 'connected': _('conectado'), 'disconnected': _('desconectado'), 'closed': _('Desconectado'), 'denied': _('Desconectado: sin permiso para abrir esta consola')}|tojson }};
+const T = {{ {'connecting': _('conectando…'), 'connected': _('conectado'), 'disconnected': _('desconectado'), 'closed': _('Desconectado'), 'denied': _('Desconectado: sin permiso para abrir esta consola'),
+  'nows': _('No se pudo abrir la conexión con el servidor. Compruebe que OpenNCCM sigue en marcha y, si hay un proxy o un antivirus entre el navegador y el servidor, que permita conexiones WebSocket (wss://).')}|tojson }};
 (function () {
   const EMBED = {{ 'true' if embed else 'false' }};
   const estado = document.getElementById('estado');
@@ -44,11 +45,14 @@ const T = {{ {'connecting': _('conectando…'), 'connected': _('conectado'), 'di
     const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host +
       '/devices/{{ dev.id }}/console/ws?cols=' + term.cols + '&rows=' + term.rows;
     const sock = ws = new WebSocket(url);
-    sock.onopen = () => { state('connected'); term.focus(); };
+    let opened = false;
+    sock.onopen = () => { opened = true; state('connected'); term.focus(); };
     sock.onmessage = e => term.write(e.data);
     sock.onclose = e => {
       if (sock !== ws) return;  // una reconexión ya abrió otro
       state('disconnected');
+      // sin haber llegado a abrir: el servidor no aceptó la conexión o algo en el camino la bloqueó
+      if (!opened) term.write('\x1b[31m' + T.nows + '\x1b[0m\r\n');
       term.write('\r\n\x1b[90m[' + (e.code === 1008 ? T.denied : T.closed) + ']\x1b[0m\r\n');
     };
   }

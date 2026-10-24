@@ -100,21 +100,26 @@ with connect(WS, additional_headers={"Cookie": cookie(adm), "Origin": "http://12
     out = read_until(ws, r"R1[#>]")
     check("inicio automático: entra sin pedir usuario", "Usuario:" not in out and re.search(r"R1[#>]", out), out[-300:])
 
-# ---- seguridad
-try:
-    with connect(WS, additional_headers={"Cookie": cookie(adm), "Origin": "https://sitio-malicioso.example"}) as ws:
-        ws.recv(timeout=5)
-    blocked = False
-except Exception:  # noqa: BLE001
-    blocked = True
-check("otro origen no puede abrir la consola", blocked)
-try:
-    with connect(WS) as ws:
-        ws.recv(timeout=5)
-    anon = False
-except Exception:  # noqa: BLE001
-    anon = True
-check("sin sesión no se puede abrir la consola", anon)
+# ---- seguridad: se rechaza explicando el motivo en el terminal (antes solo salía «[Desconectado]») y sin abrir sesión
+def refused(headers):
+    """(texto recibido, código de cierre) de una consola que el servidor rechaza."""
+    out, code = "", None
+    try:
+        with connect(WS, additional_headers=headers) as ws:
+            while True:
+                out += ws.recv(timeout=5)
+    except Exception as e:  # noqa: BLE001
+        code = getattr(getattr(e, "rcvd", None), "code", None)
+    return out, code
+
+
+out, code = refused({"Cookie": cookie(adm), "Origin": "https://sitio-malicioso.example"})
+check("otro origen no puede abrir la consola", code == 1008 and "Usuario:" not in out and "R1" not in out, (code, out))
+check("y se explica: la dirección de la página no coincide con la del servidor",
+      "sitio-malicioso.example" in out and "127.0.0.1:8000" in out, out)
+out, code = refused({})
+check("sin sesión no se puede abrir la consola", code == 1008 and "Usuario:" not in out, (code, out))
+check("y se explica: la sesión caducó", "la sesión caducó" in out, out)
 
 # operador: por defecto la consola es solo para administradores
 adm.post(B + "/users", data={"username": "opcon", "role": "operator", "password": "Operador2026x",
@@ -122,6 +127,9 @@ adm.post(B + "/users", data={"username": "opcon", "role": "operator", "password"
 op = login("opcon", "Operador2026x")
 check("operador no ve el botón de consola (solo administradores)", "/devices/1/console" not in op.get(B + "/devices").text)
 check("operador no puede abrir la página de consola", op.get(B + "/devices/1/console").status_code == 403)
+out, code = refused({"Cookie": cookie(op), "Origin": "http://127.0.0.1:8000"})
+check("operador tampoco por la conexión directa, y se le explica que no tiene permiso",
+      code == 1008 and "no tiene permiso" in out and "Usuario:" not in out, (code, out))
 
 audit = adm.get(B + "/audit").text
 check("auditoría registra apertura y cierre", "console_open" in audit and "console_close" in audit)
