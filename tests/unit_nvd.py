@@ -150,6 +150,45 @@ finally:
     services.requests.get = orig
     services.time.sleep = real_sleep
 
+# 6b) clave de la API guardada en Ajustes (sin variable NCM_NVD_API_KEY): se envía y sube el límite a 50
+from app.db import get_setting as _gs, set_setting as _ss  # noqa: E402
+
+sent = []
+
+
+def _capture(url, params=None, headers=None, timeout=None):
+    sent.append(headers or {})
+    return Resp(200, {"totalResults": 1, "vulnerabilities": [cve(1)]})
+
+
+_orig_get = services.requests.get
+services.requests.get = _capture
+try:
+    services._nvd_sent.clear()
+    services._nvd_key_cache = (0.0, "")
+    services.nvd_query({"keywordSearch": "x"}, sleep=lambda s: None)
+    check("sin clave no se envía ninguna", "apiKey" not in sent[-1], sent[-1])
+    _ss("nvd_api_key", "clave-de-prueba-123")
+    services._nvd_key_cache = (0.0, "")
+    services.nvd_query({"keywordSearch": "x"}, sleep=lambda s: None)
+    check("con la clave de Ajustes se envía en cada consulta", sent[-1].get("apiKey") == "clave-de-prueba-123", sent[-1])
+    with SessionLocal() as db:
+        from app.db import Setting  # noqa: E402
+        raw = db.get(Setting, "nvd_api_key").value
+    check("la clave se guarda cifrada en la base (no en claro)", "clave-de-prueba-123" not in raw and _gs("nvd_api_key") == "clave-de-prueba-123")
+    clk = Clock()
+    services._nvd_sent.clear()
+    for _ in range(12):
+        services._nvd_wait(clk.sleep, clk)
+    check("con clave el límite sube: 12 consultas seguidas sin esperar", clk.slept == [], clk.slept)
+    services.NVD_API_KEY = "clave-del-env"
+    check("la clave de opennccm.env tiene prioridad sobre la de Ajustes", services.nvd_api_key() == "clave-del-env")
+finally:
+    services.NVD_API_KEY = ""
+    _ss("nvd_api_key", "")
+    services._nvd_key_cache = (0.0, "")
+    services.requests.get = _orig_get
+
 # 7) qué se busca en NVD según el equipo
 from app.drivers import get_profile  # noqa: E402
 

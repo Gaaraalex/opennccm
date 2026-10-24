@@ -726,9 +726,26 @@ class NvdError(RuntimeError):
         self.tries, self.last = tries, last
 
 
+_nvd_key_cache: tuple[float, str] = (0.0, "")
+
+
+def nvd_api_key() -> str:
+    """Clave de la API de NVD: la de opennccm.env (NCM_NVD_API_KEY) o, si no hay, la guardada en Ajustes (cifrada)."""
+    global _nvd_key_cache
+    if NVD_API_KEY:
+        return NVD_API_KEY
+    if time.time() - _nvd_key_cache[0] > 30:
+        try:
+            key = (get_setting("nvd_api_key", "") or "").strip()
+        except Exception:  # noqa: BLE001 — sin base de datos se consulta igual, sin clave
+            key = ""
+        _nvd_key_cache = (time.time(), key)
+    return _nvd_key_cache[1]
+
+
 def _nvd_wait(sleep, clock):
     """Límite público de NVD: 5 peticiones cada 30 s sin clave, 50 con clave (ventana móvil)."""
-    limit = 50 if NVD_API_KEY else 5
+    limit = 50 if nvd_api_key() else 5
     with _nvd_lock:
         now = clock()
         _nvd_sent[:] = [t for t in _nvd_sent if now - t < 30]
@@ -741,7 +758,7 @@ def _nvd_wait(sleep, clock):
 def nvd_query(params: dict, sleep=time.sleep, clock=time.monotonic) -> list[dict]:
     """Todos los CVE de una búsqueda en la API 2.0 de NVD, en páginas pequeñas y con reintentos por página.
     Si una página falla tras todos los intentos se lanza NvdError (y el resultado anterior del equipo se conserva)."""
-    headers = {"apiKey": NVD_API_KEY} if NVD_API_KEY else {}
+    headers = {"apiKey": nvd_api_key()} if nvd_api_key() else {}
     out, start, total, size = [], 0, None, NVD_PAGE
     while total is None or start < min(total, NVD_MAX):
         last = ""

@@ -173,7 +173,9 @@ def nvd_versions(cpe: str) -> list[str]:
             for attempt in range(3):
                 services._nvd_wait(time.sleep, time.monotonic)
                 try:
-                    r = requests.get("https://services.nvd.nist.gov/rest/json/cpes/2.0", headers=UA,
+                    key = services.nvd_api_key()
+                    r = requests.get("https://services.nvd.nist.gov/rest/json/cpes/2.0",
+                                     headers={**UA, **({"apiKey": key} if key else {})},
                                      params={"cpeMatchString": cpe, "resultsPerPage": 10000, "startIndex": start},
                                      timeout=(10, 120))
                     if r.status_code in (403, 429) or r.status_code >= 500:

@@ -510,8 +510,8 @@ Además descarga (como mucho una vez al día) el catálogo <b>KEV</b> de CISA y 
   <li>La página agrupa los resultados por CVE (qué equipos afecta, qué permite y la solución: si ya hay una imagen corregida cargada,
   lo indica con un enlace). Arriba, los indicadores de críticos, explotados activamente, equipos afectados y equipos con imagen
   corregida; los filtros separan por severidad o «Explotados activamente».</li>
-  <li>Sin clave de API, NVD permite unas 5 consultas cada 30 segundos y OpenNCCM espera lo necesario. Una clave gratuita
-  (<code>NCM_NVD_API_KEY</code>) lo acelera.</li>
+  <li>Sin clave de API, NVD permite unas 5 consultas cada 30 segundos y OpenNCCM espera lo necesario. Una clave gratuita lo acelera (unas 50 consultas): se pone en
+  <b>Ajustes › Vulnerabilidades (NVD)</b>, donde se guarda cifrada, o en <code>NCM_NVD_API_KEY</code> del archivo <code>opennccm.env</code>, que tiene prioridad.</li>
 </ul>
 <figure><img src="img/19-vulnerabilidades.png" class="tall"><figcaption>Vulnerabilidades agrupadas por CVE, con indicadores y filtros.</figcaption></figure>
 <p class="small">Los resultados dependen de cómo NVD registre cada versión: confirme siempre con el boletín del fabricante.</p>
