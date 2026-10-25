@@ -20,6 +20,9 @@ from netmiko.linux.linux_ssh import LinuxSSH
 PROMPT = "ncm# "
 MENU = re.compile(r"Enter an option:\s*$")
 SHELL = re.compile(r"[#$%>:]\s*$")
+# secuencias OSC de la terminal; Ubuntu 26.04 (systemd 257+) manda «ESC ]3008;start=<uuid>;...» con un
+# identificador nuevo en cada orden, que haría ver un cambio en cada respaldo
+OSC = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?")
 
 
 class FreeBSDFirewallSSH(LinuxSSH):
@@ -61,7 +64,8 @@ class UbuntuServerSSH(LinuxSSH):
         kwargs.update(cmd_verify=False, strip_command=False, strip_prompt=True,
                       expect_string=rf"{self.END}\r?\n[^\n]*[#$]\s*$")
         out = super().send_command(wrapped, *args, **kwargs)
-        lines = out.replace("\r\n", "\n").replace("\r", "").split("\n")
+        out = OSC.sub("", out)
+        lines = [line.rstrip() for line in out.replace("\r\n", "\n").replace("\r", "").split("\n")]
         if self.BEGIN in lines and self.END in lines:
             start = len(lines) - 1 - lines[::-1].index(self.BEGIN)
             lines = lines[start + 1:lines.index(self.END, start)]

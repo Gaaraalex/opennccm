@@ -37,6 +37,18 @@ check("sin verificar el eco", sent["kw"]["cmd_verify"] is False and sent["kw"]["
 check("espera la marca final y el prompt",
       re.search(sent["kw"]["expect_string"], "NCM-FIN\r\nncm@servidor:~$ ") is not None
       and re.search(sent["kw"]["expect_string"], sent["cmd"] + "\r\n") is None)
+osc = "\x1b]3008;start=3be8aaf5;type=command;user=ncm\x1b\\"
+
+
+def fake_osc(self, command_string, *args, **kwargs):
+    return (f"{command_string}\r\n{osc}NCM-INICIO\r\nservidor\r\nNCM-FIN\r\n"
+            "\x1b]3008;end=3be8aaf5;exit=success\x07ncm@servidor:~$ ")
+
+
+LinuxSSH.send_command = fake_osc
+out = drv.send_command("cat /etc/hostname")
+check("sin las secuencias OSC 3008 de Ubuntu 26.04 (cambian en cada orden)", out == "servidor")
+LinuxSSH.send_command = fake
 check("una sola línea (sin eco adelantado a mitad de la salida)", "\n" not in sent["cmd"])
 
 if FAILS:
