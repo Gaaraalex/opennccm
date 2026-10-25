@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.6.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 2.7.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -173,7 +173,7 @@ con error se omiten y las válidas se importan; los grupos que no existen se cre
   <tr><th>Campo</th><th>Descripción</th></tr>
   <tr><td>Nombre</td><td>Identificador único (por ejemplo el hostname).</td></tr>
   <tr><td>IP / hostname</td><td>Dirección de gestión. Debe ser la misma desde la que el equipo envía syslog.</td></tr>
-  <tr><td>Fabricante / sistema operativo</td><td>Perfil de la plataforma (125 opciones agrupadas por fabricante). Define los comandos que se usan.</td></tr>
+  <tr><td>Fabricante / sistema operativo</td><td>Perfil de la plataforma (126 opciones agrupadas por fabricante). Define los comandos que se usan.</td></tr>
   <tr><td>Protocolo y puerto</td><td>SSH (22) o Telnet (23). Telnet solo en plataformas que lo admiten.</td></tr>
   <tr><td>Credencial y grupo</td><td>Perfil de usuario/contraseña y grupo del equipo. Puede crear un grupo nuevo desde aquí mismo
   con «…o crear un grupo nuevo». También se administran en <b>Dispositivos → Grupos</b>.</td></tr>
@@ -466,6 +466,7 @@ corregir las infracciones.</p>
   <tr><td>Ubiquiti EdgeSwitch/UniFi · Seguridad básica</td><td>7</td><td>Sin la cuenta «ubnt»; SSH; sin Telnet ni HTTP sin cifrar; SNMP sin comunidades por defecto; syslog; SNTP</td></tr>
   <tr><td>MikroTik RouterOS · Seguridad básica</td><td>13</td><td>Telnet, FTP, www y API desactivados; Winbox y MAC-Telnet limitados; cortafuegos de entrada; SNMP; syslog; NTP</td></tr>
   <tr><td>Juniper Junos · Seguridad básica</td><td>13</td><td>Sin Telnet, FTP ni J-Web HTTP; root sin SSH; bloqueo por intentos; sesión inactiva; RADIUS/TACACS+; SNMP; syslog; NTP; banner</td></tr>
+  <tr><td>Ubuntu / Debian · Seguridad básica</td><td>8</td><td>SSH sin root con contraseña ni contraseñas vacías; solo root con UID 0; sudo sin contraseña solo para comandos concretos; cortafuegos activo; actualizaciones automáticas de seguridad; NTP; sin Telnet, rsh ni TFTP</td></tr>
   <tr><td>FortiGate · Seguridad básica</td><td>11</td><td>Sin Telnet ni HTTP en interfaces; sesión ≤ 15 min; hosts de confianza; política de contraseñas; cifrado fuerte; SNMP; syslog/FortiAnalyzer; NTP</td></tr>
   <tr><td>Hardening básico (Cisco, Huawei, Juniper, FortiGate)</td><td>3 – 9</td><td>Controles esenciales por fabricante</td></tr>
 </table>
@@ -565,6 +566,7 @@ Cuando aparece una versión nueva se registra un aviso en Alarmas, una sola vez 
   <tr><th>Equipos</th><th>De dónde sale la versión</th><th>Descarga</th></tr>
   <tr><td>MikroTik RouterOS</td><td>Sitio oficial de MikroTik (estable y long-term), con sus novedades</td><td>Sí, el archivo de la arquitectura del equipo</td></tr>
   <tr><td>Ubiquiti EdgeSwitch, EdgeRouter, UniFi Switch</td><td>Catálogo oficial de Ubiquiti, por modelo</td><td>Sí</td></tr>
+  <tr><td>Ubuntu Server y Debian</td><td>Tabla oficial de versiones (distro-info-data): la LTS o estable más nueva y la fecha de fin de soporte de la instalada</td><td>No: se actualiza en el propio servidor (<code>do-release-upgrade</code>)</td></tr>
   <tr><td>Cisco, Fortinet, Juniper, Palo Alto, Arista, WatchGuard y otros con CPE</td><td>Diccionario de versiones de NVD (NIST): la más nueva de su rama y la más reciente</td><td>No: el fabricante pide cuenta</td></tr>
 </table>
 <ul>
@@ -911,7 +913,7 @@ las licencias.</p>
 
 <section class="chapter">
 <h1>26. Plataformas soportadas</h1>
-<p><b>Administración → Plataformas</b>. Muestra las 125 plataformas en fichas (las comprobadas en su red llevan una marca) y,
+<p><b>Administración → Plataformas</b>. Muestra las 126 plataformas en fichas (las comprobadas en su red llevan una marca) y,
 en <b>Comandos de cada plataforma</b>, su <code>device_type</code> y los comandos que se ejecutan en cada una: <b>respaldo</b>, <b>arranque</b> (startup, para detectar cambios sin guardar) e <b>inventario</b> (modelo, serie y versión);
 además el tipo de reversión y si admite actualización de firmware.</p>
 <ul>
@@ -927,6 +929,14 @@ equipos sin perfil propio (SonicWall, Riverbed, Infoblox…) use <b>Genérico SS
 <code>config.xml</code> completo, el mismo que exporta la web. Use el usuario <code>admin</code>/<code>root</code> (el archivo solo lo lee
 root); el inventario trae versión, modelo y número de serie. Los cambios se siguen haciendo desde la web del cortafuegos.
 <b>Alpine Linux</b> respalda red, DNS, paquetes instalados (<code>apk world</code>), servicios, SSH y reglas del cortafuegos.</p>
+<p><b>Ubuntu Server / Debian</b> (Ubuntu 26.04, 24.04 y 22.04 LTS; Debian 12 y 13) respalda solo configuración en texto: nombre,
+red (netplan o <code>/etc/network/interfaces</code>), DNS, SSH, cuentas y grupos, sudo, repositorios, paquetes instalados a mano
+(no la versión de cada uno, que cambia a diario), servicios activados, tareas de cron, hora (chrony o timesyncd) y cortafuegos
+(ufw, iptables y nftables, sin contadores de paquetes). <b>Nunca</b> copia contraseñas (<code>/etc/shadow</code>), claves privadas,
+certificados ni datos, y las contraseñas de wifi de netplan salen como <code>***</code>. Un respaldo típico ocupa unos 20–60 KB.
+Algunos archivos (netplan, crontab de root) y el cortafuegos solo se leen como root: dé al usuario de OpenNCCM <code>sudo</code>
+sin contraseña, mejor solo para esos comandos de lectura; sin <code>sudo</code> se respalda el resto. El inventario lee la versión
+de <code>/etc/os-release</code>, y <b>Actualizaciones disponibles</b> avisa de la nueva LTS y de la fecha de fin de soporte.</p>
 <figure><img src="img/30-plataformas.png" class="tall"><figcaption>Plataformas soportadas con buscador y la columna «Comprobado en su red».</figcaption></figure>
 </section>
 

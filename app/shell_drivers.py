@@ -5,6 +5,7 @@
   prompt de tcsh/csh de estos sistemas («[2.7.2-RELEASE][admin@pfSense]/root: ») no termina en $ ni #.
   Un usuario con shell propio (sin menú) entra igual: se salta el paso del menú.
 - Alpine Linux: el shell es ash (BusyBox); sirve el driver de Linux tal cual.
+- Ubuntu Server / Debian: bash; también el driver de Linux.
 
 app.drivers llama a register() para que Netmiko los reconozca como cualquier otro device_type.
 """
@@ -48,7 +49,8 @@ class FreeBSDFirewallSSH(LinuxSSH):
         self.set_base_prompt()
 
 
-DRIVERS = {"pfsense": FreeBSDFirewallSSH, "opnsense": FreeBSDFirewallSSH, "alpine_linux": LinuxSSH}
+DRIVERS = {"pfsense": FreeBSDFirewallSSH, "opnsense": FreeBSDFirewallSSH, "alpine_linux": LinuxSSH,
+           "ubuntu_server": LinuxSSH}
 
 
 def register() -> None:

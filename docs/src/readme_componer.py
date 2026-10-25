@@ -91,7 +91,7 @@ HERO = f"""
 <div class="txt">
  <div class="logo"><img src="{LOGO}"><h1>Open<span>NCCM</span></h1></div>
  <p class="tag">Respaldos, cambios y cumplimiento de tu red, <b>en tu propio servidor</b>. Libre y en español.</p>
- <div class="chips"><span>125 plataformas</span><span>Diff y rollback</span><span>Cumplimiento</span>
+ <div class="chips"><span>126 plataformas</span><span>Diff y rollback</span><span>Cumplimiento</span>
  <span>CVE y EOL</span><span>Consola SSH web</span><span>2FA</span></div>
 </div></div>
 """

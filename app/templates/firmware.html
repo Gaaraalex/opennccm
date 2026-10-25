@@ -41,7 +41,7 @@
 <section class="card flush"><div class="tw"><table class="t"><thead><tr><th>{{ _('Equipo') }}</th><th>{{ _('Instalada') }}</th><th>{{ _('Disponible') }}</th><th>{{ _('Qué mejora') }}</th><th>{{ _('Fuente') }}</th><th>{{ _('Descarga') }}</th></tr></thead><tbody>
 {% for r in fw_rows %}<tr>
   <td><a href="/devices/{{ r.device_id }}#firmware"><b>{{ r.name }}</b></a></td>
-  <td class="mono">{{ r.current or '—' }}</td>
+  <td class="mono">{{ r.current or '—' }}{% if r.detail and r.detail.startswith('sinsoporte:') %}<div><span class="tag crit">{{ _('sin soporte') }}</span></div>{% endif %}</td>
   <td>{% if r.status == 'update' %}<span class="mono"><b>{{ r.target }}</b></span>{% if r.latest and r.latest != r.target %}<div class="muted sm">{{ _f('más reciente: {0}', r.latest) }}</div>{% endif %}
     {% elif r.status == 'current' %}<span class="pill ok">{{ _('Al día') }}</span>
     {% elif r.status == 'error' %}<span class="pill warn" title="{{ r.detail }}">{{ _('No se pudo comprobar') }}</span>
@@ -49,7 +49,7 @@
   <td class="sm">{% if r.status == 'update' %}{% if r.fixed is not none %}{% if r.fixed %}{{ _f('Corrige {0} CVE', r.fixed|length) }}{% if r.fixed_crit %} <span class="tag crit">{{ _f('{0} críticas', r.fixed_crit) }}</span>{% endif %}{% else %}{{ _('Sin CVE corregidos') }}{% endif %}{% endif %}
     {% if r.changelog or r.notes_url %}<div><a href="{{ '/devices/%d#firmware'|format(r.device_id) if r.changelog else r.notes_url }}"{% if not r.changelog %} target="_blank" rel="noopener"{% endif %}>{{ _('Ver novedades') }}</a></div>{% endif %}{% else %}—{% endif %}</td>
   <td class="sm">{{ _(fw_labels.get(r.source, '')) if r.source else '—' }}</td>
-  <td class="sm">{% if r.status == 'update' %}{% if r.download_url %}<a class="btn s" href="/devices/{{ r.device_id }}#firmware">{{ icon('dl', 's') }}{{ _('Descargar') }}</a>{% else %}<span class="muted">{{ _('Requiere cuenta del fabricante') }}</span>{% endif %}{% else %}—{% endif %}</td>
+  <td class="sm">{% if r.status == 'update' %}{% if r.download_url %}<a class="btn s" href="/devices/{{ r.device_id }}#firmware">{{ icon('dl', 's') }}{{ _('Descargar') }}</a>{% elif r.source == 'distro' %}<span class="muted">{{ _('Se actualiza en el servidor') }}</span>{% else %}<span class="muted">{{ _('Requiere cuenta del fabricante') }}</span>{% endif %}{% else %}—{% endif %}</td>
 </tr>{% else %}<tr><td colspan="6"><div class="empty">{{ empty_art('search') }}<h2>{{ _('Aún no se ha comprobado') }}</h2><p>{{ _('OpenNCCM busca versiones nuevas una vez al día. Usa «Comprobar todos ahora» para hacerlo ya.') }}</p></div></td></tr>{% endfor %}
 </tbody></table></div></section>
 </div>

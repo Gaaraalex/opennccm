@@ -164,6 +164,8 @@
     {% elif fwu.status == 'update' %}
       <div class="row" style="gap:10px;align-items:baseline"><span class="mono">{{ fwu.current }}</span><span aria-hidden="true">→</span><b class="mono" style="font-size:18px">{{ fwu.target }}</b><span class="pill info">{{ _('Disponible') }}</span></div>
       {% if fwu.latest and fwu.latest != fwu.target %}<p class="muted sm" style="margin-top:6px">{{ _f('La más reciente es {0}, de otra rama: antes de saltar de rama, compruebe que su modelo la admite.', fwu.latest) }}</p>{% endif %}
+      {% if fwu.detail and fwu.detail.startswith('sinsoporte:') %}{% set p = fwu.detail.split(':') %}<div class="banner warn" role="alert">{{ icon('alert') }}<span class="grow">{{ _f('Esta versión ya no tiene soporte estándar desde {0}: no recibe parches de seguridad gratuitos.', p[1]) }}{% if p[2] %} {{ _f('Con soporte extendido de pago (ESM/LTS), hasta {0}.', p[2]) }}{% endif %}</span></div>
+      {% elif fwu.detail and fwu.detail.startswith('soporte:') %}<p class="muted sm" style="margin-top:6px">{{ _f('Con soporte de seguridad hasta {0}.', fwu.detail.split(':')[1]) }}</p>{% endif %}
       <h3 style="margin-top:16px">{{ _('Qué mejora') }}</h3>
       <ul class="stack" style="gap:6px;margin:8px 0 0;padding-left:18px">
         {% if fwu.fixed is not none %}
@@ -184,12 +186,15 @@
         {% if is_admin and not dl_busy and not fw_have %}<form class="inline" method="post" action="/firmware/updates/{{ device.id }}/download"><button class="btn pri">{{ icon('dl', 's') }}{{ _('Descargar a la biblioteca') }}{% if fwu.size %} · {{ fwu.size|filesizeformat }}{% endif %}</button></form>
           <span class="muted sm">{{ _f('Desde el sitio oficial de {0}; se verifica la suma SHA-256 antes de guardarlo.', profile.vendor) }}</span>
         {% elif not is_admin and not fw_have %}<p class="muted sm">{{ _('Un administrador puede descargarla a la biblioteca de Firmware.') }}</p>{% endif %}
+      {% elif fwu.source == 'distro' %}<div class="banner info">{{ icon('info') }}<span class="grow">{{ _('El sistema se actualiza en el propio servidor, después de un respaldo: en Ubuntu con «sudo do-release-upgrade»; en Debian, cambiando los repositorios a la nueva versión y con «sudo apt full-upgrade». Lea antes las notas de la versión.') }}</span></div>
       {% else %}<div class="banner info">{{ icon('info') }}<span class="grow">{{ _f('{0} pide una cuenta de soporte para descargar su firmware, así que OpenNCCM no puede descargarlo por usted. Descárguelo desde el portal del fabricante y súbalo en Firmware › Cargar imagen.', profile.vendor) }}</span></div>{% endif %}
       </div>
       {% if fwu.source == 'nvd' %}<p class="muted sm" style="margin-top:10px">{{ _('Versiones según el diccionario de NVD (NIST): es la más reciente que NVD conoce para esta rama. Confírmela con el fabricante antes de instalarla.') }}</p>{% endif %}
       {% if fwu.detail == 'arch' %}<p class="muted sm" style="margin-top:6px">{{ _('No se pudo leer la arquitectura del equipo para elegir el archivo; haga un respaldo para releer el inventario.') }}</p>{% endif %}
     {% elif fwu.status == 'current' %}
       <div class="banner info" role="status">{{ icon('check') }}<span class="grow">{{ _f('Al día: {0} es la versión más reciente según {1}.', fwu.current, _(fw_sources.get(fwu.source, fwu.source or ''))) }}</span></div>
+      {% if fwu.detail and fwu.detail.startswith('sinsoporte:') %}{% set p = fwu.detail.split(':') %}<div class="banner warn" role="alert">{{ icon('alert') }}<span class="grow">{{ _f('Esta versión ya no tiene soporte estándar desde {0}: no recibe parches de seguridad gratuitos.', p[1]) }}{% if p[2] %} {{ _f('Con soporte extendido de pago (ESM/LTS), hasta {0}.', p[2]) }}{% endif %}</span></div>
+      {% elif fwu.detail and fwu.detail.startswith('soporte:') %}<p class="muted sm" style="margin-top:6px">{{ _f('Con soporte de seguridad hasta {0}.', fwu.detail.split(':')[1]) }}</p>{% endif %}
     {% elif fwu.status == 'error' %}
       <div class="banner warn" role="alert">{{ icon('alert') }}<span class="grow">{{ _f('No se pudo comprobar: {0}', fwu.detail) }}</span></div>
     {% else %}
