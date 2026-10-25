@@ -49,8 +49,27 @@ class FreeBSDFirewallSSH(LinuxSSH):
         self.set_base_prompt()
 
 
+class UbuntuServerSSH(LinuxSSH):
+    """Ubuntu Server / Debian: la orden de respaldo es larga y la terminal la parte en varias líneas, así que Netmiko
+    no reconoce su eco. Cada orden va entre dos marcas que solo salen así en la salida real (en el eco van partidas
+    por comillas) y se toma lo que queda entre ellas."""
+
+    BEGIN, END = "NCM-INICIO", "NCM-FIN"
+
+    def send_command(self, command_string, *args, **kwargs):
+        wrapped = f'echo {self.BEGIN[:7]}""{self.BEGIN[7:]}; {command_string}; echo {self.END[:6]}""{self.END[6:]}'
+        kwargs.update(cmd_verify=False, strip_command=False, strip_prompt=True,
+                      expect_string=rf"{self.END}\r?\n[^\n]*[#$]\s*$")
+        out = super().send_command(wrapped, *args, **kwargs)
+        lines = out.replace("\r\n", "\n").replace("\r", "").split("\n")
+        if self.BEGIN in lines and self.END in lines:
+            start = len(lines) - 1 - lines[::-1].index(self.BEGIN)
+            lines = lines[start + 1:lines.index(self.END, start)]
+        return "\n".join(lines)
+
+
 DRIVERS = {"pfsense": FreeBSDFirewallSSH, "opnsense": FreeBSDFirewallSSH, "alpine_linux": LinuxSSH,
-           "ubuntu_server": LinuxSSH}
+           "ubuntu_server": UbuntuServerSSH}
 
 
 def register() -> None:
