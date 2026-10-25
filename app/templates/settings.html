@@ -93,6 +93,12 @@
       {% call F(_('Client Secret'), 's-csec') %}<div class="input"><input id="s-csec" name="cisco_api_secret" type="password" autocomplete="new-password" {% if s.cisco_api_secret_set %}placeholder="{{ _('•••••••• (guardado)') }}"{% endif %}></div>{% endcall %}</div>
   </div></section>
 
+  <section class="card" id="nvd" data-secp><div class="card-h"><h2>{{ _('Vulnerabilidades (NVD)') }}</h2></div><div class="stack">
+    <p class="muted sm">{{ _('Opcional. Sin clave, NVD permite unas 5 consultas cada 30 segundos; con una clave gratuita, unas 50, así que la búsqueda de CVE y de versiones de firmware es mucho más rápida.') }} <a href="https://nvd.nist.gov/developers/request-an-api-key" target="_blank" rel="noopener">{{ _('Pedir una clave en nvd.nist.gov') }}</a></p>
+    {% call F(_('Clave de la API de NVD'), 's-nvd', _('Se guarda cifrada. Déjala vacía para no cambiarla.')) %}<div class="input mono" style="max-width:420px"><input id="s-nvd" name="nvd_api_key" type="password" autocomplete="new-password" spellcheck="false" {% if s.nvd_api_key_set %}placeholder="{{ _('•••••••• (guardada)') }}"{% endif %}></div>{% endcall %}
+    {% if s.nvd_api_key_env %}<p class="muted sm">{{ _('Hay una clave en el archivo opennccm.env del servidor: esa es la que se usa.') }}</p>{% endif %}
+  </div></section>
+
   <section class="card" id="recuperacion" data-secp><div class="card-h"><h2>Recuperación ante desastres</h2></div><div class="stack">
     {% call F(_('Copias locales a conservar'), 's-keep', _('Las copias se crean con la tarea «Copia de recuperación» o a mano en Sistema.')) %}<div class="input" style="max-width:200px"><input id="s-keep" name="dr_keep" type="number" min="1" value="{{ s.dr_keep or '14' }}"></div>{% endcall %}
     <div class="sec"><h3>{{ icon('db', 's') }}Copia remota por SFTP (opcional)</h3>

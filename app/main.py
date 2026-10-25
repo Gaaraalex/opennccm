@@ -2190,7 +2190,8 @@ CHECKBOX_KEYS = ("require_approval", "allow_self_approval", "notify_compliance",
 SETTING_DEFAULTS = {"allow_self_approval": "1", "session_idle_minutes": "30", "remember_days": "14", "require_2fa_admins": "0",
                     "console_access": "admin", "console_autologin": "0", "update_check": "1",
                     "ldap_verify_tls": "1", "ldap_user_filter": "(&(objectClass=user)(sAMAccountName={username}))"}
-SECRET_FORM_KEYS = ["smtp_password", "cisco_api_secret", "dr_remote_password", "ldap_bind_password", "oidc_client_secret"]
+SECRET_FORM_KEYS = ["smtp_password", "cisco_api_secret", "dr_remote_password", "ldap_bind_password", "oidc_client_secret",
+                    "nvd_api_key"]
 ROLE_KEYS = ("ldap_default_role", "oidc_default_role")
 
 
@@ -2200,6 +2201,8 @@ def settings(request: Request):
     values = {k: get_setting(k, SETTING_DEFAULTS.get(k, "")) for k in SETTING_KEYS}
     for k in SECRET_FORM_KEYS:
         values[f"{k}_set"] = bool(get_setting(k))
+    from .config import NVD_API_KEY
+    values["nvd_api_key_env"] = bool(NVD_API_KEY)  # la del archivo opennccm.env tiene prioridad
     return render(request, "settings.html", user, s=values, redirect_uri=_redirect_uri(request))
 
 

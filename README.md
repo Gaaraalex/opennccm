@@ -7,7 +7,7 @@
   <a href="https://github.com/Gaaraalex/opennccm/releases"><img src="https://img.shields.io/github/v/release/Gaaraalex/opennccm?label=versi%C3%B3n&color=2563eb" alt="Versión"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licencia-GPL--3.0-7c3aed" alt="Licencia: GPL-3.0"></a>
   <img src="https://img.shields.io/badge/Ubuntu-22.04%20%7C%2024.04-E95420?logo=ubuntu&logoColor=white" alt="Ubuntu 22.04 y 24.04">
-  <img src="https://img.shields.io/badge/plataformas-125-16a34a" alt="125 plataformas">
+  <img src="https://img.shields.io/badge/plataformas-126-16a34a" alt="126 plataformas">
 </p>
 
 <p align="center">

@@ -241,6 +241,50 @@ try:
 except RuntimeError:
     check("FortiGate: no hay descarga pública", True)
 
+# ---------------------------------------------------------------- Ubuntu y Debian (distro-info-data)
+from datetime import date  # noqa: E402
+
+UBU_CSV = ("version,codename,series,created,release,eol,eol-server,eol-esm,eol-legacy\n"
+           "20.04 LTS,Focal Fossa,focal,2019-10-17,2020-04-23,2025-05-29,2025-05-29,2030-04-23,2035-04-26\n"
+           "24.04 LTS,Noble Numbat,noble,2023-10-12,2024-04-25,2029-05-31,2029-05-31,2034-04-25,2039-04-28\n"
+           "25.10,Questing Quokka,questing,2025-04-24,2025-10-09,2026-07-09,,,\n"
+           "26.04 LTS,Resolute Raccoon,resolute,2025-10-09,2026-04-23,2031-05-29,2031-05-29,2036-04-23,2041-04-30\n"
+           "26.10,Stonking Stingray,stonking,2026-04-23,2026-10-15,2027-07-15,,,\n"
+           "28.04 LTS,Futuro,futuro,2027-10-14,2028-04-20,2033-05-31,2033-05-31,,\n")
+DEB_CSV = ("version,codename,series,created,release,eol,eol-lts,eol-elts\n"
+           "12,Bookworm,bookworm,2021-08-14,2023-06-10,2026-07-11,2028-06-30,2033-06-30\n"
+           "13,Trixie,trixie,2023-06-10,2025-08-09,2028-08-09,2030-06-30,2035-06-30\n"
+           "14,Forky,forky,2025-08-09,,,,\n")
+_prev_get = fw.requests.get
+
+
+def distro_get(url, headers=None, params=None, timeout=None, stream=False):
+    if url.endswith("/ubuntu.csv"):
+        return Resp(text=UBU_CSV)
+    if url.endswith("/debian.csv"):
+        return Resp(text=DEB_CSV)
+    return _prev_get(url, headers=headers, params=params, timeout=timeout, stream=stream)
+
+
+fw.requests.get = distro_get
+HOY = date(2026, 10, 25)
+r = fw._distro(Device(device_type="ubuntu_server", os_version="20.04.6 LTS"), HOY)
+check("Ubuntu 20.04: nueva LTS 26.04 (no la 26.10 intermedia ni una futura) y sin soporte estándar desde 2025-05-29",
+      r["target"] == "26.04 LTS" and r["detail"] == "sinsoporte:2025-05-29:2030-04-23"
+      and r["notes_url"] == "https://documentation.ubuntu.com/release-notes/26.04/", r)
+r = fw._distro(Device(device_type="ubuntu_server", os_version="24.04.3 LTS"), HOY)
+check("Ubuntu 24.04: puede pasar a 26.04 y tiene soporte hasta 2029-05-31",
+      r["target"] == "26.04 LTS" and r["detail"] == "soporte:2029-05-31", r)
+r = fw._distro(Device(device_type="ubuntu_server", os_version="26.04 LTS"), HOY)
+check("Ubuntu 26.04: al día, con soporte hasta 2031-05-29", "target" not in r and r["detail"] == "soporte:2031-05-29", r)
+r = fw._distro(Device(device_type="ubuntu_server", os_version="12"), HOY)
+check("Debian 12: nueva 13 (no la 14 aún sin publicar) y ya sin soporte de seguridad",
+      r["target"] == "13" and r["detail"] == "sinsoporte:2026-07-11:2028-06-30"
+      and r["notes_url"] == "https://www.debian.org/releases/trixie/releasenotes", r)
+r = fw._distro(Device(device_type="ubuntu_server", os_version="13"), HOY)
+check("Debian 13: al día, con soporte hasta 2028-08-09", "target" not in r and r["detail"] == "soporte:2028-08-09", r)
+fw.requests.get = _prev_get
+
 # ---------------------------------------------------------------- comprobación diaria desactivable
 started = []
 fw.start_check = lambda ids=None: started.append(1) or True

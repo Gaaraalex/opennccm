@@ -289,6 +289,64 @@ check("FortiGate: un «public» fuera de SNMP no cuenta como comunidad",
 check("FortiGate: syslog configurado pero desactivado no cuenta",
       "Envío de logs a syslog o FortiAnalyzer" in failed_rules(FGT, 'config log syslogd setting\n    set server "192.0.2.10"\nend\n'))
 
+# ---------------------------------------------------------------- Ubuntu / Debian (respaldo con «### archivo»)
+UBU = "Ubuntu / Debian · Seguridad básica"
+UBU_SECURE = """### /etc/hostname
+srv-web
+### /etc/ssh/sshd_config
+#PermitRootLogin prohibit-password
+PermitRootLogin prohibit-password
+#PermitEmptyPasswords no
+### /etc/passwd
+root:x:0:0:root:/root:/bin/bash
+daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+ncm:x:1000:1000::/home/ncm:/bin/bash
+### /etc/sudoers.d/ncm
+ncm ALL=(root) NOPASSWD: /usr/sbin/iptables-save, /usr/sbin/nft
+### /etc/apt/apt.conf.d/20auto-upgrades
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+### /etc/chrony/sources.d/ubuntu-ntp-pools.sources
+pool 1.ntp.ubuntu.com iburst maxsources 1 nts
+### hora
+Timezone=America/Bogota
+NTP=yes
+### ufw
+Status: active
+### paquetes instalados a mano
+openssh-server
+nginx
+"""
+UBU_BAD = """### /etc/ssh/sshd_config
+PermitRootLogin yes
+PermitEmptyPasswords yes
+### /etc/passwd
+root:x:0:0:root:/root:/bin/bash
+toor:x:0:0::/root:/bin/bash
+### /etc/sudoers.d/todo
+deploy ALL=(ALL) NOPASSWD: ALL
+### /etc/apt/apt.conf.d/20auto-upgrades
+APT::Periodic::Unattended-Upgrade "0";
+### hora
+NTP=no
+### ufw
+Status: inactive
+### paquetes instalados a mano
+telnetd
+"""
+check("Ubuntu/Debian: una configuración segura pasa todas las reglas", failed_rules(UBU, UBU_SECURE) == [],
+      failed_rules(UBU, UBU_SECURE))
+bad = failed_rules(UBU, UBU_BAD)
+check("Ubuntu/Debian mal configurado: falla todas las reglas", len(bad) == len(PACKS[UBU][2]),
+      sorted(set(r[0] for r in PACKS[UBU][2]) - set(bad)))
+check("Ubuntu/Debian: «#PermitRootLogin yes» comentado no cuenta",
+      "SSH sin acceso directo de root con contraseña" not in failed_rules(UBU, "#PermitRootLogin yes\n"))
+check("Ubuntu/Debian: un grupo con GID 0 no cuenta como cuenta con UID 0",
+      "Solo root tiene UID 0" not in failed_rules(UBU, "root:x:0:\nadm:x:4:syslog\n"))
+check("Ubuntu/Debian: el cortafuegos con nftables (policy drop) también cuenta como activo",
+      "Cortafuegos activo" not in failed_rules(UBU, "table inet filter {\n  chain input {\n    type filter hook input priority 0; policy drop;\n"))
+check("Ubuntu/Debian: sin corrección automática (en un servidor se hace a mano)", all(r[4] is None for r in PACKS[UBU][2]))
+
 # ---------------------------------------------------------------- correcciones sin direcciones inventadas
 from app.services import example_addresses  # noqa: E402
 

@@ -1,5 +1,24 @@
 # Historial de versiones
 
+## 2.7.0
+- **Ubuntu Server y Debian** (Ubuntu 26.04, 24.04 y 22.04 LTS; Debian 12 y 13): perfil nuevo «Ubuntu Server / Debian».
+  - Respalda solo configuración en texto: red (netplan o interfaces), DNS, SSH, cuentas y sudo, repositorios, paquetes
+    instalados a mano, servicios, cron, hora (chrony en 26.04 o timesyncd) y cortafuegos (ufw, iptables, nftables).
+  - Nunca copia contraseñas, claves privadas, certificados ni datos; las contraseñas de wifi de netplan salen como
+    «***». Un respaldo ocupa unos 20–60 KB.
+  - Sin contadores de paquetes ni versiones de cada paquete, para que los respaldos no detecten cambios falsos.
+  - Con sudo sin contraseña respalda también lo que solo lee root; sin él, el resto.
+  - Paquete de cumplimiento «Ubuntu / Debian · Seguridad básica» (8 reglas, sin corrección automática).
+  - Actualizaciones disponibles: avisa de la nueva LTS o estable y de la fecha de fin de soporte de la instalada.
+- **Respaldos**: la fecha, la hora y el tiempo encendido que algunos equipos escriben en comentarios (por ejemplo
+  «! System Up Time» de Ubiquiti) ya no cuentan como cambio, en ninguna marca. El primer respaldo tras actualizar
+  tampoco ve un cambio falso por las versiones guardadas antes.
+- **Consola SSH**: si no puede abrirse, explica el motivo (sesión caducada, sin permiso, dirección distinta por un
+  proxy, o conexión bloqueada) en lugar de mostrar solo «[Desconectado]».
+- **Clave de la API de NVD desde Ajustes** (sección «Vulnerabilidades (NVD)»): se guarda cifrada y acelera la
+  búsqueda de CVE y de versiones de firmware. La de opennccm.env sigue teniendo prioridad.
+- **Apoya OpenNCCM**: GitHub Sponsors junto a Ko-fi, y botón «Sponsor» en el repositorio de GitHub.
+
 ## 2.6.0
 - **Paginador** debajo de las listas de Cumplimiento, Vulnerabilidades, Alarmas, Usuarios, Credenciales, Grupos y Auditoría:
   - 15 por página por omisión, con la opción de ver 25, 50 o 100;

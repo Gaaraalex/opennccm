@@ -253,6 +253,13 @@ def _normalize_for_compare(text: str) -> list[str]:
             if l.strip() and not re.match(r"^\s*(!|#|Building|Current configuration|Using \d+ out of)", l)]
 
 
+def same_config(prev_text: str, new_clean: str, prof) -> bool:
+    """¿La versión guardada es igual a la nueva si se limpia con las reglas actuales? Las versiones guardadas antes de
+    ampliar las líneas que se ignoran (fechas, horas, tiempo encendido) aún las contienen: sin esto, el primer respaldo
+    tras actualizar OpenNCCM las vería como un cambio."""
+    return compare_text(clean_config(prev_text, prof)) == compare_text(new_clean)
+
+
 # --------------------------------------------------------------------------- respaldo
 def backup_device(device_id: int, trigger="manual", username: str | None = None) -> str:
     lock = device_lock(device_id)
@@ -346,9 +353,9 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
 
         sha = hashlib.sha256(compare_text(running).encode()).hexdigest()
         prev = latest_version(db, dev.id)
-        changed = prev is None or prev.sha256 != sha
-        result = "unchanged"
         prev_text = decrypt(prev.content_enc) if prev else ""
+        changed = prev is None or (prev.sha256 != sha and not same_config(prev_text, running, prof))
+        result = "unchanged"
         if changed:
             added, removed = diff_stats(prev_text, running) if prev else (len(running.splitlines()), 0)
             db.add(ConfigVersion(device_id=dev.id, kind="running", content_enc=encrypt(running), sha256=sha,
@@ -719,9 +726,26 @@ class NvdError(RuntimeError):
         self.tries, self.last = tries, last
 
 
+_nvd_key_cache: tuple[float, str] = (0.0, "")
+
+
+def nvd_api_key() -> str:
+    """Clave de la API de NVD: la de opennccm.env (NCM_NVD_API_KEY) o, si no hay, la guardada en Ajustes (cifrada)."""
+    global _nvd_key_cache
+    if NVD_API_KEY:
+        return NVD_API_KEY
+    if time.time() - _nvd_key_cache[0] > 30:
+        try:
+            key = (get_setting("nvd_api_key", "") or "").strip()
+        except Exception:  # noqa: BLE001 — sin base de datos se consulta igual, sin clave
+            key = ""
+        _nvd_key_cache = (time.time(), key)
+    return _nvd_key_cache[1]
+
+
 def _nvd_wait(sleep, clock):
     """Límite público de NVD: 5 peticiones cada 30 s sin clave, 50 con clave (ventana móvil)."""
-    limit = 50 if NVD_API_KEY else 5
+    limit = 50 if nvd_api_key() else 5
     with _nvd_lock:
         now = clock()
         _nvd_sent[:] = [t for t in _nvd_sent if now - t < 30]
@@ -734,7 +758,7 @@ def _nvd_wait(sleep, clock):
 def nvd_query(params: dict, sleep=time.sleep, clock=time.monotonic) -> list[dict]:
     """Todos los CVE de una búsqueda en la API 2.0 de NVD, en páginas pequeñas y con reintentos por página.
     Si una página falla tras todos los intentos se lanza NvdError (y el resultado anterior del equipo se conserva)."""
-    headers = {"apiKey": NVD_API_KEY} if NVD_API_KEY else {}
+    headers = {"apiKey": nvd_api_key()} if nvd_api_key() else {}
     out, start, total, size = [], 0, None, NVD_PAGE
     while total is None or start < min(total, NVD_MAX):
         last = ""

@@ -204,6 +204,22 @@ PACKS = {
         ("Cuenta «admin» por defecto renombrada", "must_not_contain", r'^config system admin\n\s+edit "admin"$', "minor",
          None),
     ]),
+    # Ubuntu Server / Debian: reglas sobre el respaldo («### archivo» + contenido). Sin corrección automática: en un
+    # servidor estos cambios se hacen a mano (un error en SSH o en el cortafuegos puede dejarlo sin acceso).
+    "Ubuntu / Debian · Seguridad básica": (r"^ubuntu_server", "Controles de seguridad de referencia para servidores "
+                                           "Ubuntu y Debian: SSH, cuentas, sudo, cortafuegos, actualizaciones y hora", [
+        ("SSH sin acceso directo de root con contraseña", "must_not_contain", r"^\s*PermitRootLogin\s+yes\b", "critical", None),
+        ("SSH sin contraseñas vacías", "must_not_contain", r"^\s*PermitEmptyPasswords\s+yes\b", "critical", None),
+        ("Solo root tiene UID 0", "must_not_contain", r"^(?!root:)[A-Za-z_][\w.-]*:[^:\n]*:0:\d+:", "critical", None),
+        ("sudo sin contraseña solo para comandos concretos", "must_not_contain", r"^[^#\n]*\bNOPASSWD:\s*ALL\s*$",
+         "major", None),
+        ("Cortafuegos activo", "must_contain", r"^Status: active|policy drop;|^:INPUT DROP", "major", None),
+        ("Actualizaciones automáticas de seguridad", "must_contain", r'^\s*APT::Periodic::Unattended-Upgrade\s+"1"',
+         "major", None),
+        ("Hora sincronizada (NTP)", "must_contain", r"^NTP=yes|^\s*(server|pool)\s+\S+", "major", None),
+        ("Sin servidores inseguros (Telnet, rsh, TFTP)", "must_not_contain",
+         r"^(telnetd|inetutils-telnetd|rsh-server|rsh-redone-server|tftpd|tftpd-hpa|atftpd)\s*$", "major", None),
+    ]),
     "PCI DSS 4.0 (Junos)": (r"^juniper_junos", "Controles técnicos de PCI DSS 4.0 para Junos (formato set)", [
         ("Req 2.2.7 · Sin Telnet", "must_not_contain", r"^set system services telnet", "critical",
          "delete system services telnet"),
@@ -226,7 +242,7 @@ PACKS = {
 # (si después se borran, no vuelven a aparecer).
 ADDED_LATER = {"Extreme VOSS · Seguridad básica": "2.2.1", "Ubiquiti EdgeSwitch/UniFi · Seguridad básica": "2.2.1",
                "MikroTik RouterOS · Seguridad básica": "2.3.0", "Juniper Junos · Seguridad básica": "2.3.0",
-               "FortiGate · Seguridad básica": "2.3.0"}
+               "FortiGate · Seguridad básica": "2.3.0", "Ubuntu / Debian · Seguridad básica": "2.7.0"}
 
 
 def _seeded() -> set:

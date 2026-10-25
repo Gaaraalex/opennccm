@@ -5,6 +5,7 @@
   prompt de tcsh/csh de estos sistemas («[2.7.2-RELEASE][admin@pfSense]/root: ») no termina en $ ni #.
   Un usuario con shell propio (sin menú) entra igual: se salta el paso del menú.
 - Alpine Linux: el shell es ash (BusyBox); sirve el driver de Linux tal cual.
+- Ubuntu Server / Debian: bash; también el driver de Linux.
 
 app.drivers llama a register() para que Netmiko los reconozca como cualquier otro device_type.
 """
@@ -19,6 +20,9 @@ from netmiko.linux.linux_ssh import LinuxSSH
 PROMPT = "ncm# "
 MENU = re.compile(r"Enter an option:\s*$")
 SHELL = re.compile(r"[#$%>:]\s*$")
+# secuencias OSC de la terminal; Ubuntu 26.04 (systemd 257+) manda «ESC ]3008;start=<uuid>;...» con un
+# identificador nuevo en cada orden, que haría ver un cambio en cada respaldo
+OSC = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?")
 
 
 class FreeBSDFirewallSSH(LinuxSSH):
@@ -48,7 +52,28 @@ class FreeBSDFirewallSSH(LinuxSSH):
         self.set_base_prompt()
 
 
-DRIVERS = {"pfsense": FreeBSDFirewallSSH, "opnsense": FreeBSDFirewallSSH, "alpine_linux": LinuxSSH}
+class UbuntuServerSSH(LinuxSSH):
+    """Ubuntu Server / Debian: la orden de respaldo es larga y la terminal la parte en varias líneas, así que Netmiko
+    no reconoce su eco. Cada orden va entre dos marcas que solo salen así en la salida real (en el eco van partidas
+    por comillas) y se toma lo que queda entre ellas."""
+
+    BEGIN, END = "NCM-INICIO", "NCM-FIN"
+
+    def send_command(self, command_string, *args, **kwargs):
+        wrapped = f'echo {self.BEGIN[:7]}""{self.BEGIN[7:]}; {command_string}; echo {self.END[:6]}""{self.END[6:]}'
+        kwargs.update(cmd_verify=False, strip_command=False, strip_prompt=True,
+                      expect_string=rf"{self.END}\r?\n[^\n]*[#$]\s*$")
+        out = super().send_command(wrapped, *args, **kwargs)
+        out = OSC.sub("", out)
+        lines = [line.rstrip() for line in out.replace("\r\n", "\n").replace("\r", "").split("\n")]
+        if self.BEGIN in lines and self.END in lines:
+            start = len(lines) - 1 - lines[::-1].index(self.BEGIN)
+            lines = lines[start + 1:lines.index(self.END, start)]
+        return "\n".join(lines)
+
+
+DRIVERS = {"pfsense": FreeBSDFirewallSSH, "opnsense": FreeBSDFirewallSSH, "alpine_linux": LinuxSSH,
+           "ubuntu_server": UbuntuServerSSH}
 
 
 def register() -> None:

@@ -58,7 +58,8 @@ CISCO_IGNORE = [
 ]
 
 # Broadcom FastPath (EdgeSwitch, UniFi Switch): líneas del encabezado que cambian en cada lectura
-FASTPATH_IGNORE = [r"^!System Up Time", r"^!Current SNTP Synchronized Time", r"^!Current Configuration:"]
+FASTPATH_IGNORE = [r"^!\s*System Up Time", r"^!\s*Current SNTP Synchronized Time", r"^!\s*Current Configuration:",
+                   r"^!\s*Config Created Time"]
 # «show version» de FastPath usa relleno con puntos («Serial Number....... X»); parse_inventory lo convierte a «:»
 FASTPATH_VERSION = [r"Software Version\s*:\s*(\S+)"]
 FASTPATH_MODEL = [r"Machine Model\s*:\s*(.+)", r"Machine Type\s*:\s*(.+)"]
@@ -222,6 +223,15 @@ PROFILES: list[Profile] = [
             version_re=[r"^Version: (\S+)"], model_re=[r"^Model: (\S.*?)\s*$"], serial_re=[r"^Serial: (\S+)"],
             note="Use root (o un usuario con shell y permiso de lectura de /conf/config.xml). Los cambios y la "
                  "reversión se hacen desde la web de OPNsense; OpenNCCM respalda y compara."),
+    # Ubuntu Server (26.04 LTS y anteriores) y Debian: solo configuración en texto, nunca secretos (/etc/shadow, claves
+    # privadas, certificados) ni datos. En 26.04: chrony (sources.d) y sudo-rs, que lee los mismos sudoers.
+    Profile("ubuntu_server", "Ubuntu Server / Debian", "Linux", 'S=; sudo -n true 2>/dev/null && S="sudo -n"; for f in /etc/hostname /etc/hosts /etc/systemd/resolved.conf /etc/network/interfaces /etc/netplan/*.yaml /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf /etc/passwd /etc/group /etc/sudoers /etc/sudoers.d/* /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources /etc/apt/apt.conf.d/20auto-upgrades /etc/crontab /etc/cron.d/* /etc/chrony/chrony.conf /etc/chrony/sources.d/* /etc/chrony/conf.d/* /etc/systemd/timesyncd.conf /etc/ufw/ufw.conf /etc/ufw/user.rules /etc/ufw/user6.rules; do [ -f "$f" ] && { echo "### $f"; $S cat "$f" 2>/dev/null | sed -E \'s/((password|psk)"?[[:space:]]*:[[:space:]]*).*/\\1***/\'; }; done; echo "### hora"; timedatectl show -p Timezone -p NTP 2>/dev/null; echo "### ufw"; $S ufw status verbose 2>/dev/null; echo "### iptables"; $S iptables-save 2>/dev/null | sed -E \'s/\\[[0-9]+:[0-9]+\\]$/[0:0]/\'; echo "### nftables"; $S nft -s list ruleset 2>/dev/null; echo "### paquetes instalados a mano"; apt-mark showmanual 2>/dev/null; echo "### servicios activados"; systemctl list-unit-files --state=enabled --no-legend --no-pager 2>/dev/null | awk \'{print $1}\'; echo "### crontab de root"; $S crontab -l -u root 2>/dev/null; true',
+            None, inventory='cat /etc/os-release 2>/dev/null; echo "Model: $(cat /sys/class/dmi/id/product_name 2>/dev/null)"; echo "Serial: $(sudo -n cat /sys/class/dmi/id/product_serial 2>/dev/null)"', family=MERGE, save=False,
+            version_re=[r'^VERSION="([\d.]+(?: LTS)?)', r'^VERSION_ID="([^"]+)"'],
+            model_re=[r"^Model: (\S.*?)\s*$"], serial_re=[r"^Serial: (\S+)"],
+            note="Respalda red (netplan o interfaces), DNS, SSH, cuentas y sudo, repositorios, paquetes instalados a "
+                 "mano, servicios, cron, hora y cortafuegos (ufw, iptables, nftables). Nunca contraseñas, claves "
+                 "privadas ni datos. Algunos archivos y el cortafuegos solo se leen con sudo sin contraseña."),
     Profile("alpine_linux", "Alpine Linux", "Linux",
             "for f in /etc/hostname /etc/hosts /etc/resolv.conf /etc/network/interfaces /etc/apk/world "
             "/etc/apk/repositories /etc/ssh/sshd_config; do [ -f $f ] && echo \"### $f\" && cat $f; done; "
@@ -474,7 +484,13 @@ def get_profile(key: str) -> Profile:
 # Líneas de comentario con fecha/hora o contadores que muchos fabricantes añaden al mostrar la configuración.
 # Se quitan en todas las plataformas: no son configuración y generarían un «cambio» en cada respaldo.
 GLOBAL_IGNORE = [
-    r"^!System Up Time", r"^!Current SNTP Synchronized Time",                     # Broadcom FastPath, Dell, Netgear
+    r"^!\s*System Up Time", r"^!\s*Current SNTP Synchronized Time",              # Broadcom FastPath, Dell, Netgear
+    r"^!\s*Config Created Time",                                                 # Ubiquiti EdgeSwitch, FastPath
+    # Cualquier marca: líneas de COMENTARIO (empiezan por !, #, ; o //) con una hora («14:00:09») o un tiempo encendido
+    # («174 days, 10 hours…») junto a una palabra de fecha u hora. Son cabeceras que el equipo reescribe en cada lectura;
+    # la configuración real nunca está en un comentario, así que no se pierde nada.
+    r"(?i)^\s*(!|#|;|//).*\b(up ?time|time|date|created|generated|modified|updated|saved|changed|exported|written|"
+    r"last|current)\b.*(\b\d{1,2}:\d{2}(:\d{2})?\b|\b\d+\s*(days?|hours?|hrs?|mins?|minutes?|secs?|seconds?)\b)",
     r"^## Last (commit|changed)", r"^## Generated at ",                           # Junos, Mellanox
     r"^!Last configuration was (updated|saved)",                                  # Huawei
     r"^# \w{3}/\d{2}/\d{4} \d{2}:\d{2}:\d{2} by RouterOS",                        # MikroTik 6.x

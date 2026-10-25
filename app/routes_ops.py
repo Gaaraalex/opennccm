@@ -93,7 +93,8 @@ def firmware_page(request: Request, img: int = 0):
 
 
 # --------------------------------------------------------------------------- actualizaciones de firmware disponibles
-FW_SOURCES = {"mikrotik": N_("MikroTik"), "ubiquiti": N_("Ubiquiti"), "nvd": N_("NVD (NIST)")}
+FW_SOURCES = {"mikrotik": N_("MikroTik"), "ubiquiti": N_("Ubiquiti"), "nvd": N_("NVD (NIST)"),
+              "distro": N_("Ubuntu / Debian")}
 
 
 @router.post("/firmware/updates/check")

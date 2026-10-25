@@ -173,7 +173,9 @@ def nvd_versions(cpe: str) -> list[str]:
             for attempt in range(3):
                 services._nvd_wait(time.sleep, time.monotonic)
                 try:
-                    r = requests.get("https://services.nvd.nist.gov/rest/json/cpes/2.0", headers=UA,
+                    key = services.nvd_api_key()
+                    r = requests.get("https://services.nvd.nist.gov/rest/json/cpes/2.0",
+                                     headers={**UA, **({"apiKey": key} if key else {})},
                                      params={"cpeMatchString": cpe, "resultsPerPage": 10000, "startIndex": start},
                                      timeout=(10, 120))
                     if r.status_code in (403, 429) or r.status_code >= 500:
@@ -351,6 +353,49 @@ def _ubiquiti(dev, prof) -> dict | None:
     return res
 
 
+# --------------------------------------------------------------------------- Ubuntu y Debian
+DISTRO_INFO = "https://salsa.debian.org/debian/distro-info-data/-/raw/main/{}.csv"  # la misma tabla que ubuntu-distro-info
+
+
+def _distro_rows(distro: str) -> list[dict]:
+    def fetch():
+        import csv
+        import io
+        return list(csv.DictReader(io.StringIO(_get(DISTRO_INFO.format(distro), timeout=(10, 30)).text)))
+    return _cached("distro", distro, 24 * 3600, fetch)
+
+
+def _distro(dev, today=None) -> dict | None:
+    """Ubuntu (solo LTS) o Debian: la versión estable más nueva y el fin de soporte de la instalada (distro-info-data)."""
+    from datetime import date
+    today = (today or date.today()).isoformat()
+    cur = (dev.os_version or "").strip()
+    m = re.match(r"^(\d+\.\d+)", cur)
+    distro = "ubuntu" if m else ("debian" if re.match(r"^\d+$", cur) else None)
+    if not distro:
+        return None
+    series = m.group(1) if m else cur
+    rows = [r for r in _distro_rows(distro) if r.get("release") and r["release"] <= today]
+    if distro == "ubuntu":
+        rows = [r for r in rows if "LTS" in r.get("version", "")]
+    key = (lambda r: r["version"].split()[0])
+    mine = next((r for r in rows if key(r) == series), None)
+    newest = max(rows, key=lambda r: vkey(key(r)), default=None)
+    res = {"source": "distro", "latest": key(newest) + (" LTS" if distro == "ubuntu" else "") if newest else None}
+    if newest and vkey(key(newest)) > vkey(series):
+        res["target"] = res["latest"]
+        res["notes_url"] = (f"https://documentation.ubuntu.com/release-notes/{key(newest)}/" if distro == "ubuntu"
+                            else f"https://www.debian.org/releases/{newest['series']}/releasenotes")
+    if mine:
+        end = mine.get("eol-server") or mine.get("eol") or ""
+        extra = mine.get("eol-esm") or mine.get("eol-lts") or ""
+        if end and end < today:
+            res["detail"] = f"sinsoporte:{end}:{extra}"
+        elif end:
+            res["detail"] = f"soporte:{end}"
+    return res
+
+
 # --------------------------------------------------------------------------- comprobación
 def _notes(prof, version: str | None) -> str | None:
     tpl = NOTES.get(prof.key)
@@ -371,6 +416,8 @@ def check_device(dev, raw: str = "") -> dict:
         found = _mikrotik(dev, prof, raw)
     elif prof.key.startswith("ubiquiti_"):
         found = _ubiquiti(dev, prof)
+    elif prof.key == "ubuntu_server":
+        found = _distro(dev)
     if found is None and prof.cpe:
         cpe = prof.cpe if isinstance(prof.cpe, str) else prof.cpe[0]
         cur = device_cpe_version(prof, dev.os_version)

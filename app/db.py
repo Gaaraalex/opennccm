@@ -299,7 +299,8 @@ class Setting(Base):
     value: Mapped[str | None] = mapped_column(Text)
 
 
-SECRET_SETTINGS = {"smtp_password", "cisco_api_secret", "dr_remote_password", "ldap_bind_password", "oidc_client_secret"}
+SECRET_SETTINGS = {"smtp_password", "cisco_api_secret", "dr_remote_password", "ldap_bind_password", "oidc_client_secret",
+                   "nvd_api_key"}
 
 
 def init_db():

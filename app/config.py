@@ -19,4 +19,4 @@ UPDATE_LOG = DATA_DIR / "update.log"
 # «Apoya OpenNCCM»: enlaces de donación del proyecto. Sin enlaces no se muestra nada (ni el botón ni la tarjeta).
 # Solo se abren si la persona los pulsa, en una pestaña nueva y sin enviar datos del servidor.
 DONATE_LINKS = [(key, os.environ.get(f"NCM_DONATE_{key.upper()}", default)) for key, default in (
-    ("github", ""), ("kofi", "https://ko-fi.com/opennccm"), ("opencollective", ""))]
+    ("github", "https://github.com/sponsors/Gaaraalex"), ("kofi", "https://ko-fi.com/opennccm"), ("opencollective", ""))]
