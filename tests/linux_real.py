@@ -1,5 +1,6 @@
 """Respaldo real de servidores Ubuntu/Debian (los prepara tests/linux-real-test.sh).
 Uso: linux_real.py <imagen> <puerto> [<imagen> <puerto> …]"""
+import difflib
 import os
 import re
 import sys
@@ -71,6 +72,9 @@ for img, port in zip(args[::2], args[1::2]):
     check(f"{img}: tamaño razonable (menos de 200 KB)", size < 200 * 1024, size)
     res2 = services.backup_device(dev_id, "manual", "ci")
     check(f"{img}: un segundo respaldo sin cambios no crea versión nueva (nada volátil)", res2 == "unchanged", res2)
+    if res2 != "unchanged":
+        for line in difflib.unified_diff(text.splitlines(), latest(dev_id)[0].splitlines(), lineterm="", n=0):
+            print("     " + line[:200])
 
     # usuario sin sudo: se respalda lo que se puede leer, sin fallar
     dev2, res3 = backup(f"srv-{img.replace(':', '-')}-lector", port, cred_ids[1])
