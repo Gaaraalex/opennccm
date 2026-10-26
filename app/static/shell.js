@@ -237,10 +237,16 @@
   if (undo) undo.remove();
   /* Paginador de listas largas: <tbody data-pager> (o <ul data-pager>). Muestra 15 por página; 25, 50 o 100 solo mientras
      se está en esa página: no se guarda en ningún sitio, así que al salir y volver vuelve a 15. Las filas de «sin datos»
-     (.empty) no cuentan. Sin JavaScript se ven todas las filas, como antes. */
+     (.empty) no cuentan, ni las que un filtro de la página deja fuera (.pg-out); ese filtro avisa con el evento
+     «pager:refresh» sobre el <tbody>. Sin JavaScript se ven todas las filas, como antes. */
   function pager(box) {
     var size = 15, page = 1, sizes = [15, 25, 50, 100];
-    var rows = function () { return Array.prototype.filter.call(box.children, function (r) { return !r.querySelector('.empty'); }); };
+    var rows = function () {
+      return Array.prototype.filter.call(box.children, function (r) {
+        if (r.classList.contains('pg-out')) { r.hidden = true; return false; }
+        return !r.querySelector('.empty');
+      });
+    };
     var host = box.closest('.card') || box.closest('table') || box;
     var bar = document.createElement('nav');
     bar.className = 'pager';
@@ -280,6 +286,7 @@
       draw();
       host.scrollIntoView({block: 'nearest'});
     });
+    box.addEventListener('pager:refresh', function () { page = 1; draw(); });
     bar.addEventListener('change', function (e) {
       if (e.target.tagName !== 'SELECT') return;
       size = +e.target.value;

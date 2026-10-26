@@ -1,4 +1,4 @@
-"""Paginador de 15/25/50/100 en Cumplimiento, Vulnerabilidades, Alarmas, Usuarios, Credenciales, Grupos y Auditoría.
+"""Paginador de 15/25/50/100 en Dispositivos, Cumplimiento, Vulnerabilidades, Alarmas, Usuarios, Credenciales, Grupos y Auditoría.
 Alarmas pagina en el servidor (?per=&page=); el resto en el navegador (tbody data-pager, shell.js). El tamaño no se
 guarda: sin «per» en el enlace siempre son 15. Requiere haber ejecutado antes e2e.py."""
 import re
@@ -21,13 +21,17 @@ def check(name, cond, extra=""):
 
 s = requests.Session()
 s.post(B + "/login", data={"username": "admin", "password": "Admin12345"})
-for path in ("/compliance", "/vulns", "/users", "/credentials", "/groups", "/audit"):
+for path in ("/devices", "/compliance", "/vulns", "/users", "/credentials", "/groups", "/audit"):
     html = s.get(B + path).text
     # sin datos la página muestra un aviso en lugar de la tabla: no hay nada que paginar
     check(f"{path}: la lista tiene paginador", "<tbody data-pager>" in html or "<tbody" not in html, path)
 js = s.get(B + "/static/shell.js").text
 check("el paginador del navegador empieza en 15 con opciones 25/50/100 y no guarda la elección",
       "size = 15" in js and "[15, 25, 50, 100]" in js and "localStorage" not in js[js.find("function pager"):js.find("$$('[data-pager]')")])
+
+dev = s.get(B + "/devices").text
+check("Dispositivos: el filtro al escribir avisa al paginador (cuenta solo los equipos que coinciden)",
+      "pager:refresh" in dev and "pg-out" in dev and "pager:refresh" in js and "pg-out" in js)
 
 # Alarmas: 40 eventos de prueba para tener varias páginas
 with SessionLocal() as db:
