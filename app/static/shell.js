@@ -130,6 +130,13 @@
     function onMsg(ev) {
       if (ev.origin !== location.origin || ev.source !== frame.contentWindow || !ev.data || ev.data.oc !== 'console') return;
       var s = ev.data.state;
+      if (ev.data.nocred && !$('.banner', d)) {  // credencial asignada sin inicio automático: avisar (y enlazar a Ajustes)
+        var b = document.createElement('div');
+        b.className = 'banner info';
+        b.innerHTML = icon('info') + '<span class="grow">' + esc(T.c_nocred || '') + ' ' + (ev.data.nocred === 'admin'
+          ? '<a href="/settings#seguridad">' + esc(T.c_nocred_admin || '') + '</a>' : esc(T.c_nocred_user || '')) + '</span>';
+        d.insertBefore(b, d.lastElementChild);
+      }
       pill.textContent = T['c_' + {connecting: 'connecting', connected: 'connected'}[s]] || T.c_closed || s;
       pill.className = 'pill ' + ({connected: 'ok', disconnected: 'warn'}[s] || '');
     }

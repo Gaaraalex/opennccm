@@ -186,6 +186,20 @@ ui() { whiptail --backtitle "$BACKTITLE" --ok-button "Aceptar" --cancel-button "
 msg() { ui --title "${2:-$TITLE}" --msgbox "$1" "${3:-14}" 74 || true; }
 yesno() { whiptail --backtitle "$BACKTITLE" --title "${2:-$TITLE}" --yes-button "Sí" --no-button "No" \
   --yesno "$1" "${3:-12}" 74 >/dev/tty </dev/tty 2>&1; }
+# lista de opciones con el ancho de la más larga (sin pasar del ancho de la terminal):
+# radio TÍTULO TEXTO ALTO LÍNEAS etiqueta descripción ON|OFF ...
+radio() {
+  local title=$1 text=$2 h=$3 n=$4 i t=0 d=0 w cols; shift 4
+  local args=("$@")
+  for ((i = 0; i < ${#args[@]}; i += 3)); do
+    (( ${#args[i]} > t )) && t=${#args[i]}
+    (( ${#args[i+1]} > d )) && d=${#args[i+1]}
+  done
+  w=$((t + d + 18)); (( w < 74 )) && w=74
+  cols=$(stty size </dev/tty 2>/dev/null | cut -d' ' -f2); cols=${cols:-80}
+  (( w > cols - 2 )) && w=$((cols - 2))
+  ui --title "$title" --radiolist "$text" "$h" "$w" "$n" "$@"
+}
 noyes() { whiptail --backtitle "$BACKTITLE" --title "${2:-$TITLE}" --yes-button "Sí" --no-button "No" --defaultno \
   --yesno "$1" "${3:-12}" 74 >/dev/tty </dev/tty 2>&1; }   # como yesno, con «No» preseleccionado
 
@@ -304,9 +318,9 @@ ask_host() {
   done < <(detect_ips)
   items+=("otro" "Escribir un nombre DNS u otra dirección" OFF)
   local choice
-  choice=$(ui --title "Dirección del servidor" --radiolist \
+  choice=$(radio "Dirección del servidor" \
     "\n¿Con qué dirección accederán los usuarios a OpenNCCM?\n\nSe usa para el certificado HTTPS y en los mensajes. Muévase con las flechas, marque con ESPACIO y confirme con ENTER." \
-    20 74 8 "${items[@]}") || return 1
+    20 8 "${items[@]}") || return 1
   if [[ $choice == "otro" ]]; then
     choice=$(ui --title "Dirección del servidor" --inputbox "\nEscriba el nombre DNS o la IP (p. ej. opennccm.miempresa.local):" 10 74 "${NCM_HOST:-$(hostname -f)}") || return 1
   fi
@@ -328,10 +342,10 @@ ask_timezone() {
 
 ask_tls() {
   local choice
-  choice=$(ui --title "Acceso HTTPS" --radiolist "\n¿Cómo se protegerá el acceso web?" 17 74 4 \
-    "self-signed" "Certificado autofirmado (recomendado en redes internas)" ON \
-    "letsencrypt" "Let's Encrypt (requiere DNS público y puerto 80 abierto)" OFF \
-    "custom" "Certificado propio de su empresa (archivos .crt y .key)" OFF \
+  choice=$(radio "Acceso HTTPS" "\n¿Cómo se protegerá el acceso web?" 17 4 \
+    "self-signed" "Autofirmado (recomendado en redes internas)" ON \
+    "letsencrypt" "Let's Encrypt (DNS público y puerto 80 abierto)" OFF \
+    "custom" "Certificado de su empresa (.crt y .key)" OFF \
     "none" "Sin HTTPS: puerto 8000 (solo laboratorio)" OFF) || return 1
   TLS_MODE=$choice
   if [[ $TLS_MODE == letsencrypt ]]; then
@@ -345,9 +359,9 @@ ask_tls() {
 }
 
 ask_db() {
-  DB_MODE=$(ui --title "Base de datos" --radiolist "\n¿Qué base de datos usará OpenNCCM?" 14 74 2 \
-    "sqlite" "SQLite: integrada, sin mantenimiento (hasta ~2 000 equipos)" ON \
-    "postgresql" "PostgreSQL: para redes grandes (se instala y configura sola)" OFF) || return 1
+  DB_MODE=$(radio "Base de datos" "\n¿Qué base de datos usará OpenNCCM?" 14 2 \
+    "sqlite" "SQLite: integrada, hasta ~2 000 equipos" ON \
+    "postgresql" "PostgreSQL: redes grandes (se instala sola)" OFF) || return 1
 }
 
 ask_firewall() {
@@ -358,8 +372,8 @@ ask_firewall() {
 ask_admin() {
   ADMIN_USER=$(ui --title "Administrador" --inputbox "\nNombre del usuario administrador de OpenNCCM:" 10 74 "${ADMIN_USER:-admin}") || return 1
   local mode
-  mode=$(ui --title "Contraseña del administrador" --radiolist "\n¿Cómo se define la contraseña?" 13 74 2 \
-    "generar" "Generar una contraseña segura (se muestra al final)" ON \
+  mode=$(radio "Contraseña del administrador" "\n¿Cómo se define la contraseña?" 13 2 \
+    "generar" "Generar una segura (se muestra al final)" ON \
     "escribir" "Escribirla ahora" OFF) || return 1
   if [[ $mode == escribir ]]; then
     local p1 p2
@@ -378,7 +392,7 @@ ask_admin() {
 ask_smtp() {
   noyes "\n¿Configurar ahora el correo para alertas e informes?\n\nPuede hacerlo más tarde en Ajustes dentro de OpenNCCM." "Notificaciones por correo" 12 || return 0
   SMTP_HOST=$(ui --title "Correo" --inputbox "\nServidor SMTP:" 10 74 "$SMTP_HOST") || return 1
-  SMTP_SEC=$(ui --title "Correo" --radiolist "\nSeguridad de la conexión:" 13 74 3 \
+  SMTP_SEC=$(radio "Correo" "\nSeguridad de la conexión:" 13 3 \
     "starttls" "STARTTLS (puerto 587)" ON "ssl" "SSL/TLS (puerto 465)" OFF "none" "Sin cifrado (puerto 25)" OFF) || return 1
   case $SMTP_SEC in starttls) SMTP_PORT=587;; ssl) SMTP_PORT=465;; none) SMTP_PORT=25;; esac
   SMTP_PORT=$(ui --title "Correo" --inputbox "\nPuerto:" 10 74 "$SMTP_PORT") || return 1

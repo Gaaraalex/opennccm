@@ -66,7 +66,7 @@ def console_page(request: Request, dev_id: int, embed: int = 0):
             raise Forbidden()
         prof = PROFILE_MAP.get(dev.device_type)
         info = {"id": dev.id, "name": dev.name, "host": dev.host, "port": dev.port, "protocol": dev.protocol,
-                "vend": (prof.vendor if prof else dev.device_type)[:3].upper()}
+                "vend": (prof.vendor if prof else dev.device_type)[:3].upper(), "has_cred": dev.credential_id is not None}
     from .auth import cached_setting
     resp = render(request, "console.html", user, dev=info, compact=True, embed=bool(embed),
                   autologin=cached_setting("console_autologin", "0") == "1")

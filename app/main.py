@@ -1706,6 +1706,29 @@ def compliance_remediate(request: Request, result_id: int):
     return go(f"/changes/{cr_id}")
 
 
+@app.post("/compliance/remediate-rule")
+async def compliance_remediate_rule(request: Request):
+    """«Corregir en N equipos…»: una solicitud de cambio por cada equipo marcado que incumple la regla."""
+    user = require(request, "operator")
+    form = await request.form()
+    ids = [int(x) for x in form.getlist("result_id") if str(x).isdigit()]
+    scope = device_scope(user)
+    fixes = []
+    with SessionLocal() as db:
+        for rid in ids:
+            r = db.get(ComplianceResult, rid)
+            if not r or r.passed or not r.rule or not r.rule.remediation or (scope is not None and r.device_id not in scope):
+                continue
+            fixes.append((f"Corrección '{r.rule.name}' en {r.device.name}", r.rule.remediation, r.device_id))
+    if not fixes:
+        flash(request, _("Marca al menos un equipo con corrección pendiente"), "error")
+        return go("/compliance")
+    created = [_create_cr(user, title[:200], body, {}, [dev_id]) for title, body, dev_id in fixes]
+    flash(request, _f("Se crearon {0} solicitudes de corrección", len(created)) if len(created) != 1
+          else _("Se creó la solicitud de corrección"))
+    return go(f"/changes/{created[0]}" if len(created) == 1 else "/changes?status=pending")
+
+
 @app.post("/compliance/remediate-policy")
 async def compliance_remediate_policy(request: Request):
     """«Corregir N»: una solicitud de cambio por equipo con todas las correcciones de sus infracciones de la política."""
@@ -1776,6 +1799,10 @@ def schedules(request: Request):
 SCHEDULE_ACTIONS = {"backup": N_("Respaldo de configuración"), "compliance": N_("Auditoría de cumplimiento"),
                     "cve": N_("Escaneo de vulnerabilidades"), "configlet": N_("Ejecutar configlet"),
                     "report_email": N_("Informes por correo"), "system_backup": N_("Copia de recuperación")}
+# nombre propuesto en «Nueva tarea» para cada acción (con su horario por omisión: respaldo a diario, el resto semanal)
+SCHEDULE_NAMES = {"backup": N_("Respaldo nocturno"), "compliance": N_("Auditoría semanal"),
+                  "cve": N_("Búsqueda semanal de CVE"), "configlet": N_("Configlet semanal"),
+                  "report_email": N_("Informe semanal por correo"), "system_backup": N_("Copia de recuperación semanal")}
 
 
 @app.get("/schedules/new")
@@ -1787,10 +1814,10 @@ def schedule_new_form(request: Request, action: str = "backup"):
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
         configlets = db.scalars(select(Configlet).order_by(Configlet.name)).all()
     act = action if action in SCHEDULE_ACTIONS else "backup"
-    sf = {"name": _("Respaldo nocturno") if act == "backup" else "", "action": act, "group_id": None, "configlet_id": None,
+    sf = {"name": _(SCHEDULE_NAMES[act]), "action": act, "group_id": None, "configlet_id": None,
           **cronutil.to_form("0 2 * * *" if act == "backup" else "0 8 * * 1")}
     return render(request, "schedule_edit.html", user, sf=sf, sid=None, groups=groups, configlets=configlets,
-                  DAYS=cronutil.DAYS, FREQS=cronutil.FREQS)
+                  DAYS=cronutil.DAYS, FREQS=cronutil.FREQS, NAMES={k: _(v) for k, v in SCHEDULE_NAMES.items()})
 
 
 @app.get("/schedules/{sid}/edit")

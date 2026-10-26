@@ -232,7 +232,7 @@ cmd_rollback() {
 }
 
 cmd_status() {
-  local ver active url=""
+  local ver active url="" rev
   ver=$(current_version)
   active=$(systemctl is-active $SVC 2>/dev/null || true)
   if [[ -r $CONF ]]; then
@@ -244,7 +244,8 @@ cmd_status() {
   [[ $active == active ]] && ok "Servicio: activo" || warn "Servicio: $active"
   if curl -fsS --max-time 3 $HEALTH_URL >/dev/null 2>&1; then ok "Aplicación: responde"; else warn "Aplicación: no responde"; fi
   [[ -n $url ]] && echo "  Acceso:     $url"
-  echo "  Código:     $APP_DIR ($(git -C $APP_DIR describe --tags --always 2>/dev/null || echo '?'))"
+  rev=$(git -C $APP_DIR describe --tags --always 2>/dev/null)   # vacío en una instalación desde el paquete .tar.gz
+  echo "  Código:     $APP_DIR${rev:+ ($rev)}"
   echo "  Datos:      $DATA_DIR ($(du -sh $DATA_DIR 2>/dev/null | cut -f1))"
   echo "  Disco libre: $(df -h $DATA_DIR | awk 'NR==2{print $4}')"
   if [[ $EUID -eq 0 && -d $APP_DIR/.git ]] && timeout 15 git -C $APP_DIR fetch --quiet --tags origin 2>/dev/null; then
