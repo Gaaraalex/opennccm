@@ -1,6 +1,6 @@
 {# Formulario de tarea programada (crear y editar), como el panel del prototipo. Variables: sf, form_action, sid #}
 <form method="post" action="{{ form_action }}" id="sched" class="stack">
-  <div class="field"><label for="t-name">Nombre</label><div class="input"><input id="t-name" name="name" required value="{{ sf.name }}" placeholder="Respaldo nocturno"></div></div>
+  <div class="field"><label for="t-name">Nombre</label><div class="input"><input id="t-name" name="name" required value="{{ sf.name }}" placeholder="{{ _('Respaldo nocturno') }}"></div></div>
   <div class="field"><label for="action">Acción</label><div class="input"><select name="action" id="action">
     {% for k, v in [('backup', _('Respaldar configuración')), ('compliance', _('Auditar cumplimiento')), ('cve', _('Buscar CVE de firmware')), ('configlet', _('Ejecutar un configlet')), ('report_email', _('Enviar informes por correo')), ('system_backup', _('Copia de recuperación del sistema'))] %}
     <option value="{{ k }}" {{ 'selected' if sf.action == k }}>{{ v }}</option>{% endfor %}</select></div></div>
@@ -59,7 +59,16 @@
     $('cron').required = q === 'cron';
   }
   f.addEventListener('input', update); f.addEventListener('change', update);
-  f.querySelectorAll('[data-days]').forEach(a => a.addEventListener('click', e => {
+  {% if NAMES is defined and not sid %}// nueva tarea: el nombre propuesto sigue a la acción mientras el usuario no lo haya escrito él
+  const NAMES = {{ NAMES|tojson }}, name = $('t-name');
+  let prev = $('action').value;
+  $('action').addEventListener('change', () => {
+    const v = name.value.trim();
+    if (!v || v === NAMES[prev]) name.value = NAMES[$('action').value] || '';
+    name.placeholder = NAMES[$('action').value] || '';
+    prev = $('action').value;
+  });
+  {% endif %}  f.querySelectorAll('[data-days]').forEach(a => a.addEventListener('click', e => {
     e.preventDefault();
     const want = a.dataset.days.split(',');
     f.querySelectorAll('input[name=days]').forEach(c => { c.checked = want.includes(c.value); });

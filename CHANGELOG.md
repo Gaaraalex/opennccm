@@ -1,5 +1,20 @@
 # Historial de versiones
 
+## 2.8.0
+- **Ajustes › Vulnerabilidades (NVD)** aparece en el menú lateral de Ajustes. En la 2.7.0 la sección existía pero no se podía
+  abrir desde el menú.
+- **Cumplimiento**: si una regla la incumplen varios equipos, un solo botón **«Corregir en N equipos…»** abre la lista de equipos
+  con casillas (todos marcados) y crea una solicitud de corrección por cada uno. Antes había un botón por equipo. La lista
+  de nombres de la regla muestra los cinco primeros y «y N más».
+- **Nueva tarea**: el nombre propuesto corresponde a la acción elegida («Auditoría semanal», «Búsqueda semanal de CVE»,
+  «Copia de recuperación semanal»…) y cambia con ella mientras no se haya escrito otro. Antes se quedaba «Respaldo nocturno».
+- **Consola SSH**: si el equipo tiene una credencial asignada y el inicio automático está desactivado, la consola lo avisa.
+  A los administradores les enlaza a Ajustes para activarlo. El valor por defecto no cambia.
+- **Instalador**: las listas de opciones («Acceso HTTPS», «Base de datos»…) ya no se salen del recuadro: se dimensionan
+  según la opción más larga y los textos caben en una consola de 80 columnas.
+- **`opennccm status`** ya no muestra «(?)» junto a la carpeta del código en las instalaciones hechas desde el paquete
+  publicado.
+
 ## 2.7.0
 - **Ubuntu Server y Debian** (Ubuntu 26.04, 24.04 y 22.04 LTS; Debian 12 y 13): perfil nuevo «Ubuntu Server / Debian».
   - Respalda solo configuración en texto: red (netplan o interfaces), DNS, SSH, cuentas y sudo, repositorios, paquetes

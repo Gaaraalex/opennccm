@@ -120,7 +120,8 @@ jobs:
       - name: Verificar
         run: |
           curl -fsk https://127.0.0.1/healthz
-          sudo opennccm status
+          sudo opennccm status | tee /tmp/status.txt
+          if grep -qF '(?)' /tmp/status.txt; then echo 'opennccm status muestra «(?)»'; exit 1; fi
           test "$(sudo git -C /opt/opennccm remote get-url origin)" = "https://github.com/Gaaraalex/opennccm.git"
           sudo grep -q "REPO_URL='https://github.com/Gaaraalex/opennccm.git'" /etc/opennccm/install.conf
       - name: Registro (si falla)

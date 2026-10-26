@@ -13,6 +13,8 @@
   <button type="button" class="btn s ghost" id="reconectar">{{ icon('refresh', 's') }}Reconectar</button>
   <button type="button" class="btn s ghost" id="completa">{{ icon('expand', 's') }}Pantalla completa</button></div>
 <div id="term" class="term" role="application" aria-label="{{ _f('Terminal SSH de {0}', dev.name) }}"></div>
+{% if not autologin and dev.has_cred %}<div class="banner info" id="autologin-off">{{ icon('info') }}<span class="grow">{{ _('El equipo tiene una credencial asignada, pero la consola no la usa: pide usuario y contraseña.') }}
+  {% if user.role == 'admin' %}<a href="/settings#seguridad" target="_top">{{ _('Activar «Entrar en la consola con la credencial del equipo» en Ajustes') }}</a>{% else %}{{ _('Un administrador puede activar el inicio automático en Ajustes.') }}{% endif %}</span></div>{% endif %}
 <p class="muted sm" style="margin:0">{% if autologin %}Inicio automático con la credencial del equipo.{% else %}Escribe el usuario y la contraseña del equipo cuando se te pidan.{% endif %}
   Ctrl+Mayús+C / V para copiar y pegar · se cierra tras 15 min sin escribir · la sesión queda en Auditoría.</p>
 {% endif %}
@@ -34,9 +36,11 @@ const T = {{ {'connecting': _('conectando…'), 'connected': _('conectado'), 'di
   term.open(document.getElementById('term'));
   fit.fit();
   let ws = null;
+  // el equipo tiene credencial pero la consola no la usa: el diálogo de la página lo avisa ('admin': con enlace a Ajustes)
+  const NOCRED = {{ (('admin' if user.role == 'admin' else 'user') if (not autologin and dev.has_cred) else '')|tojson }};
   function state(s) {  // conectando / conectado / desconectado: en la ventana propia y en el diálogo de la página
     if (estado) { estado.textContent = T[s]; estado.className = 'pill ' + ({connected: 'ok', disconnected: 'warn'}[s] || ''); }
-    if (EMBED && window.parent !== window) window.parent.postMessage({oc: 'console', state: s}, location.origin);
+    if (EMBED && window.parent !== window) window.parent.postMessage({oc: 'console', state: s, nocred: NOCRED}, location.origin);
   }
   function connect() {
     if (ws && ws.readyState <= 1) ws.close();

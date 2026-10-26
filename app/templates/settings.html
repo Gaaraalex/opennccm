@@ -3,7 +3,8 @@
 {% block content %}
 {% include "_admin_tabs.html" %}
 {% set SECS = [('seguridad', _('Seguridad y acceso'), 'lock'), ('inicio', _('Inicio de sesión'), 'key'), ('organizacion', _('Organización'), 'users'), ('flujo', _('Flujo de cambios'), 'branch'),
-               ('notificaciones', _('Notificaciones'), 'bell'), ('eox', _('Fin de vida (Cisco EoX)'), 'clock'), ('recuperacion', _('Recuperación ante desastres'), 'db'),
+               ('notificaciones', _('Notificaciones'), 'bell'), ('eox', _('Fin de vida (Cisco EoX)'), 'clock'), ('nvd', _('Vulnerabilidades (NVD)'), 'bug'),
+               ('recuperacion', _('Recuperación ante desastres'), 'db'),
                ('actualizaciones', _('Actualizaciones'), 'refresh')] %}
 {% macro F(label, id, help='') %}<div class="field"><label for="{{ id }}">{{ label }}</label>{{ caller() }}{% if help %}<span class="help">{{ help }}</span>{% endif %}</div>{% endmacro %}
 <form method="post" action="/settings" data-dirty id="setf" autocomplete="off">
