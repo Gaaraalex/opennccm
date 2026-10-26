@@ -260,6 +260,13 @@ def same_config(prev_text: str, new_clean: str, prof) -> bool:
     return compare_text(clean_config(prev_text, prof)) == compare_text(new_clean)
 
 
+def versions_differ(a, b, prof) -> bool:
+    """¿Dos versiones guardadas son distintas? Como same_config: una línea base guardada antes de ampliar las líneas
+    volátiles (p. ej. «! System Up Time» de Ubiquiti) no debe dejar el equipo «distinto de la base» para siempre."""
+    return a.sha256 != b.sha256 and not same_config(decrypt(a.content_enc),
+                                                    clean_config(decrypt(b.content_enc), prof), prof)
+
+
 # --------------------------------------------------------------------------- respaldo
 def backup_device(device_id: int, trigger="manual", username: str | None = None) -> str:
     lock = device_lock(device_id)
@@ -386,7 +393,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
         new_drift = False
         if dev.baseline_version_id:
             base = db.get(ConfigVersion, dev.baseline_version_id)
-            drift = base is not None and base.sha256 != sha
+            drift = base is not None and base.sha256 != sha and not same_config(decrypt(base.content_enc), running, prof)
             new_drift = drift and not dev.baseline_drift
             dev.baseline_drift = drift
 

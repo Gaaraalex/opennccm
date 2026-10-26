@@ -999,7 +999,7 @@ def version_baseline(request: Request, ver_id: int):
         dev.baseline_version_id = v.id
         v.label = v.label or "baseline"
         latest = services.latest_version(db, dev.id)
-        dev.baseline_drift = latest is not None and latest.sha256 != v.sha256
+        dev.baseline_drift = latest is not None and services.versions_differ(v, latest, get_profile(dev.device_type))
         db.commit()
         name = dev.name
     log_action(request, user, "baseline_set", f"{name} -> v{ver_id}")
