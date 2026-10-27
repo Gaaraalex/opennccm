@@ -22,7 +22,6 @@
 <nav class="rail" id="rail" aria-label="Menú principal">
   <div class="brand"><a class="brand-link" href="/" aria-label="OpenNCCM, ir al panel">{{ logo() }}<span class="txt">Open<em>NCCM</em></span></a>
     <button type="button" class="collapse" data-mini aria-label="Plegar menú" title="Plegar menú">{{ icon('panel', 's') }}</button></div>
-  <button type="button" class="find" data-palette>{{ icon('search', 's') }}<span>Buscar o ir a…</span><kbd>Ctrl K</kbd></button>
   <div class="grp">
     <a href="/" class="nav {{ 'on' if navp == '/' }}" title="Panel">{{ icon('grid') }}<span class="txt">Panel</span></a>
     <a href="/devices" class="nav {{ 'on' if navp.startswith(('/devices', '/versions')) }}" title="Dispositivos">{{ icon('server') }}<span class="txt">Dispositivos</span></a>
