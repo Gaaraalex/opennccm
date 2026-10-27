@@ -70,6 +70,23 @@ jobs:
       - name: Respaldar servidores Ubuntu y Debian por SSH (contenedores oficiales)
         run: bash tests/linux-real-test.sh .venv/bin/python
 
+  zabbix:
+    name: Importar desde Zabbix real (${{ matrix.zabbix }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        zabbix: ["6.0", "7.0", "7.4"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencias
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -q --upgrade pip
+          .venv/bin/pip install -q -r requirements.txt
+      - name: Zabbix ${{ matrix.zabbix }} oficial (PostgreSQL, servidor e interfaz web) e importación en OpenNCCM
+        run: bash tests/zabbix-real-test.sh ${{ matrix.zabbix }} .venv/bin/python
+
   install:
     name: Instalación y actualización (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -158,7 +175,7 @@ jobs:
   release:
     name: Publicar versión
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [lint, app, directories, linux, install, package, tui]
+    needs: [lint, app, directories, linux, zabbix, install, package, tui]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

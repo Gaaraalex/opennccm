@@ -160,7 +160,7 @@ grupo.</p>
   <li><b>Acciones de la fila:</b> al pasar el ratón aparecen respaldar, consola e interfaz web del equipo.</li>
   <li><b>Acciones masivas:</b> marque varias filas y use la barra inferior para respaldarlas, auditarlas o moverlas a un grupo.</li>
   <li><b>+ Agregar</b> (admin): <b>Agregar un equipo</b> abre el formulario de alta en un panel lateral; <b>Importar CSV</b>
-  abre la importación masiva.</li>
+  abre la importación masiva; <b>Importar desde Zabbix</b> trae los hosts de Zabbix.</li>
 </ul>
 <h2>Importar desde CSV</h2>
 <p>El panel explica las columnas (<code>name,host,device_type,credential,group,port,protocol,location</code>; solo las tres
@@ -168,6 +168,24 @@ primeras son obligatorias) y ofrece una plantilla para descargar. Al elegir el a
 fila válida o su error (plataforma desconocida, credencial inexistente, puerto o protocolo no válidos, nombre repetido). Las filas
 con error se omiten y las válidas se importan; los grupos que no existen se crean.</p>
 <figure><img src="img/04b-importar-csv.png" style="max-height:120mm"><figcaption>Importación desde CSV con su ayuda.</figcaption></figure>
+<h2>Importar desde Zabbix</h2>
+<p>Si los equipos ya están en Zabbix (6.0 o posterior), <b>+ Agregar › Importar desde Zabbix</b> los crea sin escribirlos uno a uno:</p>
+<ol>
+  <li><b>Conectar:</b> la dirección de la interfaz web de Zabbix y un <b>token de API</b> (en Zabbix 7: Usuarios › Tokens de API;
+  en 6.0: Administración › General › Tokens de API), o un usuario y su contraseña. Basta con un usuario de solo lectura que vea
+  los hosts. El token y la contraseña no se guardan; la dirección sí. Si Zabbix usa un certificado autofirmado, desmarque
+  <i>Verificar el certificado</i>.</li>
+  <li><b>Elegir:</b> la vista previa lista los hosts con su nombre, dirección (IP de la interfaz principal, o su nombre DNS),
+  descripción, grupos de Zabbix y la <b>plataforma</b> deducida de las plantillas y el inventario de Zabbix (por ejemplo «Mikrotik by
+  SNMP» → MikroTik RouterOS). Las que no se reconocen quedan como «Genérico» con la marca <i>revisar</i>; cada una se puede cambiar.
+  Se puede filtrar por texto o por grupo de Zabbix. No se marcan los que ya existen en OpenNCCM (mismo nombre o dirección), los
+  que no tienen dirección ni los desactivados en Zabbix.</li>
+  <li><b>Importar:</b> se guardan el nombre, la dirección (SSH, puerto 22), la descripción en <i>Notas</i> y, si Zabbix tiene
+  inventario, el modelo, el n.º de serie y la ubicación. Opcionalmente, una credencial y un grupo para todos.</li>
+</ol>
+<p>Las credenciales SSH no están en Zabbix. Si no elige una para todos, los equipos se crean <b>desactivados</b> (no se respaldan ni
+generan errores) hasta que edite cada uno, le asigne su credencial y su grupo, y lo active. Volver a importar más adelante solo
+añade los hosts nuevos.</p>
 <h2>Alta de un dispositivo</h2>
 <table>
   <tr><th>Campo</th><th>Descripción</th></tr>

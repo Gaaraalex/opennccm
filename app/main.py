@@ -783,6 +783,119 @@ async def device_import(request: Request):
     return go("/devices")
 
 
+# Importar desde Zabbix: «Conectar» lee los hosts y muestra la vista previa; la lista queda en memoria (el servicio usa un
+# solo proceso) 30 min para «Importar», que solo envía qué filas y con qué plataforma. El token o la contraseña de Zabbix
+# no se guardan; la dirección sí, para la próxima vez.
+_ZBX: dict[str, dict] = {}
+
+
+def _zbx_form(request: Request, user, error: str = "", **values):
+    with SessionLocal() as db:
+        creds = db.scalars(select(Credential).order_by(Credential.name)).all()
+        groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
+        creds = [(c.id, c.name) for c in creds]
+        groups = [(g.id, g.name) for g in groups]
+    values.setdefault("url", get_setting("zabbix_url", ""))
+    values.setdefault("verify", get_setting("zabbix_verify", "1") == "1")
+    return render(request, "devices_zabbix.html", user, error=error, creds=creds, groups=groups,
+                  labels={k: p.label for k, p in sorted(PROFILE_MAP.items(), key=lambda kv: kv[1].label.lower())},
+                  **values)
+
+
+@app.get("/devices/import/zabbix")
+def device_zabbix_form(request: Request):
+    user = require(request, "admin")
+    return _zbx_form(request, user)
+
+
+@app.post("/devices/import/zabbix")
+async def device_zabbix_connect(request: Request):
+    """Conecta con Zabbix y muestra sus hosts: los que ya existen en OpenNCCM (mismo nombre o dirección) se marcan."""
+    user = require(request, "admin")
+    form = await request.form()
+    url, verify = (form.get("url") or "").strip(), form.get("verify") == "on"
+    mode, username = form.get("auth") or "token", (form.get("username") or "").strip()
+    if not url:
+        return _zbx_form(request, user, _("Escribe la dirección de Zabbix."), url=url, verify=verify, mode=mode,
+                         username=username)
+    from . import zabbix
+    cli = zabbix.Client(url, verify=verify)
+    try:
+        if mode == "user":
+            cli.connect(username=username, password=form.get("password") or "")
+        else:
+            cli.connect(token=form.get("token") or "")
+        hosts = cli.hosts()
+    except zabbix.ZabbixError as e:
+        return _zbx_form(request, user, str(e), url=url, verify=verify, mode=mode, username=username)
+    finally:
+        cli.close()
+    set_setting("zabbix_url", url)
+    set_setting("zabbix_verify", "1" if verify else "0")
+    rows = zabbix.rows(hosts)
+    with SessionLocal() as db:
+        names = {n.lower() for n in db.scalars(select(Device.name))}
+        addrs = {h.lower() for h in db.scalars(select(Device.host))}
+    seen = set()
+    for r in rows:
+        key = r["name"].lower()
+        r["exists"] = (_("ya existe (mismo nombre)") if key in names else
+                       _("ya existe (misma dirección)") if r["host"].lower() in addrs else
+                       _("nombre repetido en Zabbix") if key in seen else "")
+        seen.add(key)
+        r["ok"] = bool(r["name"] and r["host"] and not r["exists"])
+    for k in [k for k, v in _ZBX.items() if time.time() - v["at"] > 1800]:
+        _ZBX.pop(k, None)
+    key = secrets.token_urlsafe(16)
+    _ZBX[key] = {"user": user.id, "at": time.time(), "rows": rows}
+    log_action(request, user, "zabbix_connect", f"{cli.url} (Zabbix {cli.version}): {len(rows)} hosts")
+    return _zbx_form(request, user, url=url, verify=verify, mode=mode, username=username, key=key, rows=rows,
+                     zversion=cli.version, zgroups=sorted({g for r in rows for g in r["groups"]}, key=str.lower))
+
+
+@app.post("/devices/import/zabbix/create")
+async def device_zabbix_create(request: Request):
+    """Crea los hosts marcados. Sin credencial quedan desactivados (no se respaldan) hasta que se les asigne una."""
+    user = require(request, "admin")
+    form = await request.form(max_fields=100000)
+    job = _ZBX.get(form.get("key") or "")
+    if not job or job["user"] != user.id:
+        flash(request, _("La lista de Zabbix caducó: vuelve a conectar."), "error")
+        return go("/devices/import/zabbix")
+    cred_id = int(form.get("credential_id") or 0) or None
+    group_id = int(form.get("group_id") or 0) or None
+    created, skipped = 0, 0
+    with SessionLocal() as db:
+        if cred_id and not db.get(Credential, cred_id):
+            cred_id = None
+        if group_id and not db.get(DeviceGroup, group_id):
+            group_id = None
+        names = {n.lower() for n in db.scalars(select(Device.name))}
+        for i in form.getlist("sel"):
+            if not str(i).isdigit() or int(i) >= len(job["rows"]):
+                continue
+            r = job["rows"][int(i)]
+            dtype = form.get(f"t_{i}") or r["type"] or "generic"
+            if not r["name"] or not r["host"] or r["name"].lower() in names:
+                skipped += 1
+                continue
+            db.add(Device(name=r["name"], host=r["host"], device_type=dtype if dtype in PROFILE_MAP else "generic",
+                          credential_id=cred_id, group_id=group_id, protocol="ssh", port=22,
+                          enabled=bool(cred_id), notes=r["description"] or None, location=r["location"],
+                          model=r["model"], serial=r["serial"]))
+            names.add(r["name"].lower())
+            created += 1
+        db.commit()
+    _ZBX.pop(form.get("key"), None)
+    log_action(request, user, "device_import_zabbix", f"{created} creados, {skipped} omitidos")
+    flash(request, _f("{0} equipos importados desde Zabbix", created))
+    if created and not cred_id:
+        flash(request, _("Quedaron desactivados: edita cada uno para asignarle la credencial SSH (y el grupo) y actívalo."))
+    if skipped:
+        flash(request, _f("{0} omitidos porque ya existían o no tenían dirección", skipped), "error")
+    return go("/devices")
+
+
 @app.get("/devices/{dev_id}")
 def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: str = "sbs", ctx: int = 3):
     user = require(request)

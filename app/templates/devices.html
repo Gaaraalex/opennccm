@@ -10,6 +10,7 @@
     <div class="drop" id="add-menu" hidden>
       <a href="/devices/new" data-sheet data-title="Agregar equipo">{{ icon('plus', 's') }}<span><b>Agregar un equipo</b><span class="desc">Con formulario</span></span></a>
       <a href="/devices/import" data-sheet data-title="Importar equipos desde CSV">{{ icon('ul', 's') }}<span><b>Importar CSV</b><span class="desc">Muchos equipos de una vez</span></span></a>
+      <a href="/devices/import/zabbix">{{ icon('dl', 's') }}<span><b>{{ _('Importar desde Zabbix') }}</b><span class="desc">{{ _('Nombre, IP y descripción de sus hosts') }}</span></span></a>
     </div></span>{% endif %}
   {% if can_run %}<form class="inline" method="post" action="/backup/all"><input type="hidden" name="group" value="{{ group }}">
     <button class="btn pri" onclick="return confirm('{{ (_('¿Respaldar ahora todos los equipos del grupo?') if group else _('¿Respaldar ahora todos los equipos?'))|jsq }}')">{{ icon('dl', 's') }}Respaldar todos</button></form>{% endif %}
