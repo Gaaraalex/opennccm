@@ -14,7 +14,7 @@ import requests
 
 from .i18n import _, _f
 
-TIMEOUT = 30
+TIMEOUT = 120  # un Zabbix grande (miles de hosts con inventario) puede tardar en responder host.get
 
 
 class ZabbixError(Exception):

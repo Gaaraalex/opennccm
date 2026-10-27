@@ -20,6 +20,7 @@ def check(name, cond, extra=""):
 
 
 # 1. preparar Zabbix: grupo, tres hosts y un token de API para Admin
+zabbix.TIMEOUT = 300  # en un Zabbix 7 recién creado, enlazar la plantilla de Linux tarda más de 30 s
 z = zabbix.Client(ZBX, verify=False)
 z.connect(username="Admin", password="zabbix")
 print(f"Zabbix {z.version}")
