@@ -22,8 +22,8 @@ from . import reports, scheduler, services
 from .auth import (ROLES, Forbidden, LoginRequired, TwoFactorSetupRequired, check_device, clear_settings_cache,
                    device_scope, filter_ids, require, start_session, user_group_ids)
 from .config import BASE_DIR, TLS_CA
-from .crypto import (decrypt, dummy_verify, encrypt, hash_password, needs_rehash, password_problem, session_secret,
-                     verify_password)
+from .crypto import (KeyMismatch, decrypt, dummy_verify, encrypt, hash_password, needs_rehash, password_problem,
+                     session_secret, try_decrypt, verify_password)
 from .db import (AuditLog, ChangeRequest, ComplianceResult, Configlet, ConfigVersion, Credential, Device,
                  DeviceGroup, Event, FirmwareImage, Policy, Rule, SessionLocal, Schedule, User, UserGroup,
                  Vulnerability, audit,
@@ -122,6 +122,13 @@ async def _setup_2fa(request, _exc):
     flash(request, _("Por seguridad, los administradores deben activar la verificación en dos pasos antes de continuar."),
           "error")
     return go("/account#dospasos")
+
+
+@app.exception_handler(KeyMismatch)
+async def _key_mismatch(request, _exc):
+    return HTMLResponse(
+        f"<h2>{_('Estos datos se cifraron con otra clave')}</h2><p>{_('Algunas configuraciones o contraseñas guardadas se cifraron con un secret.key distinto del de este servidor (por ejemplo, al restaurar una copia sin su clave). Restaure el secret.key del servidor original para poder leerlas; el resto de OpenNCCM funciona con normalidad.')}</p><a href='javascript:history.back()'>{_('Volver')}</a>",
+        409)
 
 
 @app.exception_handler(Forbidden)
@@ -923,7 +930,7 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
         vulns = db.scalars(select(Vulnerability).where(Vulnerability.device_id == dev_id)
                            .order_by(Vulnerability.score.desc().nulls_last())).all()
         events = db.scalars(select(Event).where(Event.device_id == dev_id).order_by(Event.id.desc()).limit(30)).all()
-        inventory = decrypt(dev.inventory_raw_enc) if dev.inventory_raw_enc else ""
+        inventory = try_decrypt(dev.inventory_raw_enc, "") if dev.inventory_raw_enc else ""
         # línea de tiempo «Señal»: número de versión por equipo (v1…vN), origen, tamaño anormal y comparación A/B
         total_v = db.scalar(select(func.count(ConfigVersion.id)).where(ConfigVersion.device_id == dev_id)) or 0
         trig = {"manual": _("Manual"), "scheduled": _("Programado"), "syslog": "Syslog", "push": "Push"}
@@ -941,9 +948,13 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
         if va_id and vb_id and va_id > vb_id:
             va_id, vb_id = vb_id, va_id  # A siempre la más antigua
         cmp = None
+        key_error = False
         if va_id and vb_id:
             va, vb = db.get(ConfigVersion, va_id), db.get(ConfigVersion, vb_id)
-            ta, tb = decrypt(va.content_enc), decrypt(vb.content_enc)
+            ta, tb = try_decrypt(va.content_enc), try_decrypt(vb.content_enc)
+            if ta is None or tb is None:
+                key_error = True
+                ta, tb = ta or "", tb or ""
             add_n, del_n = services.diff_stats(ta, tb)
             cmp = {"a": va, "b": vb, "rows": services.side_by_side(ta, tb, ctx if ctx < 9999 else 100000),
                    "summary": services.diff_summary(ta, tb), "n": add_n + del_n}
@@ -952,7 +963,7 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
             base_v = db.get(ConfigVersion, dev.baseline_version_id)
             last_run = next((v for v in versions if v.kind == "running"), None)
             if base_v and last_run:
-                drift_n = sum(services.diff_stats(decrypt(base_v.content_enc), decrypt(last_run.content_enc)))
+                drift_n = sum(services.diff_stats(try_decrypt(base_v.content_enc, ""), try_decrypt(last_run.content_enc, "")))
         audit_rows = db.scalars(select(AuditLog).where(or_(AuditLog.detail.like(f"%{dev.name}%"),
                                                            AuditLog.detail.like(f"%device={dev_id}%")))
                                 .order_by(AuditLog.id.desc()).limit(20)).all()
@@ -975,7 +986,7 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
     from . import fwupdates as _fwu
     from .routes_ops import FW_SOURCES as _FW_SOURCES
     from .console import console_allowed
-    return render(request, "device.html", user, can_console=console_allowed(user, dev.id), device=dev,
+    return render(request, "device.html", user, key_error=key_error, can_console=console_allowed(user, dev.id), device=dev,
                   versions=versions, comp=comp, vulns=vulns, comp_groups=comp_groups,
                   comp_fails=sum(g["fails"] for g in comp_groups),
                   vuln_high=sum(1 for v in vulns if (v.severity or "").upper() in ("CRITICAL", "HIGH")),

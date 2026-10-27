@@ -55,6 +55,7 @@
     <a class="btn s" href="/eol">Ver ciclo de vida</a></div>{% endif %}
   {% if device.last_status == 'error' and device.last_error %}<div class="banner crit">{{ icon('alert') }}<span class="grow"><b>No se pudo conectar.</b> <span style="white-space:pre-line">{{ device.last_error[:800] }}</span></span>
     {% if is_admin %}<a class="btn s" href="/devices/{{ device.id }}/edit" data-sheet data-title="{{ _f('Editar {0}', device.name) }}">Revisar datos</a>{% endif %}</div>{% endif %}
+  {% if key_error %}<div class="banner warn" role="alert">{{ icon('alert') }}<span class="grow">{{ _('Algunas versiones de este equipo se cifraron con otra clave (secret.key) y no se pueden leer: restaure el secret.key del servidor original. Los respaldos nuevos se guardan con la clave actual.') }}</span></div>{% endif %}
   {% if profile.note and not device.custom_backup_cmd %}<div class="banner info">{{ icon('info') }}<span class="grow">{{ profile.note }}</span></div>{% endif %}
   <div class="bento">
     <section class="card c5"><div class="card-h"><h2>Inventario</h2>{% if is_admin %}<a class="btn s ghost" href="/devices/{{ device.id }}/edit" data-sheet data-title="{{ _f('Editar {0}', device.name) }}">{{ icon('edit', 's') }}Editar</a>{% endif %}</div>

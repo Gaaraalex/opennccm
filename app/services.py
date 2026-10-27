@@ -18,7 +18,7 @@ from jinja2.sandbox import SandboxedEnvironment
 from sqlalchemy import delete, select
 
 from .config import NVD_API_KEY, WORKERS
-from .crypto import decrypt, encrypt
+from .crypto import decrypt, encrypt, try_decrypt
 from .db import (ChangeRequest, ComplianceResult, ConfigVersion, Device, Event, Policy, SessionLocal,
                  Vulnerability, get_setting, now)
 from .drivers import FASTPATH, IOS, clean_config, compare_text, get_profile, parse_inventory, telnet_supported
@@ -368,7 +368,12 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
 
         sha = hashlib.sha256(compare_text(running).encode()).hexdigest()
         prev = latest_version(db, dev.id)
-        prev_text = decrypt(prev.content_enc) if prev else ""
+        prev_text = try_decrypt(prev.content_enc) if prev else ""
+        if prev_text is None:  # la versión anterior se cifró con otra clave: no se puede comparar
+            prev_text = ""
+            add_event("warning", "Versión anterior ilegible",
+                      f"{dev.name}: la versión anterior se cifró con otra clave (secret.key); se guarda la actual completa.",
+                      dev.id)
         changed = prev is None or (prev.sha256 != sha and not same_config(prev_text, running, prof))
         result = "unchanged"
         if changed:
@@ -401,7 +406,8 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
         new_drift = False
         if dev.baseline_version_id:
             base = db.get(ConfigVersion, dev.baseline_version_id)
-            drift = base is not None and base.sha256 != sha and not same_config(decrypt(base.content_enc), running, prof)
+            base_text = try_decrypt(base.content_enc) if base is not None else None
+            drift = base is not None and base.sha256 != sha and (base_text is None or not same_config(base_text, running, prof))
             new_drift = drift and not dev.baseline_drift
             dev.baseline_drift = drift
 
