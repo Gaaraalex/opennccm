@@ -523,22 +523,24 @@ CONFIRM_MINUTES = 5
 
 
 def _mikrotik_safe_mode(conn, take: bool) -> str:
-    conn.write_channel("\x18")  # Ctrl+X: toma o libera el modo seguro
-    want = "taken" if take else "released"
-    out = conn.read_until_pattern(pattern=r"(?i)safe mode (taken|released)|safe mode is already|could not|[>]\s*$",
-                                  read_timeout=20)
-    if f"safe mode {want}" not in out.lower():
-        out += conn.read_until_pattern(pattern=r"(?i)safe mode (taken|released)|[>]\s*$", read_timeout=10)
-    if f"safe mode {want}" not in out.lower():
+    """Toma o libera el modo seguro (Ctrl+X). Se comprueba por el prompt, que lleva «<SAFE>» mientras está activo
+    (RouterOS 7 responde «Taking Safe Mode session... Success!»; RouterOS 6, «[Safe Mode taken]»)."""
+    conn.clear_buffer()
+    conn.write_channel("\x18")
+    out = ""
+    try:
+        # al tomarlo se espera el prompt con «<SAFE>»; al liberarlo, el prompt normal «] >»
+        want = r"<SAFE>\s*$" if take else r"\]\s*>\s*$"
+        out = conn.read_until_pattern(pattern=rf"(?:{want}|(?i:already taken|failed))", read_timeout=20)
+    except Exception as e:  # noqa: BLE001
+        out += str(e)
+    last = out.strip().splitlines()[-1] if out.strip() else ""
+    active = "<SAFE" in last
+    if active != take:
         what, after = (("activar", "No se aplicó ningún cambio.") if take else
                        ("liberar", "Al cerrar la sesión, RouterOS deshace los cambios aplicados."))
         raise RuntimeError(f"No se pudo {what} el modo seguro de RouterOS (Ctrl+X): {out.strip()[-300:]}\n{after}")
-    if take:
-        try:
-            out += conn.read_until_pattern(pattern=r"[>]\s*$", read_timeout=5)
-        except Exception:  # noqa: BLE001 - el prompt ya llegó con el aviso
-            pass
-    return out
+    return out + ("\n[modo seguro activado]" if take else "\n[modo seguro liberado: cambios conservados]")
 
 
 def _push_stepwise(conn, commands: list[str], prof) -> str:

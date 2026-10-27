@@ -66,7 +66,11 @@ print(ros("/system identity set name=CHR-Base",
           "/ip firewall filter add chain=input action=drop protocol=tcp dst-port=21 comment=ftp",
           "/ip address add address=172.16.9.1/24 interface=br-base"))
 r = services.backup_device(dev_id, "manual", "ci")
-check(f"RouterOS {VER}: primer respaldo", r == "first", r)
+with SessionLocal() as db:
+    err = db.get(Device, dev_id).last_error
+check(f"RouterOS {VER}: primer respaldo", r == "first", f"{r}: {err}")
+if r != "first":
+    sys.exit(1)
 v1, base = latest(dev_id)
 
 # cambio no autorizado, hecho a mano
@@ -94,7 +98,7 @@ try:
 except Exception as e:  # noqa: BLE001
     applied, out = False, str(e)
 print(out[-1500:])
-check("la reversión se aplica sin errores (en modo seguro)", applied and "safe mode released" in out.lower(), out[-400:])
+check("la reversión se aplica sin errores (en modo seguro)", applied and "modo seguro liberado" in out, out[-400:])
 r = services.backup_device(dev_id, "manual", "ci")
 _, after = latest(dev_id)
 check("el equipo queda exactamente como en la versión de partida (reglas en el mismo orden)",
@@ -103,6 +107,7 @@ check("la regla de telnet vuelve a su sitio (entre «ya establecidas» y «ftp»
       [l for l in body(after) if "/ip firewall filter" in l] == [l for l in body(base) if "/ip firewall filter" in l])
 
 # un fallo a mitad: el modo seguro deshace lo que ya se aplicó
+before = ros("/system identity print")
 try:
     services.push_commands(dev_id, ["/system identity set name=A-MEDIAS", "/ip address add address=esto-no-es-una-ip interface=br-base"])
     failed = False
@@ -111,7 +116,7 @@ except Exception as e:  # noqa: BLE001
 check("un comando rechazado detiene el cambio", failed)
 time.sleep(3)
 ident = ros("/system identity print")
-check("y el modo seguro deshace lo que ya se había aplicado (la identidad no cambió)", "CHR-Base" in ident and "A-MEDIAS" not in ident, ident)
+check("y el modo seguro deshace lo que ya se había aplicado (la identidad no cambió)", "A-MEDIAS" not in ident and ident.strip() == before.strip(), ident)
 # tras un cambio correcto el modo seguro queda liberado y el cambio se conserva
 services.push_commands(dev_id, ["/system identity set name=CHR-Final"])
 time.sleep(2)
