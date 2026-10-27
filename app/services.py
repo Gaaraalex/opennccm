@@ -22,7 +22,7 @@ from .crypto import decrypt, encrypt
 from .db import (ChangeRequest, ComplianceResult, ConfigVersion, Device, Event, Policy, SessionLocal,
                  Vulnerability, get_setting, now)
 from .drivers import FASTPATH, IOS, clean_config, compare_text, get_profile, parse_inventory, telnet_supported
-from .rollback import build_rollback, fastpath_style
+from .rollback import fastpath_style, rollback_plan
 from .i18n import N_
 
 log = logging.getLogger("opennccm")
@@ -419,15 +419,21 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
                       f"{dev.name} ({dev.host}) cambió [{trigger}]. +{added}/-{removed} líneas\n\n{diff}", dev.id)
             if dev.auto_rollback and trigger in ("syslog", "scheduled") and not in_maintenance:
                 # se ejecuta en otro hilo: este todavía tiene el lock del dispositivo
-                jobs.submit(_auto_rollback, dev.id, dev.name, prof.family, running, prev_text)
+                jobs.submit(_auto_rollback, dev.id, dev.name, dev.device_type, dev.host, running, prev_text)
 
     run_compliance(device_id)
     return result
 
 
-def _auto_rollback(dev_id: int, dev_name: str, family: str, current: str, target: str):
-    cmds = build_rollback(current, target, family)
+def _auto_rollback(dev_id: int, dev_name: str, device_type: str, host: str, current: str, target: str):
+    cmds, notes = rollback_plan(current, target, get_profile(device_type), host)
+    if cmds is None:
+        add_event("critical", "Reversión automática no disponible",
+                  f"{dev_name}: hubo un cambio no autorizado, pero {notes[0]}", dev_id)
+        return
     log.info("Reversión automática de %s: %d comandos", dev_name, len(cmds))
+    if notes:
+        add_event("warning", "Reversión automática: revisar a mano", f"{dev_name}:\n" + "\n".join(notes), dev_id)
     if not cmds:
         return
     try:
@@ -491,6 +497,35 @@ DISCARD = {"juniper_junos": "rollback 0", "juniper": "rollback 0", "cisco_xr": "
            "paloalto_panos": "revert config"}
 
 
+# Red de seguridad del propio equipo mientras se aplican cambios:
+#  * MikroTik: «modo seguro» (Ctrl+X). Si algo falla, OpenNCCM cierra la sesión sin liberarlo y RouterOS deshace solo
+#    todo lo aplicado; si la conexión se corta a mitad (p. ej. un cambio deja sin acceso), también.
+#  * Junos: «commit confirmed 5». OpenNCCM vuelve a conectar y confirma; si no puede (el cambio cortó el acceso), el
+#    equipo vuelve solo a la configuración anterior en 5 minutos, sin reiniciar.
+SAFE_MODE = {"mikrotik_routeros"}
+CONFIRMED = {"juniper_junos", "juniper"}
+CONFIRM_MINUTES = 5
+
+
+def _mikrotik_safe_mode(conn, take: bool) -> str:
+    conn.write_channel("\x18")  # Ctrl+X: toma o libera el modo seguro
+    want = "taken" if take else "released"
+    out = conn.read_until_pattern(pattern=r"(?i)safe mode (taken|released)|safe mode is already|could not|[>]\s*$",
+                                  read_timeout=20)
+    if f"safe mode {want}" not in out.lower():
+        out += conn.read_until_pattern(pattern=r"(?i)safe mode (taken|released)|[>]\s*$", read_timeout=10)
+    if f"safe mode {want}" not in out.lower():
+        what, after = (("activar", "No se aplicó ningún cambio.") if take else
+                       ("liberar", "Al cerrar la sesión, RouterOS deshace los cambios aplicados."))
+        raise RuntimeError(f"No se pudo {what} el modo seguro de RouterOS (Ctrl+X): {out.strip()[-300:]}\n{after}")
+    if take:
+        try:
+            out += conn.read_until_pattern(pattern=r"[>]\s*$", read_timeout=5)
+        except Exception:  # noqa: BLE001 - el prompt ya llegó con el aviso
+            pass
+    return out
+
+
 def _push_stepwise(conn, commands: list[str], prof) -> str:
     """Envía los comandos de uno en uno y se detiene en el primero que el equipo rechace.
 
@@ -538,25 +573,49 @@ def _push(device_id: int, commands: list[str], exec_mode: bool) -> str:
             # ventana máxima por si el proceso muere; normalmente se cierra al terminar el respaldo post-cambio
             dev.maintenance_until = now() + timedelta(minutes=5)
             db.commit()
+        confirmed = prof.key in CONFIRMED
         with connect(dev) as conn:
             if exec_mode:
                 out = []
                 for c in commands:
                     out.append(f"### {c}\n" + conn.send_command(c, read_timeout=180))
                 return "\n".join(out)
-            out = _push_stepwise(conn, commands, prof)
-            if prof.commit:
+            safe = prof.key in SAFE_MODE
+            out = _mikrotik_safe_mode(conn, True) if safe else ""
+            # si un comando falla, la excepción cierra la sesión: en modo seguro, RouterOS lo deshace todo
+            out += _push_stepwise(conn, commands, prof)
+            if safe:
+                out += _mikrotik_safe_mode(conn, False)
+            if confirmed:
+                out += "\n" + conn.commit(confirm=True, confirm_delay=CONFIRM_MINUTES)
+            elif prof.commit:
                 out += "\n" + conn.commit()
+            if prof.commit:
                 try:
                     conn.exit_config_mode()
                 except Exception:  # noqa: BLE001
                     pass
-            if prof.save:
+            if prof.save and not confirmed:
                 try:
                     out += "\n" + conn.save_config()
                 except (NotImplementedError, AttributeError):
                     pass
-            return out
+        if confirmed:
+            # volver a entrar demuestra que el cambio no cortó el acceso; entonces se confirma
+            try:
+                with connect(dev) as conn:
+                    conn.config_mode()
+                    out += "\n" + conn.commit()
+                    try:
+                        conn.exit_config_mode()
+                    except Exception:  # noqa: BLE001
+                        pass
+            except Exception as e:  # noqa: BLE001
+                raise RuntimeError(
+                    f"El cambio se aplicó con «commit confirmed {CONFIRM_MINUTES}», pero OpenNCCM no pudo volver a "
+                    f"conectar para confirmarlo ({e}). Si el cambio cortó el acceso, el equipo volverá solo a la "
+                    f"configuración anterior en {CONFIRM_MINUTES} minutos.") from e
+        return out
 
 
 _jinja = SandboxedEnvironment(trim_blocks=True, lstrip_blocks=True)
@@ -618,15 +677,16 @@ def execute_change_request(cr_id: int):
                   f"#{cr.id} '{cr.title}': {ok} OK, {fail} con error.")
 
 
-def rollback_commands(device_id: int, version_id: int) -> list[str]:
+def rollback_commands(device_id: int, version_id: int) -> tuple[list[str] | None, list[str]]:
+    """(comandos, avisos) para volver a la versión; comandos None si la plataforma no se puede revertir por comandos."""
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
         target = db.get(ConfigVersion, version_id)
         current = latest_version(db, device_id)
         if not target or not current:
-            return []
-        return build_rollback(decrypt(current.content_enc), decrypt(target.content_enc),
-                              get_profile(dev.device_type).family)
+            return [], []
+        return rollback_plan(decrypt(current.content_enc), decrypt(target.content_enc), get_profile(dev.device_type),
+                             dev.host)
 
 
 # --------------------------------------------------------------------------- cumplimiento

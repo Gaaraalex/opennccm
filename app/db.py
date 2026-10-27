@@ -188,6 +188,7 @@ class ChangeRequest(Base):
     kind: Mapped[str] = mapped_column(String(16), default="config")  # config | firmware
     firmware_id: Mapped[int | None] = mapped_column(Integer)
     reload: Mapped[bool] = mapped_column(Boolean, default=False)
+    notes: Mapped[str | None] = mapped_column(Text)  # avisos de la reversión: lo que hay que revisar a mano
 
 
 class Schedule(Base):

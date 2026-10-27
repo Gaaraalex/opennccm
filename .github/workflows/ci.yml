@@ -70,6 +70,23 @@ jobs:
       - name: Respaldar servidores Ubuntu y Debian por SSH (contenedores oficiales)
         run: bash tests/linux-real-test.sh .venv/bin/python
 
+  mikrotik:
+    name: Reversión en MikroTik real (RouterOS ${{ matrix.ros }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        ros: ["7.25", "7.23.8", "6.49.23"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencias
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -q --upgrade pip
+          .venv/bin/pip install -q -r requirements.txt
+      - name: RouterOS CHR en QEMU/KVM, cambio no autorizado, reversión en modo seguro y fallo a mitad
+        run: bash tests/mikrotik-real-test.sh ${{ matrix.ros }} .venv/bin/python
+
   zabbix:
     name: Importar desde Zabbix real (${{ matrix.zabbix }})
     runs-on: ubuntu-24.04
@@ -175,7 +192,7 @@ jobs:
   release:
     name: Publicar versión
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [lint, app, directories, linux, zabbix, install, package, tui]
+    needs: [lint, app, directories, linux, zabbix, mikrotik, install, package, tui]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

@@ -649,8 +649,10 @@ async def devices_bulk(request: Request):
 
 
 def _device_form_ctx(db):
+    from .rollback import rollback_supported
     return {"groups": db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all(),
-            "credentials": db.scalars(select(Credential).order_by(Credential.name)).all()}
+            "credentials": db.scalars(select(Credential).order_by(Credential.name)).all(),
+            "no_rollback": sorted(k for k, p in PROFILE_MAP.items() if not rollback_supported(p))}
 
 
 @app.get("/devices/new")
@@ -678,7 +680,9 @@ def _apply_device_form(dev: Device, form):
     dev.location = form.get("location") or None
     dev.notes = form.get("notes") or None
     dev.enabled = form.get("enabled") == "on"
-    dev.auto_rollback = form.get("auto_rollback") == "on"
+    from .rollback import rollback_supported
+    # solo en plataformas que se pueden revertir por comandos con seguridad
+    dev.auto_rollback = form.get("auto_rollback") == "on" and rollback_supported(get_profile(dev.device_type))
     dev.custom_backup_cmd = (form.get("custom_backup_cmd") or "").strip() or None
     web = (form.get("web_url") or "").strip()
     if web and not web.lower().startswith(("http://", "https://")):
@@ -1189,12 +1193,17 @@ async def version_rollback(request: Request, ver_id: int):
     if small and form.get("confirm") != "1":
         flash(request, _f("No se creó la reversión: la versión #{0} es mucho más pequeña que la actual y probablemente es un respaldo incompleto. Revise el aviso de esta página.", ver_id), "error")
         return go(f"/versions/{ver_id}")
-    cmds = services.rollback_commands(dev_id, ver_id)
+    cmds, notes = services.rollback_commands(dev_id, ver_id)
+    if cmds is None:
+        flash(request, notes[0], "error")
+        return go(f"/versions/{ver_id}")
     if not cmds:
         flash(request, _("La versión seleccionada es igual a la actual: nada que revertir"))
+        for n in notes:
+            flash(request, n, "error")
         return go(f"/versions/{ver_id}")
     cr_id = _create_cr(user, f"Reversión de {name} a la versión #{ver_id}", "\n".join(cmds), {}, [dev_id],
-                       is_rollback=True)
+                       is_rollback=True, notes=notes)
     log_action(request, user, "rollback_request", f"{name} -> v{ver_id}")
     flash(request, _("Se generó la solicitud de reversión. Revise los comandos antes de aprobar."))
     return go(f"/changes/{cr_id}")
@@ -1470,11 +1479,13 @@ async def configlet_run(request: Request, cid: int):
 
 # --------------------------------------------------------------------------- solicitudes de cambio
 def _create_cr(user, title, body, variables, ids, is_rollback=False, kind="config", firmware_id=None,
-               reload=False) -> int:
+               reload=False, notes: list[str] | None = None) -> int:
     # la actualización de firmware siempre requiere aprobación
     auto = get_setting("require_approval", "1") != "1" and kind == "config"
     if services.example_addresses(body + " " + json.dumps(variables)):
         auto = False  # con direcciones de ejemplo nunca se ejecuta sola: alguien tiene que revisarla
+    if notes:
+        auto = False  # hay algo que revisar a mano: no se ejecuta sola
     if auto and kind == "config":
         with SessionLocal() as db:
             devs = list(db.scalars(select(Device).where(Device.id.in_(ids))))
@@ -1483,7 +1494,7 @@ def _create_cr(user, title, body, variables, ids, is_rollback=False, kind="confi
     with SessionLocal() as db:
         cr = ChangeRequest(title=title, body=body, variables=json.dumps(variables), device_ids=json.dumps(ids),
                            requested_by=user.username, is_rollback=is_rollback, kind=kind,
-                           firmware_id=firmware_id, reload=reload,
+                           firmware_id=firmware_id, reload=reload, notes="\n".join(notes) if notes else None,
                            status="approved" if auto else "pending",
                            reviewed_by="(aprobación desactivada)" if auto else None)
         db.add(cr)
