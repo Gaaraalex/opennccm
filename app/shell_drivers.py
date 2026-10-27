@@ -73,7 +73,10 @@ class UbuntuServerSSH(LinuxSSH):
 
 
 DRIVERS = {"pfsense": FreeBSDFirewallSSH, "opnsense": FreeBSDFirewallSSH, "alpine_linux": LinuxSSH,
-           "ubuntu_server": UbuntuServerSSH}
+           "ubuntu_server": UbuntuServerSSH,
+           # Ubiquiti: airOS, airFiber y AP UniFi son BusyBox (prompt «XW.v6.3.11#»); el USG es EdgeOS
+           "ubiquiti_airos": LinuxSSH, "ubiquiti_airfiber": LinuxSSH, "ubiquiti_unifi_ap": LinuxSSH,
+           "ubiquiti_usg": CLASS_MAPPER["ubiquiti_edgerouter"]}
 
 
 def register() -> None:

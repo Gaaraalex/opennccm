@@ -160,6 +160,13 @@ PROFILES: list[Profile] = [
             ignore=[r"^# \w{3}/\d{2}/\d{4} \d", r"^# \d{4}-\d{2}-\d{2} \d", r"^# software id"],
             cpe="cpe:2.3:o:mikrotik:routeros",
             version_re=[r"version: ([\d.]+)"], model_re=[r"board-name: (.+)"]),
+    # SwitchOS no tiene SSH: el respaldo se descarga por HTTP (app/swos.py); el comando del perfil no se usa
+    Profile("mikrotik_swos", "MikroTik SwitchOS (SwOS / SwOS Lite)", "MikroTik", "backup.swb (HTTP)", None,
+            inventory=None, family=MERGE, save=False,
+            version_re=[r"Version: (\S+)"], model_re=[r"Model: (.+)"], serial_re=[r"Serial: (\S+)"],
+            note="SwitchOS se gestiona por HTTP (puerto 80): OpenNCCM descarga el mismo respaldo (backup.swb) que su "
+                 "interfaz web. No admite cambios por comandos ni consola SSH. Para restaurar una versión: "
+                 "SwitchOS › System (o Upgrade) › Restore Backup, con el archivo descargado de OpenNCCM."),
     Profile("dell_os10", "Dell EMC OS10", "Dell", "show running-configuration", "show startup-configuration",
             ignore=[r"^! Version"], version_re=[r"OS Version: (\S+)"], serial_re=[r"Service Tag: (\S+)"]),
     Profile("dell_force10", "Dell Force10 / FTOS", "Dell", "show running-config", "show startup-config",
@@ -198,6 +205,30 @@ PROFILES: list[Profile] = [
             family=FASTPATH, ignore=CISCO_IGNORE + FASTPATH_IGNORE, version_re=FASTPATH_VERSION,
             model_re=FASTPATH_MODEL, serial_re=FASTPATH_SERIAL,
             cpe=("cpe:2.3:o:ui:edgeswitch_firmware", "cpe:2.3:o:ubnt:edgeswitch_firmware"), cpe_version=SEMVER3),
+    # airOS (airMAX M con airOS 6, airMAX AC con airOS 8), airFiber y los AP UniFi son Linux (BusyBox) y guardan toda
+    # su configuración en /tmp/system.cfg (líneas «clave=valor»). La versión y el modelo salen de /etc/version y
+    # /etc/board.info (airOS) o de la orden «info» (UniFi).
+    Profile("ubiquiti_airos", "Ubiquiti airMAX M / AC (airOS)", "Ubiquiti", "cat /tmp/system.cfg", None,
+            inventory="cat /etc/version; cat /etc/board.info", family=MERGE, save=False,
+            version_re=[r"^[A-Z0-9]+\.v(\d+\.\d+\.\d+)"], model_re=[r"^board\.name=(.+?)\s*$"],
+            cpe=("cpe:2.3:o:ui:airos", "cpe:2.3:o:ubnt:airos"), cpe_version=SEMVER3,
+            note="airMAX M (M2, M5: NanoStation, Rocket, NanoBeam, PowerBeam, LiteBeam M con airOS 6) y airMAX AC "
+                 "(airOS 8). Para restaurar una versión: airOS › System › Configuration Management › Upload "
+                 "Configuration, con el archivo descargado de OpenNCCM."),
+    Profile("ubiquiti_airfiber", "Ubiquiti airFiber (AF5XHD, AF60, AF24HD, AF5X)", "Ubiquiti", "cat /tmp/system.cfg",
+            None, inventory="cat /etc/version; cat /etc/board.info", family=MERGE, save=False,
+            version_re=[r"^[A-Z0-9]+\.v(\d+\.\d+\.\d+)"], model_re=[r"^board\.name=(.+?)\s*$"],
+            note="Comando tomado de la documentación del fabricante, sin verificar en hardware. Los airFiber antiguos "
+                 "(AF24, AF5 sin X) tienen otra interfaz de comandos: use un comando de respaldo personalizado."),
+    Profile("ubiquiti_unifi_ap", "Ubiquiti UniFi AP", "Ubiquiti", "cat /tmp/system.cfg", None,
+            inventory="info", family=MERGE, save=False,
+            version_re=[r"Version:\s+v?(\S+)"], model_re=[r"Model:\s+(.+?)\s*$"],
+            note="Los AP UniFi los configura el controlador UniFi Network: OpenNCCM guarda y compara su configuración, "
+                 "pero los cambios y su reversión se hacen en UniFi Network."),
+    Profile("ubiquiti_usg", "Ubiquiti UniFi Security Gateway (USG)", "Ubiquiti", "show configuration commands", None,
+            family=SET, commit=True, version_re=[r"Version:\s+v(\S+)"],
+            note="El USG lo configura el controlador UniFi Network (config.gateway.json): OpenNCCM guarda y compara su "
+                 "configuración, pero los cambios y su reversión se hacen en UniFi Network."),
     Profile("tplink_jetstream", "TP-Link JetStream", "TP-Link", "show running-config", "show startup-config",
             inventory="show system-info", ignore=CISCO_IGNORE),
     Profile("zte_zxros", "ZTE ZXROS", "ZTE", "show running-config", None, telnet=True, ignore=CISCO_IGNORE),

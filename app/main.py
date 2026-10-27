@@ -675,6 +675,9 @@ def _apply_device_form(dev: Device, form):
     dev.device_type = form["device_type"]
     dev.protocol = form.get("protocol", "ssh")
     dev.port = int(form.get("port") or (23 if dev.protocol == "telnet" else 22))
+    if dev.device_type in services.HTTP_ONLY:  # SwitchOS: solo HTTP
+        dev.protocol = "http"
+        dev.port = 80 if dev.port in (22, 23) else dev.port
     dev.credential_id = int(form["credential_id"]) if form.get("credential_id") else None
     dev.group_id = int(form["group_id"]) if form.get("group_id") else None
     dev.location = form.get("location") or None

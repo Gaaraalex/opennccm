@@ -191,7 +191,7 @@ añade los hosts nuevos.</p>
   <tr><th>Campo</th><th>Descripción</th></tr>
   <tr><td>Nombre</td><td>Identificador único (por ejemplo el hostname).</td></tr>
   <tr><td>IP / hostname</td><td>Dirección de gestión. Debe ser la misma desde la que el equipo envía syslog.</td></tr>
-  <tr><td>Fabricante / sistema operativo</td><td>Perfil de la plataforma (126 opciones agrupadas por fabricante). Define los comandos que se usan.</td></tr>
+  <tr><td>Fabricante / sistema operativo</td><td>Perfil de la plataforma (131 opciones agrupadas por fabricante). Define los comandos que se usan.</td></tr>
   <tr><td>Protocolo y puerto</td><td>SSH (22) o Telnet (23). Telnet solo en plataformas que lo admiten.</td></tr>
   <tr><td>Credencial y grupo</td><td>Perfil de usuario/contraseña y grupo del equipo. Puede crear un grupo nuevo desde aquí mismo
   con «…o crear un grupo nuevo». También se administran en <b>Dispositivos → Grupos</b>.</td></tr>
@@ -441,9 +441,27 @@ fabricante:</p>
   (<code>network parms</code>) para no cortar la conexión. Orden: primero crea las VLAN que faltan, luego ajusta los puertos y al
   final borra las VLAN que sobran. Los comandos se envían de uno en uno: si el switch rechaza uno («Failed to…»), se detiene ahí,
   no guarda la configuración y respalda el equipo para registrar su estado real.</td></tr>
-  <tr><td>Set</td><td>Junos, VyOS, EdgeRouter</td><td><code>delete …</code> para lo que sobra y <code>set …</code> para lo que falta.</td></tr>
-  <tr><td>Merge</td><td>FortiGate, PAN-OS, MikroTik, Check Point…</td><td>Re-aplica la configuración destino completa (no elimina líneas agregadas).</td></tr>
+  <tr><td>Set</td><td>Junos, VyOS, EdgeRouter</td><td><code>delete …</code> para lo que sobra y <code>set …</code> para lo que falta.
+  En Junos se aplica con <code>commit confirmed 5</code>: OpenNCCM vuelve a conectar y confirma; si el cambio cortó el acceso, el
+  equipo vuelve solo a la configuración anterior en 5 minutos.</td></tr>
+  <tr><td>MikroTik RouterOS</td><td>RouterOS 6 y 7</td><td>Compara las exportaciones elemento a elemento: <code>set</code> para lo
+  que cambió (con su selector, p. ej. <code>[ find default-name=ether1 ]</code>), <code>add</code> para lo que falta (las reglas de
+  firewall vuelven a su posición con <code>place-before</code>) y <code>remove [ find … ]</code> para lo que sobra, en orden inverso
+  (la IP de una VLAN antes que la VLAN). Se aplica en <b>modo seguro</b>: si un comando falla o la conexión se corta, RouterOS
+  deshace todo lo aplicado. Probado en RouterOS 7.25, 7.23.8 y 6.49.23 reales.</td></tr>
+  <tr><td>Extreme EXOS</td><td>ExtremeXOS</td><td><code>delete vlan</code>, <code>configure vlan … delete ports</code>,
+  <code>unconfigure vlan … ipaddress</code>, <code>configure iproute delete</code>, <code>enable</code>/<code>disable</code>. Borra
+  las VLAN que sobran antes de mover sus puertos (un puerto sin etiqueta solo puede estar en una VLAN).</td></tr>
+  <tr><td>Extreme VOSS / Fabric Engine</td><td>VSP, Fabric Engine</td><td><code>vlan delete</code>, <code>vlan members remove</code>,
+  <code>no vlan i-sid</code>, <code>no ip route</code> y bloques <code>interface … exit</code>; los puertos no se borran, vuelven a su valor.</td></tr>
+  <tr><td>Sin reversión por comandos</td><td>WatchGuard, FortiGate, PAN-OS, Check Point, airOS, UniFi, SwitchOS…</td><td>No se genera
+  ningún comando: volver a aplicar la configuración entera no borra lo añadido y se detiene en la primera línea que ya existe, dejando
+  el equipo a medias. OpenNCCM explica cómo restaurar la versión con la herramienta del fabricante (por ejemplo, Fireware Web UI o
+  WatchGuard System Manager, o el controlador UniFi Network). La reversión automática no se puede activar en ellas.</td></tr>
 </table>
+<p>En todas las familias: <b>nunca se toca la dirección por la que OpenNCCM gestiona el equipo</b> (cambiarla cortaría la conexión a
+mitad); lo que no se puede deshacer con seguridad aparece en la solicitud como <b>Revisar a mano</b>, y esa solicitud no se ejecuta
+sola aunque la aprobación esté desactivada.</p>
 <h2>Reversión manual</h2>
 <ol class="steps">
   <li>Abra la versión a la que quiere volver y pulse <b>Revertir el equipo a esta versión…</b></li>
@@ -932,7 +950,7 @@ las licencias.</p>
 
 <section class="chapter">
 <h1>26. Plataformas soportadas</h1>
-<p><b>Administración → Plataformas</b>. Muestra las 126 plataformas en fichas (las comprobadas en su red llevan una marca) y,
+<p><b>Administración → Plataformas</b>. Muestra las 131 plataformas en fichas (las comprobadas en su red llevan una marca) y,
 en <b>Comandos de cada plataforma</b>, su <code>device_type</code> y los comandos que se ejecutan en cada una: <b>respaldo</b>, <b>arranque</b> (startup, para detectar cambios sin guardar) e <b>inventario</b> (modelo, serie y versión);
 además el tipo de reversión y si admite actualización de firmware.</p>
 <ul>

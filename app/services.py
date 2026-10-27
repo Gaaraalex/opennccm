@@ -326,11 +326,19 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
             return "missing"
         prof = get_profile(dev.device_type)
         try:
-            with connect(dev) as conn:
-                running = conn.send_command(dev.custom_backup_cmd or prof.backup, read_timeout=180)
-                startup = conn.send_command(prof.startup, read_timeout=180) if prof.startup else None
-                inventory = "\n\n".join(conn.send_command(c, read_timeout=60) for c in prof.inventory.split("\n")
-                                        if c.strip()) if prof.inventory else None
+            if prof.key in HTTP_ONLY:  # SwitchOS: por HTTP, sin SSH
+                from . import swos
+                if dev.credential is None:
+                    raise RuntimeError("El dispositivo no tiene credencial asignada")
+                cred = (dev.credential.username, decrypt(dev.credential.password_enc) if dev.credential.password_enc else "")
+                running, inventory = swos.backup(dev, cred)
+                startup = None
+            else:
+                with connect(dev) as conn:
+                    running = conn.send_command(dev.custom_backup_cmd or prof.backup, read_timeout=180)
+                    startup = conn.send_command(prof.startup, read_timeout=180) if prof.startup else None
+                    inventory = "\n\n".join(conn.send_command(c, read_timeout=60) for c in prof.inventory.split("\n")
+                                            if c.strip()) if prof.inventory else None
         except Exception as e:  # noqa: BLE001
             dev.last_status, dev.last_error = "error", str(e)[:2000]
             db.commit()
@@ -503,6 +511,7 @@ DISCARD = {"juniper_junos": "rollback 0", "juniper": "rollback 0", "cisco_xr": "
 #  * Junos: «commit confirmed 5». OpenNCCM vuelve a conectar y confirma; si no puede (el cambio cortó el acceso), el
 #    equipo vuelve solo a la configuración anterior en 5 minutos, sin reiniciar.
 SAFE_MODE = {"mikrotik_routeros"}
+HTTP_ONLY = {"mikrotik_swos"}  # sin SSH: solo respaldo por HTTP
 CONFIRMED = {"juniper_junos", "juniper"}
 CONFIRM_MINUTES = 5
 
@@ -569,6 +578,8 @@ def _push(device_id: int, commands: list[str], exec_mode: bool) -> str:
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
         prof = get_profile(dev.device_type)
+        if prof.key in HTTP_ONLY:
+            raise RuntimeError(f"{prof.label} no admite cambios por comandos: se configura desde su interfaz web.")
         if not exec_mode:
             # ventana máxima por si el proceso muere; normalmente se cierra al terminar el respaldo post-cambio
             dev.maintenance_until = now() + timedelta(minutes=5)

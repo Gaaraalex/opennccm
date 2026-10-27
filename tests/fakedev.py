@@ -15,7 +15,7 @@ LEGACY = "--legacy" in sys.argv
 # --enable-pass=X: arranca en modo usuario (R1>) y «enable» pide esa contraseña, como un EdgeSwitch
 ENABLE_PASS = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--enable-pass=")), None)
 EDGE = "--edgeswitch" in sys.argv  # simula un Ubiquiti EdgeSwitch (FastPath) en lugar de un Cisco IOS
-# --shell=pfsense|opnsense|alpine: sistema con shell Unix (pfSense/OPNsense entran a su menú de consola)
+# --shell=pfsense|opnsense|alpine|airos: sistema con shell Unix (pfSense/OPNsense entran a su menú de consola)
 SHELL_DEV = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--shell=")), None)
 EXOS = "--exos" in sys.argv  # Extreme EXOS (máquina virtual de GNS3)
 if EDGE:
@@ -449,7 +449,7 @@ FW_MENU = {
                  "  2) Set interface IP address            9) pfTop\n\n"),
 }
 FW_SHELL_PROMPT = {"pfsense": "[2.7.2-RELEASE][admin@pfSense.home.arpa]/root: ", "opnsense": "root@OPNsense:~ # ",
-                   "alpine": "alpine:~# "}
+                   "alpine": "alpine:~# ", "airos": "XW.v6.3.11# "}
 FW_CONFIG = {
     "pfsense": ("/cf/conf/config.xml", '<?xml version="1.0"?>\n<pfsense>\n\t<version>23.9</version>\n'
                 "\t<system>\n\t\t<hostname>pfSense</hostname>\n\t\t<domain>home.arpa</domain>\n\t</system>\n"
@@ -463,6 +463,13 @@ FW_INVENTORY = {
     "opnsense": "Version: 24.7.5_1\nModel: DEC740\nSerial: DEC7401234",
     "alpine": "Version: 3.20.3\nModel: Standard PC (Q35 + ICH9, 2009)\nSerial: ",
 }
+# Ubiquiti airMAX M (airOS 6): toda la configuración en /tmp/system.cfg
+AIROS_CFG = ("aaa.1.status=enabled\naaa.status=disabled\nbridge.1.devname=br0\nbridge.status=enabled\n"
+             "netconf.1.devname=eth0\nnetconf.1.ip=192.168.1.20\nnetconf.1.netmask=255.255.255.0\n"
+             "radio.1.freq=5745\nradio.1.mode=managed\nresolv.host.1.name=NS-Torre-Norte\n"
+             "users.1.name=ubnt\nusers.1.password=$1$Mn4yIetm$Pp9qKnHgV0oT3hB2Wp1kq.\n"
+             "wireless.1.ssid=Enlace-Norte\nwireless.1.security.type=wpa2")
+AIROS_INVENTORY = "XW.v6.3.11\nboard.sysid=0xe866\nboard.name=NanoStation loco M5\nboard.shortname=LM5\n"
 ALPINE_BACKUP = ("### /etc/hostname\nalpine\n### /etc/network/interfaces\nauto lo\niface lo inet loopback\n"
                  "auto eth0\niface eth0 inet dhcp\n### /etc/apk/world\nalpine-base\nopenssh\n"
                  "### servicio:                 sshd | default\n"
@@ -555,6 +562,10 @@ def shell_handle(s, st, kind):
         return FW_INVENTORY[kind]
     if kind == "alpine" and s.startswith("for f in"):
         return ALPINE_BACKUP
+    if kind == "airos" and s == "cat /tmp/system.cfg":
+        return AIROS_CFG
+    if kind == "airos" and s == "cat /etc/version; cat /etc/board.info":
+        return AIROS_INVENTORY
     return f"sh: {s.split()[0]}: not found"
 
 

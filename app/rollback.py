@@ -389,6 +389,8 @@ def _vendor():
 # («already exists»), dejando el equipo a medias. Se explica cómo restaurarla con la herramienta del fabricante.
 MANUAL = {
     "watchguard_fireware": N_("WatchGuard Fireware no permite restaurar la configuración desde su CLI. Restáurela desde Fireware Web UI o WatchGuard System Manager (Policy Manager) con un archivo de configuración guardado del equipo, y compruebe el resultado comparando el siguiente respaldo."),
+    "mikrotik_swos": N_("SwitchOS no admite cambios por comandos. Para volver a esta versión, descárguela y restáurela en SwitchOS › System (o Upgrade) › Restore Backup."),
+    "ubiquiti_usg": N_("El USG lo configura el controlador UniFi Network (config.gateway.json): lo que se cambie por la CLI se pierde al reprovisionar. Revierta el cambio en UniFi Network y OpenNCCM lo verá en el siguiente respaldo."),
     "ubiquiti_unifiswitch": N_("Los switches UniFi los configura el controlador UniFi Network: lo que se cambie por la CLI se pierde al reprovisionar. Revierta el cambio en UniFi Network (o restaure su copia de seguridad) y OpenNCCM lo verá en el siguiente respaldo."),
 }
 MANUAL_GENERIC = N_("OpenNCCM no genera la reversión por comandos para {0}: volver a aplicar la configuración completa no borra lo que se añadió después y se detiene en la primera línea que ya existe, dejando el equipo a medias. Descargue la versión y restáurela con la herramienta del fabricante (restaurar archivo de configuración), o deshaga los cambios a mano mirando la comparación.")
