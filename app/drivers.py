@@ -502,10 +502,13 @@ def scp_supported(key: str) -> bool:
     return key in FILE_TRANSFER_MAP
 
 
+HTTP_ONLY = {"mikrotik_swos"}  # sin SSH: solo respaldo por HTTP (no usan Netmiko)
+
+
 def unknown_profiles() -> list[str]:
     """device_types de PROFILES que la versión instalada de Netmiko no conoce."""
     from netmiko.ssh_dispatcher import CLASS_MAPPER
-    return [p.key for p in PROFILES if p.key not in CLASS_MAPPER]
+    return [p.key for p in PROFILES if p.key not in CLASS_MAPPER and p.key not in HTTP_ONLY]
 
 
 def get_profile(key: str) -> Profile:

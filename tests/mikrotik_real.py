@@ -86,6 +86,28 @@ r = services.backup_device(dev_id, "manual", "ci")
 check("el cambio se detecta", r == "changed", r)
 _, changed = latest(dev_id)
 
+# sonda: qué selectores encuentra RouterOS (se imprime para revisar la sintaxis en cada versión)
+PROBE = [
+    ("find k=v (IP)", ":put [:len [/ip address find address=192.168.20.1/24]]"),
+    ("find where k=v (IP)", ":put [:len [/ip address find where address=192.168.20.1/24]]"),
+    ('find where k="v" (IP)', ':put [:len [/ip address find where address="192.168.20.1/24"]]'),
+    ("find k=v k=v (regla)", ":put [:len [/ip firewall filter find action=accept chain=input comment=ping protocol=icmp]]"),
+    ("find where … and … (regla)",
+     ":put [:len [/ip firewall filter find where action=accept and chain=input and comment=ping and protocol=icmp]]"),
+    ('find where … and … con comillas (regla)',
+     ':put [:len [/ip firewall filter find where action="accept" and chain="input" and comment="ping" and protocol="icmp"]]'),
+    ("find where lista sin comillas",
+     ":put [:len [/ip firewall filter find where connection-state=established,related]]"),
+    ('find where lista con comillas',
+     ':put [:len [/ip firewall filter find where connection-state="established,related"]]'),
+    ("find where puerto",
+     ":put [:len [/ip firewall filter find where dst-port=21 and protocol=tcp]]"),
+    ('find where puerto con comillas',
+     ':put [:len [/ip firewall filter find where dst-port="21" and protocol="tcp"]]'),
+]
+for label, cmd in PROBE:
+    print(f"SONDA {label}: {ros(cmd).strip()!r}")
+
 cmds, notes = services.rollback_commands(dev_id, v1)
 print("--- comandos de reversión\n" + "\n".join(cmds or []) + "\n--- avisos\n" + "\n".join(notes))
 check("genera la reversión (no re-aplica la configuración entera)", cmds and len(cmds) < len(body(base)) + 5, cmds)

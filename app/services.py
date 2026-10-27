@@ -22,6 +22,7 @@ from .crypto import decrypt, encrypt, try_decrypt
 from .db import (ChangeRequest, ComplianceResult, ConfigVersion, Device, Event, Policy, SessionLocal,
                  Vulnerability, get_setting, now)
 from .drivers import FASTPATH, IOS, clean_config, compare_text, get_profile, parse_inventory, telnet_supported
+from .drivers import HTTP_ONLY as _HTTP_ONLY
 from .rollback import fastpath_style, rollback_plan
 from .i18n import N_
 
@@ -340,7 +341,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
                     inventory = "\n\n".join(conn.send_command(c, read_timeout=60) for c in prof.inventory.split("\n")
                                             if c.strip()) if prof.inventory else None
         except Exception as e:  # noqa: BLE001
-            dev.last_status, dev.last_error = "error", str(e)[:2000]
+            dev.last_status, dev.last_error = "error", (str(e) or repr(e))[:2000]
             db.commit()
             add_event("major", "Respaldo fallido", f"{dev.name} ({dev.host}): {e}", dev.id)
             return "error"
@@ -491,7 +492,8 @@ def push_commands(device_id: int, commands: list[str], exec_mode=False) -> str:
 # Respuestas con las que los equipos rechazan un comando, por fabricante:
 #   Cisco/Arista/Dell/Allied/Extreme («% Invalid input», «%% Invalid»), HP Comware/Mellanox/A10 («% Unrecognized»),
 #   Huawei («Error: Unrecognized command»), Juniper («syntax error», «unknown command», «error: ...»),
-#   MikroTik («bad command name», «expected end of command», «failure: ...», «input does not match»),
+#   MikroTik («bad command name», «expected end of command», «failure: ...», «input does not match», «no such item»,
+#   «invalid value for …», «ambiguous value», «already have such …», «value of … out of range»),
 #   FortiGate («Command fail. Return code», «Unknown action», «entry not found», «value parse error»),
 #   Palo Alto («Invalid syntax», «Server error»), Nokia SR OS («MINOR:/MAJOR:»), Cisco IOS-XR («!!% ...»),
 #   VyOS/EdgeRouter («Set failed», «Invalid command»), Check Point («CLINFR0329 Invalid command»),
@@ -501,6 +503,7 @@ DEVICE_ERROR = re.compile(
     r"syntax error|unknown command|error:|Error\b|Failed to |An invalid |Invalid (input|command|syntax|value)|"
     r"Incomplete command|Unrecognized command|Command not found|Command fail|Unknown action|bad command name|"
     r"expected end of command|failure:|input does not match|entry not found|value parse error|Server error|"
+    r"no such item|invalid value|ambiguous value|already have|value of \S+ out of range|missing value|bad argument|"
     r"(MINOR|MAJOR|CRITICAL): |CLINFR\d+|(Set|Delete|Commit) failed|Cannot |Unable to |Incorrect usage)")
 # fin de la respuesta a un comando: el prompt del equipo (# > $ ]) o una pregunta de confirmación
 PROMPT_END = r"([#>$\]]\s*$|\[confirm\]\s*$|[\[(](y/n|yes/no|Y/N)[\])]\s*[?:]?\s*$)"
@@ -517,7 +520,7 @@ DISCARD = {"juniper_junos": "rollback 0", "juniper": "rollback 0", "cisco_xr": "
 #  * Junos: «commit confirmed 5». OpenNCCM vuelve a conectar y confirma; si no puede (el cambio cortó el acceso), el
 #    equipo vuelve solo a la configuración anterior en 5 minutos, sin reiniciar.
 SAFE_MODE = {"mikrotik_routeros"}
-HTTP_ONLY = {"mikrotik_swos"}  # sin SSH: solo respaldo por HTTP
+HTTP_ONLY = _HTTP_ONLY  # sin SSH: solo respaldo por HTTP
 CONFIRMED = {"juniper_junos", "juniper"}
 CONFIRM_MINUTES = 5
 
