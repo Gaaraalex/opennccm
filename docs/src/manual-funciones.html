@@ -734,6 +734,11 @@ los vecinos <b>LLDP o CDP</b> que cada equipo anuncia, leídos en cada respaldo 
 <code>show cdp neighbors detail</code> en Cisco o <code>/ip neighbor print</code> en MikroTik). Lo admiten Cisco, Arista, Juniper, Huawei,
 HP/Aruba, Dell, Ruckus, Allied, MikroTik, EdgeSwitch, UniFi Switch y EXOS, si tienen LLDP o CDP activado.</p>
 <ul>
+  <li>Cada equipo tiene tres capas: el <b>anillo</b> dice el estado, el <b>icono</b> del centro qué es (router, switch, antena,
+  firewall o desconocido) y el <b>distintivo</b> de la esquina su fabricante (marcas propias de OpenNCCM, no los logotipos de las
+  marcas). El tipo sale del modelo o la plataforma y, si no dicen nada, de las capacidades que anuncia por LLDP o CDP. Los chips
+  <b>Fabricante</b> de arriba resaltan los de una marca, y el panel de cada equipo explica <b>cómo se reconoció</b>. Los puertos solo
+  se muestran en los enlaces del equipo seleccionado.</li>
   <li>Los equipos se colorean según su último respaldo. Los <b>vecinos que no están en OpenNCCM</b> llevan borde discontinuo: al
   pulsarlos, <b>Agregar a OpenNCCM</b> abre el alta con su nombre e IP.</li>
   <li>Un vecino se reconoce como equipo de OpenNCCM por su nombre (sin dominio) o, si no, por su IP de gestión.</li>

@@ -3,7 +3,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-from app.topology import MARK, family, is_wireless, network_view, norm_name, parse, short_port  # noqa: E402
+from app.topology import MARK, device_role, family, family_why, is_wireless, network_view, norm_name, parse, role_why, short_port  # noqa: E402
 
 fails = []
 
@@ -156,6 +156,38 @@ ge-0/0/0           -                   00:05:86:aa:bb:cc   ge-0/0/1           SR
 j = parse(MARK + "show lldp neighbors\n" + JN, "juniper_junos")
 check("Junos: tabla de vecinos", j and j[0]["local_port"] == "ge-0/0/0" and j[0]["remote_name"] == "SRX-Borde"
       and j[0]["remote_port"] == "ge-0/0/1", j)
+
+# capacidades anunciadas: CDP («Router Switch»), LLDP de Cisco («B,R» habilitadas) y MikroTik («system-caps-enabled»)
+check("CDP: capacidades del vecino", by.get("SW-ACCESO-2.empresa.local", {}).get("caps") == ["bridge"]
+      and by.get("AP-Sala", {}).get("caps") == ["bridge"], [(x["remote_name"], x.get("caps")) for x in n])
+LC = """Local Intf: Gi0/1
+System Name: R-Borde
+Port id: Gi0/0
+System Capabilities: B,R
+Enabled Capabilities: R
+"""
+check("LLDP: cuentan las capacidades habilitadas", parse(MARK + "show lldp neighbors detail\n" + LC, "cisco_ios")[0].get("caps") == ["router"])
+MC = " 0 interface=ether1 identity=AP-Torre platform=MikroTik interface-name=ether1 system-caps=bridge,wlan-ap,router system-caps-enabled=bridge,wlan-ap\n"
+check("MikroTik: capacidades habilitadas (wlan-ap = antena)",
+      parse(MARK + "/ip neighbor print detail terse without-paging\n" + MC, "mikrotik_routeros")[0].get("caps") == ["bridge", "wlan"])
+
+# tipo de equipo: por el modelo primero (un CRS anuncia «router» pero es un switch); si no, por lo que anuncia
+roles = {k: role_why(*v) for k, v in {
+    "crs": ("MikroTik CRS326-24G-2S+", ["bridge", "router"]), "ccr": ("MikroTik CCR2216-1G-12XS-2XQ", None),
+    "hex": ("MikroTik hEX S", None), "lb": ("LiteBeam M5", None), "rocket": ("Rocket 5AC", None), "srx": ("Juniper SRX345", None),
+    "ex": ("Juniper Networks, Inc. ex4300-48t Ethernet Switch", None), "ros": ("MikroTik RouterOS", ["bridge", "router"]),
+    "br": ("", ["bridge"]), "ap": ("", ["bridge", "wlan"]), "none": ("", None)}.items()}
+check("tipo por modelo o capacidades", roles == {
+    "crs": ("switch", "model"), "ccr": ("router", "model"), "hex": ("router", "model"), "lb": ("ap", "model"),
+    "rocket": ("ap", "model"), "srx": ("firewall", "model"), "ex": ("switch", "model"), "ros": ("router", "caps"),
+    "br": ("switch", "caps"), "ap": ("ap", "caps"), "none": ("unknown", "")}, roles)
+check("tipo de un equipo de OpenNCCM: modelo, perfil o lo que anuncia",
+      device_role("mikrotik_routeros", "CRS305-1G-4S+") == ("switch", "model")
+      and device_role("ubiquiti_edgeswitch", None) == ("switch", "type")
+      and device_role("mikrotik_routeros", None, ["bridge", "router"]) == ("router", "caps")
+      and device_role("generic", None) == ("unknown", ""))
+check("fabricante y cómo se reconoció", family_why({"platform": "MikroTik"}) == ("mikrotik", "platform")
+      and family_why({"remote_port": "xe-0/0/1"}) == ("juniper", "port") and family_why({}) == ("other", ""))
 
 check("orden no admitida: sin vecinos (y sin error)", parse(MARK + "show lldp neighbors detail\n% Invalid input detected at '^' marker.\n", "cisco_ios") == [])
 check("nombres comparables sin dominio", norm_name("SW-2.empresa.local") == "sw-2" == norm_name("sw-2"))
