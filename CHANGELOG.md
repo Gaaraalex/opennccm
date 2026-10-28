@@ -1,5 +1,31 @@
 # Historial de versiones
 
+## 2.10.0
+- **Mapa de la red** (menú lateral): dibuja los equipos y los enlaces entre ellos, con el puerto de cada extremo.
+  - Los vecinos LLDP/CDP se leen en cada respaldo, con una orden de solo lectura: Cisco, Arista, Juniper, Huawei,
+    HP/Aruba, Dell, MikroTik, EdgeSwitch y EXOS, entre otros.
+  - Los vecinos que aún no están en OpenNCCM aparecen marcados, y «Agregar a OpenNCCM» abre el alta con su nombre e IP.
+  - Se puede arrastrar, hacer zoom, buscar y filtrar por grupo.
+  - Se desactiva en Ajustes › Mapa de la red.
+- **Copia en Git** (Ajustes › Copia en Git):
+  - cada versión nueva de una configuración se sube como un commit a GitHub, GitLab, Gitea… (un archivo por equipo y una
+    carpeta por grupo), por HTTPS con token o por SSH;
+  - las contraseñas, claves y comunidades SNMP se ocultan;
+  - «Probar y subir todo ahora» hace la exportación completa.
+- **IP y VLAN** (menú lateral): inventario de todas las IP y VLAN, sacado de las configuraciones guardadas.
+  - Avisa de las IP repetidas y de las VLAN con nombres distintos según el equipo.
+  - Se puede filtrar, buscar y exportar a CSV.
+- **API con tokens** (Mi cuenta › Tokens de API):
+  - cada usuario crea los suyos, que actúan con sus permisos y grupos, solo sirven en `/api/…` y caducan si se quiere;
+  - nuevas peticiones: ver un equipo, sus versiones y su configuración, dar de alta equipos y lanzar un respaldo;
+  - todo queda en Auditoría.
+- **Firmware en remoto para MikroTik y Ubiquiti**:
+  - **MikroTik**: con el paquete `.npk` o **en línea**, desde MikroTik por canal (stable o long-term). Probado en RouterOS
+    reales: de 7.23.8 a 7.25 con el paquete, y en línea.
+  - **Ubiquiti airMAX y airFiber**: método de Ubiquiti, `/tmp/fwupdate.bin` y `fwupdate -m`.
+  - **EdgeRouter**: `add system image`.
+  - En todos, el equipo se respalda antes y se comprueba que la imagen llegó entera.
+
 ## 2.9.0
 - **Reversión revisada a fondo, plataforma por plataforma.** Un error al restaurar puede dejar un equipo sin servicio, así
   que se rehízo con estas reglas:
