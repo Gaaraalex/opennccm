@@ -62,6 +62,7 @@ page = s.get(B + "/topology").text
 m = re.search(r"const NODES = (\[.*?\]), LINKS = (\[.*?\]),", page, re.S)
 nodes, links = (json.loads(m.group(1)), json.loads(m.group(2))) if m else ([], [])
 new = [n for n in nodes if n["kind"] == "new"]
+links = [e for e in links if f"d{dev_id}" in (e["a"], e["b"])]  # en la suite, otros equipos del simulado también lo ven
 check("el mapa dibuja el equipo, el vecino nuevo y el enlace con sus puertos",
       len(links) == 1 and links[0]["pa"] == "GigabitEthernet0/1" and links[0]["pb"] == "GigabitEthernet1/0/48"
       and new and new[0]["ip"] == "192.0.2.77" and new[0]["name"] == "SW-Vecino", (nodes, links))
