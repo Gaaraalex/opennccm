@@ -44,7 +44,8 @@ def latest(dev_id):
 
 def body(text):
     """Configuración sin cabecera ni comentarios, para comparar."""
-    return [l for l in clean_config(text, prof).splitlines() if l.startswith("/")]
+    # sin los elementos que RouterOS crea por sí mismo (la reversión no los borra: p. ej. keymat-provider en 7.25)
+    return [l for l in clean_config(text, prof).splitlines() if l.startswith("/") and "name=default" not in l]
 
 
 prof = get_profile("mikrotik_routeros")

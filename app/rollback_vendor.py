@@ -188,7 +188,11 @@ def routeros(current: str, target: str, mgmt: str | None = None) -> tuple[list[s
         if _ros_is_mgmt(it, mgmt):
             notes.append(_f("No se borra la dirección por la que OpenNCCM gestiona el equipo: {0}", it["line"]))
             continue
-        if it["verb"] == "add":
+        if it["verb"] == "add" and (it["props"].get("name", "").strip('"') == "default"
+                                    or it["props"].get("default") == "yes"):
+            # elementos que RouterOS crea solo (p. ej. «/system keymat-provider … name=default» en 7.25): no se borran
+            notes.append(_f("No se borra un elemento que RouterOS crea por sí mismo: {0}", it["line"]))
+        elif it["verb"] == "add":
             remove.append(f"{it['path']} remove {_ros_find(it)}")
         elif it["verb"] == "set":
             resets = {k: ROS_DEFAULTS[k] for k in it["props"] if k in ROS_DEFAULTS}

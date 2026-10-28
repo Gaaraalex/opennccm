@@ -1106,6 +1106,7 @@
 "No puede quitarse a sí mismo el rol de administrador ni bloquearse.": "You cannot remove your own administrator role or lock yourself out.",
 "No se aplica al tema de alto contraste.": "Not applied to the high-contrast theme.",
 "No se borra la dirección por la que OpenNCCM gestiona el equipo: {0}": "The address OpenNCCM uses to manage the device is not removed: {0}",
+"No se borra un elemento que RouterOS crea por sí mismo: {0}": "An item that RouterOS creates by itself is not removed: {0}",
 "No se cambia el acceso de gestión de OpenNCCM: {0}": "OpenNCCM's management access is not changed: {0}",
 "No se cambia la VLAN de gestión de OpenNCCM: {0}": "OpenNCCM's management VLAN is not changed: {0}",
 "No se cambia la dirección o el acceso SSH por el que OpenNCCM gestiona el equipo: {0}": "The address or SSH access OpenNCCM uses to manage the device is not changed: {0}",

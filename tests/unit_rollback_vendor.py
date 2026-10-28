@@ -142,6 +142,8 @@ c2, n2 = routeros(ROS_CUR.replace("address=10.0.0.2/24 interface=ether1", "addre
 check("RouterOS: no toca la dirección de gestión de OpenNCCM (y lo avisa)",
       not any("10.0.0.2" in c for c in c2) and any("gestiona" in n for n in n2), (c2, n2))
 check("RouterOS: sin cambios, sin comandos", routeros(ROS_TGT, ROS_TGT) == ([], []))
+c5, n5 = routeros(ROS_TGT + "/system keymat-provider add name=default" + chr(10), ROS_TGT)
+check("RouterOS: no borra lo que RouterOS crea por sí mismo (name=default), lo avisa", c5 == [] and n5, (c5, n5))
 # RouterOS 7.25 con terminal estrecho parte las líneas largas de /export con «\» y sangría en la siguiente
 BS = chr(92)
 wrapped = ROS_TGT.replace("dst-port=23 protocol=tcp", "dst-port=23 protoc" + BS + chr(10) + "    ol=tcp")
