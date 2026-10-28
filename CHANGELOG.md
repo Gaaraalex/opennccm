@@ -1,5 +1,13 @@
 # Historial de versiones
 
+## 2.10.2
+- **Mapa de la red: tipos de equipo.** En Ajustes › Mapa de la red se eligen los equipos descubiertos que salen (MikroTik,
+  Ubiquiti, Juniper, Cisco, Huawei, HP/Aruba, Extreme y otros). El tipo se reconoce por lo que anuncia el vecino o por el
+  nombre de sus puertos. Los equipos que ya están en OpenNCCM salen siempre.
+- **Enlaces inalámbricos con línea discontinua.** Si por un puerto se ve un solo equipo por su radio, es el otro extremo de
+  un PtP o la estación, y sale. Si se ven varios, son los CPE de un punto de acceso y no salen; el punto de acceso, sí.
+- **«ñ» y acentos en los nombres de vecinos MikroTik**, que RouterOS escribe como `\F1` o `\C3\B1`.
+
 ## 2.10.1
 - **Mapa de la red con MikroTik reales**, corregido:
   - los nombres con espacios (`SW-C-Los Llanos`) se leen enteros;
