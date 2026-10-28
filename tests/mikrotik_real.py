@@ -70,6 +70,22 @@ with SessionLocal() as db:
     err = db.get(Device, dev_id).last_error
 check(f"RouterOS {VER}: primer respaldo", r == "first", f"{r}: {err}")
 if r != "first":
+    # qué muestra RouterOS al entrar como lo hace Netmiko (usuario «admin+ct511w4098h»)
+    c = paramiko.SSHClient()
+    c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    c.connect("127.0.0.1", PORT, "admin+ct511w4098h", PASSWORD, look_for_keys=False, allow_agent=False, timeout=20)
+    ch = c.invoke_shell(width=511, height=4098)
+    time.sleep(8)
+    raw = b""
+    while ch.recv_ready():
+        raw += ch.recv(65535)
+    print("PANTALLA AL ENTRAR:", repr(raw.decode(errors="replace")[-1500:]))
+    ch.send("\r\n")
+    time.sleep(3)
+    raw = b""
+    while ch.recv_ready():
+        raw += ch.recv(65535)
+    print("TRAS ENTER:", repr(raw.decode(errors="replace")[-800:]))
     sys.exit(1)
 v1, base = latest(dev_id)
 

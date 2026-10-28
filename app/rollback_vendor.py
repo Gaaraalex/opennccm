@@ -106,11 +106,19 @@ def _ros_ident(it: dict):
     return (it["path"], "add", tuple(sorted(it["props"].items())))  # sin clave: el elemento entero
 
 
+def _ros_quote(v: str) -> str:
+    """Valor entre comillas para «find where»: RouterOS 6 y 7 solo encuentran el elemento si todos los valores van
+    entre comillas («address="10.0.0.1/24"»); sin ellas «find» no devuelve nada, ni siquiera para una IP o un puerto."""
+    if len(v) >= 2 and v[0] == v[-1] == '"':
+        return v  # ya viene entre comillas en la exportación
+    return '"' + v.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$") + '"'
+
+
 def _ros_find(it: dict) -> str:
-    """Selector «[ find … ]» del elemento: por su clave si la tiene, si no por todas sus propiedades."""
+    """Selector «[ find where … and … ]» del elemento: por su clave si la tiene, si no por todas sus propiedades."""
     keys = _ros_keys(it)
     pairs = [(k, it["props"][k]) for k in keys] if keys else list(it["props"].items())
-    return "[ find " + " ".join(f"{k}={v}" for k, v in pairs) + " ]"
+    return "[ find where " + " and ".join(f"{k}={_ros_quote(v)}" for k, v in pairs) + " ]"
 
 
 def _ros_is_mgmt(it: dict, mgmt: str | None) -> bool:

@@ -129,10 +129,10 @@ check("RouterOS: set con su selector (no cambia todas las interfaces)",
       "/interface ethernet set [ find default-name=ether1 ] comment=WAN" in cmds)
 check("RouterOS: la regla borrada vuelve a su sitio (place-before)",
       any(c.startswith('/ip firewall filter add action=drop chain=input comment="bloquear telnet"')
-          and "place-before=[ find action=drop chain=input in-interface=ether1 ]" in c for c in cmds))
-check("RouterOS: lo añadido se borra por su clave y en orden inverso (NAT, IP, VLAN)",
-      cmds[-3:] == ["/ip firewall nat remove [ find action=masquerade chain=srcnat out-interface=ether1 ]",
-                    "/ip address remove [ find address=192.168.20.1/24 ]", "/interface vlan remove [ find name=vlan20 ]"], cmds)
+          and 'place-before=[ find where action="drop" and chain="input" and in-interface="ether1" ]' in c for c in cmds))
+check("RouterOS: lo añadido se borra por su clave, con «find where» y comillas (lo único que RouterOS encuentra), en orden inverso",
+      cmds[-3:] == ['/ip firewall nat remove [ find where action="masquerade" and chain="srcnat" and out-interface="ether1" ]',
+                    '/ip address remove [ find where address="192.168.20.1/24" ]', '/interface vlan remove [ find where name="vlan20" ]'], cmds)
 check("RouterOS: identidad", "/system identity set name=R1" in cmds)
 check("RouterOS: lo que no se puede volver al valor por omisión se avisa (servidores DNS)", any("servers" in n for n in notes), notes)
 check("RouterOS: nunca re-aplica la configuración entera", not any(c.startswith("/interface bridge add") for c in cmds))
