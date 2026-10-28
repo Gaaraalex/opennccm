@@ -212,6 +212,30 @@ async def firmware_upgrade(request: Request):
     return go(f"/changes/{cr_id}")
 
 
+@router.post("/firmware/routeros-online")
+async def firmware_routeros_online(request: Request):
+    """MikroTik: actualizar desde los servidores de MikroTik (sin cargar el .npk), por canal."""
+    from .main import _create_cr
+    user = require(request, "operator")
+    form = await request.form()
+    requested = [int(x) for x in form.getlist("device_ids")]
+    ids = filter_ids(user, requested)
+    if len(ids) != len(requested):
+        raise Forbidden()
+    channel = form.get("channel") if form.get("channel") in ("stable", "long-term", "testing") else "stable"
+    with SessionLocal() as db:
+        bad = [d.name for d in db.scalars(select(Device).where(Device.id.in_(ids))) if d.device_type != "mikrotik_routeros"]
+    if not ids or bad:
+        flash(request, _("Elija al menos un equipo MikroTik RouterOS") if not ids else _f("No son MikroTik RouterOS: {0}", ", ".join(bad)), "error")
+        return go("/firmware")
+    reload = form.get("reload") == "on"
+    cr_id = _create_cr(user, f"RouterOS en línea (canal {channel}) en {len(ids)} equipo(s){' + reinicio' if reload else ''}",
+                       "", {"channel": channel}, ids, kind="firmware", firmware_id=0, reload=reload)
+    log_action(request, user, "firmware_request", f"#{cr_id} RouterOS en línea {channel} -> {ids}")
+    flash(request, _("Solicitud de actualización creada. Un administrador debe aprobarla."))
+    return go(f"/changes/{cr_id}")
+
+
 # --------------------------------------------------------------------------- EOL / EOS
 @router.get("/eol")
 def eol_page(request: Request, status: str = "", vend: str = ""):

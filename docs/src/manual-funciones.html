@@ -581,7 +581,15 @@ Además descarga (como mucho una vez al día) el catálogo <b>KEV</b> de CISA y 
   <tr><td>Cisco ASA</td><td><code>disk0:</code></td><td><code>boot system disk0:/IMAGEN</code></td></tr>
   <tr><td>Arista EOS</td><td><code>flash:</code></td><td><code>boot system flash:IMAGEN</code></td></tr>
   <tr><td>Juniper Junos</td><td><code>/var/tmp</code></td><td><code>request system software add … no-validate</code></td></tr>
+  <tr><td>MikroTik RouterOS</td><td>raíz del router (SFTP, tamaño comprobado)</td><td>Se instala solo al reiniciar (<code>/system reboot</code>)</td></tr>
+  <tr><td>Ubiquiti airMAX (airOS) y airFiber</td><td><code>/tmp/fwupdate.bin</code> (SCP, tamaño comprobado)</td><td><code>fwupdate -m</code> graba y reinicia (método de Ubiquiti)</td></tr>
+  <tr><td>Ubiquiti EdgeRouter</td><td><code>/tmp</code> (SCP)</td><td><code>add system image …</code> y <code>reboot</code></td></tr>
 </table>
+<p>En MikroTik, airOS, airFiber y EdgeRouter, OpenNCCM <b>respalda el equipo antes</b> de tocar el firmware y no sigue si el respaldo
+falla. MikroTik también se puede actualizar <b>en línea</b>, sin cargar el paquete: <b>MikroTik: actualizar desde MikroTik</b> elige el
+canal (stable o long-term) y el router lo descarga de MikroTik (<code>/system package update</code>); si ya tiene la última versión no
+hace nada, y sin «Instalar y reiniciar» solo lo descarga para el próximo reinicio. Probado en RouterOS reales en la CI (7.23.8 → 7.25
+con el paquete, y en línea). Los AP, switches y USG de UniFi actualizan el firmware desde el controlador UniFi Network.</p>
 <h2>Cómo usarlo</h2>
 <ol class="steps">
   <li>(admin) <b>Firmware y ciclo de vida → Imágenes → Cargar imagen</b>: arrastre el archivo, indique la versión y para qué

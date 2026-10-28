@@ -1728,13 +1728,27 @@ def change_detail(request: Request, cr_id: int):
         previews = []
         if cr.kind == "firmware":
             from .db import FirmwareImage
-            img = db.get(FirmwareImage, cr.firmware_id)
+            img = db.get(FirmwareImage, cr.firmware_id) if cr.firmware_id else None
+            channel = json.loads(cr.variables or "{}").get("channel", "stable")
+            name = img.filename if img else "?"
             for d in devs[:5]:
                 fw = get_profile(d.device_type).firmware or {}
-                steps = [f"# SCP {img.filename if img else '?'} -> {fw.get('fs', '?')} (verificación MD5)"]
-                steps += [c.format(file=img.filename if img else "?") for c in fw.get("boot", []) + fw.get("exec", [])]
-                if cr.reload:
-                    steps.append(fw.get("reload", "reload"))
+                method = fw.get("method")
+                if method == "routeros" and img is None:
+                    steps = ["# respaldo previo", f"/system package update set channel={channel}",
+                             "/system package update check-for-updates once",
+                             "/system package update install" if cr.reload else "/system package update download"]
+                elif method == "routeros":
+                    steps = ["# respaldo previo", f"# SFTP {name} -> / (tamaño verificado)"] + (["/system reboot"] if cr.reload else [])
+                elif method == "airos":
+                    steps = ["# respaldo previo", f"# SCP {name} -> /tmp/fwupdate.bin (tamaño verificado)"] + (["fwupdate -m"] if cr.reload else [])
+                elif method == "edgeos":
+                    steps = ["# respaldo previo", f"# SCP {name} -> /tmp/{name}", f"add system image /tmp/{name}"] + (["reboot"] if cr.reload else [])
+                else:
+                    steps = [f"# SCP {name} -> {fw.get('fs', '?')} (verificación MD5)"]
+                    steps += [c.format(file=name) for c in fw.get("boot", []) + fw.get("exec", [])]
+                    if cr.reload:
+                        steps.append(fw.get("reload", "reload"))
                 previews.append((d.name, "\n".join(steps)))
         for d in devs[:5] if cr.kind != "firmware" else []:
             try:

@@ -572,6 +572,13 @@ def shell_handle(s, st, kind):
         return AIROS_CFG
     if kind == "airos" and s == "cat /etc/version; cat /etc/board.info":
         return AIROS_INVENTORY
+    if kind == "airos" and s == "ls -l /tmp/fwupdate.bin":  # imagen copiada por SCP (actualización de firmware)
+        data = FILES.get("/tmp/fwupdate.bin")
+        return (f"-rw-r--r--    1 ubnt     admin    {len(data)} Oct 27 12:00 /tmp/fwupdate.bin" if data is not None
+                else "ls: /tmp/fwupdate.bin: No such file or directory")
+    if kind == "airos" and s == "fwupdate -m":
+        FILES["grabado"] = FILES.get("/tmp/fwupdate.bin", b"")
+        return "Writing 'kernel' to /dev/mtd2(kernel) ... [%100]\nDone, rebooting..."
     return f"sh: {s.split()[0]}: not found"
 
 
