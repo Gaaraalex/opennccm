@@ -78,16 +78,24 @@ def _lldp_detail(text: str) -> list[dict]:
 
 
 def _mikrotik(text: str) -> list[dict]:
-    out = []
+    out, by = [], []
     for raw in re.split(r"(?m)^\s*\d+\s+", text):
-        kv = dict(re.findall(r'([\w-]+)=("[^"]*"|\S+)', raw))
+        # en «terse» los valores con espacios van sin comillas («identity=SW-C-Los Llanos»): llegan hasta la clave siguiente
+        kv = dict(re.findall(r'([\w-]+)=("[^"]*"|.*?)(?=\s+[\w-]+=|\s*$)', raw.strip(), re.S))
         if "interface" not in kv:
             continue
         local = _clean(kv["interface"]).split(",")[0]
+        # RouterOS 7 anuncia por LLDP el puerto como «bridge1/ether1»: el puerto es el de después de la barra
+        port = re.sub(r"^[A-Za-z][\w.-]*/(?=[A-Za-z])", "", _clean(kv.get("interface-name")))
+        ip = next((v for v in (_clean(kv.get("address4")), _clean(kv.get("address"))) if re.fullmatch(r"[\d.]+", v)), "")
         out.append({"local_port": local, "remote_name": _clean(kv.get("identity") or kv.get("system-description")),
-                    "remote_port": _clean(kv.get("interface-name")), "remote_ip": _clean(kv.get("address4") or kv.get("address")),
+                    "remote_port": port, "remote_ip": ip,
                     "platform": _clean(" ".join(x for x in (kv.get("platform"), kv.get("board")) if x))})
-    return out
+        by.append(_clean(kv.get("discovered-by")) if "discovered-by" in kv else None)
+    # MNDP y CDP atraviesan los bridges y switches: por un puerto llegan todos los MikroTik del mismo segmento, no solo el
+    # de enfrente. LLDP no se reenvía, así que en un puerto con varios vecinos solo cuentan los vistos por LLDP.
+    many = {p for p in {n["local_port"] for n in out} if sum(n["local_port"] == p for n in out) > 1}
+    return [n for n, d in zip(out, by) if d is None or n["local_port"] not in many or "lldp" in d]
 
 
 def _table(text: str, cols: dict[str, int], header: str) -> list[dict]:

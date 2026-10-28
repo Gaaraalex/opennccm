@@ -67,6 +67,23 @@ check("MikroTik: vecinos de /ip neighbor (identidad, IP, puertos, placa)",
       len(m) == 2 and m[0]["remote_name"] == "SW-Pasillo" and m[0]["local_port"] == "ether2" and m[0]["remote_port"] == "ether1"
       and m[0]["remote_ip"] == "10.0.0.20" and "CRS326" in m[0]["platform"] and m[1]["remote_name"] == "Core 1", m)
 
+# RouterOS 7 real: nombres con espacios sin comillas, puerto «bridge1/ether1», IPv6 local sin IPv4 y, por un mismo puerto,
+# el vecino de enfrente (LLDP) junto con los del resto del segmento (solo MNDP/CDP)
+MT7 = """ 0 interface=ether2,br0 address=10.0.0.30 address4=10.0.0.30 mac-address=48:A9:8A:00:00:03 identity=SW-C-Los Llanos platform=MikroTik version=7.19.3 (stable) interface-name=bridge1/sfp-sfpplus3 board=CRS305-1G-4S+ discovered-by=cdp,lldp,mndp
+ 1 interface=ether2,br0 address=fe80::6f4:1cff:fe71:4737 mac-address=04:F4:1C:71:47:37 identity=R-Negocios platform=MikroTik version=7.17 (stable) interface-name=sfp28-6 board=CCR2216 discovered-by=cdp,mndp
+ 2 interface=ether2,br0 address=192.168.20.11 mac-address=24:5A:4C:00:00:01 identity=JONATHAN platform=AirOS interface-name=ath0 discovered-by=cdp
+ 3 interface=ether5 address=fe80::1 address6=fe80::1 mac-address=EC:74:D7:54:C9:D0 identity=R-PP El Seibo discovered-by=mndp interface-name=bridge/ether1
+"""
+m7 = parse(MARK + "/ip neighbor print detail terse without-paging\n" + MT7, "mikrotik_routeros")
+by7 = {x["remote_name"]: x for x in m7}
+check("MikroTik 7: nombre con espacios entero y puerto sin «bridge1/»",
+      by7.get("SW-C-Los Llanos", {}).get("remote_port") == "sfp-sfpplus3" and by7["SW-C-Los Llanos"]["remote_ip"] == "10.0.0.30", m7)
+check("MikroTik 7: en un puerto con varios vecinos solo cuenta el de LLDP (los de MNDP/CDP son del segmento)",
+      "R-Negocios" not in by7 and "JONATHAN" not in by7, m7)
+check("MikroTik 7: vecino único por su puerto se queda aunque sea por MNDP; IPv6 local no se usa como IP",
+      by7.get("R-PP El Seibo", {}).get("remote_ip") == "" and by7["R-PP El Seibo"]["remote_port"] == "ether1"
+      and by7["R-PP El Seibo"]["local_port"] == "ether5", m7)
+
 HW = """Local Intf       Neighbor Dev             Neighbor Intf             Exptime(s)
 GE0/0/1          SW-Core                  GE0/0/24                  101
 GE0/0/2          AR-Borde                 GE0/0/0                   99
