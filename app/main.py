@@ -1290,10 +1290,12 @@ def topology_page(request: Request, group: int = 0):
                               "href": f"/devices/{d.id}", "sub": d.host, "vend": (get_profile(d.device_type).vendor)[:3].upper()}
                  for d in devs}
         edges: dict = {}
-        with_data = 0
+        with_data = clients = 0
         for d in devs:
             nbrs = json.loads(d.neighbors) if d.neighbors else []
             with_data += bool(d.neighbors is not None)
+            clients += sum(map(topology.is_client, nbrs))
+            nbrs = [n for n in nbrs if not topology.is_client(n)]
             for n in nbrs:
                 # primero por nombre (el que anuncia el vecino), luego por IP
                 t = by_name.get(topology.norm_name(n.get("remote_name"))) or by_ip.get((n.get("remote_ip") or "").lower())
@@ -1325,7 +1327,7 @@ def topology_page(request: Request, group: int = 0):
     news = [n for n in show if n["kind"] == "new"]
     return render(request, "topology.html", user, nodes=show, links=links, alone=alone, news=news, groups=groups,
                   labels={n["id"]: n["label"] for n in show},
-                  group=group, with_data=with_data, total=len(devs), enabled=get_setting("topology_enabled", "1") == "1")
+                  group=group, with_data=with_data, clients=clients, total=len(devs), enabled=get_setting("topology_enabled", "1") == "1")
 
 
 # --------------------------------------------------------------------------- inventario de IP y VLAN
