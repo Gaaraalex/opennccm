@@ -152,8 +152,15 @@ try:
 except Exception as e:  # noqa: BLE001
     failed, msg = True, str(e)
 check("un comando rechazado detiene el cambio", failed)
-time.sleep(3)
-ident = ros("/system identity print")
+t0, ident = time.time(), ""
+for _ in range(20):  # RouterOS puede tardar en deshacer el modo seguro tras cortar la sesión
+    try:
+        ident = ros("/system identity print")
+        break
+    except Exception as e:  # noqa: BLE001
+        print("esperando a RouterOS:", type(e).__name__)
+        time.sleep(10)
+print(f"RouterOS respondió {time.time() - t0:.0f} s después de cortar la sesión en modo seguro")
 check("y el modo seguro deshace lo que ya se había aplicado (la identidad no cambió)", "A-MEDIAS" not in ident and ident.strip() == before.strip(), ident)
 # tras un cambio correcto el modo seguro queda liberado y el cambio se conserva
 services.push_commands(dev_id, ["/system identity set name=CHR-Final"])

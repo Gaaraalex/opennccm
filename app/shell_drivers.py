@@ -16,6 +16,7 @@ import time
 
 from netmiko.ssh_dispatcher import CLASS_MAPPER, platforms
 from netmiko.linux.linux_ssh import LinuxSSH
+from netmiko.mikrotik.mikrotik_ssh import MikrotikRouterOsSSH
 
 PROMPT = "ncm# "
 MENU = re.compile(r"Enter an option:\s*$")
@@ -72,6 +73,30 @@ class UbuntuServerSSH(LinuxSSH):
         return "\n".join(lines)
 
 
+class RouterOSSSH(MikrotikRouterOsSSH):
+    """MikroTik RouterOS. Desde RouterOS 7.25, al entrar pregunta al terminal su tamaño (ESC[6n) y no muestra nada más
+    hasta recibir una tecla, aunque el usuario lleve «+t» (sin detección de terminal): Netmiko esperaba el prompt y
+    agotaba el tiempo. Un Enter lo desbloquea; en versiones anteriores solo añade un prompt vacío."""
+
+    def special_login_handler(self, delay_factor: float = 1.0) -> None:
+        """Como el de Netmiko (licencia, aviso sin licencia, configuración por defecto, contraseña nueva) más la
+        pregunta del tamaño del terminal de RouterOS 7.25, que se contesta con un Enter."""
+        notices = {'Please press "Enter" to continue!': self.RETURN, "Do you want to see the software license": "n",
+                   'remove this default configuration type "r"': self.RETURN, "new password>": "\x03",
+                   "\x1b[6n": self.RETURN}
+        pattern = "(?:" + "|".join([self.prompt_pattern] + [re.escape(k) for k in notices]) + ")"
+        for _ in range(15):
+            data = self.read_until_pattern(pattern=pattern, re_flags=re.I)
+            for text, answer in notices.items():
+                if text.lower() in data.lower():
+                    self.write_channel(answer)
+                    break
+            else:
+                if re.search(self.prompt_pattern, data, re.I):
+                    return
+        raise ValueError("Unexpected output in special_login_handler")
+
+
 DRIVERS = {"pfsense": FreeBSDFirewallSSH, "opnsense": FreeBSDFirewallSSH, "alpine_linux": LinuxSSH,
            "ubuntu_server": UbuntuServerSSH,
            # Ubiquiti: airOS, airFiber y AP UniFi son BusyBox (prompt «XW.v6.3.11#»); el USG es EdgeOS
@@ -79,8 +104,13 @@ DRIVERS = {"pfsense": FreeBSDFirewallSSH, "opnsense": FreeBSDFirewallSSH, "alpin
            "ubiquiti_usg": CLASS_MAPPER["ubiquiti_edgerouter"]}
 
 
+# sustituyen al driver de Netmiko para ese device_type
+OVERRIDES = {"mikrotik_routeros": RouterOSSSH, "mikrotik_routeros_ssh": RouterOSSSH}
+
+
 def register() -> None:
     for key, cls in DRIVERS.items():
         if key not in CLASS_MAPPER:
             CLASS_MAPPER[key] = cls
             platforms.append(key)  # ConnectHandler valida device_type contra esta lista
+    CLASS_MAPPER.update(OVERRIDES)
