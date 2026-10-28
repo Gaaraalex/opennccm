@@ -50,6 +50,11 @@ nb = json.loads(d.neighbors or "[]")
 check("el respaldo guarda los vecinos CDP (y LLDP desactivado no rompe nada)",
       d.last_status == "ok" and len(nb) == 1 and nb[0]["remote_name"] == "SW-Vecino.empresa.local"
       and nb[0]["remote_ip"] == "192.0.2.77", (d.last_status, d.last_error, nb))
+if not nb:  # diagnóstico: qué devolvió el equipo a las órdenes de vecinos
+    from app import services
+    with SessionLocal() as db:
+        with services.connect(db.get(Device, dev_id)) as conn:
+            print("SALIDA VECINOS:", repr(services._read_neighbors(conn, "cisco_ios"))[:1500])
 page = s.get(B + "/topology").text
 m = re.search(r"const NODES = (\[.*?\]), LINKS = (\[.*?\]),", page, re.S)
 nodes, links = (json.loads(m.group(1)), json.loads(m.group(2))) if m else ([], [])
