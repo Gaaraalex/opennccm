@@ -32,6 +32,9 @@ def wait_backup(dev_id, before):
     return d
 
 
+# otras pruebas guardan el formulario de Ajustes sin este interruptor (y entonces queda apagado)
+set_setting("topology_enabled", "1")
+time.sleep(31)  # caché de ajustes del servidor
 with SessionLocal() as db:
     cred = Credential(name="topo-cred", username="admin", password_enc=encrypt("cisco"), secret_enc=encrypt("cisco"))
     db.add(cred)
