@@ -172,15 +172,23 @@ def is_wireless(pa: str, pb: str) -> bool:
     return bool(WIRELESS.match(pa or "") or WIRELESS.match(pb or ""))
 
 
+# modelos de antena de cliente (CPE): vistos por su radio son siempre equipos de usuario, aunque haya uno solo por puerto
+# (con una VLAN por cliente, cada CPE llega por su propia interfaz)
+CPE_MODELS = re.compile(r"(?i)litebeam|nanostation|\bloco|nanobeam|nanobridge|airgrid|powerstation|\bbullet|"
+                        r"\bltu[- ]?(?:lite|pro|long|extreme)|\bwave[- ]?(?:nano|pro|lr)|\bsxt|\blhg|\bldf|\bdisc\b|\bgroove")
+
+
 def network_view(nbrs: list[dict]) -> tuple[list[dict], int]:
     """Vecinos que se dibujan y cuántos equipos de usuario se quitan. Por un mismo puerto cableado, uno solo visto por su
     radio es el otro extremo de un PtP (o la estación) y queda como enlace inalámbrico; varios son los CPE de los clientes
-    de un punto de acceso y no se dibujan (el punto de acceso, visto por su cable, sí)."""
+    de un punto de acceso y no se dibujan (el punto de acceso, visto por su cable, sí). Un modelo de CPE visto por su radio
+    nunca se dibuja."""
     air: dict[str, int] = {}
     for n in nbrs:
         if is_air(n):
             air[short_port(n.get("local_port") or "")] = air.get(short_port(n.get("local_port") or ""), 0) + 1
-    kept = [n for n in nbrs if not is_air(n) or air[short_port(n.get("local_port") or "")] == 1]
+    kept = [n for n in nbrs if not is_air(n) or (air[short_port(n.get("local_port") or "")] == 1
+                                                 and not CPE_MODELS.search(n.get("platform") or ""))]
     return kept, len(nbrs) - len(kept)
 
 

@@ -1,5 +1,10 @@
 # Historial de versiones
 
+## 2.10.3
+- **Mapa de la red: los CPE de los clientes ya no salen aunque cada uno vaya en su VLAN.** Un modelo de antena de cliente
+  (LiteBeam, NanoStation, NanoBeam, SXT, LHG…) visto por su radio nunca se dibuja. Antes, con una VLAN por cliente, cada
+  CPE llegaba solo por su interfaz y se tomaba por el otro extremo de un PtP.
+
 ## 2.10.2
 - **Mapa de la red: tipos de equipo.** En Ajustes › Mapa de la red se eligen los equipos descubiertos que salen (MikroTik,
   Ubiquiti, Juniper, Cisco, Huawei, HP/Aruba, Extreme y otros). El tipo se reconoce por lo que anuncia el vecino o por el

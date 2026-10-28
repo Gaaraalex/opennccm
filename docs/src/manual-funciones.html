@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.10.2<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 2.10.3<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -739,7 +739,8 @@ HP/Aruba, Dell, Ruckus, Allied, MikroTik, EdgeSwitch, UniFi Switch y EXOS, si ti
   <li>Un vecino se reconoce como equipo de OpenNCCM por su nombre (sin dominio) o, si no, por su IP de gestión.</li>
   <li>Solo salen <b>equipos de red</b>. Si por un puerto se ven <b>varios equipos por su radio</b>, son los CPE de los
   clientes de un punto de acceso: se quitan (el punto de acceso sí sale) y una nota dice cuántos. Si se ve <b>uno solo</b>, es el
-  otro extremo de un PtP o la estación, y sale. En MikroTik, en un puerto con varios vecinos por cable solo cuenta el visto por LLDP.</li>
+  otro extremo de un PtP o la estación, y sale, salvo que sea un modelo de antena de cliente (LiteBeam,
+  NanoStation, NanoBeam, SXT, LHG…), que nunca sale: así no aparecen los clientes que van cada uno en su VLAN. En MikroTik, en un puerto con varios vecinos por cable solo cuenta el visto por LLDP.</li>
   <li>Los <b>enlaces inalámbricos</b> (un extremo es una radio: ath0, wlan1…) se dibujan con línea discontinua.</li>
   <li>En <b>Ajustes › Mapa de la red</b> se eligen los <b>tipos de equipo descubiertos</b> que salen: MikroTik, Ubiquiti,
   Juniper, Cisco, Huawei, HP/Aruba, Extreme y otros. El tipo se reconoce por lo que anuncia el vecino (plataforma, modelo) o
