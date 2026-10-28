@@ -18,11 +18,12 @@ from jinja2.sandbox import SandboxedEnvironment
 from sqlalchemy import delete, select
 
 from .config import NVD_API_KEY, WORKERS
-from .crypto import decrypt, encrypt
+from .crypto import decrypt, encrypt, try_decrypt
 from .db import (ChangeRequest, ComplianceResult, ConfigVersion, Device, Event, Policy, SessionLocal,
                  Vulnerability, get_setting, now)
 from .drivers import FASTPATH, IOS, clean_config, compare_text, get_profile, parse_inventory, telnet_supported
-from .rollback import build_rollback, fastpath_style
+from .drivers import HTTP_ONLY as _HTTP_ONLY
+from .rollback import fastpath_style, rollback_plan
 from .i18n import N_
 
 log = logging.getLogger("opennccm")
@@ -260,6 +261,13 @@ def same_config(prev_text: str, new_clean: str, prof) -> bool:
     return compare_text(clean_config(prev_text, prof)) == compare_text(new_clean)
 
 
+def versions_differ(a, b, prof) -> bool:
+    """¿Dos versiones guardadas son distintas? Como same_config: una línea base guardada antes de ampliar las líneas
+    volátiles (p. ej. «! System Up Time» de Ubiquiti) no debe dejar el equipo «distinto de la base» para siempre."""
+    return a.sha256 != b.sha256 and not same_config(decrypt(a.content_enc),
+                                                    clean_config(decrypt(b.content_enc), prof), prof)
+
+
 # --------------------------------------------------------------------------- respaldo
 def backup_device(device_id: int, trigger="manual", username: str | None = None) -> str:
     lock = device_lock(device_id)
@@ -319,13 +327,21 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
             return "missing"
         prof = get_profile(dev.device_type)
         try:
-            with connect(dev) as conn:
-                running = conn.send_command(dev.custom_backup_cmd or prof.backup, read_timeout=180)
-                startup = conn.send_command(prof.startup, read_timeout=180) if prof.startup else None
-                inventory = "\n\n".join(conn.send_command(c, read_timeout=60) for c in prof.inventory.split("\n")
-                                        if c.strip()) if prof.inventory else None
+            if prof.key in HTTP_ONLY:  # SwitchOS: por HTTP, sin SSH
+                from . import swos
+                if dev.credential is None:
+                    raise RuntimeError("El dispositivo no tiene credencial asignada")
+                cred = (dev.credential.username, decrypt(dev.credential.password_enc) if dev.credential.password_enc else "")
+                running, inventory = swos.backup(dev, cred)
+                startup = None
+            else:
+                with connect(dev) as conn:
+                    running = conn.send_command(dev.custom_backup_cmd or prof.backup, read_timeout=180)
+                    startup = conn.send_command(prof.startup, read_timeout=180) if prof.startup else None
+                    inventory = "\n\n".join(conn.send_command(c, read_timeout=60) for c in prof.inventory.split("\n")
+                                            if c.strip()) if prof.inventory else None
         except Exception as e:  # noqa: BLE001
-            dev.last_status, dev.last_error = "error", str(e)[:2000]
+            dev.last_status, dev.last_error = "error", (str(e) or repr(e))[:2000]
             db.commit()
             add_event("major", "Respaldo fallido", f"{dev.name} ({dev.host}): {e}", dev.id)
             return "error"
@@ -353,7 +369,12 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
 
         sha = hashlib.sha256(compare_text(running).encode()).hexdigest()
         prev = latest_version(db, dev.id)
-        prev_text = decrypt(prev.content_enc) if prev else ""
+        prev_text = try_decrypt(prev.content_enc) if prev else ""
+        if prev_text is None:  # la versión anterior se cifró con otra clave: no se puede comparar
+            prev_text = ""
+            add_event("warning", "Versión anterior ilegible",
+                      f"{dev.name}: la versión anterior se cifró con otra clave (secret.key); se guarda la actual completa.",
+                      dev.id)
         changed = prev is None or (prev.sha256 != sha and not same_config(prev_text, running, prof))
         result = "unchanged"
         if changed:
@@ -386,7 +407,8 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
         new_drift = False
         if dev.baseline_version_id:
             base = db.get(ConfigVersion, dev.baseline_version_id)
-            drift = base is not None and base.sha256 != sha
+            base_text = try_decrypt(base.content_enc) if base is not None else None
+            drift = base is not None and base.sha256 != sha and (base_text is None or not same_config(base_text, running, prof))
             new_drift = drift and not dev.baseline_drift
             dev.baseline_drift = drift
 
@@ -412,15 +434,21 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
                       f"{dev.name} ({dev.host}) cambió [{trigger}]. +{added}/-{removed} líneas\n\n{diff}", dev.id)
             if dev.auto_rollback and trigger in ("syslog", "scheduled") and not in_maintenance:
                 # se ejecuta en otro hilo: este todavía tiene el lock del dispositivo
-                jobs.submit(_auto_rollback, dev.id, dev.name, prof.family, running, prev_text)
+                jobs.submit(_auto_rollback, dev.id, dev.name, dev.device_type, dev.host, running, prev_text)
 
     run_compliance(device_id)
     return result
 
 
-def _auto_rollback(dev_id: int, dev_name: str, family: str, current: str, target: str):
-    cmds = build_rollback(current, target, family)
+def _auto_rollback(dev_id: int, dev_name: str, device_type: str, host: str, current: str, target: str):
+    cmds, notes = rollback_plan(current, target, get_profile(device_type), host)
+    if cmds is None:
+        add_event("critical", "Reversión automática no disponible",
+                  f"{dev_name}: hubo un cambio no autorizado, pero {notes[0]}", dev_id)
+        return
     log.info("Reversión automática de %s: %d comandos", dev_name, len(cmds))
+    if notes:
+        add_event("warning", "Reversión automática: revisar a mano", f"{dev_name}:\n" + "\n".join(notes), dev_id)
     if not cmds:
         return
     try:
@@ -464,7 +492,8 @@ def push_commands(device_id: int, commands: list[str], exec_mode=False) -> str:
 # Respuestas con las que los equipos rechazan un comando, por fabricante:
 #   Cisco/Arista/Dell/Allied/Extreme («% Invalid input», «%% Invalid»), HP Comware/Mellanox/A10 («% Unrecognized»),
 #   Huawei («Error: Unrecognized command»), Juniper («syntax error», «unknown command», «error: ...»),
-#   MikroTik («bad command name», «expected end of command», «failure: ...», «input does not match»),
+#   MikroTik («bad command name», «expected end of command», «failure: ...», «input does not match», «no such item»,
+#   «invalid value for …», «ambiguous value», «already have such …», «value of … out of range»),
 #   FortiGate («Command fail. Return code», «Unknown action», «entry not found», «value parse error»),
 #   Palo Alto («Invalid syntax», «Server error»), Nokia SR OS («MINOR:/MAJOR:»), Cisco IOS-XR («!!% ...»),
 #   VyOS/EdgeRouter («Set failed», «Invalid command»), Check Point («CLINFR0329 Invalid command»),
@@ -474,6 +503,7 @@ DEVICE_ERROR = re.compile(
     r"syntax error|unknown command|error:|Error\b|Failed to |An invalid |Invalid (input|command|syntax|value)|"
     r"Incomplete command|Unrecognized command|Command not found|Command fail|Unknown action|bad command name|"
     r"expected end of command|failure:|input does not match|entry not found|value parse error|Server error|"
+    r"no such item|invalid value|ambiguous value|already have|value of \S+ out of range|missing value|bad argument|"
     r"(MINOR|MAJOR|CRITICAL): |CLINFR\d+|(Set|Delete|Commit) failed|Cannot |Unable to |Incorrect usage)")
 # fin de la respuesta a un comando: el prompt del equipo (# > $ ]) o una pregunta de confirmación
 PROMPT_END = r"([#>$\]]\s*$|\[confirm\]\s*$|[\[(](y/n|yes/no|Y/N)[\])]\s*[?:]?\s*$)"
@@ -482,6 +512,49 @@ CONFIRM = re.compile(r"(\[confirm\]|[\[(](y/n|yes/no|Y/N)[\])])\s*[?:]?\s*$")
 DISCARD = {"juniper_junos": "rollback 0", "juniper": "rollback 0", "cisco_xr": "abort", "cisco_viptela": "abort",
            "vyos": "discard", "ubiquiti_edgerouter": "discard", "huawei_vrpv8": "abort", "nokia_srl": "discard now",
            "paloalto_panos": "revert config"}
+
+
+# Red de seguridad del propio equipo mientras se aplican cambios:
+#  * MikroTik: «modo seguro» (Ctrl+X). Si algo falla, OpenNCCM cierra la sesión sin liberarlo y RouterOS deshace solo
+#    todo lo aplicado; si la conexión se corta a mitad (p. ej. un cambio deja sin acceso), también.
+#  * Junos: «commit confirmed 5». OpenNCCM vuelve a conectar y confirma; si no puede (el cambio cortó el acceso), el
+#    equipo vuelve solo a la configuración anterior en 5 minutos, sin reiniciar.
+SAFE_MODE = {"mikrotik_routeros"}
+HTTP_ONLY = _HTTP_ONLY  # sin SSH: solo respaldo por HTTP
+CONFIRMED = {"juniper_junos", "juniper"}
+CONFIRM_MINUTES = 5
+
+
+def _mikrotik_safe_mode(conn, take: bool) -> str:
+    """Toma o libera el modo seguro (Ctrl+X). Se comprueba por el prompt, que lleva «<SAFE>» mientras está activo
+    (RouterOS 7 responde «Taking Safe Mode session... Success!»; RouterOS 6, «[Safe Mode taken]»)."""
+    conn.clear_buffer()
+    conn.write_channel("\x18")
+    out = ""
+    try:
+        # al tomarlo se espera el prompt con «<SAFE>»; al liberarlo, el prompt normal «] >»
+        want = r"<SAFE>\s*$" if take else r"\]\s*>\s*$"
+        out = conn.read_until_pattern(pattern=rf"(?:{want}|(?i:already taken|failed))", read_timeout=20)
+    except Exception as e:  # noqa: BLE001
+        out += str(e)
+    last = out.strip().splitlines()[-1] if out.strip() else ""
+    active = "<SAFE" in last
+    if active != take:
+        what, after = (("activar", "No se aplicó ningún cambio.") if take else
+                       ("liberar", "Al cerrar la sesión, RouterOS deshace los cambios aplicados."))
+        raise RuntimeError(f"No se pudo {what} el modo seguro de RouterOS (Ctrl+X): {out.strip()[-300:]}\n{after}")
+    return out + ("\n[modo seguro activado]" if take else "\n[modo seguro liberado: cambios conservados]")
+
+
+def _mikrotik_safe_undo(conn) -> None:
+    """Sale del modo seguro deshaciendo los cambios (Ctrl+D). RouterOS 7 también los deshace al cortar la sesión;
+    RouterOS 6 no siempre, por eso se pide de forma explícita."""
+    try:
+        conn.write_channel("\x04")
+        time.sleep(3)
+        conn.read_channel()
+    except Exception:  # noqa: BLE001 - la sesión puede haberse cerrado ya: también deshace los cambios
+        pass
 
 
 def _push_stepwise(conn, commands: list[str], prof) -> str:
@@ -527,29 +600,59 @@ def _push(device_id: int, commands: list[str], exec_mode: bool) -> str:
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
         prof = get_profile(dev.device_type)
+        if prof.key in HTTP_ONLY:
+            raise RuntimeError(f"{prof.label} no admite cambios por comandos: se configura desde su interfaz web.")
         if not exec_mode:
             # ventana máxima por si el proceso muere; normalmente se cierra al terminar el respaldo post-cambio
             dev.maintenance_until = now() + timedelta(minutes=5)
             db.commit()
+        confirmed = prof.key in CONFIRMED
         with connect(dev) as conn:
             if exec_mode:
                 out = []
                 for c in commands:
                     out.append(f"### {c}\n" + conn.send_command(c, read_timeout=180))
                 return "\n".join(out)
-            out = _push_stepwise(conn, commands, prof)
-            if prof.commit:
+            safe = prof.key in SAFE_MODE
+            out = _mikrotik_safe_mode(conn, True) if safe else ""
+            try:
+                out += _push_stepwise(conn, commands, prof)
+            except Exception:
+                if safe:  # deshacer todo lo aplicado en modo seguro antes de cerrar la sesión
+                    _mikrotik_safe_undo(conn)
+                raise
+            if safe:
+                out += _mikrotik_safe_mode(conn, False)
+            if confirmed:
+                out += "\n" + conn.commit(confirm=True, confirm_delay=CONFIRM_MINUTES)
+            elif prof.commit:
                 out += "\n" + conn.commit()
+            if prof.commit:
                 try:
                     conn.exit_config_mode()
                 except Exception:  # noqa: BLE001
                     pass
-            if prof.save:
+            if prof.save and not confirmed:
                 try:
                     out += "\n" + conn.save_config()
                 except (NotImplementedError, AttributeError):
                     pass
-            return out
+        if confirmed:
+            # volver a entrar demuestra que el cambio no cortó el acceso; entonces se confirma
+            try:
+                with connect(dev) as conn:
+                    conn.config_mode()
+                    out += "\n" + conn.commit()
+                    try:
+                        conn.exit_config_mode()
+                    except Exception:  # noqa: BLE001
+                        pass
+            except Exception as e:  # noqa: BLE001
+                raise RuntimeError(
+                    f"El cambio se aplicó con «commit confirmed {CONFIRM_MINUTES}», pero OpenNCCM no pudo volver a "
+                    f"conectar para confirmarlo ({e}). Si el cambio cortó el acceso, el equipo volverá solo a la "
+                    f"configuración anterior en {CONFIRM_MINUTES} minutos.") from e
+        return out
 
 
 _jinja = SandboxedEnvironment(trim_blocks=True, lstrip_blocks=True)
@@ -611,15 +714,16 @@ def execute_change_request(cr_id: int):
                   f"#{cr.id} '{cr.title}': {ok} OK, {fail} con error.")
 
 
-def rollback_commands(device_id: int, version_id: int) -> list[str]:
+def rollback_commands(device_id: int, version_id: int) -> tuple[list[str] | None, list[str]]:
+    """(comandos, avisos) para volver a la versión; comandos None si la plataforma no se puede revertir por comandos."""
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
         target = db.get(ConfigVersion, version_id)
         current = latest_version(db, device_id)
         if not target or not current:
-            return []
-        return build_rollback(decrypt(current.content_enc), decrypt(target.content_enc),
-                              get_profile(dev.device_type).family)
+            return [], []
+        return rollback_plan(decrypt(current.content_enc), decrypt(target.content_enc), get_profile(dev.device_type),
+                             dev.host)
 
 
 # --------------------------------------------------------------------------- cumplimiento

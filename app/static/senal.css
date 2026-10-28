@@ -112,8 +112,6 @@ svg .label,svg text.label{font:inherit;letter-spacing:0;text-transform:none}
 .brand img,.brand svg{width:30px;height:30px;flex:none}.brand em{font-style:normal;color:var(--signal)}
 .collapse{margin-left:auto;background:none;border:0;color:var(--rail-ink);padding:4px;border-radius:8px;cursor:pointer;display:grid;min-height:0}
 .collapse:hover{background:var(--rail-2);color:#fff}
-.find{display:flex;align-items:center;gap:8px;height:38px;padding:0 10px;border-radius:var(--r-md);background:var(--rail-2);color:var(--rail-ink);font-size:13px;border:0;cursor:pointer;width:100%;text-align:left;min-height:0}
-.find:hover{color:#fff;background:var(--rail-2)}.find kbd{margin-left:auto}
 .grp{display:flex;flex-direction:column;gap:2px}
 .grp>.label{color:var(--rail-ink);opacity:.75;padding:4px 10px}
 .nav{display:flex;align-items:center;gap:11px;height:36px;padding:0 10px;border-radius:var(--r-md);color:var(--rail-ink);font-weight:500;font-size:13.5px;position:relative;white-space:nowrap}
@@ -126,8 +124,8 @@ svg .label,svg text.label{font:inherit;letter-spacing:0;text-transform:none}
 .av{width:32px;height:32px;border-radius:50%;background:var(--signal);color:var(--on-signal);display:grid;place-items:center;font:800 12.5px var(--f-display);flex:none}
 .av.alt{background:var(--surface-3);color:var(--ink-2)}
 .app.mini .rail{width:68px}
-.app.mini .rail .txt,.app.mini .rail .grp>.label,.app.mini .find span,.app.mini .find kbd,.app.mini .me div,.app.mini .nav .cnt,.app.mini .railfoot{display:none}
-.app.mini .nav{justify-content:center;padding:0}.app.mini .find{justify-content:center;padding:0}.app.mini .brand{justify-content:center;padding:0}
+.app.mini .rail .txt,.app.mini .rail .grp>.label,.app.mini .me div,.app.mini .nav .cnt,.app.mini .railfoot{display:none}
+.app.mini .nav{justify-content:center;padding:0}.app.mini .brand{justify-content:center;padding:0}
 .app.mini .collapse{margin:0 auto}.app.mini .brand .collapse{display:none}
 .app.mini .nav .dotc{display:block}
 .collapse.expand{display:none}.app.mini .collapse.expand{display:grid}
@@ -413,6 +411,8 @@ dialog.dlg form{margin:0;display:flex;flex-direction:column;gap:14px}
 .drop form{margin:0}
 .drop .desc{display:block;font-size:12px;color:var(--muted);font-weight:400}
 .drop.left{left:0;right:auto}
+/* «…» de la ficha del equipo: tan ancho como su opción más larga («Marcar la última versión como línea base»), sin pasar de la pantalla */
+#dev-menu{width:max-content;min-width:260px;max-width:min(380px,calc(100vw - 32px))}#dev-menu>button,#dev-menu>a,#dev-menu>form>button{white-space:normal}
 .notif{width:360px}
 .notif .ni{display:grid;grid-template-columns:30px minmax(0,1fr);gap:10px;padding:10px;border-radius:var(--r-md);font-size:13px;color:var(--ink);text-decoration:none}
 .notif .ni:hover{background:var(--surface-2);color:var(--ink)}

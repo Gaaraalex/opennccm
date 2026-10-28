@@ -1,5 +1,46 @@
 # Historial de versiones
 
+## 2.9.0
+- **Reversión revisada a fondo, plataforma por plataforma.** Un error al restaurar puede dejar un equipo sin servicio, así
+  que se rehízo con estas reglas:
+  - **MikroTik RouterOS** tiene reversión propia. Compara las exportaciones elemento a elemento:
+    - `set` con su selector para lo que cambió;
+    - `add` para lo que falta, con las reglas de firewall en su posición (`place-before`);
+    - `remove [ find where … ]` para lo que sobra, en orden inverso.
+
+    Se aplica en **modo seguro**: si un comando falla o se corta la conexión, RouterOS deshace todo lo aplicado. Probado
+    en **RouterOS 7.25, 7.23.8 y 6.49.23 reales** en la CI, que comprueba que el equipo queda exactamente como antes y que
+    un fallo a mitad se deshace.
+  - **Extreme EXOS** y **VOSS / Fabric Engine** tienen reversión propia (`delete vlan`, `configure vlan … delete ports`,
+    `vlan members remove`…). Borran las VLAN que sobran antes de mover sus puertos.
+  - **Junos** se aplica con `commit confirmed 5`: si el cambio corta el acceso, el equipo vuelve solo a la configuración
+    anterior.
+  - **Nunca se toca la dirección por la que OpenNCCM gestiona el equipo.** Lo que no se puede deshacer con seguridad se
+    muestra en la solicitud como «Revisar a mano», y esa solicitud no se ejecuta sola.
+  - **WatchGuard, FortiGate, UniFi, airOS, SwitchOS y las demás plataformas sin reversión segura por comandos** ya no
+    vuelven a aplicar la configuración entera, que se detenía en la primera línea existente y dejaba el equipo a medias.
+    OpenNCCM explica cómo restaurar con la herramienta del fabricante. La reversión automática no se puede activar en ellas.
+- **MikroTik**:
+  - con **RouterOS 7.25** los respaldos fallaban, porque al iniciar sesión pide el tamaño del terminal; ya funcionan;
+  - las respuestas de error de RouterOS («no such item», «invalid value»…) ya se reconocen; antes se daban por buenas.
+- **Ubiquiti**:
+  - nuevos perfiles: **airMAX M** (M2, M5 con airOS 6), **airMAX AC** (airOS 8), **airFiber** (AF5XHD, AF60, AF24HD, AF5X),
+    **AP UniFi** y **USG**;
+  - el respaldo de airOS, airFiber y UniFi AP es `/tmp/system.cfg`, con la versión y el modelo.
+- **MikroTik SwitchOS** (SwOS y SwOS Lite): respaldo por HTTP (`backup.swb`) con el modelo, la versión y la serie.
+- **Importar equipos desde Zabbix** (6.0 a 7.x):
+  - trae el nombre, la IP, la descripción y el inventario, y deduce la plataforma;
+  - sin credencial, los equipos quedan desactivados hasta asignársela;
+  - probado con Zabbix 6.0, 7.0 y 7.4 reales.
+- **Dispositivos**: paginador de 15, 25, 50 o 100, que respeta el filtro al escribir.
+- **Línea base**: «Difiere de la base» ya no se queda para siempre cuando la base guardaba la hora o el tiempo encendido.
+- **Ficha del equipo**:
+  - el menú «…» ya no corta «Marcar la última versión como línea base»;
+  - si algunas versiones se cifraron con otra clave (`secret.key`), la ficha se abre con un aviso en lugar de dar un error,
+    y los respaldos siguen funcionando.
+- **Menú lateral**: se quitó el buscador bajo el logo, que se cortaba. El de la barra superior hace lo mismo con Ctrl K.
+- 131 plataformas.
+
 ## 2.8.0
 - **Ajustes › Vulnerabilidades (NVD)** aparece en el menú lateral de Ajustes. En la 2.7.0 la sección existía pero no se podía
   abrir desde el menú.

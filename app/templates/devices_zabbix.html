@@ -1,0 +1,105 @@
+{% extends "base.html" %}{% block title %}{{ _('Importar equipos desde Zabbix') }}{% endblock %}
+{% block content %}
+{# Paso 1: conectar (dirección y token, o usuario y contraseña). Paso 2 (rows): vista previa con casillas e importar. #}
+<div class="ph"><div class="grow"><h1>{{ _('Importar equipos desde Zabbix') }}</h1>
+  <div class="sub">{{ _('Trae el nombre, la dirección IP y la descripción de los hosts de Zabbix y los crea como dispositivos. Las credenciales SSH no están en Zabbix: se asignan después.') }}</div></div>
+  <a class="btn ghost" href="/devices">{{ icon('left', 's') }}{{ _('Volver a Dispositivos') }}</a></div>
+
+{% if error %}<div class="banner crit" role="alert">{{ icon('alert') }}<span class="grow">{{ error }}</span></div>{% endif %}
+
+<section class="card"><div class="card-h"><h2>{{ _('1. Conectar con Zabbix') }}</h2>{% if rows is defined %}<span class="pill ok">{{ _f('Conectado · Zabbix {0}', zversion) }}</span>{% endif %}</div>
+<form method="post" action="/devices/import/zabbix" class="stack" id="zbx-conn">
+  <div class="field"><label for="z-url">{{ _('Dirección de Zabbix') }}</label><div class="input"><input id="z-url" name="url" required value="{{ url }}" placeholder="https://zabbix.miempresa.local/zabbix" autocomplete="url" spellcheck="false"></div>
+    <span class="help">{{ _('La de la interfaz web de Zabbix (6.0 o posterior). OpenNCCM usa su API: /api_jsonrpc.php.') }}</span></div>
+  <div class="field"><label for="z-auth">{{ _('Autenticación') }}</label><div class="input"><select id="z-auth" name="auth">
+    <option value="token" {{ 'selected' if (mode|default('token')) == 'token' }}>{{ _('Token de API (recomendado)') }}</option>
+    <option value="user" {{ 'selected' if mode|default('') == 'user' }}>{{ _('Usuario y contraseña') }}</option></select></div></div>
+  <div class="field" data-auth="token"><label for="z-token">{{ _('Token de API') }}</label><div class="input mono"><input id="z-token" name="token" type="password" autocomplete="off" spellcheck="false"></div>
+    <span class="help">{{ _('En Zabbix 7: Usuarios › Tokens de API; en 6.0: Administración › General › Tokens de API. Basta con un usuario que pueda ver los hosts (solo lectura).') }}</span></div>
+  <div class="f2" data-auth="user">
+    <div class="field"><label for="z-user">{{ _('Usuario de Zabbix') }}</label><div class="input"><input id="z-user" name="username" value="{{ username|default('') }}" autocomplete="off"></div></div>
+    <div class="field"><label for="z-pass">{{ _('Contraseña') }}</label><div class="input"><input id="z-pass" name="password" type="password" autocomplete="off"></div></div></div>
+  <label class="row nowrap sm"><input type="checkbox" name="verify" {{ 'checked' if verify }}><span>{{ _('Verificar el certificado HTTPS (desmárcalo si Zabbix usa uno autofirmado)') }}</span></label>
+  <p class="muted sm" style="margin:0">{{ _('El token y la contraseña solo se usan para esta lectura: no se guardan.') }}</p>
+  <div class="row"><span class="grow"></span><button class="btn {{ 'pri' if rows is not defined }}">{{ icon('refresh', 's') }}{{ _('Conectar y ver los hosts') if rows is not defined else _('Volver a leer') }}</button></div>
+</form></section>
+
+{% if rows is defined %}
+{% set n_new = rows|selectattr('ok')|list|length %}
+<form method="post" action="/devices/import/zabbix/create" id="zbx-imp" class="stack" style="margin-top:18px">
+<input type="hidden" name="key" value="{{ key }}">
+<section class="card flush"><div class="card-h" style="padding:16px 18px 0"><h2>{{ _('2. Elegir los equipos') }}</h2>
+  <span class="muted sm">{{ _f('{0} hosts en Zabbix · {1} nuevos · {2} ya están en OpenNCCM', rows|length, n_new, rows|selectattr('exists')|list|length) }}</span></div>
+  {% if rows %}<div class="row" style="padding:12px 18px;gap:12px">
+    <div class="input" style="max-width:320px"><input type="search" id="z-q" placeholder="{{ _('Filtrar por nombre, IP o descripción') }}" aria-label="{{ _('Filtrar por nombre, IP o descripción') }}"></div>
+    {% if zgroups %}<div class="input" style="max-width:280px"><select id="z-g" aria-label="{{ _('Grupo de Zabbix') }}"><option value="">{{ _('Todos los grupos de Zabbix') }}</option>{% for g in zgroups %}<option>{{ g }}</option>{% endfor %}</select></div>{% endif %}
+    <span class="grow"></span><span class="sm muted" id="z-n" aria-live="polite"></span></div>
+  <div class="tw"><table class="t" id="z-t"><thead><tr><th style="width:36px"><input type="checkbox" id="z-all" aria-label="{{ _('Seleccionar todos') }}"></th>
+    <th>{{ _('Nombre') }}</th><th>{{ _('Dirección') }}</th><th>{{ _('Descripción') }}</th><th>{{ _('Grupos de Zabbix') }}</th><th>{{ _('Plataforma') }}</th></tr></thead>
+  <tbody data-pager>{% for r in rows %}<tr data-g="{{ r.groups|join('\n') }}" data-text="{{ (r.name ~ ' ' ~ r.host ~ ' ' ~ r.description)|lower }}">
+    <td><input type="checkbox" name="sel" value="{{ loop.index0 }}" aria-label="{{ _f('Importar {0}', r.name) }}" {{ 'checked' if r.ok and r.enabled }} {{ 'disabled' if not r.ok else 'data-ok=1' }}></td>
+    <td><b>{{ r.name }}</b>{% if r.exists %} <span class="tag">{{ r.exists }}</span>{% endif %}{% if not r.enabled %} <span class="tag">{{ _('desactivado en Zabbix') }}</span>{% endif %}</td>
+    <td class="mono">{{ r.host or '—' }}{% if not r.host %} <span class="tag crit">{{ _('sin dirección') }}</span>{% endif %}</td>
+    <td class="sm" style="max-width:320px">{{ r.description|truncate(140) if r.description else '—' }}</td>
+    <td class="sm muted">{{ r.groups|join(', ') or '—' }}</td>
+    <td>{% if r.ok %}<div class="input" style="min-width:200px"><select name="t_{{ loop.index0 }}" aria-label="{{ _f('Plataforma de {0}', r.name) }}" data-v="{{ r.type or 'generic' }}"><option value="{{ r.type or 'generic' }}" selected>{{ labels[r.type or 'generic'] }}</option></select></div>{% if not r.type %}<span class="tag info" style="margin-top:4px">{{ _('revisar') }}</span>{% endif %}{% else %}—{% endif %}</td>
+  </tr>{% endfor %}</tbody></table></div>{% else %}<div class="empty">{{ empty_art('search') }}<h2>{{ _('Zabbix no tiene hosts que este usuario pueda ver') }}</h2></div>{% endif %}
+</section>
+{% if n_new %}<section class="card"><div class="card-h"><h2>{{ _('3. Importar') }}</h2></div><div class="stack">
+  <div class="f2">
+    <div class="field"><label for="z-cred">{{ _('Credencial SSH para todos (opcional)') }}</label><div class="input"><select id="z-cred" name="credential_id"><option value="">{{ _('Ninguna: la asigno después a cada equipo') }}</option>{% for i, n in creds %}<option value="{{ i }}">{{ n }}</option>{% endfor %}</select></div>
+      <span class="help">{{ _('Sin credencial, los equipos se crean desactivados (no se respaldan) hasta que edites cada uno, le asignes la suya y lo actives.') }}</span></div>
+    <div class="field"><label for="z-grp">{{ _('Grupo para todos (opcional)') }}</label><div class="input"><select id="z-grp" name="group_id"><option value="">{{ _('Sin grupo') }}</option>{% for i, n in groups %}<option value="{{ i }}">{{ n }}</option>{% endfor %}</select></div></div>
+  </div>
+  <p class="muted sm" style="margin:0">{{ _('Se guardan el nombre, la dirección (puerto SSH 22), la descripción (en Notas) y, si Zabbix tiene inventario, el modelo, el n.º de serie y la ubicación. La plataforma se deduce de las plantillas y el inventario de Zabbix: revisa las marcadas.') }}</p>
+  <div class="row"><span class="grow"></span><a class="btn ghost" href="/devices">{{ _('Cancelar') }}</a><button class="btn pri" id="z-go">{{ icon('dl', 's') }}<span id="z-gol">{{ _('Importar') }}</span></button></div>
+</div></section>{% endif %}
+</form>
+{% endif %}
+
+<script>
+(function () {
+  const auth = document.getElementById('z-auth');
+  const syncAuth = () => document.querySelectorAll('[data-auth]').forEach(el => {
+    const on = el.dataset.auth === auth.value; el.hidden = !on; el.querySelectorAll('input').forEach(i => { i.disabled = !on; });
+  });
+  auth.addEventListener('change', syncAuth); syncAuth();
+  const t = document.getElementById('z-t');
+  if (!t) return;
+  const L = {{ {'n': _('{0} equipos marcados'), 'n1': _('1 equipo marcado'), 'go': _('Importar {0} equipos'), 'go1': _('Importar 1 equipo')}|tojson }};
+  const LABELS = {{ labels|tojson }};
+  const rows = [...t.tBodies[0].rows], q = document.getElementById('z-q'), g = document.getElementById('z-g');
+  const all = document.getElementById('z-all'), n = document.getElementById('z-n'), go = document.getElementById('z-go'), gol = document.getElementById('z-gol');
+  const boxes = rows.map(r => r.querySelector('input[name=sel]'));
+  function count() {
+    const sel = boxes.filter(b => b.checked && !b.disabled).length;
+    const vis = boxes.filter(b => !b.disabled && !b.closest('tr').classList.contains('pg-out'));
+    n.textContent = sel === 1 ? L.n1 : L.n.replace('{0}', sel);
+    if (go) { go.disabled = !sel; gol.textContent = sel === 1 ? L.go1 : L.go.replace('{0}', sel); }
+    all.checked = vis.length > 0 && vis.every(b => b.checked); all.indeterminate = !all.checked && vis.some(b => b.checked);
+  }
+  // filtro por texto y por grupo de Zabbix: lo que queda fuera no se importa (su casilla no se envía)
+  function filter() {
+    const v = (q.value || '').trim().toLowerCase(), grp = g ? g.value : '';
+    rows.forEach(r => {
+      const out = (v && !r.dataset.text.includes(v)) || (grp && !r.dataset.g.split('\n').includes(grp));
+      r.classList.toggle('pg-out', out); r.hidden = out;
+      const b = r.querySelector('input[name=sel]'); b.disabled = !b.dataset.ok || out;
+    });
+    t.tBodies[0].dispatchEvent(new Event('pager:refresh'));
+    count();
+  }
+  q.addEventListener('input', filter); if (g) g.addEventListener('change', filter);
+  all.addEventListener('change', () => { boxes.forEach(b => { if (!b.disabled && !b.closest('tr').classList.contains('pg-out')) b.checked = all.checked; }); count(); });
+  boxes.forEach(b => b.addEventListener('change', count));
+  // la lista completa de plataformas se carga al abrir cada selector (con cientos de hosts, la página no pesa)
+  t.addEventListener('focusin', e => {
+    const s = e.target.closest('select[data-v]');
+    if (!s || s.options.length > 1) return;
+    const cur = s.value;
+    s.innerHTML = Object.entries(LABELS).map(([k, l]) => '<option value="' + k + '"' + (k === cur ? ' selected' : '') + '>' + l.replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c])) + '</option>').join('');
+  });
+  count();
+})();
+</script>
+{% endblock %}

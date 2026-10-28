@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.8.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 2.9.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -160,7 +160,7 @@ grupo.</p>
   <li><b>Acciones de la fila:</b> al pasar el ratón aparecen respaldar, consola e interfaz web del equipo.</li>
   <li><b>Acciones masivas:</b> marque varias filas y use la barra inferior para respaldarlas, auditarlas o moverlas a un grupo.</li>
   <li><b>+ Agregar</b> (admin): <b>Agregar un equipo</b> abre el formulario de alta en un panel lateral; <b>Importar CSV</b>
-  abre la importación masiva.</li>
+  abre la importación masiva; <b>Importar desde Zabbix</b> trae los hosts de Zabbix.</li>
 </ul>
 <h2>Importar desde CSV</h2>
 <p>El panel explica las columnas (<code>name,host,device_type,credential,group,port,protocol,location</code>; solo las tres
@@ -168,12 +168,30 @@ primeras son obligatorias) y ofrece una plantilla para descargar. Al elegir el a
 fila válida o su error (plataforma desconocida, credencial inexistente, puerto o protocolo no válidos, nombre repetido). Las filas
 con error se omiten y las válidas se importan; los grupos que no existen se crean.</p>
 <figure><img src="img/04b-importar-csv.png" style="max-height:120mm"><figcaption>Importación desde CSV con su ayuda.</figcaption></figure>
+<h2>Importar desde Zabbix</h2>
+<p>Si los equipos ya están en Zabbix (6.0 o posterior), <b>+ Agregar › Importar desde Zabbix</b> los crea sin escribirlos uno a uno:</p>
+<ol>
+  <li><b>Conectar:</b> la dirección de la interfaz web de Zabbix y un <b>token de API</b> (en Zabbix 7: Usuarios › Tokens de API;
+  en 6.0: Administración › General › Tokens de API), o un usuario y su contraseña. Basta con un usuario de solo lectura que vea
+  los hosts. El token y la contraseña no se guardan; la dirección sí. Si Zabbix usa un certificado autofirmado, desmarque
+  <i>Verificar el certificado</i>.</li>
+  <li><b>Elegir:</b> la vista previa lista los hosts con su nombre, dirección (IP de la interfaz principal, o su nombre DNS),
+  descripción, grupos de Zabbix y la <b>plataforma</b> deducida de las plantillas y el inventario de Zabbix (por ejemplo «Mikrotik by
+  SNMP» → MikroTik RouterOS). Las que no se reconocen quedan como «Genérico» con la marca <i>revisar</i>; cada una se puede cambiar.
+  Se puede filtrar por texto o por grupo de Zabbix. No se marcan los que ya existen en OpenNCCM (mismo nombre o dirección), los
+  que no tienen dirección ni los desactivados en Zabbix.</li>
+  <li><b>Importar:</b> se guardan el nombre, la dirección (SSH, puerto 22), la descripción en <i>Notas</i> y, si Zabbix tiene
+  inventario, el modelo, el n.º de serie y la ubicación. Opcionalmente, una credencial y un grupo para todos.</li>
+</ol>
+<p>Las credenciales SSH no están en Zabbix. Si no elige una para todos, los equipos se crean <b>desactivados</b> (no se respaldan ni
+generan errores) hasta que edite cada uno, le asigne su credencial y su grupo, y lo active. Volver a importar más adelante solo
+añade los hosts nuevos.</p>
 <h2>Alta de un dispositivo</h2>
 <table>
   <tr><th>Campo</th><th>Descripción</th></tr>
   <tr><td>Nombre</td><td>Identificador único (por ejemplo el hostname).</td></tr>
   <tr><td>IP / hostname</td><td>Dirección de gestión. Debe ser la misma desde la que el equipo envía syslog.</td></tr>
-  <tr><td>Fabricante / sistema operativo</td><td>Perfil de la plataforma (126 opciones agrupadas por fabricante). Define los comandos que se usan.</td></tr>
+  <tr><td>Fabricante / sistema operativo</td><td>Perfil de la plataforma (131 opciones agrupadas por fabricante). Define los comandos que se usan.</td></tr>
   <tr><td>Protocolo y puerto</td><td>SSH (22) o Telnet (23). Telnet solo en plataformas que lo admiten.</td></tr>
   <tr><td>Credencial y grupo</td><td>Perfil de usuario/contraseña y grupo del equipo. Puede crear un grupo nuevo desde aquí mismo
   con «…o crear un grupo nuevo». También se administran en <b>Dispositivos → Grupos</b>.</td></tr>
@@ -423,9 +441,27 @@ fabricante:</p>
   (<code>network parms</code>) para no cortar la conexión. Orden: primero crea las VLAN que faltan, luego ajusta los puertos y al
   final borra las VLAN que sobran. Los comandos se envían de uno en uno: si el switch rechaza uno («Failed to…»), se detiene ahí,
   no guarda la configuración y respalda el equipo para registrar su estado real.</td></tr>
-  <tr><td>Set</td><td>Junos, VyOS, EdgeRouter</td><td><code>delete …</code> para lo que sobra y <code>set …</code> para lo que falta.</td></tr>
-  <tr><td>Merge</td><td>FortiGate, PAN-OS, MikroTik, Check Point…</td><td>Re-aplica la configuración destino completa (no elimina líneas agregadas).</td></tr>
+  <tr><td>Set</td><td>Junos, VyOS, EdgeRouter</td><td><code>delete …</code> para lo que sobra y <code>set …</code> para lo que falta.
+  En Junos se aplica con <code>commit confirmed 5</code>: OpenNCCM vuelve a conectar y confirma; si el cambio cortó el acceso, el
+  equipo vuelve solo a la configuración anterior en 5 minutos.</td></tr>
+  <tr><td>MikroTik RouterOS</td><td>RouterOS 6 y 7</td><td>Compara las exportaciones elemento a elemento: <code>set</code> para lo
+  que cambió (con su selector, p. ej. <code>[ find default-name=ether1 ]</code>), <code>add</code> para lo que falta (las reglas de
+  firewall vuelven a su posición con <code>place-before</code>) y <code>remove [ find … ]</code> para lo que sobra, en orden inverso
+  (la IP de una VLAN antes que la VLAN). Se aplica en <b>modo seguro</b>: si un comando falla o la conexión se corta, RouterOS
+  deshace todo lo aplicado. Probado en RouterOS 7.25, 7.23.8 y 6.49.23 reales.</td></tr>
+  <tr><td>Extreme EXOS</td><td>ExtremeXOS</td><td><code>delete vlan</code>, <code>configure vlan … delete ports</code>,
+  <code>unconfigure vlan … ipaddress</code>, <code>configure iproute delete</code>, <code>enable</code>/<code>disable</code>. Borra
+  las VLAN que sobran antes de mover sus puertos (un puerto sin etiqueta solo puede estar en una VLAN).</td></tr>
+  <tr><td>Extreme VOSS / Fabric Engine</td><td>VSP, Fabric Engine</td><td><code>vlan delete</code>, <code>vlan members remove</code>,
+  <code>no vlan i-sid</code>, <code>no ip route</code> y bloques <code>interface … exit</code>; los puertos no se borran, vuelven a su valor.</td></tr>
+  <tr><td>Sin reversión por comandos</td><td>WatchGuard, FortiGate, PAN-OS, Check Point, airOS, UniFi, SwitchOS…</td><td>No se genera
+  ningún comando: volver a aplicar la configuración entera no borra lo añadido y se detiene en la primera línea que ya existe, dejando
+  el equipo a medias. OpenNCCM explica cómo restaurar la versión con la herramienta del fabricante (por ejemplo, Fireware Web UI o
+  WatchGuard System Manager, o el controlador UniFi Network). La reversión automática no se puede activar en ellas.</td></tr>
 </table>
+<p>En todas las familias: <b>nunca se toca la dirección por la que OpenNCCM gestiona el equipo</b> (cambiarla cortaría la conexión a
+mitad); lo que no se puede deshacer con seguridad aparece en la solicitud como <b>Revisar a mano</b>, y esa solicitud no se ejecuta
+sola aunque la aprobación esté desactivada.</p>
 <h2>Reversión manual</h2>
 <ol class="steps">
   <li>Abra la versión a la que quiere volver y pulse <b>Revertir el equipo a esta versión…</b></li>
@@ -914,7 +950,7 @@ las licencias.</p>
 
 <section class="chapter">
 <h1>26. Plataformas soportadas</h1>
-<p><b>Administración → Plataformas</b>. Muestra las 126 plataformas en fichas (las comprobadas en su red llevan una marca) y,
+<p><b>Administración → Plataformas</b>. Muestra las 131 plataformas en fichas (las comprobadas en su red llevan una marca) y,
 en <b>Comandos de cada plataforma</b>, su <code>device_type</code> y los comandos que se ejecutan en cada una: <b>respaldo</b>, <b>arranque</b> (startup, para detectar cambios sin guardar) e <b>inventario</b> (modelo, serie y versión);
 además el tipo de reversión y si admite actualización de firmware.</p>
 <ul>
@@ -938,6 +974,14 @@ certificados ni datos, y las contraseñas de wifi de netplan salen como <code>**
 Algunos archivos (netplan, crontab de root) y el cortafuegos solo se leen como root: dé al usuario de OpenNCCM <code>sudo</code>
 sin contraseña, mejor solo para esos comandos de lectura; sin <code>sudo</code> se respalda el resto. El inventario lee la versión
 de <code>/etc/os-release</code>, y <b>Actualizaciones disponibles</b> avisa de la nueva LTS y de la fecha de fin de soporte.</p>
+<p><b>Ubiquiti airMAX, airFiber y UniFi.</b> airMAX M (M2, M5 con airOS 6), airMAX AC (airOS 8), airFiber (AF5XHD, AF60, AF24HD,
+AF5X) y los AP UniFi guardan toda su configuración en <code>/tmp/system.cfg</code>, que es lo que se respalda; la versión y el modelo
+salen de <code>/etc/version</code> y <code>/etc/board.info</code> (o de <code>info</code> en UniFi). El USG se respalda con
+<code>show configuration commands</code>. Los switches, AP y USG de UniFi los configura el controlador UniFi Network: los cambios y su
+reversión se hacen allí. Para volver a una versión de airOS: <i>System › Configuration Management › Upload Configuration</i>.</p>
+<p><b>MikroTik SwitchOS</b> (SwOS y SwOS Lite) no tiene SSH: OpenNCCM descarga por HTTP (puerto 80) el mismo respaldo
+<code>backup.swb</code> que su interfaz web, y lee de él el modelo, la versión y la serie. No admite cambios por comandos ni
+consola; para restaurar, <i>Restore Backup</i> en SwitchOS con el archivo descargado.</p>
 <figure><img src="img/30-plataformas.png" class="tall"><figcaption>Plataformas soportadas con buscador y la columna «Comprobado en su red».</figcaption></figure>
 </section>
 

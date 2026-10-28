@@ -10,6 +10,7 @@
     <div class="drop" id="add-menu" hidden>
       <a href="/devices/new" data-sheet data-title="Agregar equipo">{{ icon('plus', 's') }}<span><b>Agregar un equipo</b><span class="desc">Con formulario</span></span></a>
       <a href="/devices/import" data-sheet data-title="Importar equipos desde CSV">{{ icon('ul', 's') }}<span><b>Importar CSV</b><span class="desc">Muchos equipos de una vez</span></span></a>
+      <a href="/devices/import/zabbix">{{ icon('dl', 's') }}<span><b>{{ _('Importar desde Zabbix') }}</b><span class="desc">{{ _('Nombre, IP y descripción de sus hosts') }}</span></span></a>
     </div></span>{% endif %}
   {% if can_run %}<form class="inline" method="post" action="/backup/all"><input type="hidden" name="group" value="{{ group }}">
     <button class="btn pri" onclick="return confirm('{{ (_('¿Respaldar ahora todos los equipos del grupo?') if group else _('¿Respaldar ahora todos los equipos?'))|jsq }}')">{{ icon('dl', 's') }}Respaldar todos</button></form>{% endif %}
@@ -30,7 +31,7 @@
 
 <section class="card flush"><div class="tw"><table class="t" id="devtable"><thead><tr>
   {% if can_run %}<th style="width:44px"><input type="checkbox" id="selall" aria-label="Seleccionar todos"></th>{% endif %}
-  <th>Equipo</th><th>Dirección</th><th>Modelo · firmware</th><th>Grupo</th><th>Último respaldo</th><th>Estado</th><th><span class="vh">Acciones</span></th></tr></thead><tbody>
+  <th>Equipo</th><th>Dirección</th><th>Modelo · firmware</th><th>Grupo</th><th>Último respaldo</th><th>Estado</th><th><span class="vh">Acciones</span></th></tr></thead><tbody data-pager>
 {% for d in devices %}
 {% set prof = profile_map[d.device_type] if d.device_type in profile_map else none %}
 <tr class="click" data-href="/devices/{{ d.id }}" data-text="{{ [d.name, d.host, d.model or '', d.serial or '', d.os_version or '', d.location or '', prof.label if prof else d.device_type]|join(' ')|lower }}">
@@ -85,11 +86,12 @@
   function sync() {
     const n = boxes.filter(b => b.checked).length;
     if (bulk) { bulk.hidden = n === 0; document.getElementById('bulk-n').textContent = (n === 1 ? T.one : T.many).replace('{0}', n); }
-    if (all) { const vis = boxes.filter(b => !b.closest('tr').hidden); all.checked = n > 0 && n === vis.length; all.indeterminate = n > 0 && n < vis.length; }
+    if (all) { const vis = boxes.filter(b => !b.closest('tr').classList.contains('pg-out')); all.checked = n > 0 && n === vis.length; all.indeterminate = n > 0 && n < vis.length; }
     boxes.forEach(b => b.closest('tr').classList.toggle('sel', b.checked));
   }
   boxes.forEach(b => b.addEventListener('change', sync));
-  if (all) all.addEventListener('change', () => { boxes.forEach(b => { if (!b.closest('tr').hidden) b.checked = all.checked; }); sync(); });
+  // «todos»: los equipos que deja el filtro, también los de otras páginas del paginador
+  if (all) all.addEventListener('change', () => { boxes.forEach(b => { if (!b.closest('tr').classList.contains('pg-out')) b.checked = all.checked; }); sync(); });
   const clear = document.getElementById('bulk-clear');
   if (clear) clear.addEventListener('click', () => { boxes.forEach(b => { b.checked = false; }); sync(); });
   rows.forEach(r => r.addEventListener('click', e => {  // la fila entera abre el equipo
@@ -100,8 +102,9 @@
   q.addEventListener('input', () => {  // filtro al escribir (Enter busca también en el servidor)
     const v = q.value.trim().toLowerCase();
     let shown = 0;
-    rows.forEach(r => { r.hidden = !!v && !r.dataset.text.includes(v); if (!r.hidden) shown++; });
+    rows.forEach(r => { const out = !!v && !r.dataset.text.includes(v); r.classList.toggle('pg-out', out); r.hidden = out; if (!out) shown++; });
     none.hidden = shown > 0 || !rows.length;
+    table.tBodies[0].dispatchEvent(new Event('pager:refresh'));  // el paginador cuenta solo los que coinciden
   });
   sync();
 })();

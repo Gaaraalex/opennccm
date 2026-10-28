@@ -7,6 +7,7 @@ de una solicitud de cambio antes de ejecutarse (salvo la reversión automática)
 import re
 
 from .drivers import FASTPATH, HUAWEI, IOS, MERGE, SET
+from .i18n import N_, _, _f
 
 SKIP = re.compile(
     r"^\s*($|!|#|end$|return$|Building configuration|Current configuration|version \S+$|exit$|quit$)")
@@ -373,8 +374,41 @@ def build_rollback(current: str, target: str, family: str) -> list[str]:
         return _set_style(current, target)
     if family == FASTPATH:
         return _fastpath(current, target)
-    # MERGE: re-aplica la configuración destino completa
+    # MERGE: re-aplica la configuración destino completa (rollback_plan ya no lo usa: ver MANUAL)
     return [l for l in target.splitlines() if l.strip() and not SKIP.match(l)]
 
 
-__all__ = ["build_rollback", "IOS", "HUAWEI", "SET", "MERGE", "FASTPATH"]
+# Plataformas con reversión propia (rollback_vendor): no siguen la sintaxis Cisco/Huawei/set
+def _vendor():
+    from . import rollback_vendor as rv
+    return {"mikrotik_routeros": rv.routeros, "extreme_exos": rv.exos, "extreme_vsp": rv.voss}
+
+
+# Sin reversión por comandos: la configuración no se puede restaurar con seguridad desde la CLI del equipo. Re-aplicar
+# la configuración completa (lo que se hacía antes) no borra lo añadido y se detiene en la primera línea que ya existe
+# («already exists»), dejando el equipo a medias. Se explica cómo restaurarla con la herramienta del fabricante.
+MANUAL = {
+    "watchguard_fireware": N_("WatchGuard Fireware no permite restaurar la configuración desde su CLI. Restáurela desde Fireware Web UI o WatchGuard System Manager (Policy Manager) con un archivo de configuración guardado del equipo, y compruebe el resultado comparando el siguiente respaldo."),
+    "mikrotik_swos": N_("SwitchOS no admite cambios por comandos. Para volver a esta versión, descárguela y restáurela en SwitchOS › System (o Upgrade) › Restore Backup."),
+    "ubiquiti_usg": N_("El USG lo configura el controlador UniFi Network (config.gateway.json): lo que se cambie por la CLI se pierde al reprovisionar. Revierta el cambio en UniFi Network y OpenNCCM lo verá en el siguiente respaldo."),
+    "ubiquiti_unifiswitch": N_("Los switches UniFi los configura el controlador UniFi Network: lo que se cambie por la CLI se pierde al reprovisionar. Revierta el cambio en UniFi Network (o restaure su copia de seguridad) y OpenNCCM lo verá en el siguiente respaldo."),
+}
+MANUAL_GENERIC = N_("OpenNCCM no genera la reversión por comandos para {0}: volver a aplicar la configuración completa no borra lo que se añadió después y se detiene en la primera línea que ya existe, dejando el equipo a medias. Descargue la versión y restáurela con la herramienta del fabricante (restaurar archivo de configuración), o deshaga los cambios a mano mirando la comparación.")
+
+
+def rollback_supported(profile) -> bool:
+    return profile.key in _vendor() or (profile.family != MERGE and profile.key not in MANUAL)
+
+
+def rollback_plan(current: str, target: str, profile, mgmt: str | None = None) -> tuple[list[str] | None, list[str]]:
+    """(comandos, avisos) para llevar el equipo de «current» a «target». Comandos None: no se puede por comandos
+    (el aviso explica cómo restaurar). «mgmt»: dirección por la que OpenNCCM gestiona el equipo, que no se toca."""
+    fn = _vendor().get(profile.key)
+    if fn:
+        return fn(current, target, mgmt)
+    if not rollback_supported(profile):
+        return None, [_(MANUAL[profile.key]) if profile.key in MANUAL else _f(MANUAL_GENERIC, profile.label)]
+    return build_rollback(current, target, profile.family), []
+
+
+__all__ = ["build_rollback", "rollback_plan", "rollback_supported", "IOS", "HUAWEI", "SET", "MERGE", "FASTPATH"]

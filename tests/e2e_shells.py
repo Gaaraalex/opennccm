@@ -40,6 +40,8 @@ EQUIPOS = [  # (nombre, device_type, opción de fakedev, puerto, modelo, serie, 
      "iface eth0 inet dhcp", "0"),
     ("SW-EXOS", "extreme_exos", "--exos", 2234, "EXOS-VM", "SIME6B7-0000", "33.6.1.14",
      'create vlan "Datos"', "0"),
+    ("AP-airOS", "ubiquiti_airos", "--shell=airos", 2237, "NanoStation loco M5", "—", "6.3.11",
+     "wireless.1.ssid=Enlace-Norte", "1"),
 ]
 procs = [subprocess.Popen([sys.executable, os.path.join(HERE, "fakedev.py"), str(port), opt],
                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) for _, _, opt, port, *_ in EQUIPOS]

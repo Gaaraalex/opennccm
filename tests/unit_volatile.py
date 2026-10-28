@@ -1,5 +1,6 @@
 """Líneas que cambian solas (fecha, hora, tiempo encendido) no cuentan como cambio de configuración, en todas las marcas;
-la configuración real sí. Y el primer respaldo tras actualizar no ve un falso cambio por las versiones ya guardadas."""
+la configuración real sí. Y el primer respaldo tras actualizar no ve un falso cambio por las versiones ya guardadas,
+ni el equipo queda «distinto de la base» por una línea base guardada con esas líneas."""
 import os
 import sys
 import tempfile
@@ -9,7 +10,7 @@ os.environ["NCM_DATA_DIR"] = tmp
 os.environ["NCM_KEY_FILE"] = os.path.join(tmp, "secret.key")
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from app.drivers import clean_config, compare_text, get_profile  # noqa: E402
-from app.services import same_config  # noqa: E402
+from app.services import same_config, versions_differ  # noqa: E402
 
 fails = []
 
@@ -78,6 +79,22 @@ check("la versión nueva ya no guarda la hora ni el tiempo encendido", "Up Time"
 check("primer respaldo tras actualizar: la versión antigua con hora y tiempo encendido no cuenta como cambio",
       same_config(old_saved, new, prof))
 check("pero un cambio real sí", not same_config(old_saved, new.replace("vlan 10", "vlan 20"), prof))
+
+# «Difiere de la base»: una línea base guardada antes de la 2.7.0 aún tiene la hora y el tiempo encendido
+import hashlib  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
+
+from app.crypto import encrypt  # noqa: E402
+
+
+def ver(text):
+    return SimpleNamespace(sha256=hashlib.sha256(compare_text(text).encode()).hexdigest(), content_enc=encrypt(text))
+
+
+check("la línea base antigua con hora y tiempo encendido no deja el equipo «distinto de la base»",
+      not versions_differ(ver(old_saved), ver(new), prof))
+check("la línea base sí difiere si cambia la configuración real",
+      versions_differ(ver(old_saved), ver(new.replace("vlan 10", "vlan 20")), prof))
 
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)

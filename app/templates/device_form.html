@@ -36,8 +36,14 @@
     <label class="swrow"><span><span class="b">El equipo tiene interfaz web</span><span class="muted sm" style="display:block">Muestra el botón «Interfaz web» en su ficha.</span></span>
       <input type="hidden" name="web_enabled" value="0"><input type="checkbox" class="sw" role="switch" id="dhasweb" name="web_enabled" value="1" {{ 'checked' if web_on }}></label>
     <div class="field" id="webw" {{ '' if web_on else 'hidden' }}><label for="dweb">Dirección de la interfaz web</label><div class="input mono"><input id="dweb" name="web_url" value="{{ device.web_url or '' if device }}" placeholder="https://10.0.0.5"></div><span class="help">Vacía = https://IP</span></div>
-    <label class="swrow"><span><span class="b">Reversión automática</span><span class="muted sm" style="display:block">Si se detecta un cambio que no viene de una solicitud aprobada (syslog o respaldo programado), se restaura la versión anterior.</span></span>
-      <input type="checkbox" class="sw" role="switch" name="auto_rollback" {{ 'checked' if device and device.auto_rollback }}></label>
+    <label class="swrow"><span><span class="b">Reversión automática</span><span class="muted sm" style="display:block">Si se detecta un cambio que no viene de una solicitud aprobada (syslog o respaldo programado), se restaura la versión anterior.</span>
+      <span class="muted sm" id="drb-no" style="display:block" hidden>{{ _('No disponible para esta plataforma: OpenNCCM no puede revertirla por comandos con seguridad.') }}</span></span>
+      <input type="checkbox" class="sw" role="switch" id="drb" name="auto_rollback" {{ 'checked' if device and device.auto_rollback }}></label>
+    <script>(function () {
+      const NO = new Set({{ no_rollback|tojson }}), sel = document.getElementById('dtype'), sw = document.getElementById('drb'), msg = document.getElementById('drb-no');
+      const sync = () => { const no = NO.has(sel.value); sw.disabled = no; if (no) sw.checked = false; msg.hidden = !no; };
+      sel.addEventListener('change', sync); sync();
+    })();</script>
     <label class="swrow"><span><span class="b">Habilitado</span><span class="muted sm" style="display:block">Si lo desactivas, el equipo no entra en tareas programadas ni respaldos masivos.</span></span>
       <input type="checkbox" class="sw" role="switch" name="enabled" {{ 'checked' if not device or device.enabled }}></label>
     <details><summary class="sm b" style="cursor:pointer">Avanzado</summary><div class="field" style="margin-top:12px"><label for="dcmd">Comando de respaldo personalizado</label>

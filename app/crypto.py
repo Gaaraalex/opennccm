@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import os
 
+from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from .config import KEY_FILE
@@ -32,11 +33,26 @@ def encrypt(text: str | None) -> str | None:
     return base64.b64encode(nonce + ct).decode()
 
 
+class KeyMismatch(ValueError):
+    """El dato se cifró con otra clave (secret.key): p. ej. una copia restaurada sin la clave del servidor original."""
+
+
 def decrypt(token: str | None) -> str:
     if not token:
         return ""
     raw = base64.b64decode(token)
-    return AESGCM(_load()).decrypt(raw[:12], raw[12:], None).decode("utf-8")
+    try:
+        return AESGCM(_load()).decrypt(raw[:12], raw[12:], None).decode("utf-8")
+    except InvalidTag as e:
+        raise KeyMismatch("dato cifrado con otra clave (secret.key)") from e
+
+
+def try_decrypt(token: str | None, default: str | None = None) -> str | None:
+    """Como decrypt, pero devuelve «default» si el dato se cifró con otra clave."""
+    try:
+        return decrypt(token)
+    except KeyMismatch:
+        return default
 
 
 def session_secret() -> str:

@@ -22,8 +22,8 @@ from . import reports, scheduler, services
 from .auth import (ROLES, Forbidden, LoginRequired, TwoFactorSetupRequired, check_device, clear_settings_cache,
                    device_scope, filter_ids, require, start_session, user_group_ids)
 from .config import BASE_DIR, TLS_CA
-from .crypto import (decrypt, dummy_verify, encrypt, hash_password, needs_rehash, password_problem, session_secret,
-                     verify_password)
+from .crypto import (KeyMismatch, decrypt, dummy_verify, encrypt, hash_password, needs_rehash, password_problem,
+                     session_secret, try_decrypt, verify_password)
 from .db import (AuditLog, ChangeRequest, ComplianceResult, Configlet, ConfigVersion, Credential, Device,
                  DeviceGroup, Event, FirmwareImage, Policy, Rule, SessionLocal, Schedule, User, UserGroup,
                  Vulnerability, audit,
@@ -122,6 +122,13 @@ async def _setup_2fa(request, _exc):
     flash(request, _("Por seguridad, los administradores deben activar la verificación en dos pasos antes de continuar."),
           "error")
     return go("/account#dospasos")
+
+
+@app.exception_handler(KeyMismatch)
+async def _key_mismatch(request, _exc):
+    return HTMLResponse(
+        f"<h2>{_('Estos datos se cifraron con otra clave')}</h2><p>{_('Algunas configuraciones o contraseñas guardadas se cifraron con un secret.key distinto del de este servidor (por ejemplo, al restaurar una copia sin su clave). Restaure el secret.key del servidor original para poder leerlas; el resto de OpenNCCM funciona con normalidad.')}</p><a href='javascript:history.back()'>{_('Volver')}</a>",
+        409)
 
 
 @app.exception_handler(Forbidden)
@@ -649,8 +656,10 @@ async def devices_bulk(request: Request):
 
 
 def _device_form_ctx(db):
+    from .rollback import rollback_supported
     return {"groups": db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all(),
-            "credentials": db.scalars(select(Credential).order_by(Credential.name)).all()}
+            "credentials": db.scalars(select(Credential).order_by(Credential.name)).all(),
+            "no_rollback": sorted(k for k, p in PROFILE_MAP.items() if not rollback_supported(p))}
 
 
 @app.get("/devices/new")
@@ -673,12 +682,17 @@ def _apply_device_form(dev: Device, form):
     dev.device_type = form["device_type"]
     dev.protocol = form.get("protocol", "ssh")
     dev.port = int(form.get("port") or (23 if dev.protocol == "telnet" else 22))
+    if dev.device_type in services.HTTP_ONLY:  # SwitchOS: solo HTTP
+        dev.protocol = "http"
+        dev.port = 80 if dev.port in (22, 23) else dev.port
     dev.credential_id = int(form["credential_id"]) if form.get("credential_id") else None
     dev.group_id = int(form["group_id"]) if form.get("group_id") else None
     dev.location = form.get("location") or None
     dev.notes = form.get("notes") or None
     dev.enabled = form.get("enabled") == "on"
-    dev.auto_rollback = form.get("auto_rollback") == "on"
+    from .rollback import rollback_supported
+    # solo en plataformas que se pueden revertir por comandos con seguridad
+    dev.auto_rollback = form.get("auto_rollback") == "on" and rollback_supported(get_profile(dev.device_type))
     dev.custom_backup_cmd = (form.get("custom_backup_cmd") or "").strip() or None
     web = (form.get("web_url") or "").strip()
     if web and not web.lower().startswith(("http://", "https://")):
@@ -783,6 +797,119 @@ async def device_import(request: Request):
     return go("/devices")
 
 
+# Importar desde Zabbix: «Conectar» lee los hosts y muestra la vista previa; la lista queda en memoria (el servicio usa un
+# solo proceso) 30 min para «Importar», que solo envía qué filas y con qué plataforma. El token o la contraseña de Zabbix
+# no se guardan; la dirección sí, para la próxima vez.
+_ZBX: dict[str, dict] = {}
+
+
+def _zbx_form(request: Request, user, error: str = "", **values):
+    with SessionLocal() as db:
+        creds = db.scalars(select(Credential).order_by(Credential.name)).all()
+        groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
+        creds = [(c.id, c.name) for c in creds]
+        groups = [(g.id, g.name) for g in groups]
+    values.setdefault("url", get_setting("zabbix_url", ""))
+    values.setdefault("verify", get_setting("zabbix_verify", "1") == "1")
+    return render(request, "devices_zabbix.html", user, error=error, creds=creds, groups=groups,
+                  labels={k: p.label for k, p in sorted(PROFILE_MAP.items(), key=lambda kv: kv[1].label.lower())},
+                  **values)
+
+
+@app.get("/devices/import/zabbix")
+def device_zabbix_form(request: Request):
+    user = require(request, "admin")
+    return _zbx_form(request, user)
+
+
+@app.post("/devices/import/zabbix")
+async def device_zabbix_connect(request: Request):
+    """Conecta con Zabbix y muestra sus hosts: los que ya existen en OpenNCCM (mismo nombre o dirección) se marcan."""
+    user = require(request, "admin")
+    form = await request.form()
+    url, verify = (form.get("url") or "").strip(), form.get("verify") == "on"
+    mode, username = form.get("auth") or "token", (form.get("username") or "").strip()
+    if not url:
+        return _zbx_form(request, user, _("Escribe la dirección de Zabbix."), url=url, verify=verify, mode=mode,
+                         username=username)
+    from . import zabbix
+    cli = zabbix.Client(url, verify=verify)
+    try:
+        if mode == "user":
+            cli.connect(username=username, password=form.get("password") or "")
+        else:
+            cli.connect(token=form.get("token") or "")
+        hosts = cli.hosts()
+    except zabbix.ZabbixError as e:
+        return _zbx_form(request, user, str(e), url=url, verify=verify, mode=mode, username=username)
+    finally:
+        cli.close()
+    set_setting("zabbix_url", url)
+    set_setting("zabbix_verify", "1" if verify else "0")
+    rows = zabbix.rows(hosts)
+    with SessionLocal() as db:
+        names = {n.lower() for n in db.scalars(select(Device.name))}
+        addrs = {h.lower() for h in db.scalars(select(Device.host))}
+    seen = set()
+    for r in rows:
+        key = r["name"].lower()
+        r["exists"] = (_("ya existe (mismo nombre)") if key in names else
+                       _("ya existe (misma dirección)") if r["host"].lower() in addrs else
+                       _("nombre repetido en Zabbix") if key in seen else "")
+        seen.add(key)
+        r["ok"] = bool(r["name"] and r["host"] and not r["exists"])
+    for k in [k for k, v in _ZBX.items() if time.time() - v["at"] > 1800]:
+        _ZBX.pop(k, None)
+    key = secrets.token_urlsafe(16)
+    _ZBX[key] = {"user": user.id, "at": time.time(), "rows": rows}
+    log_action(request, user, "zabbix_connect", f"{cli.url} (Zabbix {cli.version}): {len(rows)} hosts")
+    return _zbx_form(request, user, url=url, verify=verify, mode=mode, username=username, key=key, rows=rows,
+                     zversion=cli.version, zgroups=sorted({g for r in rows for g in r["groups"]}, key=str.lower))
+
+
+@app.post("/devices/import/zabbix/create")
+async def device_zabbix_create(request: Request):
+    """Crea los hosts marcados. Sin credencial quedan desactivados (no se respaldan) hasta que se les asigne una."""
+    user = require(request, "admin")
+    form = await request.form(max_fields=100000)
+    job = _ZBX.get(form.get("key") or "")
+    if not job or job["user"] != user.id:
+        flash(request, _("La lista de Zabbix caducó: vuelve a conectar."), "error")
+        return go("/devices/import/zabbix")
+    cred_id = int(form.get("credential_id") or 0) or None
+    group_id = int(form.get("group_id") or 0) or None
+    created, skipped = 0, 0
+    with SessionLocal() as db:
+        if cred_id and not db.get(Credential, cred_id):
+            cred_id = None
+        if group_id and not db.get(DeviceGroup, group_id):
+            group_id = None
+        names = {n.lower() for n in db.scalars(select(Device.name))}
+        for i in form.getlist("sel"):
+            if not str(i).isdigit() or int(i) >= len(job["rows"]):
+                continue
+            r = job["rows"][int(i)]
+            dtype = form.get(f"t_{i}") or r["type"] or "generic"
+            if not r["name"] or not r["host"] or r["name"].lower() in names:
+                skipped += 1
+                continue
+            db.add(Device(name=r["name"], host=r["host"], device_type=dtype if dtype in PROFILE_MAP else "generic",
+                          credential_id=cred_id, group_id=group_id, protocol="ssh", port=22,
+                          enabled=bool(cred_id), notes=r["description"] or None, location=r["location"],
+                          model=r["model"], serial=r["serial"]))
+            names.add(r["name"].lower())
+            created += 1
+        db.commit()
+    _ZBX.pop(form.get("key"), None)
+    log_action(request, user, "device_import_zabbix", f"{created} creados, {skipped} omitidos")
+    flash(request, _f("{0} equipos importados desde Zabbix", created))
+    if created and not cred_id:
+        flash(request, _("Quedaron desactivados: edita cada uno para asignarle la credencial SSH (y el grupo) y actívalo."))
+    if skipped:
+        flash(request, _f("{0} omitidos porque ya existían o no tenían dirección", skipped), "error")
+    return go("/devices")
+
+
 @app.get("/devices/{dev_id}")
 def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: str = "sbs", ctx: int = 3):
     user = require(request)
@@ -803,7 +930,7 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
         vulns = db.scalars(select(Vulnerability).where(Vulnerability.device_id == dev_id)
                            .order_by(Vulnerability.score.desc().nulls_last())).all()
         events = db.scalars(select(Event).where(Event.device_id == dev_id).order_by(Event.id.desc()).limit(30)).all()
-        inventory = decrypt(dev.inventory_raw_enc) if dev.inventory_raw_enc else ""
+        inventory = try_decrypt(dev.inventory_raw_enc, "") if dev.inventory_raw_enc else ""
         # línea de tiempo «Señal»: número de versión por equipo (v1…vN), origen, tamaño anormal y comparación A/B
         total_v = db.scalar(select(func.count(ConfigVersion.id)).where(ConfigVersion.device_id == dev_id)) or 0
         trig = {"manual": _("Manual"), "scheduled": _("Programado"), "syslog": "Syslog", "push": "Push"}
@@ -821,9 +948,13 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
         if va_id and vb_id and va_id > vb_id:
             va_id, vb_id = vb_id, va_id  # A siempre la más antigua
         cmp = None
+        key_error = False
         if va_id and vb_id:
             va, vb = db.get(ConfigVersion, va_id), db.get(ConfigVersion, vb_id)
-            ta, tb = decrypt(va.content_enc), decrypt(vb.content_enc)
+            ta, tb = try_decrypt(va.content_enc), try_decrypt(vb.content_enc)
+            if ta is None or tb is None:
+                key_error = True
+                ta, tb = ta or "", tb or ""
             add_n, del_n = services.diff_stats(ta, tb)
             cmp = {"a": va, "b": vb, "rows": services.side_by_side(ta, tb, ctx if ctx < 9999 else 100000),
                    "summary": services.diff_summary(ta, tb), "n": add_n + del_n}
@@ -832,7 +963,7 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
             base_v = db.get(ConfigVersion, dev.baseline_version_id)
             last_run = next((v for v in versions if v.kind == "running"), None)
             if base_v and last_run:
-                drift_n = sum(services.diff_stats(decrypt(base_v.content_enc), decrypt(last_run.content_enc)))
+                drift_n = sum(services.diff_stats(try_decrypt(base_v.content_enc, ""), try_decrypt(last_run.content_enc, "")))
         audit_rows = db.scalars(select(AuditLog).where(or_(AuditLog.detail.like(f"%{dev.name}%"),
                                                            AuditLog.detail.like(f"%device={dev_id}%")))
                                 .order_by(AuditLog.id.desc()).limit(20)).all()
@@ -855,7 +986,7 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
     from . import fwupdates as _fwu
     from .routes_ops import FW_SOURCES as _FW_SOURCES
     from .console import console_allowed
-    return render(request, "device.html", user, can_console=console_allowed(user, dev.id), device=dev,
+    return render(request, "device.html", user, key_error=key_error, can_console=console_allowed(user, dev.id), device=dev,
                   versions=versions, comp=comp, vulns=vulns, comp_groups=comp_groups,
                   comp_fails=sum(g["fails"] for g in comp_groups),
                   vuln_high=sum(1 for v in vulns if (v.severity or "").upper() in ("CRITICAL", "HIGH")),
@@ -999,7 +1130,7 @@ def version_baseline(request: Request, ver_id: int):
         dev.baseline_version_id = v.id
         v.label = v.label or "baseline"
         latest = services.latest_version(db, dev.id)
-        dev.baseline_drift = latest is not None and latest.sha256 != v.sha256
+        dev.baseline_drift = latest is not None and services.versions_differ(v, latest, get_profile(dev.device_type))
         db.commit()
         name = dev.name
     log_action(request, user, "baseline_set", f"{name} -> v{ver_id}")
@@ -1076,12 +1207,17 @@ async def version_rollback(request: Request, ver_id: int):
     if small and form.get("confirm") != "1":
         flash(request, _f("No se creó la reversión: la versión #{0} es mucho más pequeña que la actual y probablemente es un respaldo incompleto. Revise el aviso de esta página.", ver_id), "error")
         return go(f"/versions/{ver_id}")
-    cmds = services.rollback_commands(dev_id, ver_id)
+    cmds, notes = services.rollback_commands(dev_id, ver_id)
+    if cmds is None:
+        flash(request, notes[0], "error")
+        return go(f"/versions/{ver_id}")
     if not cmds:
         flash(request, _("La versión seleccionada es igual a la actual: nada que revertir"))
+        for n in notes:
+            flash(request, n, "error")
         return go(f"/versions/{ver_id}")
     cr_id = _create_cr(user, f"Reversión de {name} a la versión #{ver_id}", "\n".join(cmds), {}, [dev_id],
-                       is_rollback=True)
+                       is_rollback=True, notes=notes)
     log_action(request, user, "rollback_request", f"{name} -> v{ver_id}")
     flash(request, _("Se generó la solicitud de reversión. Revise los comandos antes de aprobar."))
     return go(f"/changes/{cr_id}")
@@ -1357,11 +1493,13 @@ async def configlet_run(request: Request, cid: int):
 
 # --------------------------------------------------------------------------- solicitudes de cambio
 def _create_cr(user, title, body, variables, ids, is_rollback=False, kind="config", firmware_id=None,
-               reload=False) -> int:
+               reload=False, notes: list[str] | None = None) -> int:
     # la actualización de firmware siempre requiere aprobación
     auto = get_setting("require_approval", "1") != "1" and kind == "config"
     if services.example_addresses(body + " " + json.dumps(variables)):
         auto = False  # con direcciones de ejemplo nunca se ejecuta sola: alguien tiene que revisarla
+    if notes:
+        auto = False  # hay algo que revisar a mano: no se ejecuta sola
     if auto and kind == "config":
         with SessionLocal() as db:
             devs = list(db.scalars(select(Device).where(Device.id.in_(ids))))
@@ -1370,7 +1508,7 @@ def _create_cr(user, title, body, variables, ids, is_rollback=False, kind="confi
     with SessionLocal() as db:
         cr = ChangeRequest(title=title, body=body, variables=json.dumps(variables), device_ids=json.dumps(ids),
                            requested_by=user.username, is_rollback=is_rollback, kind=kind,
-                           firmware_id=firmware_id, reload=reload,
+                           firmware_id=firmware_id, reload=reload, notes="\n".join(notes) if notes else None,
                            status="approved" if auto else "pending",
                            reviewed_by="(aprobación desactivada)" if auto else None)
         db.add(cr)
