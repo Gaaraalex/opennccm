@@ -84,13 +84,18 @@ class RouterOSSSH(MikrotikRouterOsSSH):
         pregunta del tamaño del terminal de RouterOS 7.25, que se contesta con un Enter."""
         notices = {'Please press "Enter" to continue!': self.RETURN, "Do you want to see the software license": "n",
                    'remove this default configuration type "r"': self.RETURN, "new password>": "\x03",
-                   "\x1b[6n": self.RETURN}
+                   "\x1b[6n": "\x1b[4098;511R"}
         pattern = "(?:" + "|".join([self.prompt_pattern] + [re.escape(k) for k in notices]) + ")"
         for _ in range(15):
             try:
                 data = self.read_until_pattern(pattern=pattern, re_flags=re.I, read_timeout=5)
             except ReadTimeout:
-                self.write_channel(self.RETURN)  # RouterOS 7.25 espera una tecla antes de mostrar nada
+                # RouterOS 7.25 pregunta la posición del cursor (ESC[6n) para medir el terminal y no sigue hasta
+                # recibirla: se contesta 4098 filas × 511 columnas (sin respuesta usa 80 columnas y parte las líneas
+                # largas de /export) y un Enter por si no esperaba nada
+                self.write_channel("\x1b[4098;511R")
+                time.sleep(0.5)
+                self.write_channel(self.RETURN)
                 continue
             for text, answer in notices.items():
                 if text.lower() in data.lower():

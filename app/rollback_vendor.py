@@ -65,9 +65,25 @@ def _ros_tokens(line: str) -> list[str]:
     return out
 
 
+def _ros_lines(text: str) -> list[str]:
+    """Líneas lógicas de la exportación: RouterOS parte las largas con «\\» al final y sigue en la siguiente con sangría
+    (pasa con un terminal estrecho, p. ej. RouterOS 7.25 si no conoce el ancho)."""
+    out: list[str] = []
+    cont = False
+    for raw in text.splitlines():
+        if cont and out:
+            out[-1] += raw.lstrip()
+        else:
+            out.append(raw.rstrip())
+        cont = out[-1].endswith("\\") and not out[-1].endswith("\\\\")
+        if cont:
+            out[-1] = out[-1][:-1]
+    return out
+
+
 def _ros_parse(text: str) -> list[dict]:
     items = []
-    for raw in text.splitlines():
+    for raw in _ros_lines(text):
         line = raw.strip()
         if not line.startswith("/"):
             continue  # comentarios «#», líneas vacías

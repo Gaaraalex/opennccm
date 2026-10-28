@@ -142,6 +142,11 @@ c2, n2 = routeros(ROS_CUR.replace("address=10.0.0.2/24 interface=ether1", "addre
 check("RouterOS: no toca la dirección de gestión de OpenNCCM (y lo avisa)",
       not any("10.0.0.2" in c for c in c2) and any("gestiona" in n for n in n2), (c2, n2))
 check("RouterOS: sin cambios, sin comandos", routeros(ROS_TGT, ROS_TGT) == ([], []))
+# RouterOS 7.25 con terminal estrecho parte las líneas largas de /export con «\» y sangría en la siguiente
+BS = chr(92)
+wrapped = ROS_TGT.replace("dst-port=23 protocol=tcp", "dst-port=23 protoc" + BS + chr(10) + "    ol=tcp")
+check("RouterOS: las líneas partidas con barra invertida se leen como una sola (sin cambios falsos)", routeros(wrapped, ROS_TGT) == ([], []),
+      routeros(wrapped, ROS_TGT))
 
 # Extreme EXOS
 cmds, notes = exos(EXOS_CUR, EXOS_TGT, mgmt="10.99.0.5")
