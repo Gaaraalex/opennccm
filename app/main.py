@@ -1280,6 +1280,68 @@ def topology_page(request: Request, group: int = 0):
                   group=group, with_data=with_data, total=len(devs), enabled=get_setting("topology_enabled", "1") == "1")
 
 
+# --------------------------------------------------------------------------- inventario de IP y VLAN
+def _ipam_data(user, group: int = 0):
+    """IP y VLAN de la última configuración de cada equipo, con IP repetidas y VLAN con nombres distintos."""
+    import ipaddress
+
+    from . import ipam
+    scope = device_scope(user)
+    rows, vrows = [], {}
+    with SessionLocal() as db:
+        for d in db.scalars(select(Device).order_by(Device.name)):
+            if (scope is not None and d.id not in scope) or (group and d.group_id != group):
+                continue
+            v = services.latest_version(db, d.id)
+            text = try_decrypt(v.content_enc) if v else None
+            if not text:
+                continue
+            for x in ipam.ips(text, d.device_type):
+                net = ipaddress.IPv4Network(f"{x['ip']}/{x['prefix']}", strict=False)
+                rows.append({"dev": d.name, "dev_id": d.id, "iface": x["interface"], "ip": x["ip"], "prefix": x["prefix"],
+                             "net": str(net)})
+            for vl in ipam.vlans(text, d.device_type):
+                e = vrows.setdefault(vl["id"], {"id": vl["id"], "names": set(), "devs": []})
+                if vl["name"]:
+                    e["names"].add(vl["name"])
+                e["devs"].append((d.id, d.name))
+    count: dict = {}
+    for r in rows:
+        count.setdefault(r["ip"], set()).add((r["dev_id"], r["iface"]))
+    dups = sorted(ip for ip, where in count.items() if len(where) > 1)
+    for r in rows:
+        r["dup"] = r["ip"] in dups
+    vl = sorted(vrows.values(), key=lambda e: e["id"])
+    for e in vl:
+        e["names"] = sorted(e["names"])
+    return rows, dups, vl
+
+
+@app.get("/ipam")
+def ipam_page(request: Request, group: int = 0, tab: str = "ip"):
+    user = require(request)
+    rows, dups, vl = _ipam_data(user, group)
+    with SessionLocal() as db:
+        groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
+    return render(request, "ipam.html", user, rows=rows, dups=dups, vlans=vl, groups=groups, group=group,
+                  tab="vlan" if tab == "vlan" else "ip", vmismatch=[e for e in vl if len(e["names"]) > 1])
+
+
+@app.get("/ipam.csv")
+def ipam_csv(request: Request, group: int = 0, tab: str = "ip"):
+    user = require(request)
+    rows, _dups, vl = _ipam_data(user, group)
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    if tab == "vlan":
+        w.writerow(["vlan", "nombre", "equipos"])
+        w.writerows([e["id"], " / ".join(e["names"]), ", ".join(n for _i, n in e["devs"])] for e in vl)
+    else:
+        w.writerow(["equipo", "interfaz", "ip", "prefijo", "red", "repetida"])
+        w.writerows([r["dev"], r["iface"], r["ip"], r["prefix"], r["net"], "sí" if r["dup"] else ""] for r in rows)
+    return csv_response("vlan" if tab == "vlan" else "ip", buf.getvalue().encode("utf-8-sig"))
+
+
 # --------------------------------------------------------------------------- búsqueda
 @app.get("/search")
 def search(request: Request, q: str = "", regex: int = 0, cs: int = 0, group: int = 0, latest: int = 0, sent: int = 0):

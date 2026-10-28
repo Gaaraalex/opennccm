@@ -41,6 +41,7 @@
     <a href="/events" class="nav {{ 'on' if navp.startswith('/events') }}" title="Alarmas">{{ icon('bell') }}<span class="txt">Alarmas</span>{% if nav_counts.alarms %}<span class="cnt">{{ nav_counts.alarms }}</span><span class="dotc"></span>{% endif %}</a>
     <a href="/analytics" class="nav {{ 'on' if navp.startswith('/analytics') }}" title="Análisis">{{ icon('chart') }}<span class="txt">Análisis</span></a>
     <a href="/topology" class="nav {{ 'on' if navp.startswith('/topology') }}" title="{{ _('Mapa de la red') }}">{{ icon('globe') }}<span class="txt">{{ _('Mapa de la red') }}</span></a>
+    <a href="/ipam" class="nav {{ 'on' if navp.startswith('/ipam') }}" title="{{ _('IP y VLAN') }}">{{ icon('grid') }}<span class="txt">{{ _('IP y VLAN') }}</span></a>
     <a href="/reports" class="nav {{ 'on' if navp.startswith('/reports') }}" title="Informes">{{ icon('file') }}<span class="txt">Informes</span></a>
   </div>
   {% if user.role == 'admin' %}

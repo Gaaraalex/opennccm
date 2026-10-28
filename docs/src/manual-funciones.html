@@ -715,6 +715,11 @@ y cómo está el cumplimiento y el ciclo de vida.</p>
 </ul>
 <p>Al pasar el cursor sobre una barra o celda aparece su valor exacto. Los nombres de equipos y políticas son enlaces.</p>
 <figure><img src="img/22-analisis.png" class="tall"><figcaption>Página de Análisis.</figcaption></figure>
+<h2>IP y VLAN</h2>
+<p><b>IP y VLAN</b> (menú lateral) reúne las direcciones IP y las VLAN configuradas en todos los equipos, leídas de su última
+configuración guardada (no se ejecuta nada en los equipos). Reconoce Cisco y similares, Huawei, EdgeSwitch, VOSS, FortiGate, Junos,
+VyOS/EdgeRouter, MikroTik, EXOS y airOS; solo IPv4. Avisa de las <b>IP configuradas en más de un sitio</b> (en dos equipos o dos
+interfaces) y de las <b>VLAN con nombres distintos</b> según el equipo. Se puede filtrar por grupo o texto y exportar a CSV.</p>
 <h2>Mapa de la red</h2>
 <p><b>Mapa de la red</b> (menú lateral) dibuja los equipos y los enlaces entre ellos, con el puerto de cada extremo. Los enlaces salen de
 los vecinos <b>LLDP o CDP</b> que cada equipo anuncia, leídos en cada respaldo con una orden de solo lectura (por ejemplo

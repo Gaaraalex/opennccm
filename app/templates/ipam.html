@@ -1,0 +1,41 @@
+{% extends "base.html" %}{% block title %}{{ _('IP y VLAN') }}{% endblock %}
+{% block content %}
+{# Inventario sacado de la última configuración guardada de cada equipo: no se ejecuta nada en los equipos. #}
+<div class="ph"><div class="grow"><h1>{{ _('IP y VLAN') }}</h1>
+  <div class="sub">{{ _('Direcciones IP y VLAN configuradas en los equipos, leídas de su última configuración guardada.') }}</div></div>
+  <form method="get" class="row" style="gap:8px"><input type="hidden" name="tab" value="{{ tab }}">
+    <div class="input"><select name="group" onchange="this.form.submit()" aria-label="{{ _('Grupo') }}"><option value="0">{{ _('Todos los equipos') }}</option>{% for g in groups %}<option value="{{ g.id }}" {{ 'selected' if g.id == group }}>{{ _f('Grupo: {0}', g.name) }}</option>{% endfor %}</select></div>
+    <a class="btn" href="/ipam.csv?tab={{ tab }}&amp;group={{ group }}">{{ icon('dl', 's') }}{{ _('Exportar CSV') }}</a></form></div>
+
+{% if dups %}<div class="banner crit" role="alert">{{ icon('alert') }}<span class="grow"><b>{{ _f('{0} IP configuradas en más de un sitio:', dups|length) }}</b> <span class="mono">{{ dups[:12]|join(', ') }}{% if dups|length > 12 %} …{% endif %}</span></span></div>{% endif %}
+{% if vmismatch %}<div class="banner warn">{{ icon('alert') }}<span class="grow"><b>{{ _f('{0} VLAN con nombres distintos según el equipo:', vmismatch|length) }}</b> {% for e in vmismatch[:8] %}<span class="mono">{{ e.id }}</span> ({{ e.names|join(' / ') }}){{ ', ' if not loop.last }}{% endfor %}</span></div>{% endif %}
+
+<div class="tabs" role="tablist" style="margin-bottom:12px">
+  <a href="?tab=ip&amp;group={{ group }}" role="tab" {% if tab == 'ip' %}aria-selected="true" class="on"{% endif %}>{{ _('Direcciones IP') }} <span class="cnt">{{ rows|length }}</span></a>
+  <a href="?tab=vlan&amp;group={{ group }}" role="tab" {% if tab == 'vlan' %}aria-selected="true" class="on"{% endif %}>{{ _('VLAN') }} <span class="cnt">{{ vlans|length }}</span></a></div>
+<div class="input" style="max-width:340px;margin-bottom:10px"><input type="search" id="iq" placeholder="{{ _('Filtrar por IP, red, equipo o nombre') }}" aria-label="{{ _('Filtrar por IP, red, equipo o nombre') }}"></div>
+
+{% if tab == 'ip' %}
+{% if rows %}<section class="card flush"><div class="tw"><table class="t" id="it"><thead><tr><th>{{ _('IP') }}</th><th>{{ _('Red') }}</th><th>{{ _('Equipo') }}</th><th>{{ _('Interfaz') }}</th></tr></thead><tbody data-pager>
+{% for r in rows|sort(attribute='ip') %}<tr data-text="{{ (r.ip ~ ' ' ~ r.net ~ ' ' ~ r.dev ~ ' ' ~ r.iface)|lower }}"><td class="mono">{{ r.ip }}/{{ r.prefix }}{% if r.dup %} <span class="tag crit">{{ _('repetida') }}</span>{% endif %}</td><td class="mono">{{ r.net }}</td><td><a href="/devices/{{ r.dev_id }}">{{ r.dev }}</a></td><td class="mono">{{ r.iface or '—' }}</td></tr>{% endfor %}
+</tbody></table></div></section>
+{% else %}<section class="card"><div class="empty">{{ empty_art('search') }}<h2>{{ _('No se encontraron direcciones IP') }}</h2><p>{{ _('Se leen de la última configuración guardada de cada equipo (Cisco y similares, Huawei, EdgeSwitch, VOSS, FortiGate, Junos, VyOS, MikroTik, EXOS y airOS).') }}</p></div></section>{% endif %}
+{% else %}
+{% if vlans %}<section class="card flush"><div class="tw"><table class="t" id="it"><thead><tr><th>VLAN</th><th>{{ _('Nombre') }}</th><th>{{ _('Equipos') }}</th></tr></thead><tbody data-pager>
+{% for e in vlans %}<tr data-text="{{ (e.id ~ ' ' ~ e.names|join(' ') ~ ' ' ~ e.devs|map('last')|join(' '))|lower }}"><td class="mono b">{{ e.id }}</td><td>{{ e.names|join(' / ') or '—' }}{% if e.names|length > 1 %} <span class="tag">{{ _('nombres distintos') }}</span>{% endif %}</td>
+  <td class="sm">{% for i, n in e.devs %}<a href="/devices/{{ i }}">{{ n }}</a>{{ ', ' if not loop.last }}{% endfor %} <span class="muted">({{ e.devs|length }})</span></td></tr>{% endfor %}
+</tbody></table></div></section>
+{% else %}<section class="card"><div class="empty">{{ empty_art('search') }}<h2>{{ _('No se encontraron VLAN') }}</h2></div></section>{% endif %}
+{% endif %}
+<script>
+(function () {
+  const q = document.getElementById('iq'), t = document.getElementById('it');
+  if (!q || !t) return;
+  q.addEventListener('input', () => {
+    const v = q.value.trim().toLowerCase();
+    [...t.tBodies[0].rows].forEach(r => { const out = !!v && !r.dataset.text.includes(v); r.classList.toggle('pg-out', out); r.hidden = out; });
+    t.tBodies[0].dispatchEvent(new Event('pager:refresh'));
+  });
+})();
+</script>
+{% endblock %}
