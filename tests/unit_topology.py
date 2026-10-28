@@ -101,6 +101,10 @@ kept, clients = network_view(parse(MARK + "/ip neighbor print detail terse witho
 mc = {x["remote_name"] for x in kept}
 check("inalámbrico: los CPE de un punto de acceso fuera; el punto de acceso, el PtP y el radioenlace se quedan",
       mc == {"AP-Torre", "PtP-Lejos", "PtP-Remoto"} and clients == 2, (mc, clients))
+# una VLAN por cliente: cada CPE llega solo por su interfaz, pero un LiteBeam visto por su radio es un cliente
+vl = [{"local_port": "vlan 2002", "remote_name": "BANCA LA PRIMERA", "remote_port": "ath0.2002", "remote_ip": "", "platform": "LiteBeam M5"},
+      {"local_port": "vlan1002", "remote_name": "YENIIS", "remote_port": "ath0.1002", "remote_ip": "", "platform": "LiteBeam M5"}]
+check("CPE por su propia VLAN: fuera del mapa aunque sea el único de su puerto", network_view(vl) == ([], 2), network_view(vl))
 check("inalámbrico: línea de radio si un extremo es ath/wlan, de cable si no",
       is_wireless("ether6", "ath0") and is_wireless("wlan1", "wlan1") and not is_wireless("ether5", "eth0"))
 
