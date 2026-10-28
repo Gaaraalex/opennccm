@@ -16,6 +16,7 @@ import time
 
 from netmiko.ssh_dispatcher import CLASS_MAPPER, platforms
 from netmiko.linux.linux_ssh import LinuxSSH
+from netmiko.exceptions import ReadTimeout
 from netmiko.mikrotik.mikrotik_ssh import MikrotikRouterOsSSH
 
 PROMPT = "ncm# "
@@ -86,7 +87,11 @@ class RouterOSSSH(MikrotikRouterOsSSH):
                    "\x1b[6n": self.RETURN}
         pattern = "(?:" + "|".join([self.prompt_pattern] + [re.escape(k) for k in notices]) + ")"
         for _ in range(15):
-            data = self.read_until_pattern(pattern=pattern, re_flags=re.I)
+            try:
+                data = self.read_until_pattern(pattern=pattern, re_flags=re.I, read_timeout=5)
+            except ReadTimeout:
+                self.write_channel(self.RETURN)  # RouterOS 7.25 espera una tecla antes de mostrar nada
+                continue
             for text, answer in notices.items():
                 if text.lower() in data.lower():
                     self.write_channel(answer)

@@ -546,6 +546,17 @@ def _mikrotik_safe_mode(conn, take: bool) -> str:
     return out + ("\n[modo seguro activado]" if take else "\n[modo seguro liberado: cambios conservados]")
 
 
+def _mikrotik_safe_undo(conn) -> None:
+    """Sale del modo seguro deshaciendo los cambios (Ctrl+D). RouterOS 7 también los deshace al cortar la sesión;
+    RouterOS 6 no siempre, por eso se pide de forma explícita."""
+    try:
+        conn.write_channel("\x04")
+        time.sleep(3)
+        conn.read_channel()
+    except Exception:  # noqa: BLE001 - la sesión puede haberse cerrado ya: también deshace los cambios
+        pass
+
+
 def _push_stepwise(conn, commands: list[str], prof) -> str:
     """Envía los comandos de uno en uno y se detiene en el primero que el equipo rechace.
 
@@ -604,8 +615,12 @@ def _push(device_id: int, commands: list[str], exec_mode: bool) -> str:
                 return "\n".join(out)
             safe = prof.key in SAFE_MODE
             out = _mikrotik_safe_mode(conn, True) if safe else ""
-            # si un comando falla, la excepción cierra la sesión: en modo seguro, RouterOS lo deshace todo
-            out += _push_stepwise(conn, commands, prof)
+            try:
+                out += _push_stepwise(conn, commands, prof)
+            except Exception:
+                if safe:  # deshacer todo lo aplicado en modo seguro antes de cerrar la sesión
+                    _mikrotik_safe_undo(conn)
+                raise
             if safe:
                 out += _mikrotik_safe_mode(conn, False)
             if confirmed:
