@@ -1020,8 +1020,21 @@ abre la barra lateral completa) y los indicadores se muestran en dos columnas. S
 <p>No requiere instalar ninguna app: basta con abrir la dirección del servidor en el navegador del teléfono (dentro de la VPN o la red
 de gestión).</p>
 <h2>API JSON</h2>
-<p><code>GET /api/devices</code> devuelve el inventario (nombre, IP, tipo, modelo, serie, versión, estado y último respaldo) para la
-sesión iniciada, respetando la restricción por grupos.</p>
+<p>Para scripts y otras herramientas, cada usuario crea sus <b>tokens de API</b> en <b>Mi cuenta › Tokens de API</b> (con nombre y
+caducidad opcional de 30, 90 o 365 días). El token se muestra <b>una sola vez</b>; OpenNCCM solo guarda su huella, así que si se
+pierde hay que crear otro. Se envía en la cabecera <code>Authorization: Bearer ncm_…</code>, actúa con los permisos y los grupos de
+su dueño, solo sirve para <code>/api/…</code> (no para la interfaz web) y se puede revocar en cualquier momento.</p>
+<table>
+  <tr><th>Petición</th><th>Qué hace</th><th>Rol</th></tr>
+  <tr><td><code>GET /api/devices</code></td><td>Inventario: nombre, IP, tipo, modelo, serie, versión, estado y último respaldo.</td><td>Lector</td></tr>
+  <tr><td><code>GET /api/devices/{id}</code></td><td>Ficha del equipo (grupo, ubicación, notas, último error, línea base).</td><td>Lector</td></tr>
+  <tr><td><code>GET /api/devices/{id}/versions</code></td><td>Versiones guardadas (hasta 500), con origen y líneas cambiadas.</td><td>Lector</td></tr>
+  <tr><td><code>GET /api/devices/{id}/config[?version=N]</code></td><td>Configuración en texto: la última o la versión N.</td><td>Lector</td></tr>
+  <tr><td><code>POST /api/devices/{id}/backup</code></td><td>Respalda ahora; devuelve <code>first</code>, <code>changed</code>, <code>unchanged</code> o <code>error</code>.</td><td>Operador</td></tr>
+  <tr><td><code>POST /api/devices</code></td><td>Alta con JSON: <code>name</code>, <code>host</code>, <code>device_type</code> y opcionales <code>port</code>, <code>protocol</code>, <code>credential</code>, <code>group</code>, <code>location</code>, <code>notes</code>.</td><td>Administrador</td></tr>
+</table>
+<p>Sin token o con uno caducado se responde 401; sin permiso, 403. Las altas, respaldos y lecturas de configuración por la API quedan
+en Auditoría.</p>
 <p><code>GET /healthz</code> devuelve <code>{"status":"ok"}</code> para sistemas de monitoreo.</p>
 </div>
 <figure><img src="img/33-movil-panel.jpg" class="phone"><figcaption>Panel en un teléfono (tema oscuro).</figcaption></figure>

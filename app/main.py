@@ -114,6 +114,8 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 @app.exception_handler(LoginRequired)
 async def _login_required(request, _exc):
+    if request.url.path.startswith("/api/"):
+        return JSONResponse({"error": "unauthorized", "detail": "Falta un token de API válido (Authorization: Bearer …)"}, 401)
     return go("/login")
 
 
@@ -133,6 +135,8 @@ async def _key_mismatch(request, _exc):
 
 @app.exception_handler(Forbidden)
 async def _forbidden(request, _exc):
+    if request.url.path.startswith("/api/"):
+        return JSONResponse({"error": "forbidden", "detail": "El usuario del token no tiene permiso para esto"}, 403)
     return HTMLResponse(f"<h2>403 — {_('No tiene permisos para esta acción')}</h2><a href='/'>{_('Volver')}</a>", 403)
 
 
@@ -371,7 +375,51 @@ def logout(request: Request):
 
 @app.get("/account")
 def account(request: Request):
-    return render(request, "account.html", require(request), themes=THEMES, accents=ACCENTS)
+    user = require(request)
+    from .db import ApiToken
+    with SessionLocal() as db:
+        tokens = db.scalars(select(ApiToken).where(ApiToken.user_id == user.id).order_by(ApiToken.id.desc())).all()
+    new_token = request.session.pop("new_token", None)  # se muestra una sola vez
+    return render(request, "account.html", user, themes=THEMES, accents=ACCENTS, tokens=tokens, new_token=new_token,
+                  base_url=str(request.base_url).rstrip("/"))
+
+
+@app.post("/account/tokens")
+async def account_token_new(request: Request):
+    """Token de API personal: se muestra una vez; se guarda solo su hash."""
+    user = require(request)
+    if getattr(request.state, "api_token", False):
+        raise Forbidden()  # un token no crea otros tokens
+    import hashlib
+
+    from .db import ApiToken
+    form = await request.form()
+    name = (form.get("name") or "").strip()[:64] or _("Sin nombre")
+    days = int(form.get("days") or 0) if str(form.get("days") or "0").isdigit() else 0
+    token = "ncm_" + secrets.token_urlsafe(32)
+    with SessionLocal() as db:
+        db.add(ApiToken(user_id=user.id, name=name, prefix=token[:12], token_hash=hashlib.sha256(token.encode()).hexdigest(),
+                        expires_at=now() + timedelta(days=days) if days in (30, 90, 365) else None))
+        db.commit()
+    request.session["new_token"] = token
+    log_action(request, user, "api_token_create", name)
+    return go("/account#api")
+
+
+@app.post("/account/tokens/{tid}/delete")
+def account_token_delete(request: Request, tid: int):
+    user = require(request)
+    from .db import ApiToken
+    with SessionLocal() as db:
+        tok = db.get(ApiToken, tid)
+        if tok is None or tok.user_id != user.id:
+            raise Forbidden()
+        name = tok.name
+        db.delete(tok)
+        db.commit()
+    log_action(request, user, "api_token_delete", name)
+    flash(request, _f("Token «{0}» revocado", name))
+    return go("/account#api")
 
 
 @app.post("/account")
@@ -934,7 +982,7 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
         inventory = try_decrypt(dev.inventory_raw_enc, "") if dev.inventory_raw_enc else ""
         # línea de tiempo «Señal»: número de versión por equipo (v1…vN), origen, tamaño anormal y comparación A/B
         total_v = db.scalar(select(func.count(ConfigVersion.id)).where(ConfigVersion.device_id == dev_id)) or 0
-        trig = {"manual": _("Manual"), "scheduled": _("Programado"), "syslog": "Syslog", "push": "Push"}
+        trig = {"manual": _("Manual"), "scheduled": _("Programado"), "syslog": "Syslog", "push": "Push", "api": "API"}
         tl = []
         for i, v in enumerate(versions):
             prev = next((x for x in versions[i + 1:] if x.kind == v.kind), None)
@@ -2632,6 +2680,87 @@ def api_devices(request: Request):
                  "platform": PROFILE_MAP[d.device_type].label if d.device_type in PROFILE_MAP else d.device_type,
                  "last_backup": d.last_backup_at.isoformat() if d.last_backup_at else None}
                 for d in db.scalars(select(Device).order_by(Device.name)) if scope is None or d.id in scope]
+
+
+@app.get("/api/devices/{dev_id}")
+def api_device(request: Request, dev_id: int):
+    user = require(request)
+    check_device(user, dev_id)
+    with SessionLocal() as db:
+        d = db.get(Device, dev_id)
+        if d is None:
+            return JSONResponse({"error": "not_found"}, 404)
+        return {"id": d.id, "name": d.name, "host": d.host, "port": d.port, "protocol": d.protocol, "type": d.device_type,
+                "group": d.group.name if d.group else None, "enabled": d.enabled, "model": d.model, "serial": d.serial,
+                "version": d.os_version, "location": d.location, "notes": d.notes, "status": d.last_status,
+                "last_error": d.last_error, "last_backup": d.last_backup_at.isoformat() if d.last_backup_at else None,
+                "baseline_drift": d.baseline_drift}
+
+
+@app.get("/api/devices/{dev_id}/versions")
+def api_device_versions(request: Request, dev_id: int):
+    user = require(request)
+    check_device(user, dev_id)
+    with SessionLocal() as db:
+        return [{"id": v.id, "kind": v.kind, "created_at": v.created_at.isoformat(), "trigger": v.trigger,
+                 "user": v.username, "size": v.size, "added": v.added, "removed": v.removed, "label": v.label}
+                for v in db.scalars(select(ConfigVersion).where(ConfigVersion.device_id == dev_id)
+                                    .order_by(ConfigVersion.id.desc()).limit(500))]
+
+
+@app.get("/api/devices/{dev_id}/config")
+def api_device_config(request: Request, dev_id: int, version: int = 0):
+    """Configuración en texto: la última en ejecución, o la versión indicada."""
+    user = require(request)
+    check_device(user, dev_id)
+    with SessionLocal() as db:
+        v = db.get(ConfigVersion, version) if version else services.latest_version(db, dev_id)
+        if v is None or v.device_id != dev_id:
+            return JSONResponse({"error": "not_found"}, 404)
+        text = decrypt(v.content_enc)
+    log_action(request, user, "api_config_read", f"equipo={dev_id} versión={v.id}")
+    return Response(text, media_type="text/plain; charset=utf-8")
+
+
+@app.post("/api/devices")
+async def api_device_create(request: Request):
+    """Alta de un equipo (JSON: name, host, device_type y opcionales port, protocol, credential, group, location, notes)."""
+    user = require(request, "admin")
+    try:
+        data = await request.json()
+    except ValueError:
+        return JSONResponse({"error": "bad_request", "detail": "Se esperaba un JSON"}, 400)
+    name, host, dtype = (str(data.get(k) or "").strip() for k in ("name", "host", "device_type"))
+    if not (name and host and dtype in PROFILE_MAP):
+        return JSONResponse({"error": "bad_request", "detail": "Faltan name y host, o device_type no es una plataforma conocida"}, 400)
+    with SessionLocal() as db:
+        if db.scalar(select(Device).where(Device.name == name)):
+            return JSONResponse({"error": "conflict", "detail": "Ya existe un equipo con ese nombre"}, 409)
+        cred = db.scalar(select(Credential).where(Credential.name == data["credential"])) if data.get("credential") else None
+        grp = db.scalar(select(DeviceGroup).where(DeviceGroup.name == data["group"])) if data.get("group") else None
+        proto = data.get("protocol") if data.get("protocol") in ("ssh", "telnet") else "ssh"
+        d = Device(name=name[:128], host=host[:255], device_type=dtype, protocol=proto,
+                   port=int(data.get("port") or (23 if proto == "telnet" else 22)), credential_id=cred.id if cred else None,
+                   group_id=grp.id if grp else None, location=data.get("location"), notes=data.get("notes"),
+                   enabled=bool(data.get("enabled", True)))
+        db.add(d)
+        db.commit()
+        dev_id = d.id
+    log_action(request, user, "api_device_create", name)
+    return JSONResponse({"id": dev_id, "name": name}, 201)
+
+
+@app.post("/api/devices/{dev_id}/backup")
+def api_device_backup(request: Request, dev_id: int):
+    """Respalda el equipo ahora y devuelve el resultado (first, changed, unchanged o error)."""
+    user = require(request, "operator")
+    check_device(user, dev_id)
+    result = services.backup_device(dev_id, "api", user.username)
+    with SessionLocal() as db:
+        d = db.get(Device, dev_id)
+        err = d.last_error if d else None
+    log_action(request, user, "api_backup", f"equipo={dev_id}: {result}")
+    return {"result": result, "error": err if result == "error" else None}
 
 
 @app.get("/api/config-search")

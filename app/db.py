@@ -30,6 +30,19 @@ class Base(DeclarativeBase):
     pass
 
 
+class ApiToken(Base):
+    """Token personal para la API (/api/…): actúa con los permisos y grupos de su dueño. Solo se guarda su hash."""
+    __tablename__ = "api_tokens"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(64))
+    prefix: Mapped[str] = mapped_column(String(16))  # primeros caracteres, para reconocerlo en la lista
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)

@@ -69,10 +69,34 @@ def start_session(request: Request, user: User) -> None:
         request.session["rem"] = 1
 
 
+def _token_user(request: Request) -> User | None:
+    """Usuario del token de API de la cabecera «Authorization: Bearer ncm_…» (solo vale en /api/)."""
+    import hashlib
+    from datetime import timedelta
+
+    from .db import ApiToken, now
+    auth = request.headers.get("authorization", "")
+    if not request.url.path.startswith("/api/") or not auth.lower().startswith("bearer "):
+        return None
+    digest = hashlib.sha256(auth[7:].strip().encode()).hexdigest()
+    with SessionLocal() as db:
+        tok = db.scalar(select(ApiToken).where(ApiToken.token_hash == digest))
+        if tok is None or (tok.expires_at and tok.expires_at < now()):
+            return None
+        user = db.get(User, tok.user_id)
+        if user is None or not user.active:
+            return None
+        if not tok.last_used_at or now() - tok.last_used_at > timedelta(minutes=1):
+            tok.last_used_at = now()
+            db.commit()
+    request.state.api_token = True
+    return user
+
+
 def current_user(request: Request) -> User | None:
     uid = request.session.get("uid")
     if not uid:
-        return None
+        return _token_user(request)
     now = int(time.time())
     idle = int(cached_setting("session_idle_minutes", "30") or 30) * 60
     seen = int(request.session.get("seen", now))
@@ -100,7 +124,7 @@ def require(request: Request, role: str = "viewer") -> User:
     if user is None:
         raise LoginRequired()
     if (user.role == "admin" and not user.totp_enabled and cached_setting("require_2fa_admins", "0") == "1"
-            and not request.url.path.startswith(_SETUP_2FA_PATHS)):
+            and not request.url.path.startswith(_SETUP_2FA_PATHS) and not getattr(request.state, "api_token", False)):
         raise TwoFactorSetupRequired()
     if ROLES.get(user.role, 0) < ROLES[role]:
         raise Forbidden()
