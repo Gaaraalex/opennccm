@@ -1291,12 +1291,23 @@ def topology_page(request: Request, group: int = 0):
                  for d in devs}
         edges: dict = {}
         with_data = clients = 0
+        views = {}
         for d in devs:
-            nbrs = json.loads(d.neighbors) if d.neighbors else []
             with_data += bool(d.neighbors is not None)
-            clients += sum(map(topology.is_client, nbrs))
-            nbrs = [n for n in nbrs if not topology.is_client(n)]
+            views[d.id], c = topology.network_view(json.loads(d.neighbors) if d.neighbors else [])
+            clients += c
+        # tipo de cada vecino descubierto: el que se reconozca desde cualquiera de los equipos que lo ven
+        fams: dict = {}
+        for nbrs in views.values():
             for n in nbrs:
+                key = topology.norm_name(n.get("remote_name")) or n.get("remote_ip")
+                if fams.get(key, "other") == "other":
+                    fams[key] = topology.family(n)
+        types = get_setting("topology_types", "")
+        allowed = {f for f, _l in topology.FAMILIES} if not types else set(types.split(","))
+        hidden = set()
+        for d in devs:
+            for n in views[d.id]:
                 # primero por nombre (el que anuncia el vecino), luego por IP
                 t = by_name.get(topology.norm_name(n.get("remote_name"))) or by_ip.get((n.get("remote_ip") or "").lower())
                 if t is not None and t.id == d.id:
@@ -1305,6 +1316,9 @@ def topology_page(request: Request, group: int = 0):
                     other = f"d{t.id}"
                 else:
                     key = topology.norm_name(n.get("remote_name")) or n.get("remote_ip")
+                    if fams.get(key, "other") not in allowed:  # tipo de equipo que no se quiere en el mapa
+                        hidden.add(key)
+                        continue
                     other = f"u:{key}"
                     nodes.setdefault(other, {"id": other, "label": n.get("remote_name") or n.get("remote_ip"),
                                              "kind": "new", "sub": n.get("remote_ip") or "", "platform": n.get("platform", ""),
@@ -1318,8 +1332,10 @@ def topology_page(request: Request, group: int = 0):
                 if same:  # el mismo enlace visto desde los dos extremos
                     same[0]["pa"] = same[0]["pa"] or pa
                     same[0]["pb"] = same[0]["pb"] or pb
+                    same[0]["air"] = topology.is_wireless(same[0]["pa"], same[0]["pb"])
                 else:
-                    edges.setdefault(kk, []).append({"a": a, "b": b, "pa": pa, "pb": pb, "k": "|".join(k)})
+                    edges.setdefault(kk, []).append({"a": a, "b": b, "pa": pa, "pb": pb, "k": "|".join(k),
+                                                     "air": topology.is_wireless(pa, pb)})
     links = [e for lst in edges.values() for e in lst]
     linked = {e["a"] for e in links} | {e["b"] for e in links}
     show = [n for n in nodes.values() if n["id"] in linked]
@@ -1327,7 +1343,7 @@ def topology_page(request: Request, group: int = 0):
     news = [n for n in show if n["kind"] == "new"]
     return render(request, "topology.html", user, nodes=show, links=links, alone=alone, news=news, groups=groups,
                   labels={n["id"]: n["label"] for n in show},
-                  group=group, with_data=with_data, clients=clients, total=len(devs), enabled=get_setting("topology_enabled", "1") == "1")
+                  group=group, with_data=with_data, clients=clients, hidden=len(hidden), total=len(devs), enabled=get_setting("topology_enabled", "1") == "1")
 
 
 # --------------------------------------------------------------------------- inventario de IP y VLAN
@@ -2527,7 +2543,7 @@ SETTING_KEYS = ["smtp_host", "smtp_port", "smtp_security", "smtp_user", "smtp_fr
                 "allow_self_approval", "notify_compliance", "retention_versions", "cisco_api_client_id",
                 "dr_keep", "dr_remote_host", "dr_remote_port", "dr_remote_user", "dr_remote_path",
                 "session_idle_minutes", "remember_days", "require_2fa_admins", "console_access", "console_autologin", "update_check",
-                "topology_enabled", "git_enabled", "git_url", "git_branch", "git_user", "git_mask", "org_name", "org_contact", "org_address", "default_lang",
+                "topology_enabled", "topology_types", "git_enabled", "git_url", "git_branch", "git_user", "git_mask", "org_name", "org_contact", "org_address", "default_lang",
                 "ldap_enabled", "ldap_url", "ldap_starttls", "ldap_verify_tls", "ldap_bind_dn", "ldap_base_dn",
                 "ldap_user_filter", "ldap_group_admin", "ldap_group_operator", "ldap_group_viewer", "ldap_default_role",
                 "oidc_enabled", "oidc_tenant", "oidc_client_id", "oidc_discovery", "oidc_button", "oidc_redirect",
@@ -2552,7 +2568,8 @@ def settings(request: Request):
         values[f"{k}_set"] = bool(get_setting(k))
     from .config import NVD_API_KEY
     values["nvd_api_key_env"] = bool(NVD_API_KEY)  # la del archivo opennccm.env tiene prioridad
-    return render(request, "settings.html", user, s=values, redirect_uri=_redirect_uri(request))
+    from .topology import FAMILIES
+    return render(request, "settings.html", user, s=values, redirect_uri=_redirect_uri(request), families=FAMILIES)
 
 
 @app.post("/settings/git-export")
@@ -2623,6 +2640,12 @@ async def settings_save(request: Request):
             set_setting(k, form.get(k) if form.get(k) in ("off", "admin", "operator") else "admin")
         elif k in ROLE_KEYS:
             set_setting(k, form.get(k) if form.get(k) in ROLES else "")
+        elif k == "topology_types":
+            if "topology_types_form" not in form:  # formulario sin estas casillas: no se toca
+                continue
+            from .topology import FAMILIES
+            sel = [f for f, _l in FAMILIES if f in form.getlist(k)]
+            set_setting(k, "" if len(sel) == len(FAMILIES) else ",".join(sel) or "none")  # vacío = todos
         else:
             set_setting(k, (form.get(k) or "").strip())
     clear_settings_cache()

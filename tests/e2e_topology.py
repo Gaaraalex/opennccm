@@ -69,6 +69,16 @@ check("el mapa dibuja el equipo, el vecino nuevo y el enlace con sus puertos",
 form = s.get(B + "/devices/new?name=SW-Vecino&host=192.0.2.77").text
 check("«Agregar a OpenNCCM» propone nombre e IP", 'value="SW-Vecino"' in form and 'value="192.0.2.77"' in form)
 
+# tipos de equipo descubiertos que salen en el mapa (Ajustes › Mapa de la red): sin Cisco, el vecino nuevo no sale
+check("Ajustes: casillas de tipos de equipo del mapa", s.get(B + "/settings").text.count('name="topology_types"') == 8)
+set_setting("topology_types", "mikrotik,juniper")
+time.sleep(31)  # caché de ajustes
+page = s.get(B + "/topology").text
+check("vecino de un tipo no elegido: fuera del mapa, con su nota", "SW-Vecino" not in page.split("const NODES")[1].split("LINKS")[0]
+      and "vecinos de otros tipos de equipo" in page)
+set_setting("topology_types", "")
+time.sleep(31)
+
 # si el vecino ya está en OpenNCCM (misma IP), el enlace va a ese equipo y no aparece como nuevo
 with SessionLocal() as db:
     db.add(Device(name="Otro-Nombre", host="192.0.2.77", device_type="cisco_ios"))

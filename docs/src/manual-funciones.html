@@ -737,8 +737,13 @@ HP/Aruba, Dell, Ruckus, Allied, MikroTik, EdgeSwitch, UniFi Switch y EXOS, si ti
   <li>Los equipos se colorean según su último respaldo. Los <b>vecinos que no están en OpenNCCM</b> llevan borde discontinuo: al
   pulsarlos, <b>Agregar a OpenNCCM</b> abre el alta con su nombre e IP.</li>
   <li>Un vecino se reconoce como equipo de OpenNCCM por su nombre (sin dominio) o, si no, por su IP de gestión.</li>
-  <li>Solo salen <b>equipos de red</b>: los equipos de usuario que se ven por su radio (como los CPE de los clientes) se quitan,
-  y una nota dice cuántos. En MikroTik, en un puerto con varios vecinos solo cuenta el visto por LLDP.</li>
+  <li>Solo salen <b>equipos de red</b>. Si por un puerto se ven <b>varios equipos por su radio</b>, son los CPE de los
+  clientes de un punto de acceso: se quitan (el punto de acceso sí sale) y una nota dice cuántos. Si se ve <b>uno solo</b>, es el
+  otro extremo de un PtP o la estación, y sale. En MikroTik, en un puerto con varios vecinos por cable solo cuenta el visto por LLDP.</li>
+  <li>Los <b>enlaces inalámbricos</b> (un extremo es una radio: ath0, wlan1…) se dibujan con línea discontinua.</li>
+  <li>En <b>Ajustes › Mapa de la red</b> se eligen los <b>tipos de equipo descubiertos</b> que salen: MikroTik, Ubiquiti,
+  Juniper, Cisco, Huawei, HP/Aruba, Extreme y otros. El tipo se reconoce por lo que anuncia el vecino (plataforma, modelo) o
+  por el nombre de sus puertos. Los equipos que ya están en OpenNCCM salen siempre.</li>
   <li>Se puede filtrar por grupo, buscar y arrastrar los equipos. Para recorrerlo: arrastrar el fondo, la rueda o los botones
   + y − para el zoom, «Ver todo el mapa» y «Pantalla completa». Debajo, la lista de enlaces.</li>
   <li>Se desactiva en <b>Ajustes › Mapa de la red</b> (entonces los respaldos no leen vecinos).</li>
