@@ -100,6 +100,7 @@ class Device(Base):
     custom_backup_cmd: Mapped[str | None] = mapped_column(Text)   # sustituye al comando del perfil
     baseline_version_id: Mapped[int | None] = mapped_column(Integer)  # versión "línea base"
     baseline_drift: Mapped[bool] = mapped_column(Boolean, default=False)
+    neighbors: Mapped[str | None] = mapped_column(Text)  # JSON: vecinos LLDP/CDP del último respaldo (mapa de la red)
 
     credential = relationship("Credential")
     group = relationship("DeviceGroup")

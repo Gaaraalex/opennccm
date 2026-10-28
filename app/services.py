@@ -320,6 +320,21 @@ def end_maintenance(device_id: int):
             db.commit()
 
 
+def _read_neighbors(conn, device_type: str) -> str | None:
+    """Vecinos LLDP/CDP para el mapa de la red (se puede desactivar en Ajustes). Nunca hace fallar el respaldo."""
+    from . import topology
+    cmds = topology.commands(device_type)
+    if not cmds or get_setting("topology_enabled", "1") != "1":
+        return None
+    out = []
+    for c in cmds:
+        try:
+            out.append(topology.MARK + c + "\n" + conn.send_command(c, read_timeout=30))
+        except Exception as e:  # noqa: BLE001 - sin LLDP/CDP o la orden no existe: sin vecinos
+            log.info("vecinos (%s): %s", c, e)
+    return "\n".join(out)
+
+
 def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
@@ -333,13 +348,14 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
                     raise RuntimeError("El dispositivo no tiene credencial asignada")
                 cred = (dev.credential.username, decrypt(dev.credential.password_enc) if dev.credential.password_enc else "")
                 running, inventory = swos.backup(dev, cred)
-                startup = None
+                startup = neighbors_raw = None
             else:
                 with connect(dev) as conn:
                     running = conn.send_command(dev.custom_backup_cmd or prof.backup, read_timeout=180)
                     startup = conn.send_command(prof.startup, read_timeout=180) if prof.startup else None
                     inventory = "\n\n".join(conn.send_command(c, read_timeout=60) for c in prof.inventory.split("\n")
                                             if c.strip()) if prof.inventory else None
+                    neighbors_raw = _read_neighbors(conn, dev.device_type)
         except Exception as e:  # noqa: BLE001
             dev.last_status, dev.last_error = "error", (str(e) or repr(e))[:2000]
             db.commit()
@@ -396,6 +412,10 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
             dev.startup_conflict = conflict
         else:
             new_conflict = False
+
+        if neighbors_raw is not None:
+            from . import topology
+            dev.neighbors = json.dumps(topology.parse(neighbors_raw, dev.device_type))
 
         if inventory:
             inv = parse_inventory(inventory, prof)

@@ -3,7 +3,7 @@
 {% block content %}
 {% include "_admin_tabs.html" %}
 {% set SECS = [('seguridad', _('Seguridad y acceso'), 'lock'), ('inicio', _('Inicio de sesión'), 'key'), ('organizacion', _('Organización'), 'users'), ('flujo', _('Flujo de cambios'), 'branch'),
-               ('notificaciones', _('Notificaciones'), 'bell'), ('eox', _('Fin de vida (Cisco EoX)'), 'clock'), ('nvd', _('Vulnerabilidades (NVD)'), 'bug'),
+               ('notificaciones', _('Notificaciones'), 'bell'), ('eox', _('Fin de vida (Cisco EoX)'), 'clock'), ('nvd', _('Vulnerabilidades (NVD)'), 'bug'), ('mapa', _('Mapa de la red'), 'globe'),
                ('recuperacion', _('Recuperación ante desastres'), 'db'),
                ('actualizaciones', _('Actualizaciones'), 'refresh')] %}
 {% macro F(label, id, help='') %}<div class="field"><label for="{{ id }}">{{ label }}</label>{{ caller() }}{% if help %}<span class="help">{{ help }}</span>{% endif %}</div>{% endmacro %}
@@ -94,6 +94,9 @@
       {% call F(_('Client Secret'), 's-csec') %}<div class="input"><input id="s-csec" name="cisco_api_secret" type="password" autocomplete="new-password" {% if s.cisco_api_secret_set %}placeholder="{{ _('•••••••• (guardado)') }}"{% endif %}></div>{% endcall %}</div>
   </div></section>
 
+  <section class="card" id="mapa" data-secp><div class="card-h"><h2>{{ _('Mapa de la red') }}</h2></div><div class="stack">
+    <label class="swrow"><span><b>{{ _('Leer los vecinos LLDP/CDP en cada respaldo') }}</b><div class="muted sm">{{ _('Una o dos órdenes de solo lectura más por equipo (por ejemplo «show cdp neighbors detail»). Con ellas se dibuja el Mapa de la red.') }}</div></span><input type="checkbox" class="sw" name="topology_enabled" {{ 'checked' if s.topology_enabled == '1' }}></label>
+  </div></section>
   <section class="card" id="nvd" data-secp><div class="card-h"><h2>{{ _('Vulnerabilidades (NVD)') }}</h2></div><div class="stack">
     <p class="muted sm">{{ _('Opcional. Sin clave, NVD permite unas 5 consultas cada 30 segundos; con una clave gratuita, unas 50, así que la búsqueda de CVE y de versiones de firmware es mucho más rápida.') }} <a href="https://nvd.nist.gov/developers/request-an-api-key" target="_blank" rel="noopener">{{ _('Pedir una clave en nvd.nist.gov') }}</a></p>
     {% call F(_('Clave de la API de NVD'), 's-nvd', _('Se guarda cifrada. Déjala vacía para no cambiarla.')) %}<div class="input mono" style="max-width:420px"><input id="s-nvd" name="nvd_api_key" type="password" autocomplete="new-password" spellcheck="false" {% if s.nvd_api_key_set %}placeholder="{{ _('•••••••• (guardada)') }}"{% endif %}></div>{% endcall %}

@@ -715,6 +715,18 @@ y cómo está el cumplimiento y el ciclo de vida.</p>
 </ul>
 <p>Al pasar el cursor sobre una barra o celda aparece su valor exacto. Los nombres de equipos y políticas son enlaces.</p>
 <figure><img src="img/22-analisis.png" class="tall"><figcaption>Página de Análisis.</figcaption></figure>
+<h2>Mapa de la red</h2>
+<p><b>Mapa de la red</b> (menú lateral) dibuja los equipos y los enlaces entre ellos, con el puerto de cada extremo. Los enlaces salen de
+los vecinos <b>LLDP o CDP</b> que cada equipo anuncia, leídos en cada respaldo con una orden de solo lectura (por ejemplo
+<code>show cdp neighbors detail</code> en Cisco o <code>/ip neighbor print</code> en MikroTik). Lo admiten Cisco, Arista, Juniper, Huawei,
+HP/Aruba, Dell, Ruckus, Allied, MikroTik, EdgeSwitch, UniFi Switch y EXOS, si tienen LLDP o CDP activado.</p>
+<ul>
+  <li>Los equipos se colorean según su último respaldo. Los <b>vecinos que no están en OpenNCCM</b> llevan borde discontinuo: al
+  pulsarlos, <b>Agregar a OpenNCCM</b> abre el alta con su nombre e IP.</li>
+  <li>Un vecino se reconoce como equipo de OpenNCCM por su nombre (sin dominio) o, si no, por su IP de gestión.</li>
+  <li>Se puede filtrar por grupo, buscar, arrastrar los equipos y hacer zoom con la rueda. Debajo, la lista de enlaces.</li>
+  <li>Se desactiva en <b>Ajustes › Mapa de la red</b> (entonces los respaldos no leen vecinos).</li>
+</ul>
 </section>
 
 <section class="chapter">

@@ -6,8 +6,8 @@
 {% if not credentials %}<div class="banner warn">{{ icon('alert') }}<span class="grow">Primero crea una <a href="/credentials">credencial</a> para conectarse a los equipos.</span></div>{% endif %}
 <form method="post" class="stack" id="devform" style="gap:18px">
   <div class="sec"><h3>Conexión</h3>
-    <div class="field"><label for="dn">Nombre</label><div class="input"><input id="dn" name="name" required value="{{ device.name if device }}" placeholder="CORE-SW2"></div><span class="help">Como aparecerá en listas e informes.</span></div>
-    <div class="f3"><div class="field" style="grid-column:span 2"><label for="dip">IP o nombre DNS</label><div class="input mono"><input id="dip" name="host" required value="{{ device.host if device }}" placeholder="10.0.0.5"></div></div>
+    <div class="field"><label for="dn">Nombre</label><div class="input"><input id="dn" name="name" required value="{{ device.name if device else (prefill.name if prefill is defined else '') }}" placeholder="CORE-SW2"></div><span class="help">Como aparecerá en listas e informes.</span></div>
+    <div class="f3"><div class="field" style="grid-column:span 2"><label for="dip">IP o nombre DNS</label><div class="input mono"><input id="dip" name="host" required value="{{ device.host if device else (prefill.host if prefill is defined else '') }}" placeholder="10.0.0.5"></div></div>
       <div class="field"><label for="dport">Puerto</label><div class="input"><input id="dport" name="port" type="number" value="{{ device.port if device else '' }}" placeholder="22"></div></div></div>
     <div class="f2"><div class="field"><label for="dproto">Protocolo</label><div class="input"><select id="dproto" name="protocol">
         <option value="ssh" {{ 'selected' if not device or device.protocol == 'ssh' }}>SSH</option>

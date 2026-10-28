@@ -663,10 +663,11 @@ def _device_form_ctx(db):
 
 
 @app.get("/devices/new")
-def device_new(request: Request):
+def device_new(request: Request, name: str = "", host: str = ""):
     user = require(request, "admin")
     with SessionLocal() as db:
-        return render(request, "device_form.html", user, device=None, **_device_form_ctx(db))
+        return render(request, "device_form.html", user, device=None, prefill={"name": name[:128], "host": host[:255]},
+                      **_device_form_ctx(db))
 
 
 @app.get("/devices/{dev_id}/edit")
@@ -1221,6 +1222,62 @@ async def version_rollback(request: Request, ver_id: int):
     log_action(request, user, "rollback_request", f"{name} -> v{ver_id}")
     flash(request, _("Se generó la solicitud de reversión. Revise los comandos antes de aprobar."))
     return go(f"/changes/{cr_id}")
+
+
+# --------------------------------------------------------------------------- mapa de la red
+@app.get("/topology")
+def topology_page(request: Request, group: int = 0):
+    """Equipos y enlaces descubiertos por LLDP/CDP. Los vecinos que no están en OpenNCCM se muestran aparte."""
+    user = require(request)
+    from . import topology
+    scope = device_scope(user)
+    with SessionLocal() as db:
+        groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
+        devs = [d for d in db.scalars(select(Device).order_by(Device.name))
+                if (scope is None or d.id in scope) and (not group or d.group_id == group)]
+        hosts = [d.host.lower() for d in devs]
+        by_ip = {d.host.lower(): d for d in devs if hosts.count(d.host.lower()) == 1}  # solo IP que no se repiten
+        by_name = {topology.norm_name(d.name): d for d in devs}
+        nodes = {f"d{d.id}": {"id": f"d{d.id}", "label": d.name, "kind": "dev", "status": d.last_status,
+                              "href": f"/devices/{d.id}", "sub": d.host, "vend": (get_profile(d.device_type).vendor)[:3].upper()}
+                 for d in devs}
+        edges: dict = {}
+        with_data = 0
+        for d in devs:
+            nbrs = json.loads(d.neighbors) if d.neighbors else []
+            with_data += bool(d.neighbors is not None)
+            for n in nbrs:
+                # primero por nombre (el que anuncia el vecino), luego por IP
+                t = by_name.get(topology.norm_name(n.get("remote_name"))) or by_ip.get((n.get("remote_ip") or "").lower())
+                if t is not None and t.id == d.id:
+                    continue
+                if t is not None:
+                    other = f"d{t.id}"
+                else:
+                    key = topology.norm_name(n.get("remote_name")) or n.get("remote_ip")
+                    other = f"u:{key}"
+                    nodes.setdefault(other, {"id": other, "label": n.get("remote_name") or n.get("remote_ip"),
+                                             "kind": "new", "sub": n.get("remote_ip") or "", "platform": n.get("platform", ""),
+                                             "ip": n.get("remote_ip") or "", "name": (n.get("remote_name") or "").split(".")[0]})
+                a, b = sorted([f"d{d.id}", other])
+                pa, pb = (n.get("local_port", ""), n.get("remote_port", "")) if a == f"d{d.id}" else (n.get("remote_port", ""), n.get("local_port", ""))
+                k = (a, b, topology.short_port(pa) if pa else "", topology.short_port(pb) if pb else "")
+                kk = (a, b)
+                same = [e for e in edges.get(kk, []) if (not e["pa"] or not pa or topology.short_port(e["pa"]) == topology.short_port(pa))
+                        and (not e["pb"] or not pb or topology.short_port(e["pb"]) == topology.short_port(pb))]
+                if same:  # el mismo enlace visto desde los dos extremos
+                    same[0]["pa"] = same[0]["pa"] or pa
+                    same[0]["pb"] = same[0]["pb"] or pb
+                else:
+                    edges.setdefault(kk, []).append({"a": a, "b": b, "pa": pa, "pb": pb, "k": "|".join(k)})
+    links = [e for lst in edges.values() for e in lst]
+    linked = {e["a"] for e in links} | {e["b"] for e in links}
+    show = [n for n in nodes.values() if n["id"] in linked]
+    alone = [n for n in nodes.values() if n["id"] not in linked and n["kind"] == "dev"]
+    news = [n for n in show if n["kind"] == "new"]
+    return render(request, "topology.html", user, nodes=show, links=links, alone=alone, news=news, groups=groups,
+                  labels={n["id"]: n["label"] for n in show},
+                  group=group, with_data=with_data, total=len(devs), enabled=get_setting("topology_enabled", "1") == "1")
 
 
 # --------------------------------------------------------------------------- búsqueda
@@ -2344,16 +2401,17 @@ SETTING_KEYS = ["smtp_host", "smtp_port", "smtp_security", "smtp_user", "smtp_fr
                 "allow_self_approval", "notify_compliance", "retention_versions", "cisco_api_client_id",
                 "dr_keep", "dr_remote_host", "dr_remote_port", "dr_remote_user", "dr_remote_path",
                 "session_idle_minutes", "remember_days", "require_2fa_admins", "console_access", "console_autologin", "update_check",
-                "org_name", "org_contact", "org_address", "default_lang",
+                "topology_enabled", "org_name", "org_contact", "org_address", "default_lang",
                 "ldap_enabled", "ldap_url", "ldap_starttls", "ldap_verify_tls", "ldap_bind_dn", "ldap_base_dn",
                 "ldap_user_filter", "ldap_group_admin", "ldap_group_operator", "ldap_group_viewer", "ldap_default_role",
                 "oidc_enabled", "oidc_tenant", "oidc_client_id", "oidc_discovery", "oidc_button", "oidc_redirect",
                 "oidc_group_admin", "oidc_group_operator", "oidc_group_viewer", "oidc_default_role"]
 CHECKBOX_KEYS = ("require_approval", "allow_self_approval", "notify_compliance", "require_2fa_admins",
-                 "console_autologin", "update_check", "ldap_enabled", "ldap_starttls", "ldap_verify_tls", "oidc_enabled")
+                 "console_autologin", "update_check", "ldap_enabled", "ldap_starttls", "ldap_verify_tls", "oidc_enabled",
+                 "topology_enabled")
 # valores por defecto cuando el ajuste nunca se guardó
 SETTING_DEFAULTS = {"allow_self_approval": "1", "session_idle_minutes": "30", "remember_days": "14", "require_2fa_admins": "0",
-                    "console_access": "admin", "console_autologin": "0", "update_check": "1",
+                    "console_access": "admin", "console_autologin": "0", "update_check": "1", "topology_enabled": "1",
                     "ldap_verify_tls": "1", "ldap_user_filter": "(&(objectClass=user)(sAMAccountName={username}))"}
 SECRET_FORM_KEYS = ["smtp_password", "cisco_api_secret", "dr_remote_password", "ldap_bind_password", "oidc_client_secret",
                     "nvd_api_key"]
