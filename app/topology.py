@@ -77,6 +77,17 @@ def _lldp_detail(text: str) -> list[dict]:
     return out
 
 
+def _ros_text(v: str) -> str:
+    """RouterOS escribe los caracteres no ASCII como bytes «\\XX» («Caba\\F1as»): en UTF-8 si lo son, si no en Windows-1252."""
+    def dec(m):
+        raw = bytes(int(h, 16) for h in re.findall(r"\\([0-9A-Fa-f]{2})", m.group(0)))
+        try:
+            return raw.decode("utf-8")
+        except UnicodeDecodeError:
+            return raw.decode("cp1252", "replace")
+    return re.sub(r"(?:\\[0-9A-Fa-f]{2})+", dec, v)
+
+
 def _mikrotik(text: str) -> list[dict]:
     out, by = [], []
     for raw in re.split(r"(?m)^\s*\d+\s+", text):
@@ -88,7 +99,7 @@ def _mikrotik(text: str) -> list[dict]:
         # RouterOS 7 anuncia por LLDP el puerto como «bridge1/ether1»: el puerto es el de después de la barra
         port = re.sub(r"^[A-Za-z][\w.-]*/(?=[A-Za-z])", "", _clean(kv.get("interface-name")))
         ip = next((v for v in (_clean(kv.get("address4")), _clean(kv.get("address"))) if re.fullmatch(r"[\d.]+", v)), "")
-        out.append({"local_port": local, "remote_name": _clean(kv.get("identity") or kv.get("system-description")),
+        out.append({"local_port": local, "remote_name": _ros_text(_clean(kv.get("identity") or kv.get("system-description"))),
                     "remote_port": port, "remote_ip": ip,
                     "platform": _clean(" ".join(x for x in (kv.get("platform"), kv.get("board")) if x))})
         by.append(_clean(kv.get("discovered-by")) if "discovered-by" in kv else None)

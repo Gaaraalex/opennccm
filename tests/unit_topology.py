@@ -84,6 +84,11 @@ check("MikroTik 7: vecino único por su puerto se queda aunque sea por MNDP; IPv
       by7.get("R-PP El Seibo", {}).get("remote_ip") == "" and by7["R-PP El Seibo"]["remote_port"] == "ether1"
       and by7["R-PP El Seibo"]["local_port"] == "ether5", m7)
 
+ENYE = " 0 interface=sfp-sfpplus8 identity=Caba\\F1as Skymar interface-name=sfp1\n 1 interface=sfp-sfpplus9 identity=\"Pe\\C3\\B1a Gold\" interface-name=sfp1\n"
+check("MikroTik: «ñ» escrita como \\F1 (Windows-1252) o \\C3\\B1 (UTF-8)",
+      [x["remote_name"] for x in parse(MARK + "/ip neighbor print detail terse without-paging\n" + ENYE, "mikrotik_routeros")]
+      == ["Cabañas Skymar", "Peña Gold"])
+
 # equipos de usuario: un CPE (LiteBeam) visto por su radio no es un enlace; un enlace de radio entre dos equipos de red sí
 MTC = """ 0 interface=ether5 address=192.168.20.11 identity=JONATHAN platform=LiteBeam interface-name=ath0 discovered-by=cdp
  1 interface=ether6 address=192.168.20.48 identity=Ascania platform=LiteBeam interface-name=ath0.2000 discovered-by=mndp
