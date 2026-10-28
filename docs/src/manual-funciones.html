@@ -889,6 +889,14 @@ descargar, eliminar y <b>Restaurar…</b> (explica el comando de consola que la 
 <p class="small">El servicio no tiene privilegios de administrador: el instalador le concede, mediante una regla de polkit, permiso
 <b>solo</b> para estas tres acciones. Cada cambio queda en Auditoría.</p>
 <figure><img src="img/28-sistema.png"><figcaption>Sistema.</figcaption></figure>
+<h2>Copia en Git</h2>
+<p>Con <b>Subir cada versión nueva a Git</b>, cada respaldo con cambios se sube como un commit a un repositorio Git (GitHub, GitLab,
+Gitea…), con un mensaje como «R1: +3/-1 líneas [scheduled]». Cada equipo es un archivo <code>&lt;grupo&gt;/&lt;equipo&gt;.cfg</code>
+con su última configuración. El repositorio se indica por HTTPS con usuario y <b>token</b> (se guarda cifrado y nunca se escribe en
+la URL ni en el disco) o por SSH con la clave del usuario del servicio. <b>Ocultar contraseñas y claves</b> (activado por omisión)
+sustituye por <code>&lt;oculto&gt;</code> los secretos, contraseñas, comunidades SNMP y claves que reconoce; aun así, use un
+repositorio privado. <b>Probar y subir todo ahora</b> exporta todos los equipos de una vez. Si la subida falla, se registra una alarma
+«Copia en Git fallida» y el respaldo no se ve afectado.</p>
 <h2>Apoya OpenNCCM</h2>
 <p>OpenNCCM es software libre y gratis. Los administradores ven en la barra superior el botón <b>Apoya OpenNCCM</b>, y las
 páginas Sistema y Acerca de muestran una tarjeta con las formas de donar (GitHub Sponsors y Ko-fi). Tras actualizar a una versión
@@ -901,7 +909,8 @@ se pulsan, en una pestaña nueva, y no se envía ningún dato del servidor.</p>
 <section class="chapter">
 <h1>25. Ajustes</h1>
 <p>Los ajustes están en <b>Administración → Ajustes</b>, separados en secciones que se eligen a la izquierda: Seguridad y acceso,
-Organización, Flujo de cambios, Notificaciones, Fin de vida (Cisco EoX), Recuperación ante desastres y Actualizaciones. Al modificar
+Organización, Flujo de cambios, Notificaciones, Fin de vida (Cisco EoX), Vulnerabilidades (NVD), Mapa de la red, Copia en Git,
+Recuperación ante desastres y Actualizaciones. Al modificar
 cualquier campo aparece abajo la barra <b>Tienes cambios sin guardar</b> con <b>Descartar</b> y <b>Guardar ajustes</b>; si intenta
 salir de la página sin guardar, el navegador lo advierte.</p>
 <h2>Seguridad y acceso</h2>

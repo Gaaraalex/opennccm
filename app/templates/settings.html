@@ -3,7 +3,7 @@
 {% block content %}
 {% include "_admin_tabs.html" %}
 {% set SECS = [('seguridad', _('Seguridad y acceso'), 'lock'), ('inicio', _('Inicio de sesión'), 'key'), ('organizacion', _('Organización'), 'users'), ('flujo', _('Flujo de cambios'), 'branch'),
-               ('notificaciones', _('Notificaciones'), 'bell'), ('eox', _('Fin de vida (Cisco EoX)'), 'clock'), ('nvd', _('Vulnerabilidades (NVD)'), 'bug'), ('mapa', _('Mapa de la red'), 'globe'),
+               ('notificaciones', _('Notificaciones'), 'bell'), ('eox', _('Fin de vida (Cisco EoX)'), 'clock'), ('nvd', _('Vulnerabilidades (NVD)'), 'bug'), ('mapa', _('Mapa de la red'), 'globe'), ('git', _('Copia en Git'), 'branch'),
                ('recuperacion', _('Recuperación ante desastres'), 'db'),
                ('actualizaciones', _('Actualizaciones'), 'refresh')] %}
 {% macro F(label, id, help='') %}<div class="field"><label for="{{ id }}">{{ label }}</label>{{ caller() }}{% if help %}<span class="help">{{ help }}</span>{% endif %}</div>{% endmacro %}
@@ -97,6 +97,18 @@
   <section class="card" id="mapa" data-secp><div class="card-h"><h2>{{ _('Mapa de la red') }}</h2></div><div class="stack">
     <label class="swrow"><span><b>{{ _('Leer los vecinos LLDP/CDP en cada respaldo') }}</b><div class="muted sm">{{ _('Una o dos órdenes de solo lectura más por equipo (por ejemplo «show cdp neighbors detail»). Con ellas se dibuja el Mapa de la red.') }}</div></span><input type="checkbox" class="sw" name="topology_enabled" {{ 'checked' if s.topology_enabled == '1' }}></label>
   </div></section>
+  <section class="card" id="git" data-secp><div class="card-h"><h2>{{ _('Copia en Git') }}</h2></div><div class="stack">
+    <p class="muted sm">{{ _('Cada versión nueva de una configuración se sube como un commit a un repositorio Git (GitHub, GitLab, Gitea…): un archivo por equipo en una carpeta por grupo. Use un repositorio privado.') }}</p>
+    <label class="swrow"><span><b>{{ _('Subir cada versión nueva a Git') }}</b></span><input type="checkbox" class="sw" name="git_enabled" {{ 'checked' if s.git_enabled == '1' }}></label>
+    {% call F(_('Repositorio'), 's-git-url', _('HTTPS (https://github.com/empresa/configs.git) con un token, o SSH (git@…) con la clave SSH del usuario del servicio en el servidor.')) %}<div class="input mono"><input id="s-git-url" name="git_url" value="{{ s.git_url }}" placeholder="https://github.com/empresa/configs.git" spellcheck="false"></div>{% endcall %}
+    <div class="f3">
+      {% call F(_('Rama'), 's-git-br') %}<div class="input mono"><input id="s-git-br" name="git_branch" value="{{ s.git_branch or 'main' }}" spellcheck="false"></div>{% endcall %}
+      {% call F(_('Usuario (HTTPS)'), 's-git-user') %}<div class="input"><input id="s-git-user" name="git_user" value="{{ s.git_user }}" autocomplete="off"></div>{% endcall %}
+      {% call F(_('Token (HTTPS)'), 's-git-tok', _('Se guarda cifrado. Déjelo vacío para no cambiarlo.')) %}<div class="input mono"><input id="s-git-tok" name="git_token" type="password" autocomplete="new-password" {% if s.git_token_set %}placeholder="{{ _('•••••••• (guardada)') }}"{% endif %}></div>{% endcall %}
+    </div>
+    <label class="swrow"><span><b>{{ _('Ocultar contraseñas y claves') }}</b><div class="muted sm">{{ _('Sustituye por «<oculto>» los secretos, contraseñas, comunidades SNMP y claves que reconoce. Revise el repositorio: no se garantiza para todas las plataformas.') }}</div></span><input type="checkbox" class="sw" name="git_mask" {{ 'checked' if s.git_mask == '1' }}></label>
+    <div class="row"><span class="muted sm grow">{{ _('Guarde los ajustes antes de probar.') }}</span><button type="submit" class="btn s" form="git-exp">{{ icon('refresh', 's') }}{{ _('Probar y subir todo ahora') }}</button></div>
+  </div></section>
   <section class="card" id="nvd" data-secp><div class="card-h"><h2>{{ _('Vulnerabilidades (NVD)') }}</h2></div><div class="stack">
     <p class="muted sm">{{ _('Opcional. Sin clave, NVD permite unas 5 consultas cada 30 segundos; con una clave gratuita, unas 50, así que la búsqueda de CVE y de versiones de firmware es mucho más rápida.') }} <a href="https://nvd.nist.gov/developers/request-an-api-key" target="_blank" rel="noopener">{{ _('Pedir una clave en nvd.nist.gov') }}</a></p>
     {% call F(_('Clave de la API de NVD'), 's-nvd', _('Se guarda cifrada. Déjala vacía para no cambiarla.')) %}<div class="input mono" style="max-width:420px"><input id="s-nvd" name="nvd_api_key" type="password" autocomplete="new-password" spellcheck="false" {% if s.nvd_api_key_set %}placeholder="{{ _('•••••••• (guardada)') }}"{% endif %}></div>{% endcall %}
@@ -141,4 +153,5 @@
   show(location.hash.slice(1));
 })();
 </script>
+<form id="git-exp" method="post" action="/settings/git-export" hidden></form>
 {% endblock %}

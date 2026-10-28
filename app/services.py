@@ -455,6 +455,12 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
             if dev.auto_rollback and trigger in ("syslog", "scheduled") and not in_maintenance:
                 # se ejecuta en otro hilo: este todavía tiene el lock del dispositivo
                 jobs.submit(_auto_rollback, dev.id, dev.name, dev.device_type, dev.host, running, prev_text)
+        if result in ("changed", "first"):  # copia en Git (si está activada en Ajustes)
+            from . import gitexport
+            who = f" por {username}" if username else ""
+            msg = (f"{dev.name}: +{added}/-{removed} líneas [{trigger}{who}]" if result == "changed"
+                   else f"{dev.name}: primer respaldo [{trigger}{who}]")
+            jobs.submit(gitexport.on_new_version, dev.id, msg)
 
     run_compliance(device_id)
     return result
