@@ -3,7 +3,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-from app.topology import MARK, norm_name, parse, short_port  # noqa: E402
+from app.topology import MARK, family, is_wireless, network_view, norm_name, parse, short_port  # noqa: E402
 
 fails = []
 
@@ -79,20 +79,38 @@ by7 = {x["remote_name"]: x for x in m7}
 check("MikroTik 7: nombre con espacios entero y puerto sin «bridge1/»",
       by7.get("SW-C-Los Llanos", {}).get("remote_port") == "sfp-sfpplus3" and by7["SW-C-Los Llanos"]["remote_ip"] == "10.0.0.30", m7)
 check("MikroTik 7: en un puerto con varios vecinos solo cuenta el de LLDP (los de MNDP/CDP son del segmento)",
-      "R-Negocios" not in by7 and "JONATHAN" not in by7, m7)
+      "R-Negocios" not in by7, m7)
 check("MikroTik 7: vecino único por su puerto se queda aunque sea por MNDP; IPv6 local no se usa como IP",
       by7.get("R-PP El Seibo", {}).get("remote_ip") == "" and by7["R-PP El Seibo"]["remote_port"] == "ether1"
       and by7["R-PP El Seibo"]["local_port"] == "ether5", m7)
 
-# equipos de usuario: un CPE (LiteBeam) visto por su radio no es un enlace; un enlace de radio entre dos equipos de red sí
+ENYE = " 0 interface=sfp-sfpplus8 identity=Caba\\F1as Skymar interface-name=sfp1\n 1 interface=sfp-sfpplus9 identity=\"Pe\\C3\\B1a Gold\" interface-name=sfp1\n"
+check("MikroTik: «ñ» escrita como \\F1 (Windows-1252) o \\C3\\B1 (UTF-8)",
+      [x["remote_name"] for x in parse(MARK + "/ip neighbor print detail terse without-paging\n" + ENYE, "mikrotik_routeros")]
+      == ["Cabañas Skymar", "Peña Gold"])
+
+# inalámbrico: por ether5 un punto de acceso (por su cable) con dos CPE detrás (por su radio); por ether6 un solo equipo
+# visto por su radio, el otro extremo de un PtP; y un radioenlace wlan1↔wlan1
 MTC = """ 0 interface=ether5 address=192.168.20.11 identity=JONATHAN platform=LiteBeam interface-name=ath0 discovered-by=cdp
- 1 interface=ether6 address=192.168.20.48 identity=Ascania platform=LiteBeam interface-name=ath0.2000 discovered-by=mndp
- 2 interface=wlan1 address=10.0.0.40 identity=PtP-Remoto platform=MikroTik interface-name=wlan1 discovered-by=mndp
- 3 interface=ether7 address=10.0.0.41 identity=AP-Torre platform=Rocket interface-name=eth0 discovered-by=cdp
+ 1 interface=ether5 address=192.168.20.48 identity=Ascania platform=LiteBeam interface-name=ath0.2000 discovered-by=mndp
+ 2 interface=ether5 address=10.0.0.41 identity=AP-Torre platform=Rocket interface-name=eth0 discovered-by=cdp,lldp
+ 3 interface=ether6 address=10.0.0.42 identity=PtP-Lejos platform=PowerBeam interface-name=ath0 discovered-by=cdp
+ 4 interface=wlan1 address=10.0.0.40 identity=PtP-Remoto platform=MikroTik interface-name=wlan1 discovered-by=mndp
 """
-mc = {x["remote_name"] for x in parse(MARK + "/ip neighbor print detail terse without-paging\n" + MTC, "mikrotik_routeros")}
-check("equipos de usuario fuera del mapa: CPE vistos por su radio no; radioenlace entre equipos y AP por cable sí",
-      mc == {"PtP-Remoto", "AP-Torre"}, mc)
+kept, clients = network_view(parse(MARK + "/ip neighbor print detail terse without-paging\n" + MTC, "mikrotik_routeros"))
+mc = {x["remote_name"] for x in kept}
+check("inalámbrico: los CPE de un punto de acceso fuera; el punto de acceso, el PtP y el radioenlace se quedan",
+      mc == {"AP-Torre", "PtP-Lejos", "PtP-Remoto"} and clients == 2, (mc, clients))
+check("inalámbrico: línea de radio si un extremo es ath/wlan, de cable si no",
+      is_wireless("ether6", "ath0") and is_wireless("wlan1", "wlan1") and not is_wireless("ether5", "eth0"))
+
+fam = {k: family(v) for k, v in {
+    "mt": {"platform": "MikroTik CRS326-24G-2S+"}, "mt-port": {"remote_port": "sfp-sfpplus1"},
+    "ubnt": {"platform": "EdgeSwitch 16-Port 150W"}, "airos": {"platform": "PowerBeam 5AC"},
+    "jn": {"platform": "Juniper Networks, Inc. ex4300-48t Ethernet Switch, kernel JUNOS 21.4R3"}, "jn-port": {"remote_port": "xe-0/0/1"},
+    "cisco": {"platform": "cisco WS-C2960X-48FPD-L"}, "gwn": {"platform": "", "remote_port": "eth0"}}.items()}
+check("tipo de equipo por plataforma o por puertos", fam == {"mt": "mikrotik", "mt-port": "mikrotik", "ubnt": "ubiquiti",
+      "airos": "ubiquiti", "jn": "juniper", "jn-port": "juniper", "cisco": "cisco", "gwn": "other"}, fam)
 
 HW = """Local Intf       Neighbor Dev             Neighbor Intf             Exptime(s)
 GE0/0/1          SW-Core                  GE0/0/24                  101

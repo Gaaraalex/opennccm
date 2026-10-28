@@ -77,6 +77,17 @@ def _lldp_detail(text: str) -> list[dict]:
     return out
 
 
+def _ros_text(v: str) -> str:
+    """RouterOS escribe los caracteres no ASCII como bytes «\\XX» («Caba\\F1as»): en UTF-8 si lo son, si no en Windows-1252."""
+    def dec(m):
+        raw = bytes(int(h, 16) for h in re.findall(r"\\([0-9A-Fa-f]{2})", m.group(0)))
+        try:
+            return raw.decode("utf-8")
+        except UnicodeDecodeError:
+            return raw.decode("cp1252", "replace")
+    return re.sub(r"(?:\\[0-9A-Fa-f]{2})+", dec, v)
+
+
 def _mikrotik(text: str) -> list[dict]:
     out, by = [], []
     for raw in re.split(r"(?m)^\s*\d+\s+", text):
@@ -88,14 +99,16 @@ def _mikrotik(text: str) -> list[dict]:
         # RouterOS 7 anuncia por LLDP el puerto como «bridge1/ether1»: el puerto es el de después de la barra
         port = re.sub(r"^[A-Za-z][\w.-]*/(?=[A-Za-z])", "", _clean(kv.get("interface-name")))
         ip = next((v for v in (_clean(kv.get("address4")), _clean(kv.get("address"))) if re.fullmatch(r"[\d.]+", v)), "")
-        out.append({"local_port": local, "remote_name": _clean(kv.get("identity") or kv.get("system-description")),
+        out.append({"local_port": local, "remote_name": _ros_text(_clean(kv.get("identity") or kv.get("system-description"))),
                     "remote_port": port, "remote_ip": ip,
-                    "platform": _clean(" ".join(x for x in (kv.get("platform"), kv.get("board")) if x))})
+                    "platform": _clean(" ".join(x for x in (kv.get("platform"), kv.get("board")) if x)
+                                       or kv.get("system-description"))[:80]})
         by.append(_clean(kv.get("discovered-by")) if "discovered-by" in kv else None)
     # MNDP y CDP atraviesan los bridges y switches: por un puerto llegan todos los MikroTik del mismo segmento, no solo el
     # de enfrente. LLDP no se reenvía, así que en un puerto con varios vecinos solo cuentan los vistos por LLDP.
-    many = {p for p in {n["local_port"] for n in out} if sum(n["local_port"] == p for n in out) > 1}
-    return [n for n, d in zip(out, by) if d is None or n["local_port"] not in many or "lldp" in d]
+    wired = [n for n in out if not is_air(n)]
+    many = {p for p in {n["local_port"] for n in wired} if sum(n["local_port"] == p for n in wired) > 1}
+    return [n for n, d in zip(out, by) if d is None or is_air(n) or n["local_port"] not in many or "lldp" in d]
 
 
 def _table(text: str, cols: dict[str, int], header: str) -> list[dict]:
@@ -136,7 +149,7 @@ def parse(text: str, device_type: str) -> list[dict]:
             found += _lldp_detail(out)
     uniq, keys = [], set()
     for n in found:
-        if not (n["remote_name"] or n["remote_ip"]) or is_client(n):
+        if not (n["remote_name"] or n["remote_ip"]):
             continue
         k = (short_port(n["local_port"]), norm_name(n["remote_name"]) or n["remote_ip"])
         if k not in keys:
@@ -148,11 +161,56 @@ def parse(text: str, device_type: str) -> list[dict]:
 WIRELESS = re.compile(r"(?i)^(?:ath|wlan|wifi|wlp|radio)\d")
 
 
-def is_client(n: dict) -> bool:
-    """Equipo de usuario: el vecino nos ve por su radio (CPE como LiteBeam o NanoStation, o un MikroTik cliente) y no
-    por un cable. No es un enlace de la red: está detrás de un punto de acceso. Si el puerto local también es de radio,
-    es un enlace inalámbrico entre dos equipos de red y sí cuenta."""
+def is_air(n: dict) -> bool:
+    """El vecino nos ve por su radio y nosotros a él por un cable: está detrás de una antena (el otro extremo de un PtP o
+    un CPE). Si el puerto local también es de radio, es un enlace inalámbrico directo y no cuenta aquí."""
     return bool(WIRELESS.match(n.get("remote_port") or "")) and not WIRELESS.match(n.get("local_port") or "")
+
+
+def is_wireless(pa: str, pb: str) -> bool:
+    """Enlace inalámbrico: uno de los dos extremos es una radio (ath0, wlan1…)."""
+    return bool(WIRELESS.match(pa or "") or WIRELESS.match(pb or ""))
+
+
+def network_view(nbrs: list[dict]) -> tuple[list[dict], int]:
+    """Vecinos que se dibujan y cuántos equipos de usuario se quitan. Por un mismo puerto cableado, uno solo visto por su
+    radio es el otro extremo de un PtP (o la estación) y queda como enlace inalámbrico; varios son los CPE de los clientes
+    de un punto de acceso y no se dibujan (el punto de acceso, visto por su cable, sí)."""
+    air: dict[str, int] = {}
+    for n in nbrs:
+        if is_air(n):
+            air[short_port(n.get("local_port") or "")] = air.get(short_port(n.get("local_port") or ""), 0) + 1
+    kept = [n for n in nbrs if not is_air(n) or air[short_port(n.get("local_port") or "")] == 1]
+    return kept, len(nbrs) - len(kept)
+
+
+# tipos de equipo para el filtro del mapa (Ajustes › Mapa de la red): por lo que anuncia el vecino (plataforma, modelo,
+# descripción) y, si no dice nada, por el nombre de sus puertos
+FAMILIES = [("mikrotik", "MikroTik"), ("ubiquiti", "Ubiquiti"), ("juniper", "Juniper"), ("cisco", "Cisco"),
+            ("huawei", "Huawei"), ("aruba", "HP / Aruba"), ("extreme", "Extreme"), ("other", "Otros y desconocidos")]
+_FAM = [
+    ("mikrotik", r"mikrotik|routeros|\b(?:ccr|crs|css|rb|chr)\d|\bhex\b|\bhap\b",
+     r"^(?:ether|sfp-sfpplus|sfp28-|qsfp28-|qsfpplus|combo|wlan|wifi)\d"),
+    ("ubiquiti", r"ubiquiti|ubnt|edge ?(?:switch|router|point)|unifi|\busw|air ?os|airmax|airfiber|\baf-?\d|litebeam|"
+                 r"nanostation|nanobeam|powerbeam|rocket|prism|\bltu|\bloco|bullet|isostation", r"^ath\d"),
+    ("juniper", r"juniper|junos|\b(?:srx|qfx|ex\d{4}|mx\d+)", r"^(?:ge|xe|et|mge)-\d+/\d+/\d+|^(?:me|em|fxp)\d$"),
+    ("cisco", r"cisco|catalyst|nx-os|\bios\b|ws-c|air-ap", r"^(?:gigabitethernet|tengigabitethernet|fastethernet|gi|te|fa)\d"),
+    ("huawei", r"huawei|\bvrp\b", r"^(?:xge|ge|gigabitethernet)\d+/\d+/\d+"),
+    ("aruba", r"aruba|procurve|hewlett|\bhpe?\b", ""),
+    ("extreme", r"extreme|exos|\bvoss\b|fabric engine", ""),
+]
+
+
+def family(n: dict) -> str:
+    """Tipo de equipo de un vecino (clave de FAMILIES)."""
+    plat = (n.get("platform") or "").lower()
+    for fam, by_plat, _ in _FAM:
+        if re.search(by_plat, plat):
+            return fam
+    for fam, _, by_port in _FAM:
+        if by_port and re.search(by_port, n.get("remote_port") or "", re.I):
+            return fam
+    return "other"
 
 
 def norm_name(name: str) -> str:

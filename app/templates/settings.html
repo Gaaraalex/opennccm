@@ -96,6 +96,10 @@
 
   <section class="card" id="mapa" data-secp><div class="card-h"><h2>{{ _('Mapa de la red') }}</h2></div><div class="stack">
     <label class="swrow"><span><b>{{ _('Leer los vecinos LLDP/CDP en cada respaldo') }}</b><div class="muted sm">{{ _('Una o dos órdenes de solo lectura más por equipo (por ejemplo «show cdp neighbors detail»). Con ellas se dibuja el Mapa de la red.') }}</div></span><input type="checkbox" class="sw" name="topology_enabled" {{ 'checked' if s.topology_enabled == '1' }}></label>
+    <div class="field"><span class="fl">{{ _('Equipos descubiertos que salen en el mapa') }}</span>
+      <input type="hidden" name="topology_types_form" value="1">
+      <div class="cklist">{% for f, label in families %}<label class="ck"><input type="checkbox" name="topology_types" value="{{ f }}" {{ 'checked' if not s.topology_types or f in s.topology_types.split(',') }}> {{ _(label) }}</label>{% endfor %}</div>
+      <div class="muted sm">{{ _('Los equipos que ya están en OpenNCCM salen siempre. El tipo se reconoce por lo que anuncia el vecino (plataforma, modelo) o por el nombre de sus puertos.') }}</div></div>
   </div></section>
   <section class="card" id="git" data-secp><div class="card-h"><h2>{{ _('Copia en Git') }}</h2></div><div class="stack">
     <p class="muted sm">{{ _('Cada versión nueva de una configuración se sube como un commit a un repositorio Git (GitHub, GitLab, Gitea…): un archivo por equipo en una carpeta por grupo. Use un repositorio privado.') }}</p>
