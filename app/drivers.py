@@ -156,7 +156,7 @@ PROFILES: list[Profile] = [
             family=MERGE, save=False, version_re=[r"Version\s+(\S+)"]),
     # ---------------- Otros switches/routers ----------------
     Profile("mikrotik_routeros", "MikroTik RouterOS", "MikroTik", "/export terse", None,
-            inventory="/system resource print", family=MERGE, save=False,
+            inventory="/system resource print", family=MERGE, save=False, firmware={"method": "routeros"},
             ignore=[r"^# \w{3}/\d{2}/\d{4} \d", r"^# \d{4}-\d{2}-\d{2} \d", r"^# software id"],
             cpe="cpe:2.3:o:mikrotik:routeros",
             version_re=[r"version: ([\d.]+)"], model_re=[r"board-name: (.+)"]),
@@ -199,7 +199,7 @@ PROFILES: list[Profile] = [
     Profile("vyos", "VyOS", "VyOS", "show configuration commands", None, family=SET, commit=True,
             save=True, version_re=[r"Version:\s+VyOS (\S+)"]),
     Profile("ubiquiti_edgerouter", "Ubiquiti EdgeRouter", "Ubiquiti", "show configuration commands", None,
-            family=SET, commit=True, version_re=[r"Version:\s+v(\S+)"],
+            family=SET, commit=True, firmware={"method": "edgeos"}, version_re=[r"Version:\s+v(\S+)"],
             cpe=("cpe:2.3:o:ui:edgeos", "cpe:2.3:o:ui:edgemax_edgerouter_firmware"), cpe_version=SEMVER3),
     Profile("ubiquiti_edgeswitch", "Ubiquiti EdgeSwitch", "Ubiquiti", "show running-config", None,
             family=FASTPATH, ignore=CISCO_IGNORE + FASTPATH_IGNORE, version_re=FASTPATH_VERSION,
@@ -209,14 +209,14 @@ PROFILES: list[Profile] = [
     # su configuración en /tmp/system.cfg (líneas «clave=valor»). La versión y el modelo salen de /etc/version y
     # /etc/board.info (airOS) o de la orden «info» (UniFi).
     Profile("ubiquiti_airos", "Ubiquiti airMAX M / AC (airOS)", "Ubiquiti", "cat /tmp/system.cfg", None,
-            inventory="cat /etc/version; cat /etc/board.info", family=MERGE, save=False,
+            inventory="cat /etc/version; cat /etc/board.info", family=MERGE, save=False, firmware={"method": "airos"},
             version_re=[r"^[A-Z0-9]+\.v(\d+\.\d+\.\d+)"], model_re=[r"^board\.name=(.+?)\s*$"],
             cpe=("cpe:2.3:o:ui:airos", "cpe:2.3:o:ubnt:airos"), cpe_version=SEMVER3,
             note="airMAX M (M2, M5: NanoStation, Rocket, NanoBeam, PowerBeam, LiteBeam M con airOS 6) y airMAX AC "
                  "(airOS 8). Para restaurar una versión: airOS › System › Configuration Management › Upload "
                  "Configuration, con el archivo descargado de OpenNCCM."),
     Profile("ubiquiti_airfiber", "Ubiquiti airFiber (AF5XHD, AF60, AF24HD, AF5X)", "Ubiquiti", "cat /tmp/system.cfg",
-            None, inventory="cat /etc/version; cat /etc/board.info", family=MERGE, save=False,
+            None, inventory="cat /etc/version; cat /etc/board.info", family=MERGE, save=False, firmware={"method": "airos"},
             version_re=[r"^[A-Z0-9]+\.v(\d+\.\d+\.\d+)"], model_re=[r"^board\.name=(.+?)\s*$"],
             note="Comando tomado de la documentación del fabricante, sin verificar en hardware. Los airFiber antiguos "
                  "(AF24, AF5 sin X) tienen otra interfaz de comandos: use un comando de respaldo personalizado."),

@@ -241,6 +241,12 @@ def handle(line, mode, ctx):
             return "\n".join(STARTUP)
         if s == "show version":
             return VERSION
+        if s == "show cdp neighbors detail":  # mapa de la red: un vecino que no está en OpenNCCM
+            return ("-------------------------\nDevice ID: SW-Vecino.empresa.local\nEntry address(es):\n"
+                    "  IP address: 192.0.2.77\nPlatform: cisco WS-C2960X-48FPD-L,  Capabilities: Switch IGMP\n"
+                    "Interface: GigabitEthernet0/1,  Port ID (outgoing port): GigabitEthernet1/0/48\n")
+        if s == "show lldp neighbors detail":
+            return "% LLDP is not enabled"
         if s in ("configure terminal", "conf t"):
             mode[0] = "config"
             return "Enter configuration commands, one per line.  End with CNTL/Z."
@@ -566,6 +572,13 @@ def shell_handle(s, st, kind):
         return AIROS_CFG
     if kind == "airos" and s == "cat /etc/version; cat /etc/board.info":
         return AIROS_INVENTORY
+    if kind == "airos" and s == "ls -l /tmp/fwupdate.bin":  # imagen copiada por SCP (actualización de firmware)
+        data = FILES.get("/tmp/fwupdate.bin")
+        return (f"-rw-r--r--    1 ubnt     admin    {len(data)} Oct 27 12:00 /tmp/fwupdate.bin" if data is not None
+                else "ls: /tmp/fwupdate.bin: No such file or directory")
+    if kind == "airos" and s == "fwupdate -m":
+        FILES["grabado"] = FILES.get("/tmp/fwupdate.bin", b"")
+        return "Writing 'kernel' to /dev/mtd2(kernel) ... [%100]\nDone, rebooting..."
     return f"sh: {s.split()[0]}: not found"
 
 

@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.9.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 2.10.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -581,7 +581,15 @@ Además descarga (como mucho una vez al día) el catálogo <b>KEV</b> de CISA y 
   <tr><td>Cisco ASA</td><td><code>disk0:</code></td><td><code>boot system disk0:/IMAGEN</code></td></tr>
   <tr><td>Arista EOS</td><td><code>flash:</code></td><td><code>boot system flash:IMAGEN</code></td></tr>
   <tr><td>Juniper Junos</td><td><code>/var/tmp</code></td><td><code>request system software add … no-validate</code></td></tr>
+  <tr><td>MikroTik RouterOS</td><td>raíz del router (SFTP, tamaño comprobado)</td><td>Se instala solo al reiniciar (<code>/system reboot</code>)</td></tr>
+  <tr><td>Ubiquiti airMAX (airOS) y airFiber</td><td><code>/tmp/fwupdate.bin</code> (SCP, tamaño comprobado)</td><td><code>fwupdate -m</code> graba y reinicia (método de Ubiquiti)</td></tr>
+  <tr><td>Ubiquiti EdgeRouter</td><td><code>/tmp</code> (SCP)</td><td><code>add system image …</code> y <code>reboot</code></td></tr>
 </table>
+<p>En MikroTik, airOS, airFiber y EdgeRouter, OpenNCCM <b>respalda el equipo antes</b> de tocar el firmware y no sigue si el respaldo
+falla. MikroTik también se puede actualizar <b>en línea</b>, sin cargar el paquete: <b>MikroTik: actualizar desde MikroTik</b> elige el
+canal (stable o long-term) y el router lo descarga de MikroTik (<code>/system package update</code>); si ya tiene la última versión no
+hace nada, y sin «Instalar y reiniciar» solo lo descarga para el próximo reinicio. Probado en RouterOS reales en la CI (7.23.8 → 7.25
+con el paquete, y en línea). Los AP, switches y USG de UniFi actualizan el firmware desde el controlador UniFi Network.</p>
 <h2>Cómo usarlo</h2>
 <ol class="steps">
   <li>(admin) <b>Firmware y ciclo de vida → Imágenes → Cargar imagen</b>: arrastre el archivo, indique la versión y para qué
@@ -715,6 +723,23 @@ y cómo está el cumplimiento y el ciclo de vida.</p>
 </ul>
 <p>Al pasar el cursor sobre una barra o celda aparece su valor exacto. Los nombres de equipos y políticas son enlaces.</p>
 <figure><img src="img/22-analisis.png" class="tall"><figcaption>Página de Análisis.</figcaption></figure>
+<h2>IP y VLAN</h2>
+<p><b>IP y VLAN</b> (menú lateral) reúne las direcciones IP y las VLAN configuradas en todos los equipos, leídas de su última
+configuración guardada (no se ejecuta nada en los equipos). Reconoce Cisco y similares, Huawei, EdgeSwitch, VOSS, FortiGate, Junos,
+VyOS/EdgeRouter, MikroTik, EXOS y airOS; solo IPv4. Avisa de las <b>IP configuradas en más de un sitio</b> (en dos equipos o dos
+interfaces) y de las <b>VLAN con nombres distintos</b> según el equipo. Se puede filtrar por grupo o texto y exportar a CSV.</p>
+<h2>Mapa de la red</h2>
+<p><b>Mapa de la red</b> (menú lateral) dibuja los equipos y los enlaces entre ellos, con el puerto de cada extremo. Los enlaces salen de
+los vecinos <b>LLDP o CDP</b> que cada equipo anuncia, leídos en cada respaldo con una orden de solo lectura (por ejemplo
+<code>show cdp neighbors detail</code> en Cisco o <code>/ip neighbor print</code> en MikroTik). Lo admiten Cisco, Arista, Juniper, Huawei,
+HP/Aruba, Dell, Ruckus, Allied, MikroTik, EdgeSwitch, UniFi Switch y EXOS, si tienen LLDP o CDP activado.</p>
+<ul>
+  <li>Los equipos se colorean según su último respaldo. Los <b>vecinos que no están en OpenNCCM</b> llevan borde discontinuo: al
+  pulsarlos, <b>Agregar a OpenNCCM</b> abre el alta con su nombre e IP.</li>
+  <li>Un vecino se reconoce como equipo de OpenNCCM por su nombre (sin dominio) o, si no, por su IP de gestión.</li>
+  <li>Se puede filtrar por grupo, buscar, arrastrar los equipos y hacer zoom con la rueda. Debajo, la lista de enlaces.</li>
+  <li>Se desactiva en <b>Ajustes › Mapa de la red</b> (entonces los respaldos no leen vecinos).</li>
+</ul>
 </section>
 
 <section class="chapter">
@@ -877,6 +902,14 @@ descargar, eliminar y <b>Restaurar…</b> (explica el comando de consola que la 
 <p class="small">El servicio no tiene privilegios de administrador: el instalador le concede, mediante una regla de polkit, permiso
 <b>solo</b> para estas tres acciones. Cada cambio queda en Auditoría.</p>
 <figure><img src="img/28-sistema.png"><figcaption>Sistema.</figcaption></figure>
+<h2>Copia en Git</h2>
+<p>Con <b>Subir cada versión nueva a Git</b>, cada respaldo con cambios se sube como un commit a un repositorio Git (GitHub, GitLab,
+Gitea…), con un mensaje como «R1: +3/-1 líneas [scheduled]». Cada equipo es un archivo <code>&lt;grupo&gt;/&lt;equipo&gt;.cfg</code>
+con su última configuración. El repositorio se indica por HTTPS con usuario y <b>token</b> (se guarda cifrado y nunca se escribe en
+la URL ni en el disco) o por SSH con la clave del usuario del servicio. <b>Ocultar contraseñas y claves</b> (activado por omisión)
+sustituye por <code>&lt;oculto&gt;</code> los secretos, contraseñas, comunidades SNMP y claves que reconoce; aun así, use un
+repositorio privado. <b>Probar y subir todo ahora</b> exporta todos los equipos de una vez. Si la subida falla, se registra una alarma
+«Copia en Git fallida» y el respaldo no se ve afectado.</p>
 <h2>Apoya OpenNCCM</h2>
 <p>OpenNCCM es software libre y gratis. Los administradores ven en la barra superior el botón <b>Apoya OpenNCCM</b>, y las
 páginas Sistema y Acerca de muestran una tarjeta con las formas de donar (GitHub Sponsors y Ko-fi). Tras actualizar a una versión
@@ -889,7 +922,8 @@ se pulsan, en una pestaña nueva, y no se envía ningún dato del servidor.</p>
 <section class="chapter">
 <h1>25. Ajustes</h1>
 <p>Los ajustes están en <b>Administración → Ajustes</b>, separados en secciones que se eligen a la izquierda: Seguridad y acceso,
-Organización, Flujo de cambios, Notificaciones, Fin de vida (Cisco EoX), Recuperación ante desastres y Actualizaciones. Al modificar
+Organización, Flujo de cambios, Notificaciones, Fin de vida (Cisco EoX), Vulnerabilidades (NVD), Mapa de la red, Copia en Git,
+Recuperación ante desastres y Actualizaciones. Al modificar
 cualquier campo aparece abajo la barra <b>Tienes cambios sin guardar</b> con <b>Descartar</b> y <b>Guardar ajustes</b>; si intenta
 salir de la página sin guardar, el navegador lo advierte.</p>
 <h2>Seguridad y acceso</h2>
@@ -994,8 +1028,21 @@ abre la barra lateral completa) y los indicadores se muestran en dos columnas. S
 <p>No requiere instalar ninguna app: basta con abrir la dirección del servidor en el navegador del teléfono (dentro de la VPN o la red
 de gestión).</p>
 <h2>API JSON</h2>
-<p><code>GET /api/devices</code> devuelve el inventario (nombre, IP, tipo, modelo, serie, versión, estado y último respaldo) para la
-sesión iniciada, respetando la restricción por grupos.</p>
+<p>Para scripts y otras herramientas, cada usuario crea sus <b>tokens de API</b> en <b>Mi cuenta › Tokens de API</b> (con nombre y
+caducidad opcional de 30, 90 o 365 días). El token se muestra <b>una sola vez</b>; OpenNCCM solo guarda su huella, así que si se
+pierde hay que crear otro. Se envía en la cabecera <code>Authorization: Bearer ncm_…</code>, actúa con los permisos y los grupos de
+su dueño, solo sirve para <code>/api/…</code> (no para la interfaz web) y se puede revocar en cualquier momento.</p>
+<table>
+  <tr><th>Petición</th><th>Qué hace</th><th>Rol</th></tr>
+  <tr><td><code>GET /api/devices</code></td><td>Inventario: nombre, IP, tipo, modelo, serie, versión, estado y último respaldo.</td><td>Lector</td></tr>
+  <tr><td><code>GET /api/devices/{id}</code></td><td>Ficha del equipo (grupo, ubicación, notas, último error, línea base).</td><td>Lector</td></tr>
+  <tr><td><code>GET /api/devices/{id}/versions</code></td><td>Versiones guardadas (hasta 500), con origen y líneas cambiadas.</td><td>Lector</td></tr>
+  <tr><td><code>GET /api/devices/{id}/config[?version=N]</code></td><td>Configuración en texto: la última o la versión N.</td><td>Lector</td></tr>
+  <tr><td><code>POST /api/devices/{id}/backup</code></td><td>Respalda ahora; devuelve <code>first</code>, <code>changed</code>, <code>unchanged</code> o <code>error</code>.</td><td>Operador</td></tr>
+  <tr><td><code>POST /api/devices</code></td><td>Alta con JSON: <code>name</code>, <code>host</code>, <code>device_type</code> y opcionales <code>port</code>, <code>protocol</code>, <code>credential</code>, <code>group</code>, <code>location</code>, <code>notes</code>.</td><td>Administrador</td></tr>
+</table>
+<p>Sin token o con uno caducado se responde 401; sin permiso, 403. Las altas, respaldos y lecturas de configuración por la API quedan
+en Auditoría.</p>
 <p><code>GET /healthz</code> devuelve <code>{"status":"ok"}</code> para sistemas de monitoreo.</p>
 </div>
 <figure><img src="img/33-movil-panel.jpg" class="phone"><figcaption>Panel en un teléfono (tema oscuro).</figcaption></figure>

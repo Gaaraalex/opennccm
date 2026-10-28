@@ -34,3 +34,5 @@ export NCM_DATA_DIR=$WORK/data NCM_KEY_FILE=$WORK/data/secret.key PYTHONUNBUFFER
 mkdir -p "$NCM_DATA_DIR"
 cd "$ROOT"
 "$PY" tests/mikrotik_real.py $PORT "Clave-CHR-2026" "$VER" || { tail -n 40 "$WORK/console.log" || true; exit 1; }
+echo "== Firmware"
+"$PY" tests/mikrotik_fw.py $PORT "Clave-CHR-2026" "$VER" || { tail -n 40 "$WORK/console.log" || true; exit 1; }

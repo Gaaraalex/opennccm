@@ -21,7 +21,7 @@ trap cleanup EXIT
 for _ in $(seq 1 30); do curl -fsS http://127.0.0.1:8000/healthz >/dev/null 2>&1 && break; sleep 1; done
 
 status=0
-for t in e2e e2e_syslog e2e2 e2e_window e2e_users e2e_legacy e2e_enable e2e_edge e2e_sched e2e_panel e2e_console e2e_security e2e_oidc e2e_donate e2e_fwupdates e2e_examples e2e_remember e2e_nvdkey e2e_pager e2e_shells e2e_i18n unit_i18n unit_fastpath unit_inventory unit_vendors unit_contrast unit_syslog unit_extauth unit_nvd unit_packs unit_fwupdates unit_remember unit_volatile unit_donate unit_ubuntu_driver e2e_ux e2e_zabbix unit_rollback_vendor e2e_swos e2e_keymismatch; do
+for t in e2e e2e_syslog e2e2 e2e_window e2e_users e2e_legacy e2e_enable e2e_edge e2e_sched e2e_panel e2e_console e2e_security e2e_oidc e2e_donate e2e_fwupdates e2e_examples e2e_remember e2e_nvdkey e2e_pager e2e_shells e2e_i18n unit_i18n unit_fastpath unit_inventory unit_vendors unit_contrast unit_syslog unit_extauth unit_nvd unit_packs unit_fwupdates unit_remember unit_volatile unit_donate unit_ubuntu_driver e2e_ux e2e_zabbix unit_rollback_vendor e2e_swos e2e_keymismatch unit_topology e2e_topology unit_gitmask e2e_git unit_ipam e2e_ipam e2e_api e2e_fwvendor; do
   echo "=================== $t ==================="
   if ! "$PY" "tests/$t.py"; then status=1; fi
 done

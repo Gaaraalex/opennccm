@@ -45,6 +45,30 @@
         {% for k, t in [('len', _('Al menos 10 caracteres')), ('let', _('Letras')), ('num', _('Números')), ('eq', _('Las dos coinciden'))] %}<li data-r="{{ k }}">{{ icon('x', 's no') }}{{ icon('check', 's yes') }}{{ t }}</li>{% endfor %}</ul></div>
         <p class="muted sm" style="margin-top:12px">Al cambiarla se cierran tus sesiones abiertas en otros equipos. Si la olvidas, un administrador puede cambiarla en Usuarios, o desde la consola del servidor con <code>sudo opennccm reset-password USUARIO 'CLAVE'</code>.</p></div>
     </form></section>{% endif %}
+  <section class="card c12" id="api"><div class="card-h"><h2>{{ _('Tokens de API') }}</h2><span class="muted sm">{{ _('Para scripts y otras herramientas: actúan con tus permisos y tus grupos') }}</span></div>
+    {% if new_token %}<div class="banner info" role="status" style="margin-bottom:12px">{{ icon('check') }}<span class="grow"><b>{{ _('Copia el token ahora: no se volverá a mostrar.') }}</b><br><code class="mono" id="newtok" style="user-select:all;word-break:break-all">{{ new_token }}</code></span><button type="button" class="btn s" data-copy="#newtok">{{ _('Copiar') }}</button></div>{% endif %}
+    <form method="post" action="/account/tokens" class="row" style="gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div class="field" style="flex:1;min-width:200px"><label for="tkn">{{ _('Nombre del token') }}</label><div class="input"><input id="tkn" name="name" maxlength="64" placeholder="{{ _('p. ej. script de inventario') }}" required></div></div>
+      <div class="field"><label for="tkd">{{ _('Caduca') }}</label><div class="input"><select id="tkd" name="days"><option value="0">{{ _('Nunca') }}</option><option value="30">{{ _('En 30 días') }}</option><option value="90" selected>{{ _('En 90 días') }}</option><option value="365">{{ _('En un año') }}</option></select></div></div>
+      <button class="btn pri">{{ icon('plus', 's') }}{{ _('Crear token') }}</button></form>
+    {% if tokens %}<div class="tw" style="margin-top:12px"><table class="t"><thead><tr><th>{{ _('Nombre') }}</th><th>{{ _('Token') }}</th><th>{{ _('Creado') }}</th><th>{{ _('Último uso') }}</th><th>{{ _('Caduca') }}</th><th></th></tr></thead><tbody>
+      {% for t in tokens %}<tr><td>{{ t.name }}</td><td class="mono">{{ t.prefix }}…</td><td>{{ t.created_at|ago }}</td><td>{{ t.last_used_at|ago if t.last_used_at else _('nunca') }}</td><td>{{ t.expires_at|dt if t.expires_at else _('nunca') }}</td>
+        <td><form method="post" action="/account/tokens/{{ t.id }}/delete" style="margin:0"><button class="btn s dz">{{ _('Revocar') }}</button></form></td></tr>{% endfor %}</tbody></table></div>{% endif %}
+    <details style="margin-top:12px"><summary class="sm">{{ _('Cómo usar la API') }}</summary>
+      <p class="sm muted">{{ _('Envía el token en la cabecera «Authorization: Bearer …». Respuestas en JSON (la configuración, en texto).') }}</p>
+      <pre class="cv" style="padding:10px 12px;white-space:pre-wrap">curl -H "Authorization: Bearer ncm_…" {{ base_url }}/api/devices
+curl -H "Authorization: Bearer ncm_…" {{ base_url }}/api/devices/1
+curl -H "Authorization: Bearer ncm_…" {{ base_url }}/api/devices/1/versions
+curl -H "Authorization: Bearer ncm_…" {{ base_url }}/api/devices/1/config
+curl -H "Authorization: Bearer ncm_…" -X POST {{ base_url }}/api/devices/1/backup
+curl -H "Authorization: Bearer ncm_…" -H "Content-Type: application/json" -X POST {{ base_url }}/api/devices \
+     -d '{"name": "SW-Nuevo", "host": "10.0.0.20", "device_type": "cisco_ios", "credential": "Switches", "group": "Core"}'</pre>
+      <p class="sm muted">{{ _('Crear equipos requiere ser administrador; respaldar, operador. Cada token solo ve los equipos de tus grupos y cada uso queda en Auditoría.') }}</p></details>
+  </section>
+  <script>document.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () => {
+    const t = document.querySelector(b.dataset.copy).textContent;
+    if (navigator.clipboard) navigator.clipboard.writeText(t).then(() => { b.textContent = {{ _('Copiado')|tojson }}; });
+  }));</script>
 </div>
 {% if user.totp_enabled %}<dialog class="dlg" id="tfa-off"><form method="post" action="/account/2fa/disable" class="stack">
   <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi warn">{{ icon('shield') }}</span><div><h2>Desactivar la verificación en dos pasos</h2><p class="muted" style="margin-top:6px">Confirma con tu contraseña y un código de la app.</p></div></div>

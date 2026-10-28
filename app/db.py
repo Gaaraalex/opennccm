@@ -30,6 +30,19 @@ class Base(DeclarativeBase):
     pass
 
 
+class ApiToken(Base):
+    """Token personal para la API (/api/…): actúa con los permisos y grupos de su dueño. Solo se guarda su hash."""
+    __tablename__ = "api_tokens"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(64))
+    prefix: Mapped[str] = mapped_column(String(16))  # primeros caracteres, para reconocerlo en la lista
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -100,6 +113,7 @@ class Device(Base):
     custom_backup_cmd: Mapped[str | None] = mapped_column(Text)   # sustituye al comando del perfil
     baseline_version_id: Mapped[int | None] = mapped_column(Integer)  # versión "línea base"
     baseline_drift: Mapped[bool] = mapped_column(Boolean, default=False)
+    neighbors: Mapped[str | None] = mapped_column(Text)  # JSON: vecinos LLDP/CDP del último respaldo (mapa de la red)
 
     credential = relationship("Credential")
     group = relationship("DeviceGroup")
@@ -300,7 +314,7 @@ class Setting(Base):
     value: Mapped[str | None] = mapped_column(Text)
 
 
-SECRET_SETTINGS = {"smtp_password", "cisco_api_secret", "dr_remote_password", "ldap_bind_password", "oidc_client_secret",
+SECRET_SETTINGS = {"git_token", "smtp_password", "cisco_api_secret", "dr_remote_password", "ldap_bind_password", "oidc_client_secret",
                    "nvd_api_key"}
 
 

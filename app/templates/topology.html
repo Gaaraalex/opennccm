@@ -1,0 +1,156 @@
+{% extends "base.html" %}{% block title %}{{ _('Mapa de la red') }}{% endblock %}
+{% block content %}
+{# Equipos (círculos) y enlaces LLDP/CDP con el puerto de cada extremo. Los vecinos que no están en OpenNCCM llevan borde
+   discontinuo y se pueden agregar. La posición se calcula en el navegador (fuerzas) y se puede arrastrar; rueda = zoom. #}
+<style>
+  .topo-wrap{position:relative;height:min(72vh,760px);border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);overflow:hidden;touch-action:none}
+  .topo-wrap svg{width:100%;height:100%;display:block;cursor:grab}.topo-wrap svg.drag{cursor:grabbing}
+  .topo-edge{stroke:var(--line-strong);stroke-width:1.6}.topo-edge.hl{stroke:var(--brand);stroke-width:2.4}
+  .topo-port{font:500 10px var(--f-mono);fill:var(--muted);pointer-events:none}
+  .topo-node circle{stroke-width:2;cursor:pointer}.topo-node text{font:600 12px var(--f-sans);fill:var(--ink);pointer-events:none}
+  .topo-node .sub{font:400 10.5px var(--f-mono);fill:var(--muted)}
+  .topo-node.ok circle{fill:var(--ok-soft);stroke:var(--ok)}.topo-node.error circle{fill:var(--crit-soft);stroke:var(--crit)}
+  .topo-node.pending circle{fill:var(--surface-2);stroke:var(--line-strong)}
+  .topo-node.new circle{fill:var(--surface);stroke:var(--brand);stroke-dasharray:4 3}
+  .topo-node.dim{opacity:.25}.topo-node.hit circle{stroke-width:4}
+  .topo-node .vend{font:700 9px var(--f-mono);fill:var(--ink-2)}
+  .topo-side{position:absolute;right:12px;top:12px;width:min(300px,calc(100% - 24px));background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh-pop);padding:14px}
+  .topo-legend{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+  .topo-legend i{display:inline-block;width:12px;height:12px;border-radius:50%;border:2px solid;vertical-align:-1px;margin-right:6px}
+</style>
+<div class="ph"><div class="grow"><h1>{{ _('Mapa de la red') }}</h1>
+  <div class="sub">{{ _('Enlaces que los equipos ven por LLDP o CDP, leídos en cada respaldo. Arrastre los equipos para ordenarlos; con la rueda, zoom.') }}</div></div>
+  <form method="get" class="row" style="gap:8px"><div class="input"><select name="group" onchange="this.form.submit()" aria-label="{{ _('Grupo') }}"><option value="0">{{ _('Todos los equipos') }}</option>{% for g in groups %}<option value="{{ g.id }}" {{ 'selected' if g.id == group }}>{{ _f('Grupo: {0}', g.name) }}</option>{% endfor %}</select></div></form></div>
+
+{% if not enabled %}<div class="banner warn">{{ icon('alert') }}<span class="grow">{{ _('La lectura de vecinos está desactivada en Ajustes › Mapa de la red.') }}</span></div>{% endif %}
+{% if nodes %}
+<div class="row topo-legend sm muted" style="margin-bottom:10px">
+  <span><i style="border-color:var(--ok);background:var(--ok-soft)"></i>{{ _('Respaldo correcto') }}</span>
+  <span><i style="border-color:var(--crit);background:var(--crit-soft)"></i>{{ _('Último respaldo con error') }}</span>
+  <span><i style="border-color:var(--brand);border-style:dashed"></i>{{ _('Vecino que no está en OpenNCCM') }}</span>
+  <span class="grow"></span><div class="input" style="max-width:260px"><input type="search" id="tq" placeholder="{{ _('Buscar en el mapa') }}" aria-label="{{ _('Buscar en el mapa') }}"></div>
+  <button type="button" class="btn s ghost" id="treset">{{ icon('refresh', 's') }}{{ _('Reordenar') }}</button></div>
+<div class="topo-wrap" id="topo"><svg id="tsvg" role="img" aria-label="{{ _f('Mapa de la red: {0} equipos y {1} enlaces', nodes|length, links|length) }}"><g id="tview"></g></svg>
+  <div class="topo-side" id="tside" hidden></div></div>
+<details style="margin-top:14px"><summary class="sm">{{ _f('Lista de enlaces ({0})', links|length) }}</summary>
+  <div class="tw"><table class="t"><thead><tr><th>{{ _('Equipo') }}</th><th>{{ _('Puerto') }}</th><th>{{ _('Vecino') }}</th><th>{{ _('Puerto') }}</th></tr></thead><tbody data-pager>
+  {% for e in links %}<tr><td>{{ labels[e.a] }}</td><td class="mono">{{ e.pa or '—' }}</td><td>{{ labels[e.b] }}</td><td class="mono">{{ e.pb or '—' }}</td></tr>{% endfor %}</tbody></table></div></details>
+{% else %}
+<section class="card"><div class="empty">{{ empty_art('search') }}<h2>{{ _('Aún no hay enlaces que mostrar') }}</h2>
+  <p>{{ _f('Los vecinos se leen en cada respaldo, en las plataformas que lo admiten (Cisco, Arista, Juniper, Huawei, HP/Aruba, Dell, MikroTik, EdgeSwitch, EXOS…), si tienen LLDP o CDP activado. Equipos con vecinos leídos: {0} de {1}.', with_data, total) }}</p></div></section>
+{% endif %}
+{% if alone %}<p class="muted sm" style="margin-top:12px">{{ _f('Sin enlaces conocidos: {0}', alone|map(attribute='label')|join(', ')) }}</p>{% endif %}
+
+<script>
+(function () {
+  const svg = document.getElementById('tsvg');
+  if (!svg) return;
+  const NODES = {{ nodes|tojson }}, LINKS = {{ links|tojson }}, ADMIN = {{ (user.role == 'admin')|tojson }};
+  const L = {{ {'open': _('Abrir el equipo'), 'add': _('Agregar a OpenNCCM'), 'notin': _('Vecino que no está en OpenNCCM'),
+                'links': _('Enlaces'), 'close': _('Cerrar')}|tojson }};
+  const view = document.getElementById('tview'), side = document.getElementById('tside'), NS = 'http://www.w3.org/2000/svg';
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  const byId = {}; NODES.forEach(n => { byId[n.id] = n; });
+  let W = svg.clientWidth || 900, H = svg.clientHeight || 600;
+  const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+  // disposición por fuerzas (repulsión entre todos, muelles en los enlaces, gravedad al centro)
+  function layout() {
+    const n = NODES.length, R = Math.min(W, H) * 0.38;
+    NODES.forEach((d, i) => { d.x = W / 2 + R * Math.cos(2 * Math.PI * i / n); d.y = H / 2 + R * Math.sin(2 * Math.PI * i / n); });
+    const k = Math.max(110, Math.sqrt(W * H / Math.max(n, 1)) * 0.75);  // separación ideal entre equipos
+    for (let it = 0; it < 350; it++) {
+      const t = 0.1 * (1 - it / 350) + 0.01;
+      NODES.forEach(a => { a.dx = 0; a.dy = 0; });
+      for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+        const a = NODES[i], b = NODES[j]; let dx = a.x - b.x, dy = a.y - b.y; const d2 = dx * dx + dy * dy + 0.01, f = k * k / d2;
+        a.dx += dx * f; a.dy += dy * f; b.dx -= dx * f; b.dy -= dy * f;
+      }
+      LINKS.forEach(e => { const a = byId[e.a], b = byId[e.b]; const dx = a.x - b.x, dy = a.y - b.y, d = Math.sqrt(dx * dx + dy * dy) + 0.01, f = d / k;
+        a.dx -= dx * f; a.dy -= dy * f; b.dx += dx * f; b.dy += dy * f; });
+      NODES.forEach(a => { a.dx += (W / 2 - a.x) * 0.02; a.dy += (H / 2 - a.y) * 0.02;
+        const m = Math.sqrt(a.dx * a.dx + a.dy * a.dy) + 0.01, s = Math.min(m, k * t * 4);
+        a.x += a.dx / m * s; a.y += a.dy / m * s; });
+    }
+  }
+  const edgeEls = [], nodeEls = {};
+  function draw() {
+    view.textContent = '';
+    LINKS.forEach(e => {
+      const g = mk('g', {}, view), line = mk('line', {class: 'topo-edge'}, g);
+      const ta = mk('text', {class: 'topo-port'}, g), tb = mk('text', {class: 'topo-port'}, g);
+      ta.textContent = e.pa || ''; tb.textContent = e.pb || '';
+      const t = mk('title', {}, g); t.textContent = (byId[e.a].label + ' ' + (e.pa || '') + ' ↔ ' + byId[e.b].label + ' ' + (e.pb || '')).trim();
+      edgeEls.push({e, line, ta, tb});
+    });
+    NODES.forEach(n => {
+      const g = mk('g', {class: 'topo-node ' + (n.kind === 'new' ? 'new' : (n.status || 'pending')), tabindex: 0, role: 'button', 'aria-label': n.label}, view);
+      mk('circle', {r: 18}, g);
+      const v = mk('text', {class: 'vend', 'text-anchor': 'middle', dy: '3'}, g); v.textContent = n.kind === 'new' ? '?' : (n.vend || '');
+      const t = mk('text', {'text-anchor': 'middle', dy: '34'}, g); t.textContent = n.label;
+      const s = mk('text', {class: 'sub', 'text-anchor': 'middle', dy: '47'}, g); s.textContent = n.sub || '';
+      g.addEventListener('click', ev => { if (!moved) select(n); ev.stopPropagation(); });
+      g.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); select(n); } });
+      g.addEventListener('pointerdown', ev => startDrag(ev, n));
+      nodeEls[n.id] = g;
+    });
+    place();
+  }
+  function place() {
+    edgeEls.forEach(({e, line, ta, tb}) => {
+      const a = byId[e.a], b = byId[e.b];
+      line.setAttribute('x1', a.x); line.setAttribute('y1', a.y); line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
+      // el puerto, sobre el enlace y apartado del nombre del equipo
+      const dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1, o = Math.min(70, d * 0.32);
+      const nx = -dy / d * 9, ny = dx / d * 9;
+      ta.setAttribute('x', a.x + dx / d * o + nx); ta.setAttribute('y', a.y + dy / d * o + ny);
+      tb.setAttribute('x', b.x - dx / d * o + nx); tb.setAttribute('y', b.y - dy / d * o + ny);
+    });
+    NODES.forEach(n => nodeEls[n.id].setAttribute('transform', `translate(${n.x},${n.y})`));
+  }
+  function select(n) {
+    const ls = LINKS.filter(e => e.a === n.id || e.b === n.id);
+    edgeEls.forEach(x => x.line.classList.toggle('hl', ls.includes(x.e)));
+    let h = `<div class="row nowrap"><b class="grow">${esc(n.label)}</b><button type="button" class="tbtn" data-x aria-label="${esc(L.close)}">✕</button></div>`;
+    h += `<div class="muted sm mono">${esc(n.sub)}${n.platform ? ' · ' + esc(n.platform) : ''}</div>`;
+    if (n.kind === 'new') h += `<p class="sm" style="margin:8px 0">${esc(L.notin)}</p>` + (ADMIN ? `<a class="btn s pri" href="/devices/new?name=${encodeURIComponent(n.name || '')}&host=${encodeURIComponent(n.ip || '')}" data-sheet data-title="${esc(L.add)}">${esc(L.add)}</a>` : '');
+    else h += `<p style="margin:8px 0"><a class="btn s" href="${esc(n.href)}">${esc(L.open)}</a></p>`;
+    h += `<div class="sm b" style="margin-top:8px">${esc(L.links)} (${ls.length})</div><ul class="sm" style="margin:4px 0 0 16px">` + ls.map(e => {
+      const me = e.a === n.id, o = byId[me ? e.b : e.a];
+      return `<li><span class="mono">${esc(me ? e.pa : e.pb) || '—'}</span> → ${esc(o.label)} <span class="mono">${esc(me ? e.pb : e.pa) || ''}</span></li>`;
+    }).join('') + '</ul>';
+    side.innerHTML = h; side.hidden = false;
+    side.querySelector('[data-x]').addEventListener('click', () => { side.hidden = true; edgeEls.forEach(x => x.line.classList.remove('hl')); });
+  }
+  // arrastrar equipos, mover y hacer zoom en el lienzo
+  let tf = {x: 0, y: 0, k: 1}, drag = null, pan = null, moved = false;
+  const apply = () => view.setAttribute('transform', `translate(${tf.x},${tf.y}) scale(${tf.k})`);
+  function fit() {  // que todo el mapa quepa en el recuadro
+    const xs = NODES.map(n => n.x), ys = NODES.map(n => n.y), pad = 70;
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const k = Math.min(1.4, (W - 2 * pad) / Math.max(x1 - x0, 1), (H - 2 * pad - 30) / Math.max(y1 - y0, 1));
+    tf = {k, x: W / 2 - (x0 + x1) / 2 * k, y: (H - 30) / 2 - (y0 + y1) / 2 * k + 10};
+    apply();
+  }
+  const pt = ev => { const r = svg.getBoundingClientRect(); return {x: (ev.clientX - r.left - tf.x) / tf.k, y: (ev.clientY - r.top - tf.y) / tf.k}; };
+  function startDrag(ev, n) { drag = n; moved = false; svg.setPointerCapture(ev.pointerId); ev.stopPropagation(); }
+  svg.addEventListener('pointerdown', ev => { pan = {x: ev.clientX - tf.x, y: ev.clientY - tf.y}; moved = false; svg.classList.add('drag'); });
+  svg.addEventListener('pointermove', ev => {
+    if (drag) { const p = pt(ev); drag.x = p.x; drag.y = p.y; moved = true; place(); }
+    else if (pan) { tf.x = ev.clientX - pan.x; tf.y = ev.clientY - pan.y; moved = true; apply(); }
+  });
+  svg.addEventListener('pointerup', () => { drag = null; pan = null; svg.classList.remove('drag'); });
+  svg.addEventListener('wheel', ev => {
+    ev.preventDefault();
+    const r = svg.getBoundingClientRect(), mx = ev.clientX - r.left, my = ev.clientY - r.top, k = Math.min(4, Math.max(0.2, tf.k * (ev.deltaY < 0 ? 1.15 : 0.87)));
+    tf.x = mx - (mx - tf.x) * k / tf.k; tf.y = my - (my - tf.y) * k / tf.k; tf.k = k; apply();
+  }, {passive: false});
+  document.getElementById('tq').addEventListener('input', ev => {
+    const q = ev.target.value.trim().toLowerCase();
+    NODES.forEach(n => { const hit = q && (n.label + ' ' + (n.sub || '')).toLowerCase().includes(q);
+      nodeEls[n.id].classList.toggle('hit', !!hit); nodeEls[n.id].classList.toggle('dim', !!q && !hit); });
+  });
+  document.getElementById('treset').addEventListener('click', () => { W = svg.clientWidth || W; H = svg.clientHeight || H; layout(); place(); fit(); });
+  layout(); draw(); fit();
+})();
+</script>
+{% endblock %}

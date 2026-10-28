@@ -63,10 +63,18 @@
     <p class="muted" id="fwnone" hidden>Ningún equipo usa este tipo.</p></div>
   <label class="ck"><input type="checkbox" name="reload"> Reiniciar cada equipo al terminar</label>
   <div><button class="btn pri">Crear solicitud de actualización</button> <span class="muted sm">Siempre requiere la aprobación de un administrador.</span></div></div>
-  <div class="c5"><ol class="steps"><li><span><b>Respaldo</b><div class="muted sm">Se guarda la configuración antes de tocar nada.</div></span></li><li><span><b>Transferencia por SCP</b><div class="muted sm">La imagen se copia a flash: del equipo.</div></span></li><li><span><b>Verificación MD5</b><div class="muted sm">Si no coincide, se cancela.</div></span></li><li><span><b>Arranque</b><div class="muted sm">Se configura «boot system» y, si lo marcas, se reinicia.</div></span></li></ol>
-    <p class="muted sm" style="margin-top:14px">Plataformas: Cisco IOS / IOS-XE / NX-OS / ASA, Arista EOS y Juniper Junos.</p></div></div></form>
-  {% elif not devices %}<div class="empty">{{ empty_art('search') }}<h2>No hay equipos de plataformas compatibles</h2><p>La actualización remota admite Cisco IOS / IOS-XE / NX-OS / ASA, Arista EOS y Juniper Junos.</p></div>
+  <div class="c5"><ol class="steps"><li><span><b>Respaldo</b><div class="muted sm">Se guarda la configuración antes de tocar nada.</div></span></li><li><span><b>{{ _('Transferencia') }}</b><div class="muted sm">{{ _('La imagen se copia al equipo (SCP, o SFTP en MikroTik) y se comprueba que llegó entera.') }}</div></span></li><li><span><b>Verificación MD5</b><div class="muted sm">Si no coincide, se cancela.</div></span></li><li><span><b>Arranque</b><div class="muted sm">Se configura «boot system» y, si lo marcas, se reinicia.</div></span></li></ol>
+    <p class="muted sm" style="margin-top:14px">{{ _('Plataformas: Cisco IOS / IOS-XE / NX-OS / ASA, Arista EOS, Juniper Junos, MikroTik RouterOS (paquete .npk), Ubiquiti airMAX y airFiber (imagen .bin) y EdgeRouter (imagen .tar).') }}</p></div></div></form>
+  {% elif not devices %}<div class="empty">{{ empty_art('search') }}<h2>No hay equipos de plataformas compatibles</h2><p>{{ _('La actualización remota admite Cisco IOS / IOS-XE / NX-OS / ASA, Arista EOS, Juniper Junos, MikroTik RouterOS, Ubiquiti airMAX, airFiber y EdgeRouter.') }}</p></div>
   {% else %}<div class="empty">{{ empty_art('plus') }}<h2>Carga primero una imagen</h2><p>Después elige los equipos que quieres actualizar.</p></div>{% endif %}</section>
+{% set mts = devices|selectattr('device_type', 'equalto', 'mikrotik_routeros')|list %}
+{% if mts %}<section class="card" style="margin-top:16px"><div class="card-h"><h2>{{ _('MikroTik: actualizar desde MikroTik') }}</h2><span class="muted sm">{{ _('Sin cargar el paquete: el router lo descarga de MikroTik') }}</span></div>
+  <form method="post" action="/firmware/routeros-online" class="stack">
+    <div class="cklist">{% for d in mts %}<label class="ck"><input type="checkbox" name="device_ids" value="{{ d.id }}"> {{ d.name }} <span class="muted sm mono">{{ d.os_version or '—' }}</span></label>{% endfor %}</div>
+    <div class="row" style="gap:12px;flex-wrap:wrap"><div class="field"><label for="rch">{{ _('Canal') }}</label><div class="input"><select id="rch" name="channel"><option value="stable">stable</option><option value="long-term">long-term</option></select></div></div>
+      <label class="ck" style="align-self:flex-end"><input type="checkbox" name="reload" checked> {{ _('Instalar y reiniciar (si no, solo descarga: se instala en el próximo reinicio)') }}</label></div>
+    <p class="muted sm" style="margin:0">{{ _('Antes se respalda el equipo. Necesita acceso a internet y DNS desde el router. Si ya tiene la última versión del canal, no se instala nada.') }}</p>
+    <div><button class="btn pri">{{ _('Crear solicitud de actualización') }}</button></div></form></section>{% endif %}
 </div>
 {% endif %}
 
