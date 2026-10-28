@@ -136,13 +136,23 @@ def parse(text: str, device_type: str) -> list[dict]:
             found += _lldp_detail(out)
     uniq, keys = [], set()
     for n in found:
-        if not (n["remote_name"] or n["remote_ip"]):
+        if not (n["remote_name"] or n["remote_ip"]) or is_client(n):
             continue
         k = (short_port(n["local_port"]), norm_name(n["remote_name"]) or n["remote_ip"])
         if k not in keys:
             keys.add(k)
             uniq.append(n)
     return uniq
+
+
+WIRELESS = re.compile(r"(?i)^(?:ath|wlan|wifi|wlp|radio)\d")
+
+
+def is_client(n: dict) -> bool:
+    """Equipo de usuario: el vecino nos ve por su radio (CPE como LiteBeam o NanoStation, o un MikroTik cliente) y no
+    por un cable. No es un enlace de la red: está detrás de un punto de acceso. Si el puerto local también es de radio,
+    es un enlace inalámbrico entre dos equipos de red y sí cuenta."""
+    return bool(WIRELESS.match(n.get("remote_port") or "")) and not WIRELESS.match(n.get("local_port") or "")
 
 
 def norm_name(name: str) -> str:

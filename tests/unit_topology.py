@@ -84,6 +84,16 @@ check("MikroTik 7: vecino único por su puerto se queda aunque sea por MNDP; IPv
       by7.get("R-PP El Seibo", {}).get("remote_ip") == "" and by7["R-PP El Seibo"]["remote_port"] == "ether1"
       and by7["R-PP El Seibo"]["local_port"] == "ether5", m7)
 
+# equipos de usuario: un CPE (LiteBeam) visto por su radio no es un enlace; un enlace de radio entre dos equipos de red sí
+MTC = """ 0 interface=ether5 address=192.168.20.11 identity=JONATHAN platform=LiteBeam interface-name=ath0 discovered-by=cdp
+ 1 interface=ether6 address=192.168.20.48 identity=Ascania platform=LiteBeam interface-name=ath0.2000 discovered-by=mndp
+ 2 interface=wlan1 address=10.0.0.40 identity=PtP-Remoto platform=MikroTik interface-name=wlan1 discovered-by=mndp
+ 3 interface=ether7 address=10.0.0.41 identity=AP-Torre platform=Rocket interface-name=eth0 discovered-by=cdp
+"""
+mc = {x["remote_name"] for x in parse(MARK + "/ip neighbor print detail terse without-paging\n" + MTC, "mikrotik_routeros")}
+check("equipos de usuario fuera del mapa: CPE vistos por su radio no; radioenlace entre equipos y AP por cable sí",
+      mc == {"PtP-Remoto", "AP-Torre"}, mc)
+
 HW = """Local Intf       Neighbor Dev             Neighbor Intf             Exptime(s)
 GE0/0/1          SW-Core                  GE0/0/24                  101
 GE0/0/2          AR-Borde                 GE0/0/0                   99
