@@ -974,6 +974,14 @@ certificados ni datos, y las contraseñas de wifi de netplan salen como <code>**
 Algunos archivos (netplan, crontab de root) y el cortafuegos solo se leen como root: dé al usuario de OpenNCCM <code>sudo</code>
 sin contraseña, mejor solo para esos comandos de lectura; sin <code>sudo</code> se respalda el resto. El inventario lee la versión
 de <code>/etc/os-release</code>, y <b>Actualizaciones disponibles</b> avisa de la nueva LTS y de la fecha de fin de soporte.</p>
+<p><b>Ubiquiti airMAX, airFiber y UniFi.</b> airMAX M (M2, M5 con airOS 6), airMAX AC (airOS 8), airFiber (AF5XHD, AF60, AF24HD,
+AF5X) y los AP UniFi guardan toda su configuración en <code>/tmp/system.cfg</code>, que es lo que se respalda; la versión y el modelo
+salen de <code>/etc/version</code> y <code>/etc/board.info</code> (o de <code>info</code> en UniFi). El USG se respalda con
+<code>show configuration commands</code>. Los switches, AP y USG de UniFi los configura el controlador UniFi Network: los cambios y su
+reversión se hacen allí. Para volver a una versión de airOS: <i>System › Configuration Management › Upload Configuration</i>.</p>
+<p><b>MikroTik SwitchOS</b> (SwOS y SwOS Lite) no tiene SSH: OpenNCCM descarga por HTTP (puerto 80) el mismo respaldo
+<code>backup.swb</code> que su interfaz web, y lee de él el modelo, la versión y la serie. No admite cambios por comandos ni
+consola; para restaurar, <i>Restore Backup</i> en SwitchOS con el archivo descargado.</p>
 <figure><img src="img/30-plataformas.png" class="tall"><figcaption>Plataformas soportadas con buscador y la columna «Comprobado en su red».</figcaption></figure>
 </section>
 
