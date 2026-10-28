@@ -1,5 +1,18 @@
 # Historial de versiones
 
+## 2.10.1
+- **Mapa de la red con MikroTik reales**, corregido:
+  - los nombres con espacios (`SW-C-Los Llanos`) se leen enteros;
+  - el puerto de RouterOS 7 llega sin el bridge delante (`bridge1/ether1` → `ether1`);
+  - la IPv6 local (`fe80::…`) ya no se toma como IP del vecino;
+  - en un puerto con varios vecinos solo cuenta el visto por LLDP: MNDP y CDP atraviesan los bridges y traían a todos
+    los MikroTik del segmento como si estuvieran enchufados ahí.
+- **El mapa muestra solo equipos de red, no de usuario**: los CPE de los clientes (LiteBeam, NanoStation…) vistos por su
+  radio se quitan, también de lo leído antes de esta versión, y una nota dice cuántos. Un radioenlace entre dos equipos sí
+  se dibuja.
+- **Moverse por el mapa**: arrastrando el fondo, con los botones +, −, «Ver todo el mapa» y «Pantalla completa», con dos
+  dedos en el panel táctil o con las flechas del teclado.
+
 ## 2.10.0
 - **Mapa de la red** (menú lateral): dibuja los equipos y los enlaces entre ellos, con el puerto de cada extremo.
   - Los vecinos LLDP/CDP se leen en cada respaldo, con una orden de solo lectura: Cisco, Arista, Juniper, Huawei,
