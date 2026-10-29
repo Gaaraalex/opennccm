@@ -286,6 +286,54 @@ def backup_device(device_id: int, trigger="manual", username: str | None = None)
         lock.release()
 
 
+def mikrotik_backup_file(device_id: int, password: str = "") -> tuple[str, bytes]:
+    """RouterOS: crea un .backup en el equipo («/system backup save»), lo trae por SFTP y lo borra del equipo. El .backup
+    es binario y solo se restaura en el mismo modelo; sin contraseña va sin cifrar («dont-encrypt=yes»)."""
+    if password and not re.fullmatch(r"[\w.,:;!?@#%&*+=/-]{1,64}", password):
+        raise ValueError("La contraseña del .backup solo admite letras, números y . , : ; ! ? @ # % & * + = / - (hasta 64)")
+    lock = device_lock(device_id)
+    if not lock.acquire(timeout=60):
+        raise RuntimeError("El equipo está ocupado con otra tarea")
+    try:
+        with SessionLocal() as db:
+            dev = db.get(Device, device_id)
+            if dev is None or dev.device_type != "mikrotik_routeros":
+                raise RuntimeError("Solo los equipos MikroTik RouterOS hacen archivos .backup")
+            conn = connect(dev)
+        name = f"opennccm-{time.strftime('%Y%m%d-%H%M%S')}"
+        try:
+            out = conn.send_command(f"/system backup save name={name} " + (f"password={password}" if password else "dont-encrypt=yes"),
+                                    read_timeout=120)
+            if re.search(r"(?i)failure|error|expected end of command|bad command", out):
+                raise RuntimeError("RouterOS no pudo crear el .backup: " + out.strip()[:300])
+            import paramiko
+            sftp = paramiko.SFTPClient.from_transport(conn.remote_conn.get_transport())
+            try:
+                path = data = None
+                for _ in range(30):  # se escribe en unos segundos; en equipos con «flash/» queda en esa carpeta
+                    for p in (f"{name}.backup", f"flash/{name}.backup"):
+                        try:
+                            if sftp.stat(p).st_size:
+                                path = p
+                        except OSError:
+                            pass
+                    if path:
+                        break
+                    time.sleep(1)
+                if not path:
+                    raise RuntimeError("El equipo no dejó el .backup a la vista por SFTP (¿el usuario tiene permiso «ftp»?)")
+                with sftp.open(path, "rb") as f:
+                    data = f.read()
+            finally:
+                sftp.close()
+            conn.send_command(f'/file remove "{path}"', read_timeout=30)
+        finally:
+            conn.disconnect()
+        return name + ".backup", data
+    finally:
+        lock.release()
+
+
 def refresh_inventory_from_raw() -> int:
     """Relee la última salida de inventario guardada con el lector actual.
 

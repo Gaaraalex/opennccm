@@ -1078,6 +1078,25 @@ def device_backup(request: Request, dev_id: int):
     return go(f"/devices/{dev_id}")
 
 
+@app.post("/devices/{dev_id}/mikrotik-backup")
+async def device_mikrotik_backup(request: Request, dev_id: int):
+    """Descarga el .backup de un MikroTik, hecho en el momento (no se guarda en OpenNCCM)."""
+    user = require(request, "operator")
+    check_device(user, dev_id)
+    form = await request.form()
+    try:
+        fname, data = services.mikrotik_backup_file(dev_id, (form.get("password") or "").strip())
+    except Exception as e:  # noqa: BLE001 - el motivo se muestra tal cual
+        flash(request, _f("No se pudo traer el .backup: {0}", str(e).splitlines()[0][:300] if str(e) else e.__class__.__name__), "error")
+        return go(f"/devices/{dev_id}")
+    with SessionLocal() as db:
+        name = db.get(Device, dev_id).name
+    log_action(request, user, "mikrotik_backup", f"device={dev_id} {len(data)} bytes")
+    fname = re.sub(r"[^\w.-]+", "_", name) + "_" + fname.removeprefix("opennccm-")
+    return Response(data, media_type="application/octet-stream",
+                    headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+
+
 @app.post("/backup/all")
 async def backup_all(request: Request):
     user = require(request, "operator")
@@ -1146,7 +1165,8 @@ def version_view(request: Request, ver_id: int, raw: int = 0):
         is_baseline = v.device.baseline_version_id == v.id
         if raw:
             log_action(request, user, "config_download", f"{v.device.name} v{v.id}")
-            fname = f"{v.device.name}_{v.kind}_{v.created_at:%Y%m%d-%H%M}.txt"
+            ext = "rsc" if v.device.device_type == "mikrotik_routeros" else "txt"
+            fname = f"{v.device.name}_{v.kind}_{v.created_at:%Y%m%d-%H%M}.{ext}"
             return PlainTextResponse(text, headers={"Content-Disposition": f'attachment; filename="{fname}"'})
         prev = db.scalars(select(ConfigVersion).where(ConfigVersion.device_id == v.device_id,
                                                       ConfigVersion.kind == v.kind, ConfigVersion.id < v.id)
