@@ -1298,6 +1298,8 @@ def _topo_how(fby: str, n: dict, rby: str, rn: dict) -> str:
     """«Cómo se reconoció» un vecino descubierto: fabricante y tipo."""
     if fby == "platform":
         fam = _f("Por lo que anuncia: {0}.", n.get("platform"))
+    elif fby == "mac":
+        fam = _f("Por el fabricante de su dirección MAC ({0}).", n.get("mac"))
     elif fby == "port":
         fam = _f("Por el nombre de su puerto («{0}»).", n.get("remote_port"))
     else:
@@ -1343,7 +1345,7 @@ def topology_page(request: Request, group: int = 0):
                     why[key]["role"] = (role, rby, n)
         types = get_setting("topology_types", "")
         allowed = {f for f, _l in topology.FAMILIES} if not types else set(types.split(","))
-        hidden = set()
+        hidden: dict = {}
         seen_caps: dict = {}
         for d in devs:
             for n in views[d.id]:
@@ -1357,7 +1359,7 @@ def topology_page(request: Request, group: int = 0):
                 else:
                     key = topology.norm_name(n.get("remote_name")) or n.get("remote_ip")
                     if fams.get(key, "other") not in allowed:  # tipo de equipo que no se quiere en el mapa
-                        hidden.add(key)
+                        hidden[key] = n.get("remote_name") or n.get("remote_ip") or key
                         continue
                     other = f"u:{key}"
                     if other not in nodes:
@@ -1398,7 +1400,7 @@ def topology_page(request: Request, group: int = 0):
                   families=topology.FAMILIES, fam_count=fam_count, roles={k: _(v) for k, v in topology.ROLES},
                   fam_names={k: _(v) for k, v in topology.FAMILIES},
                   labels={n["id"]: n["label"] for n in show},
-                  group=group, with_data=with_data, clients=clients, hidden=len(hidden), total=len(devs), enabled=get_setting("topology_enabled", "1") == "1")
+                  group=group, with_data=with_data, clients=clients, hidden=sorted(hidden.values(), key=str.lower), total=len(devs), enabled=get_setting("topology_enabled", "1") == "1")
 
 
 # --------------------------------------------------------------------------- inventario de IP y VLAN

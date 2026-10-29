@@ -193,5 +193,20 @@ check("orden no admitida: sin vecinos (y sin error)", parse(MARK + "show lldp ne
 check("nombres comparables sin dominio", norm_name("SW-2.empresa.local") == "sw-2" == norm_name("sw-2"))
 check("puertos CDP y LLDP equivalentes", short_port("GigabitEthernet0/1") == short_port("Gi0/1"))
 
+# switches Ubiquiti: por el modelo (UniFi de primera generación, USW, USL, EdgeSwitch «ES-») o por la MAC si no dicen nada
+ubnt = parse("""
+ 0 interface=ether3 address=10.0.0.9 mac-address=74:83:c2:11:22:33 identity="SW-UniFi-Torre" platform="" board=""
+   system-description="US-24-250W, 6.5.59.14777, Linux 3.6.5" interface-name="Port 1" discovered-by=lldp
+ 1 interface=ether4 mac-address=F0:9F:C2:AA:BB:CC identity="SW-Patio" interface-name="Port 2" discovered-by=lldp
+ 2 interface=ether5 mac-address=00:0C:42:00:00:01 identity="Desconocido" interface-name="port7" discovered-by=lldp
+""", "mikrotik_routeros")
+by = {n["remote_name"]: n for n in ubnt}
+check("switch UniFi US-24 por el modelo", family_why(by["SW-UniFi-Torre"]) == ("ubiquiti", "platform")
+      and role_why(by["SW-UniFi-Torre"]["platform"], [])[0] == "switch")
+check("Ubiquiti por la MAC cuando no anuncia modelo", family_why(by["SW-Patio"]) == ("ubiquiti", "mac")
+      and by["SW-Patio"]["mac"] == "F0:9F:C2:AA:BB:CC" and family(by["Desconocido"]) == "other")
+check("modelos USW, USL y EdgeSwitch ES-", all(family({"platform": p}) == "ubiquiti" and role_why(p, [])[0] == "switch"
+                                              for p in ("USW-Lite-16-PoE, 7.0.50", "USL8LP", "ES-24-250W", "US-8-60W")))
+
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)

@@ -13,7 +13,7 @@
       <a href="/devices/import/zabbix">{{ icon('dl', 's') }}<span><b>{{ _('Importar desde Zabbix') }}</b><span class="desc">{{ _('Nombre, IP y descripción de sus hosts') }}</span></span></a>
     </div></span>{% endif %}
   {% if can_run %}<form class="inline" method="post" action="/backup/all"><input type="hidden" name="group" value="{{ group }}">
-    <button class="btn pri" onclick="return confirm('{{ (_('¿Respaldar ahora todos los equipos del grupo?') if group else _('¿Respaldar ahora todos los equipos?'))|jsq }}')">{{ icon('dl', 's') }}Respaldar todos</button></form>{% endif %}
+    <button class="btn pri" onclick="return confirm('{{ (_('¿Respaldar ahora todos los equipos del grupo?') if group else _('¿Respaldar ahora todos los equipos?'))|jsq }}')">{{ icon('backup', 's') }}Respaldar todos</button></form>{% endif %}
 </div>
 
 <form class="row" method="get" role="search" id="devf">
@@ -53,7 +53,7 @@
     {% else %}
     {% if can_console and d.protocol == 'ssh' %}<a class="btn icon s" href="/devices/{{ d.id }}/console" target="_blank" rel="noopener" data-console="{{ d.id }}" data-name="{{ d.name }}" data-vend="{{ (prof.vendor if prof else d.device_type)[:3]|upper }}" title="Consola SSH" aria-label="{{ _f('Consola SSH de {0}', d.name) }}">{{ icon('term', 's') }}</a>{% endif %}
     {% if d.web_enabled != false %}<a class="btn icon s" href="{{ d.web_url or 'https://' ~ d.host ~ '/' }}" target="_blank" rel="noopener noreferrer" onclick="return abrirVentana(this.href, 'web-{{ d.id }}', 1280, 820)" title="Interfaz web" aria-label="{{ _f('Interfaz web de {0}', d.name) }}">{{ icon('globe', 's') }}</a>{% endif %}
-    {% if can_run %}<form method="post" action="/devices/{{ d.id }}/backup"><button class="btn icon s" title="Respaldar ahora" aria-label="{{ _f('Respaldar {0} ahora', d.name) }}">{{ icon('dl', 's') }}</button></form>{% endif %}
+    {% if can_run %}<form method="post" action="/devices/{{ d.id }}/backup"><button class="btn icon s" title="Respaldar ahora" aria-label="{{ _f('Respaldar {0} ahora', d.name) }}">{{ icon('backup', 's') }}</button></form>{% endif %}
     {% endif %}</div></td>
 </tr>
 {% else %}

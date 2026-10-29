@@ -133,9 +133,10 @@ def _mikrotik(text: str) -> list[dict]:
         ip = next((v for v in (_clean(kv.get("address4")), _clean(kv.get("address"))) if re.fullmatch(r"[\d.]+", v)), "")
         out.append(_with_caps({"local_port": local,
                                "remote_name": _ros_text(_clean(kv.get("identity") or kv.get("system-description"))),
-                               "remote_port": port, "remote_ip": ip,
-                               "platform": _clean(" ".join(x for x in (kv.get("platform"), kv.get("board")) if x)
-                                                  or kv.get("system-description"))[:80]},
+                               "remote_port": port, "remote_ip": ip, "mac": _clean(kv.get("mac-address")).upper(),
+                               # «platform=""» (vacío, como en los vecinos LLDP) no cuenta: el modelo va en la descripción
+                               "platform": (" ".join(x for x in (_clean(kv.get("platform")), _clean(kv.get("board"))) if x)
+                                            or _clean(kv.get("system-description")))[:80]},
                               _clean(kv.get("system-caps-enabled") or kv.get("system-caps"))))
         by.append(_clean(kv.get("discovered-by")) if "discovered-by" in kv else None)
     # MNDP y CDP atraviesan los bridges y switches: por un puerto llegan todos los MikroTik del mismo segmento, no solo el
@@ -233,7 +234,8 @@ FAMILIES = [("mikrotik", "MikroTik"), ("ubiquiti", "Ubiquiti"), ("juniper", "Jun
 _FAM = [
     ("mikrotik", r"mikrotik|routeros|\b(?:ccr|crs|css|rb|chr)\d|\bhex\b|\bhap\b",
      r"^(?:ether|sfp-sfpplus|sfp28-|qsfp28-|qsfpplus|combo|wlan|wifi)\d"),
-    ("ubiquiti", r"ubiquiti|ubnt|edge ?(?:switch|router|point)|unifi|\busw|air ?os|airmax|airfiber|\baf-?\d|litebeam|"
+    ("ubiquiti", r"ubiquiti|ubnt|edge ?(?:switch|router|point)|unifi|\busw|\busl\d|\bus-?(?:8|16|24|48|xg)\b|\bes-\d+|"
+                 r"\budm\b|\busg\b|\buxg|air ?os|airmax|airfiber|\baf-?\d|litebeam|"
                  r"nanostation|nanobeam|powerbeam|rocket|prism|\bltu|\bloco|bullet|isostation", r"^ath\d"),
     ("juniper", r"juniper|junos|\b(?:srx|qfx|ex\d{4}|mx\d+)", r"^(?:ge|xe|et|mge)-\d+/\d+/\d+|^(?:me|em|fxp)\d$"),
     ("cisco", r"cisco|catalyst|nx-os|\bios\b|ws-c|air-ap", r"^(?:gigabitethernet|tengigabitethernet|fastethernet|gi|te|fa)\d"),
@@ -243,17 +245,28 @@ _FAM = [
 ]
 
 
+# prefijos de MAC (OUI) de fabricantes que a menudo no dicen su modelo por LLDP (los switches UniFi, por ejemplo)
+MAC_VENDOR = {o: "ubiquiti" for o in (
+    "00156D", "002722", "0418D6", "0CEA14", "18E829", "1C6A1B", "245A4C", "24A43C", "28704E", "44D9E7", "602232", "687251",
+    "68D79A", "70A741", "7483C2", "74ACB9", "784558", "788A20", "802AA8", "847848", "942A6F", "9C05D6", "AC8BA9", "B4FBE4",
+    "D021F9", "D8B370", "DC9FDB", "E063DA", "E43883", "F09FC2", "F492BF", "FCECDA")}
+
+
 def family(n: dict) -> str:
     """Fabricante de un vecino (clave de FAMILIES)."""
     return family_why(n)[0]
 
 
 def family_why(n: dict) -> tuple[str, str]:
-    """Fabricante y cómo se reconoció: «platform» (lo que anuncia), «port» (el nombre de su puerto) o «» (no se sabe)."""
+    """Fabricante y cómo se reconoció: «platform» (lo que anuncia), «mac» (el fabricante de su MAC), «port» (el nombre de su
+    puerto) o «» (no se sabe)."""
     plat = (n.get("platform") or "").lower()
     for fam, by_plat, _ in _FAM:
         if re.search(by_plat, plat):
             return fam, "platform"
+    mac = re.sub(r"[^0-9A-F]", "", (n.get("mac") or "").upper())[:6]
+    if mac in MAC_VENDOR:
+        return MAC_VENDOR[mac], "mac"
     for fam, _, by_port in _FAM:
         if by_port and re.search(by_port, n.get("remote_port") or "", re.I):
             return fam, "port"
@@ -268,7 +281,8 @@ _ROLE_MODEL = [
                  r"\bfirewall"),
     ("ap", CPE_MODELS.pattern.replace("(?i)", "") + r"|rocket|prism|powerbeam|airfiber|\baf-?\d|\bltu|airmax|\buap|unifi ?ap|"
                                                     r"nanohd|\bcap ?(?:ac|ax|xl)|\bwap|aironet|air-ap|\bgwn76|access point"),
-    ("switch", r"\bcrs\d|\bcss\d|catalyst|ws-c|\bc9[23]00|\bex\d{4}|\bqfx|edge ?switch|\busw|unifi ?switch|nexus|procurve|"
+    ("switch", r"\bcrs\d|\bcss\d|catalyst|ws-c|\bc9[23]00|\bex\d{4}|\bqfx|edge ?switch|\busw|\busl\d|\bus-?(?:8|16|24|48|xg)\b|"
+               r"\bes-\d+|unifi ?switch|nexus|procurve|"
                r"\bswitch"),
     ("router", r"\bccr\d|\brb\d|\bhex\b|\bhap\b|\bchr\b|\bmx\d{2,}|\bisr\d|\basr\d|edge ?router|\ber-\d|\bl009|\brouter\b"),
 ]

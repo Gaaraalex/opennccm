@@ -34,13 +34,53 @@
 
   <section class="card c7"><div class="card-h"><h2>Copias de recuperación</h2><button type="button" class="btn s pri" data-dialog="bk-dlg">{{ icon('db', 's') }}Crear copia ahora</button></div>
     <p class="muted sm" style="margin:-6px 0 12px">Guardan la base de datos (configuraciones, historial, usuarios, políticas). Las configuraciones y contraseñas van cifradas: para restaurar en otro servidor necesitas también <code>secret.key</code>, o incluirla en la copia protegida con contraseña. Programa copias diarias en <a href="/schedules">Tareas</a> y la copia remota en <a href="/settings#recuperacion">Ajustes</a>.</p>
-    <div class="stack t">{% for name, size, mtime in backups %}
+    <style>
+      .bk-wrap{display:flex;gap:10px;align-items:stretch}
+      .bk-list{flex:1;min-width:0;overflow-y:auto;scrollbar-width:none;overscroll-behavior:contain}
+      .bk-list::-webkit-scrollbar{display:none}
+      .bk-rail{display:flex;flex-direction:column;align-items:center;gap:6px;width:30px}
+      .bk-rail .btn{width:30px;height:30px;padding:0;justify-content:center}
+      .bk-rail .up svg{transform:rotate(180deg)}
+      .bk-track{position:relative;flex:1;width:6px;border-radius:3px;background:var(--surface-2);cursor:pointer}
+      .bk-thumb{position:absolute;left:0;right:0;border-radius:3px;background:var(--brand);transition:top .15s ease}
+    </style>
+    <div class="bk-wrap"><div class="stack t bk-list" id="bk-list">{% for name, size, mtime in backups %}
       <div class="row nowrap" style="padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-md)"><span class="qi mut" style="width:32px;height:32px">{{ icon('lock' if name.endswith('.enc') else 'db', 's') }}</span>
         <div class="grow" style="min-width:0"><div class="mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><code>{{ name }}</code></div><div class="muted sm">{{ mtime|cuando_ts }} · {{ size|filesizeformat }}</div></div>
         <a class="btn s icon ghost" href="/system/backups/{{ name }}" aria-label="{{ _f('Descargar {0}', name) }}" title="Descargar">{{ icon('dl', 's') }}</a>
         <button type="button" class="btn s" data-dialog="restore-dlg">Restaurar…</button>
         <form method="post" action="/system/backups/{{ name }}/delete" style="margin:0"><button class="btn s icon ghost" aria-label="{{ _f('Eliminar {0}', name) }}" title="Eliminar">{{ icon('trash', 's') }}</button></form></div>
-    {% else %}<div class="empty" style="padding:20px">{{ empty_art('plus') }}<h2>Aún no hay copias de recuperación</h2><p>Crea la primera ahora o programa una copia periódica en Tareas.</p></div>{% endfor %}</div></section>
+    {% else %}<div class="empty" style="padding:20px">{{ empty_art('plus') }}<h2>Aún no hay copias de recuperación</h2><p>Crea la primera ahora o programa una copia periódica en Tareas.</p></div>{% endfor %}</div>
+    {% if backups|length > 4 %}<div class="bk-rail" id="bk-rail"><button type="button" class="btn s ghost up" id="bk-up" aria-label="{{ _('Copias más recientes') }}" title="{{ _('Copias más recientes') }}">{{ icon('down', 's') }}</button>
+      <div class="bk-track" id="bk-track" aria-hidden="true"><div class="bk-thumb" id="bk-thumb"></div></div>
+      <button type="button" class="btn s ghost" id="bk-down" aria-label="{{ _('Copias más antiguas') }}" title="{{ _('Copias más antiguas') }}">{{ icon('down', 's') }}</button></div>{% endif %}</div>
+    {% if backups|length > 4 %}<p class="muted sm" id="bk-pos" aria-live="polite" style="margin:8px 0 0;text-align:right"></p>{% endif %}
+    <script>
+    (function () {  // 4 copias a la vista; la barra del borde sube y baja de una en una
+      const list = document.getElementById('bk-list'), rail = document.getElementById('bk-rail');
+      if (!rail) return;
+      const rows = [...list.children], thumb = document.getElementById('bk-thumb'), track = document.getElementById('bk-track');
+      const up = document.getElementById('bk-up'), down = document.getElementById('bk-down'), pos = document.getElementById('bk-pos');
+      const step = () => rows[1].offsetTop - rows[0].offsetTop;
+      function size() { list.style.maxHeight = (rows[3].offsetTop + rows[3].offsetHeight - rows[0].offsetTop) + 'px'; sync(); }
+      function sync() {
+        const max = list.scrollHeight - list.clientHeight, first = Math.round(list.scrollTop / step());
+        const h = track.clientHeight * list.clientHeight / list.scrollHeight;
+        thumb.style.height = h + 'px'; thumb.style.top = (max ? (track.clientHeight - h) * list.scrollTop / max : 0) + 'px';
+        up.disabled = list.scrollTop <= 4; down.disabled = list.scrollTop >= max - 4;
+        pos.textContent = (first + 1) + '–' + Math.min(first + 4, rows.length) + ' de ' + rows.length + ' copias';
+      }
+      // de una copia en una, aunque se pulse otra vez antes de que termine el desplazamiento
+      let to = 0;
+      const go = d => { to = Math.max(0, Math.min(rows.length - 4, to + d)); list.scrollTo({top: to * step()}); sync(); };
+      list.addEventListener('scrollend', () => { to = Math.round(list.scrollTop / step()); });  // también con la rueda
+      up.addEventListener('click', () => go(-1));
+      down.addEventListener('click', () => go(1));
+      track.addEventListener('click', ev => { const r = track.getBoundingClientRect();
+        list.scrollTop = (ev.clientY - r.top) / r.height * list.scrollHeight - list.clientHeight / 2; });
+      list.addEventListener('scroll', sync); addEventListener('resize', size); size();
+    })();
+    </script></section>
 
   <section class="card c5" id="hora"><div class="card-h"><h2>Fecha, hora y zona horaria</h2></div>
     {% if not clock.available %}<p class="muted">No disponible en este sistema (requiere Ubuntu con systemd).</p>
