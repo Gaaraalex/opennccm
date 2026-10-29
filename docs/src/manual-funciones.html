@@ -175,11 +175,13 @@ con error se omiten y las válidas se importan; los grupos que no existen se cre
   en 6.0: Administración › General › Tokens de API), o un usuario y su contraseña. Basta con un usuario de solo lectura que vea
   los hosts. El token y la contraseña no se guardan; la dirección sí. Si Zabbix usa un certificado autofirmado, desmarque
   <i>Verificar el certificado</i>.</li>
-  <li><b>Elegir:</b> la vista previa lista los hosts con su nombre, dirección (IP de la interfaz principal, o su nombre DNS),
-  descripción, grupos de Zabbix y la <b>plataforma</b> deducida de las plantillas y el inventario de Zabbix (por ejemplo «Mikrotik by
-  SNMP» → MikroTik RouterOS). Las que no se reconocen quedan como «Genérico» con la marca <i>revisar</i>; cada una se puede cambiar.
-  Se puede filtrar por texto o por grupo de Zabbix. No se marcan los que ya existen en OpenNCCM (mismo nombre o dirección), los
-  que no tienen dirección ni los desactivados en Zabbix.</li>
+  <li><b>Elegir los grupos:</b> salen los grupos de Zabbix con cuántos hosts tiene cada uno y cuántos son nuevos. Marque los que
+  quiere migrar (o <i>Marcar todos</i>); solo se importan los equipos de esos grupos.</li>
+  <li><b>Quitar equipos:</b> la lista muestra los hosts de los grupos marcados con su nombre, dirección (IP de la interfaz
+  principal, o su nombre DNS), descripción, grupos de Zabbix y la <b>plataforma</b> deducida de las plantillas y el inventario de
+  Zabbix (por ejemplo «Mikrotik by SNMP» → MikroTik RouterOS). Las que no se reconocen quedan como «Genérico» con la marca
+  <i>revisar</i>; cada una se puede cambiar. Desmarque los que no quiera traer; se puede filtrar por texto. No se marcan los que
+  ya existen en OpenNCCM (mismo nombre o dirección), los que no tienen dirección ni los desactivados en Zabbix.</li>
   <li><b>Importar:</b> se guardan el nombre, la dirección (SSH, puerto 22), la descripción en <i>Notas</i> y, si Zabbix tiene
   inventario, el modelo, el n.º de serie y la ubicación. Opcionalmente, una credencial y un grupo para todos.</li>
 </ol>

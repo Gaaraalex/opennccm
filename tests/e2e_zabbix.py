@@ -1,6 +1,7 @@
 """Importar equipos desde Zabbix contra un Zabbix simulado (6.0 y 7.2): conexión con token y con usuario, vista previa
-(los que ya existen, sin dirección o desactivados no se marcan), plataforma deducida e importación sin credencial
-(equipos desactivados) y con credencial (activos)."""
+(los que ya existen, sin dirección o desactivados no se marcan), grupos de Zabbix para elegir (solo se importan los
+hosts de los grupos marcados), plataforma deducida e importación sin credencial (equipos desactivados) y con
+credencial (activos)."""
 import html
 import os
 import re
@@ -70,11 +71,15 @@ try:
           "desactivado en Zabbix" in byname["SW-Viejo"] and not re.search(r'name="sel"[^>]*checked', byname["SW-Viejo"]))
     check("sin interfaz: no se puede importar", "sin dirección" in byname["Sensor-Temp"] and "disabled" in byname["Sensor-Temp"])
     check("ya existe en OpenNCCM: no se puede importar", "ya existe" in byname["YaExiste-ZBX"] and "disabled" in byname["YaExiste-ZBX"])
-    check("grupos de Zabbix para filtrar", "<option>DMZ</option>" in r.text and "Firewalls, DMZ" in byname["FW-DMZ"])
+    check("grupos de Zabbix para elegir, con cuántos hosts y nuevos",
+          'name="zg" value="DMZ"' in r.text and "Firewalls, DMZ" in byname["FW-DMZ"]
+          and re.search(r'value="Routers"> <span><b>Routers</b><span[^>]*>2 hosts · 1 nuevos', r.text))
+    check("ningún grupo marcado al conectar", not re.search(r'name="zg"[^>]*checked', r.text))
 
     sel = [re.search(r'name="sel" value="(\d+)"', byname[n]).group(1) for n in ("RT-Borde", "SW-Core", "FW-DMZ", "SRV-Web")]
     idx = dict(zip(("RT-Borde", "SW-Core", "FW-DMZ", "SRV-Web"), sel))
-    data = [("key", key)] + [("sel", i) for i in sel] + [(f"t_{i}", "") for i in sel]
+    zg = [("zg", g) for g in ("Routers", "Switches", "Firewalls", "Servidores")]
+    data = [("key", key)] + zg + [("sel", i) for i in sel] + [(f"t_{i}", "") for i in sel]
     data = [d for d in data if not (d[0] == f"t_{idx['SRV-Web']}")] + [(f"t_{idx['SRV-Web']}", "linux"), ("credential_id", "")]
     r = s.post(B + "/devices/import/zabbix/create", data=data, allow_redirects=False)
     check("importar vuelve a Dispositivos", r.status_code in (302, 303) and r.headers["location"] == "/devices")
@@ -98,7 +103,12 @@ try:
     r = s.post(B + "/devices/import/zabbix", data={"url": "http://127.0.0.1:18160/zabbix", "auth": "token", "token": "tok-ok"})
     key = re.search(r'name="key" value="([^"]+)"', r.text).group(1)
     i = re.search(r'<b>SW-Core</b>[\s\S]*?', r.text) and re.search(r'name="sel" value="(\d+)"[^>]*aria-label="Importar SW-Core"', r.text).group(1)
-    s.post(B + "/devices/import/zabbix/create", data={"key": key, "sel": i, "credential_id": str(cred_id)})
+    s.post(B + "/devices/import/zabbix/create", data={"key": key, "zg": "Routers", "sel": i, "credential_id": str(cred_id)})
+    with SessionLocal() as db:
+        check("un equipo de un grupo no elegido no se importa", not db.query(Device).filter(Device.name == "SW-Core").first())
+    r = s.post(B + "/devices/import/zabbix", data={"url": "http://127.0.0.1:18160/zabbix", "auth": "token", "token": "tok-ok"})
+    key = re.search(r'name="key" value="([^"]+)"', r.text).group(1)
+    s.post(B + "/devices/import/zabbix/create", data={"key": key, "zg": "Switches", "sel": i, "credential_id": str(cred_id)})
     with SessionLocal() as db:
         d = db.query(Device).filter(Device.name == "SW-Core").first()
         check("con credencial para todos: activos y con la credencial", d and d.enabled and d.credential_id == cred_id)

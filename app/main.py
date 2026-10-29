@@ -912,8 +912,17 @@ async def device_zabbix_connect(request: Request):
     key = secrets.token_urlsafe(16)
     _ZBX[key] = {"user": user.id, "at": time.time(), "rows": rows}
     log_action(request, user, "zabbix_connect", f"{cli.url} (Zabbix {cli.version}): {len(rows)} hosts")
+    # grupos de Zabbix con cuántos hosts tiene cada uno y cuántos se pueden importar
+    zgroups = {}
+    for r in rows:
+        r["groups"] = r["groups"] or [_("Sin grupo")]
+        for g in r["groups"]:
+            n = zgroups.setdefault(g, [0, 0])
+            n[0] += 1
+            n[1] += r["ok"]
+    zgroups = sorted(zgroups.items(), key=lambda kv: kv[0].lower())
     return _zbx_form(request, user, url=url, verify=verify, mode=mode, username=username, key=key, rows=rows,
-                     zversion=cli.version, zgroups=sorted({g for r in rows for g in r["groups"]}, key=str.lower))
+                     zversion=cli.version, zgroups=zgroups)
 
 
 @app.post("/devices/import/zabbix/create")
@@ -934,10 +943,13 @@ async def device_zabbix_create(request: Request):
         if group_id and not db.get(DeviceGroup, group_id):
             group_id = None
         names = {n.lower() for n in db.scalars(select(Device.name))}
+        zg = set(form.getlist("zg"))  # solo se importan los hosts de los grupos de Zabbix elegidos
         for i in form.getlist("sel"):
             if not str(i).isdigit() or int(i) >= len(job["rows"]):
                 continue
             r = job["rows"][int(i)]
+            if not zg.intersection(r["groups"]):
+                continue
             dtype = form.get(f"t_{i}") or r["type"] or "generic"
             if not r["name"] or not r["host"] or r["name"].lower() in names:
                 skipped += 1
