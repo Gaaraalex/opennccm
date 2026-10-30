@@ -1,6 +1,7 @@
 {% extends "base.html" %}{% block title %}{{ _('Importar equipos desde Zabbix') }}{% endblock %}
 {% block content %}
-{# Paso 1: conectar (dirección y token, o usuario y contraseña). Paso 2 (rows): vista previa con casillas e importar. #}
+{# Paso 1: conectar (dirección y token, o usuario y contraseña). Con rows: 2 elegir los grupos de Zabbix, 3 quitar los
+   equipos que no se migran (solo salen los de los grupos marcados) y 4 importar. #}
 <div class="ph"><div class="grow"><h1>{{ _('Importar equipos desde Zabbix') }}</h1>
   <div class="sub">{{ _('Trae el nombre, la dirección IP y la descripción de los hosts de Zabbix y los crea como dispositivos. Las credenciales SSH no están en Zabbix: se asignan después.') }}</div></div>
   <a class="btn ghost" href="/devices">{{ icon('left', 's') }}{{ _('Volver a Dispositivos') }}</a></div>
@@ -28,13 +29,23 @@
 {% set n_new = rows|selectattr('ok')|list|length %}
 <form method="post" action="/devices/import/zabbix/create" id="zbx-imp" class="stack" style="margin-top:18px">
 <input type="hidden" name="key" value="{{ key }}">
-<section class="card flush"><div class="card-h" style="padding:16px 18px 0"><h2>{{ _('2. Elegir los equipos') }}</h2>
+{% if rows %}<section class="card"><div class="card-h"><h2>{{ _('2. Elegir los grupos de Zabbix') }}</h2>
   <span class="muted sm">{{ _f('{0} hosts en Zabbix · {1} nuevos · {2} ya están en OpenNCCM', rows|length, n_new, rows|selectattr('exists')|list|length) }}</span></div>
-  {% if rows %}<div class="row" style="padding:12px 18px;gap:12px">
+<div class="stack">
+  <p class="muted sm" style="margin:0">{{ _('Marca los grupos que quieres migrar: en el paso siguiente salen solo sus equipos.') }}</p>
+  <div class="row" style="gap:12px">
+    {% if zgroups|length > 12 %}<div class="input" style="max-width:280px"><input type="search" id="z-gq" placeholder="{{ _('Buscar grupo') }}" aria-label="{{ _('Buscar grupo') }}"></div>{% endif %}
+    <button type="button" class="btn ghost sm" id="z-gall">{{ _('Marcar todos') }}</button><button type="button" class="btn ghost sm" id="z-gnone">{{ _('Ninguno') }}</button>
+    <span class="grow"></span><span class="sm muted" id="z-gn" aria-live="polite"></span></div>
+  <div class="cklist" id="z-gl">{% for g, n in zgroups %}<label class="ck" data-name="{{ g|lower }}"><input type="checkbox" name="zg" value="{{ g }}"> <span><b>{{ g }}</b><span class="muted sm" style="display:block">{{ _f('{0} hosts · {1} nuevos', n[0], n[1]) }}</span></span></label>{% endfor %}</div>
+</div></section>{% endif %}
+<section class="card flush"><div class="card-h" style="padding:16px 18px 0"><h2>{{ _('3. Quitar los equipos que no quieres migrar') if rows else _('2. Elegir los equipos') }}</h2></div>
+  {% if rows %}<p class="muted sm" style="margin:8px 18px 0">{{ _('Desmarca los equipos que no quieras traer. Los que ya están en OpenNCCM o no tienen dirección no se pueden marcar.') }}</p>
+  <div class="row" style="padding:12px 18px;gap:12px">
     <div class="input" style="max-width:320px"><input type="search" id="z-q" placeholder="{{ _('Filtrar por nombre, IP o descripción') }}" aria-label="{{ _('Filtrar por nombre, IP o descripción') }}"></div>
-    {% if zgroups %}<div class="input" style="max-width:280px"><select id="z-g" aria-label="{{ _('Grupo de Zabbix') }}"><option value="">{{ _('Todos los grupos de Zabbix') }}</option>{% for g in zgroups %}<option>{{ g }}</option>{% endfor %}</select></div>{% endif %}
     <span class="grow"></span><span class="sm muted" id="z-n" aria-live="polite"></span></div>
-  <div class="tw"><table class="t" id="z-t"><thead><tr><th style="width:36px"><input type="checkbox" id="z-all" aria-label="{{ _('Seleccionar todos') }}"></th>
+  <div class="empty" id="z-none" style="padding:20px">{{ empty_art('search') }}<h2>{{ _('Marca al menos un grupo de Zabbix') }}</h2></div>
+  <div class="tw" id="z-tw"><table class="t" id="z-t"><thead><tr><th style="width:36px"><input type="checkbox" id="z-all" aria-label="{{ _('Seleccionar todos') }}"></th>
     <th>{{ _('Nombre') }}</th><th>{{ _('Dirección') }}</th><th>{{ _('Descripción') }}</th><th>{{ _('Grupos de Zabbix') }}</th><th>{{ _('Plataforma') }}</th></tr></thead>
   <tbody data-pager>{% for r in rows %}<tr data-g="{{ r.groups|join('\n') }}" data-text="{{ (r.name ~ ' ' ~ r.host ~ ' ' ~ r.description)|lower }}">
     <td><input type="checkbox" name="sel" value="{{ loop.index0 }}" aria-label="{{ _f('Importar {0}', r.name) }}" {{ 'checked' if r.ok and r.enabled }} {{ 'disabled' if not r.ok else 'data-ok=1' }}></td>
@@ -45,7 +56,7 @@
     <td>{% if r.ok %}<div class="input" style="min-width:200px"><select name="t_{{ loop.index0 }}" aria-label="{{ _f('Plataforma de {0}', r.name) }}" data-v="{{ r.type or 'generic' }}"><option value="{{ r.type or 'generic' }}" selected>{{ labels[r.type or 'generic'] }}</option></select></div>{% if not r.type %}<span class="tag info" style="margin-top:4px">{{ _('revisar') }}</span>{% endif %}{% else %}—{% endif %}</td>
   </tr>{% endfor %}</tbody></table></div>{% else %}<div class="empty">{{ empty_art('search') }}<h2>{{ _('Zabbix no tiene hosts que este usuario pueda ver') }}</h2></div>{% endif %}
 </section>
-{% if n_new %}<section class="card"><div class="card-h"><h2>{{ _('3. Importar') }}</h2></div><div class="stack">
+{% if n_new %}<section class="card"><div class="card-h"><h2>{{ _('4. Importar') }}</h2></div><div class="stack">
   <div class="f2">
     <div class="field"><label for="z-cred">{{ _('Credencial SSH para todos (opcional)') }}</label><div class="input"><select id="z-cred" name="credential_id"><option value="">{{ _('Ninguna: la asigno después a cada equipo') }}</option>{% for i, n in creds %}<option value="{{ i }}">{{ n }}</option>{% endfor %}</select></div>
       <span class="help">{{ _('Sin credencial, los equipos se crean desactivados (no se respaldan) hasta que edites cada uno, le asignes la suya y lo actives.') }}</span></div>
@@ -66,9 +77,12 @@
   auth.addEventListener('change', syncAuth); syncAuth();
   const t = document.getElementById('z-t');
   if (!t) return;
-  const L = {{ {'n': _('{0} equipos marcados'), 'n1': _('1 equipo marcado'), 'go': _('Importar {0} equipos'), 'go1': _('Importar 1 equipo')}|tojson }};
+  const L = {{ {'n': _('{0} equipos marcados'), 'n1': _('1 equipo marcado'), 'go': _('Importar {0} equipos'), 'go1': _('Importar 1 equipo'),
+               'g': _('{0} de {1} grupos marcados')}|tojson }};
   const LABELS = {{ labels|tojson }};
-  const rows = [...t.tBodies[0].rows], q = document.getElementById('z-q'), g = document.getElementById('z-g');
+  const rows = [...t.tBodies[0].rows], q = document.getElementById('z-q');
+  const gl = document.getElementById('z-gl'), gq = document.getElementById('z-gq'), gn = document.getElementById('z-gn');
+  const gboxes = [...gl.querySelectorAll('input[name=zg]')], none = document.getElementById('z-none'), tw = document.getElementById('z-tw');
   const all = document.getElementById('z-all'), n = document.getElementById('z-n'), go = document.getElementById('z-go'), gol = document.getElementById('z-gol');
   const boxes = rows.map(r => r.querySelector('input[name=sel]'));
   function count() {
@@ -78,18 +92,29 @@
     if (go) { go.disabled = !sel; gol.textContent = sel === 1 ? L.go1 : L.go.replace('{0}', sel); }
     all.checked = vis.length > 0 && vis.every(b => b.checked); all.indeterminate = !all.checked && vis.some(b => b.checked);
   }
-  // filtro por texto y por grupo de Zabbix: lo que queda fuera no se importa (su casilla no se envía)
+  // solo salen los equipos de los grupos de Zabbix marcados (y que pasan el filtro de texto): lo que queda fuera no
+  // se importa (su casilla no se envía)
   function filter() {
-    const v = (q.value || '').trim().toLowerCase(), grp = g ? g.value : '';
+    const v = (q.value || '').trim().toLowerCase(), grp = new Set(gboxes.filter(b => b.checked).map(b => b.value));
+    gn.textContent = L.g.replace('{0}', grp.size).replace('{1}', gboxes.length);
+    none.hidden = grp.size > 0; tw.hidden = !grp.size;
     rows.forEach(r => {
-      const out = (v && !r.dataset.text.includes(v)) || (grp && !r.dataset.g.split('\n').includes(grp));
+      const out = !r.dataset.g.split('\n').some(x => grp.has(x)) || (v && !r.dataset.text.includes(v));
       r.classList.toggle('pg-out', out); r.hidden = out;
       const b = r.querySelector('input[name=sel]'); b.disabled = !b.dataset.ok || out;
     });
     t.tBodies[0].dispatchEvent(new Event('pager:refresh'));
     count();
   }
-  q.addEventListener('input', filter); if (g) g.addEventListener('change', filter);
+  q.addEventListener('input', filter);
+  gboxes.forEach(b => b.addEventListener('change', filter));
+  const shown = () => gboxes.filter(b => !b.closest('label').hidden);
+  document.getElementById('z-gall').addEventListener('click', () => { shown().forEach(b => { b.checked = true; }); filter(); });
+  document.getElementById('z-gnone').addEventListener('click', () => { gboxes.forEach(b => { b.checked = false; }); filter(); });
+  if (gq) gq.addEventListener('input', () => {
+    const v = gq.value.trim().toLowerCase();
+    gl.querySelectorAll('label').forEach(l => { l.hidden = !!v && !l.dataset.name.includes(v); });
+  });
   all.addEventListener('change', () => { boxes.forEach(b => { if (!b.disabled && !b.closest('tr').classList.contains('pg-out')) b.checked = all.checked; }); count(); });
   boxes.forEach(b => b.addEventListener('change', count));
   // la lista completa de plataformas se carga al abrir cada selector (con cientos de hosts, la página no pesa)
@@ -99,7 +124,7 @@
     const cur = s.value;
     s.innerHTML = Object.entries(LABELS).map(([k, l]) => '<option value="' + k + '"' + (k === cur ? ' selected' : '') + '>' + l.replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c])) + '</option>').join('');
   });
-  count();
+  filter();
 })();
 </script>
 {% endblock %}

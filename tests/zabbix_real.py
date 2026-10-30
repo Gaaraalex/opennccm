@@ -1,5 +1,6 @@
 """Importación desde un Zabbix real (lo levanta tests/zabbix-real-test.sh): crea hosts por la API de Zabbix, un token de
 API, y los importa en OpenNCCM con token y con usuario, como lo haría un administrador."""
+import html
 import re
 import sys
 
@@ -60,10 +61,11 @@ check("«Zabbix server» (127.0.0.1) sin dirección utilizable", "sin dirección
 check("RouterOS por el inventario", 'data-v="mikrotik_routeros"' in rows.get("RT-Borde", ""))
 check("FortiGate por el inventario y nombre DNS", 'data-v="fortinet"' in rows.get("FW-DMZ", "") and "fw-dmz.example.net" in rows.get("FW-DMZ", ""))
 check("Linux por la plantilla", 'data-v="linux"' in rows.get("SRV-Linux", ""))
-check("grupo de Zabbix", "NCM-Pruebas" in rows.get("RT-Borde", ""))
+check("grupo de Zabbix", "NCM-Pruebas" in rows.get("RT-Borde", "") and 'name="zg" value="NCM-Pruebas"' in r.text)
 key = re.search(r'name="key" value="([^"]+)"', r.text).group(1)
 sel = [re.search(r'name="sel" value="(\d+)"', rows[n]).group(1) for n in ("RT-Borde", "FW-DMZ", "SRV-Linux")]
-r = s.post(B + "/devices/import/zabbix/create", data=[("key", key)] + [("sel", i) for i in sel], allow_redirects=False)
+zg = [("zg", html.unescape(g)) for g in re.findall(r'name="zg" value="([^"]+)"', r.text)]  # todos los grupos marcados
+r = s.post(B + "/devices/import/zabbix/create", data=[("key", key)] + zg + [("sel", i) for i in sel], allow_redirects=False)
 check("importar", r.status_code in (302, 303))
 with SessionLocal() as db:
     d = {x.name: x for x in db.query(Device)}

@@ -18,12 +18,15 @@
     <div class="muted" style="margin-top:2px">{{ profile.label }} · <span class="mono">{{ device.host }}{{ ':' ~ device.port if device.port != (23 if device.protocol == 'telnet' else 22) }}</span> ({{ device.protocol|upper }}) · {{ _f('respaldado {0}', device.last_backup_at|ago) if device.last_backup_at else _('sin respaldar todavía') }}</div></div></div>
   {% if can_console and device.protocol == 'ssh' %}<a class="btn" href="/devices/{{ device.id }}/console" target="_blank" rel="noopener" data-console="{{ device.id }}" data-name="{{ device.name }}" data-vend="{{ profile.vendor[:3]|upper }}" aria-label="{{ _f('Consola SSH de {0}', device.name) }}">{{ icon('term', 's') }}Consola</a>{% endif %}
   {% if device.web_enabled != false %}<a class="btn" href="{{ device.web_url or 'https://' ~ device.host ~ '/' }}" target="_blank" rel="noopener noreferrer" onclick="return abrirVentana(this.href, 'web-{{ device.id }}', 1280, 820)" aria-label="Interfaz web del equipo (ventana nueva)">{{ icon('globe', 's') }}Interfaz web</a>{% endif %}
-  {% if can_run %}<form class="inline" method="post" action="/devices/{{ device.id }}/backup"><button class="btn pri">{{ icon('dl', 's') }}Respaldar ahora</button></form>{% endif %}
+  {% if can_run %}<form class="inline" method="post" action="/devices/{{ device.id }}/backup"><button class="btn pri">{{ icon('backup', 's') }}Respaldar ahora</button></form>{% endif %}
   <span class="dropw"><button type="button" class="btn icon" data-drop="dev-menu" aria-haspopup="true" aria-expanded="false" aria-label="Más acciones" title="Más acciones">{{ icon('more', 's') }}</button>
     <div class="drop" id="dev-menu" hidden>
       {% if can_run %}<form method="post" action="/devices/{{ device.id }}/compliance"><button>{{ icon('shield', 's') }}Auditar cumplimiento</button></form>
       <form method="post" action="/devices/{{ device.id }}/cve"><button>{{ icon('bug', 's') }}Buscar CVE de firmware</button></form>
       <a href="#firmware" data-tab-link>{{ icon('chip', 's') }}Actualizar firmware…</a>{% endif %}
+      {% if device.device_type == 'mikrotik_routeros' %}<hr>
+      {% if latest_run %}<a href="/versions/{{ latest_run }}?raw=1">{{ icon('dl', 's') }}{{ _('Descargar .rsc (último respaldo)') }}</a>{% endif %}
+      {% if can_run %}<button type="button" data-dialog="mtbk-dlg">{{ icon('dl', 's') }}{{ _('Descargar .backup del equipo…') }}</button>{% endif %}<hr>{% endif %}
       {% if is_admin %}<a href="/devices/{{ device.id }}/edit" data-sheet data-title="{{ _f('Editar {0}', device.name) }}">{{ icon('edit', 's') }}Editar</a>{% endif %}
       {% if latest_run %}<a href="/diff?a={{ latest_run }}&b={{ latest_run }}">{{ icon('branch', 's') }}Comparar con otro equipo</a>{% endif %}
       <hr>
@@ -238,6 +241,15 @@
 </form></dialog>
 {% endif %}
 {% if is_admin %}
+{% if can_run and device.device_type == 'mikrotik_routeros' %}
+<dialog class="dlg" id="mtbk-dlg" aria-labelledby="mtbk-t"><form method="post" action="/devices/{{ device.id }}/mikrotik-backup" class="stack" onsubmit="setTimeout(() => { this.closest('dialog').close(); this.reset(); }, 300)">
+  <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi">{{ icon('db') }}</span><div><h2 id="mtbk-t">{{ _('Descargar el .backup del equipo') }}</h2>
+    <p class="muted" style="margin-top:6px">{{ _('El equipo crea el archivo ahora («/system backup save»), OpenNCCM lo trae por SFTP y lo borra del equipo. El .backup incluye usuarios y contraseñas y solo se restaura en el mismo modelo; para pasar la configuración a otro equipo use el .rsc.') }}</p></div></div>
+  <div class="field"><label for="mtbk-pw">{{ _('Contraseña para cifrarlo (opcional)') }}</label><div class="input"><input id="mtbk-pw" name="password" type="password" autocomplete="new-password" maxlength="64"></div>
+    <span class="help">{{ _('Sin contraseña se guarda sin cifrar. Con ella, RouterOS la pedirá al restaurar.') }}</span></div>
+  <div class="row end"><button type="button" class="btn ghost" data-close>{{ _('Cancelar') }}</button><button class="btn pri">{{ icon('dl', 's') }}{{ _('Descargar .backup') }}</button></div>
+</form></dialog>
+{% endif %}
 <dialog class="dlg" id="del-dlg" aria-labelledby="del-t"><form method="post" action="/devices/{{ device.id }}/delete">
   <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi crit">{{ icon('trash') }}</span><div><h2 id="del-t">{{ _f('¿Eliminar {0}?', device.name) }}</h2>
     <p class="muted" style="margin-top:6px">Se borrarán sus versiones de configuración, resultados y eventos. No se puede deshacer.</p></div></div>

@@ -1,21 +1,55 @@
 {% extends "base.html" %}{% block title %}{{ _('Mapa de la red') }}{% endblock %}
 {% block content %}
-{# Equipos (círculos) y enlaces LLDP/CDP con el puerto de cada extremo. Los vecinos que no están en OpenNCCM llevan borde
+{# Equipos y enlaces LLDP/CDP. Cada equipo tiene tres capas: el anillo dice el estado, el icono qué es (router, switch,
+   antena, firewall) y el distintivo de la esquina el fabricante. Los vecinos que no están en OpenNCCM llevan anillo
    discontinuo y se pueden agregar. La posición se calcula en el navegador (fuerzas) y se puede arrastrar; rueda = zoom. #}
 <style>
-  .topo-wrap{position:relative;height:min(72vh,760px);border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);overflow:hidden;touch-action:none}
-  .topo-wrap svg{width:100%;height:100%;display:block;cursor:grab}.topo-wrap svg.drag{cursor:grabbing}
+  .topo-wrap{position:relative;display:flex;height:min(72vh,760px);border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);overflow:hidden;touch-action:none}
+  #tsvg{flex:1;min-width:0;height:100%;display:block;cursor:grab}#tsvg.drag{cursor:grabbing}
+  .topo-wrap,.topo-chips{--v-mikrotik:#ff8f6b;--v-cisco:#4cc3f0;--v-ubiquiti:#d4dbe8;--v-juniper:#5fd3a3;--v-huawei:#ff6f86;
+    --v-aruba:#f5b83d;--v-extreme:#b98cff;--v-other:#5b6782;--v-edge:var(--line)}
+  :root[data-theme="oscuro"] .topo-wrap,:root[data-theme="oscuro"] .topo-chips{--v-edge:transparent}
+  @media (prefers-color-scheme:dark){:root[data-theme="auto"] .topo-wrap,:root[data-theme="auto"] .topo-chips{--v-edge:transparent}}
   .topo-edge{stroke:var(--line-strong);stroke-width:1.6}.topo-edge.hl{stroke:var(--brand);stroke-width:2.4}
-  .topo-edge.air{stroke-dasharray:7 5}
-  .topo-port{font:500 10px var(--f-mono);fill:var(--muted);pointer-events:none}
-  .topo-node circle{stroke-width:2;cursor:pointer}.topo-node text{font:600 12px var(--f-sans);fill:var(--ink);pointer-events:none}
-  .topo-node .sub{font:400 10.5px var(--f-mono);fill:var(--muted)}
-  .topo-node.ok circle{fill:var(--ok-soft);stroke:var(--ok)}.topo-node.error circle{fill:var(--crit-soft);stroke:var(--crit)}
-  .topo-node.pending circle{fill:var(--surface-2);stroke:var(--line-strong)}
-  .topo-node.new circle{fill:var(--surface);stroke:var(--brand);stroke-dasharray:4 3}
-  .topo-node.dim{opacity:.25}.topo-node.hit circle{stroke-width:4}
-  .topo-node .vend{font:700 9px var(--f-mono);fill:var(--ink-2)}
-  .topo-side{position:absolute;right:12px;top:12px;width:min(300px,calc(100% - 24px));background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh-pop);padding:14px}
+  .topo-edge.air{stroke-dasharray:7 5}.topo-e.vdim{opacity:.2}
+  .topo-hit{stroke:transparent;stroke-width:12}
+  .topo-port{pointer-events:none;display:none}.topo-port.show{display:inline}
+  .topo-port rect{fill:var(--surface);stroke:var(--line);stroke-width:1}.topo-port text{font:500 11px var(--f-mono);fill:var(--ink-2)}
+  .topo-node{cursor:pointer;color:var(--ink)}.topo-node:focus{outline:none}
+  .topo-node .ring{stroke-width:2;fill:var(--surface-2);stroke:var(--line-strong)}
+  .topo-node.ok .ring{fill:var(--ok-soft);stroke:var(--ok)}.topo-node.error .ring{fill:var(--crit-soft);stroke:var(--crit)}
+  .topo-node.new .ring{fill:var(--surface);stroke:var(--brand);stroke-dasharray:5 3.5}
+  .topo-node .halo,.topo-node .halo2{fill:none;display:none}.topo-node .halo{stroke:var(--brand-soft);stroke-width:5}.topo-node .halo2{stroke:var(--brand);stroke-width:2}
+  .topo-node.sel .halo,.topo-node.sel .halo2,.topo-node:focus-visible .halo2{display:inline}
+  .topo-node .lgo-bg{fill:var(--surface)}.topo-node .lgo-edge{fill:none;stroke:var(--v-edge);stroke-width:1}
+  .topo-node .eb{fill:var(--crit);stroke:var(--surface);stroke-width:2}.topo-node .eb-t{font:700 11px var(--f-sans);fill:var(--on-crit)}
+  .topo-node .name{font:600 12px var(--f-sans);fill:var(--ink);pointer-events:none;paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
+  .topo-node .sub{font:400 10.5px var(--f-mono);fill:var(--muted);pointer-events:none}
+  .topo-node.dim,.topo-node.vdim{opacity:.25}.topo-node.hit .ring{stroke-width:4}
+  .topo-chips{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px}
+  .topo-chips .chip{padding-left:6px}.topo-chips .chip[aria-pressed="true"]{border-color:var(--brand);background:var(--brand-soft);color:var(--ink)}
+  .topo-chips .chip[aria-pressed="true"] .n{color:var(--ink-2)}
+  .vlogo{display:inline-block;flex:none;border-radius:6px;box-shadow:0 0 0 1px var(--v-edge)}
+  .topo-legend-f{position:absolute;left:12px;bottom:12px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;max-width:calc(100% - 24px);padding:8px 12px;border-radius:var(--r-md);background:color-mix(in srgb,var(--surface) 90%,transparent);border:1px solid var(--line);font-size:12px;color:var(--ink-2)}
+  .topo-legend-f i{display:inline-block;width:12px;height:12px;border-radius:50%;border:2px solid;vertical-align:-2px;margin-right:6px}
+  .topo-pill{font:500 12px var(--f-sans);padding:3px 10px;border-radius:99px;background:var(--surface-2);color:var(--ink)}
+  .topo-pill.ok{background:var(--ok-soft);color:var(--ok)}.topo-pill.error{background:var(--crit-soft);color:var(--crit)}.topo-pill.new{background:var(--brand-soft);color:var(--brand-strong)}
+  .topo-how{padding:10px 12px;border-radius:var(--r-md);background:var(--surface-2);font-size:13px;line-height:19px;color:var(--ink-2)}
+  .topo-cap{font:600 11px var(--f-sans);letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+  .topo-lk{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line);font-size:13px}
+  .topo-lk .o{flex-grow:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* el panel ocupa su propio espacio a la derecha (abajo en pantallas estrechas): el mapa se encoge, no queda tapado */
+  .topo-side{flex:none;width:0;overflow:hidden;background:var(--surface);border-left:1px solid transparent;transition:width .2s ease,border-color .2s ease}
+  .topo-wrap.side-open .topo-side{width:320px;border-left-color:var(--line)}
+  .topo-side-in{width:320px;height:100%;box-sizing:border-box;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+  .topo-wrap.side-open .topo-legend-f{max-width:calc(100% - 344px)}
+  @media (max-width:899px){
+    .topo-wrap{flex-direction:column}
+    .topo-side{width:auto;height:0;border-left:0;border-top:1px solid transparent;transition:height .2s ease,border-color .2s ease}
+    .topo-wrap.side-open .topo-side{width:auto;height:46%;border-top-color:var(--line)}
+    .topo-side-in{width:auto}
+    .topo-wrap.side-open .topo-legend-f{display:none}
+  }
   .topo-wrap:fullscreen{height:100vh;border-radius:0}
   .topo-ctl{position:absolute;left:12px;top:12px;display:flex;flex-direction:column;gap:4px}
   .topo-ctl button{width:34px;height:34px;display:grid;place-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);color:var(--ink);font:600 16px var(--f-sans);cursor:pointer}
@@ -29,19 +63,23 @@
 
 {% if not enabled %}<div class="banner warn">{{ icon('alert') }}<span class="grow">{{ _('La lectura de vecinos está desactivada en Ajustes › Mapa de la red.') }}</span></div>{% endif %}
 {% if nodes %}
-<div class="row topo-legend sm muted" style="margin-bottom:10px">
-  <span><i style="border-color:var(--ok);background:var(--ok-soft)"></i>{{ _('Respaldo correcto') }}</span>
-  <span><i style="border-color:var(--crit);background:var(--crit-soft)"></i>{{ _('Último respaldo con error') }}</span>
-  <span><i style="border-color:var(--brand);border-style:dashed"></i>{{ _('Vecino que no está en OpenNCCM') }}</span>
-  <span><svg width="26" height="8" aria-hidden="true" style="margin-right:6px;vertical-align:1px"><line x1="0" y1="4" x2="26" y2="4" stroke="currentColor" stroke-width="1.6" stroke-dasharray="7 5"/></svg>{{ _('Enlace inalámbrico') }}</span>
-  <span class="grow"></span><div class="input" style="max-width:260px"><input type="search" id="tq" placeholder="{{ _('Buscar en el mapa') }}" aria-label="{{ _('Buscar en el mapa') }}"></div>
-  <button type="button" class="btn s ghost" id="treset">{{ icon('refresh', 's') }}{{ _('Reordenar') }}</button></div>
+<section class="topo-chips" aria-label="{{ _('Filtrar por fabricante') }}">
+  <span class="topo-cap" style="margin-right:4px">{{ _('Fabricante') }}</span>
+  {% for f, label in families if fam_count.get(f) %}<button type="button" class="chip" data-fam="{{ f }}" aria-pressed="false"><svg class="vlogo" width="20" height="20" aria-hidden="true"><use href="/static/icons.svg?v={{ VERSION }}#v-{{ f }}"/></svg>{{ _(label) }} <span class="n">{{ fam_count[f] }}</span></button>{% endfor %}
+  <span class="grow"></span><div class="input" style="max-width:280px"><select id="tnet" aria-label="{{ _('Red') }}"><option value="-1">{{ _('Todas las redes') }}</option></select></div>
+  <div class="input" style="max-width:260px"><input type="search" id="tq" placeholder="{{ _('Buscar en el mapa') }}" aria-label="{{ _('Buscar en el mapa') }}"></div>
+  <button type="button" class="btn s ghost" id="treset">{{ icon('refresh', 's') }}{{ _('Reordenar') }}</button></section>
 <div class="topo-wrap" id="topo"><svg id="tsvg" tabindex="0" role="img" aria-label="{{ _f('Mapa de la red: {0} equipos y {1} enlaces', nodes|length, links|length) }}"><g id="tview"></g></svg>
   <div class="topo-ctl"><button type="button" data-z="1.3" title="{{ _('Acercar') }}" aria-label="{{ _('Acercar') }}">+</button>
     <button type="button" data-z="0.77" title="{{ _('Alejar') }}" aria-label="{{ _('Alejar') }}">−</button>
     <button type="button" id="tfit" title="{{ _('Ver todo el mapa') }}" aria-label="{{ _('Ver todo el mapa') }}">⤢</button>
     <button type="button" id="tfull" title="{{ _('Pantalla completa') }}" aria-label="{{ _('Pantalla completa') }}">⛶</button></div>
-  <div class="topo-side" id="tside" hidden></div></div>
+  <div class="topo-legend-f">
+    <span><i style="border-color:var(--ok);background:var(--ok-soft)"></i>{{ _('Respaldo correcto') }}</span>
+    <span><i style="border-color:var(--crit);background:var(--crit-soft)"></i>{{ _('Último respaldo con error') }}</span>
+    <span><i style="border-color:var(--brand);border-style:dashed"></i>{{ _('Vecino que no está en OpenNCCM') }}</span>
+    <span><svg width="26" height="8" aria-hidden="true" style="margin-right:6px;vertical-align:1px"><line x1="0" y1="4" x2="26" y2="4" stroke="currentColor" stroke-width="1.6" stroke-dasharray="7 5"/></svg>{{ _('Enlace inalámbrico') }}</span></div>
+  <aside class="topo-side" id="tside" aria-label="{{ _('Detalle del equipo') }}" inert><div class="topo-side-in" id="tside-in"></div></aside></div>
 <details style="margin-top:14px"><summary class="sm">{{ _f('Lista de enlaces ({0})', links|length) }}</summary>
   <div class="tw"><table class="t"><thead><tr><th>{{ _('Equipo') }}</th><th>{{ _('Puerto') }}</th><th>{{ _('Vecino') }}</th><th>{{ _('Puerto') }}</th></tr></thead><tbody data-pager>
   {% for e in links %}<tr><td>{{ labels[e.a] }}</td><td class="mono">{{ e.pa or '—' }}</td><td>{{ labels[e.b] }}</td><td class="mono">{{ e.pb or '—' }}</td></tr>{% endfor %}</tbody></table></div></details>
@@ -50,7 +88,7 @@
   <p>{{ _f('Los vecinos se leen en cada respaldo, en las plataformas que lo admiten (Cisco, Arista, Juniper, Huawei, HP/Aruba, Dell, MikroTik, EdgeSwitch, EXOS…), si tienen LLDP o CDP activado. Equipos con vecinos leídos: {0} de {1}.', with_data, total) }}</p></div></section>
 {% endif %}
 {% if clients %}<p class="muted sm" style="margin-top:12px">{{ _f('No se muestran {0} equipos de usuario (los CPE de los clientes, vistos por su radio detrás de un punto de acceso): no son enlaces de la red.', clients) }}</p>{% endif %}
-{% if hidden %}<p class="muted sm" style="margin-top:12px">{{ _f('No se muestran {0} vecinos de otros tipos de equipo (se elige en Ajustes › Mapa de la red).', hidden) }}</p>{% endif %}
+{% if hidden %}<p class="muted sm" style="margin-top:12px">{{ _f('No se muestran {0} vecinos de otros tipos de equipo (se elige en Ajustes › Mapa de la red).', hidden|length) }} {{ hidden|join(', ') }}</p>{% endif %}
 {% if alone %}<p class="muted sm" style="margin-top:12px">{{ _f('Sin enlaces conocidos: {0}', alone|map(attribute='label')|join(', ')) }}</p>{% endif %}
 
 <script>
@@ -58,48 +96,98 @@
   const svg = document.getElementById('tsvg');
   if (!svg) return;
   const NODES = {{ nodes|tojson }}, LINKS = {{ links|tojson }}, ADMIN = {{ (user.role == 'admin')|tojson }};
-  const L = {{ {'open': _('Abrir el equipo'), 'add': _('Agregar a OpenNCCM'), 'notin': _('Vecino que no está en OpenNCCM'),
-                'links': _('Enlaces'), 'close': _('Cerrar')}|tojson }};
-  const view = document.getElementById('tview'), side = document.getElementById('tside'), NS = 'http://www.w3.org/2000/svg';
+  const L = {{ {'open': _('Abrir el equipo'), 'add': _('Agregar a OpenNCCM'), 'notin': _('No está en OpenNCCM'), 'notin_a': _('no está en OpenNCCM'),
+                'links': _('Enlaces'), 'close': _('Cerrar'), 'how': _('Cómo se reconoció'),
+                'st': {'ok': _('Respaldo correcto'), 'error': _('Último respaldo con error'), 'pending': _('Sin respaldo todavía'),
+                       'new': _('No está en OpenNCCM')},
+                'roles': roles, 'fams': fam_names, 'net': _('Red de {0} ({1} equipos)')}|tojson }};
+  const SPRITE = '/static/icons.svg?v={{ VERSION }}#';
+  const view = document.getElementById('tview'), side = document.getElementById('tside'), sideIn = document.getElementById('tside-in'), NS = 'http://www.w3.org/2000/svg';
+  const wrap = document.getElementById('topo');
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
   const byId = {}; NODES.forEach(n => { byId[n.id] = n; });
   let W = svg.clientWidth || 900, H = svg.clientHeight || 600;
   const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
-  // disposición por fuerzas (repulsión entre todos, muelles en los enlaces, gravedad al centro)
+  // redes aisladas: los equipos unidos por enlaces (la más grande primero)
+  const COMPS = (() => {
+    const up = {}, find = x => up[x] === x ? x : (up[x] = find(up[x]));
+    NODES.forEach(n => { up[n.id] = n.id; });
+    LINKS.forEach(e => { up[find(e.a)] = find(e.b); });
+    const m = {}; NODES.forEach(n => { (m[find(n.id)] = m[find(n.id)] || []).push(n); });
+    const out = Object.values(m).sort((a, b) => b.length - a.length);
+    out.forEach((c, i) => c.forEach(n => { n.comp = i; }));
+    return out;
+  })();
+  // disposición por fuerzas en cada red (repulsión entre sus equipos, muelles en los enlaces, gravedad a su centro); luego
+  // las redes se colocan en filas, juntas, en lugar de separarse sin límite unas de otras
   function layout() {
-    const n = NODES.length, R = Math.min(W, H) * 0.38;
-    NODES.forEach((d, i) => { d.x = W / 2 + R * Math.cos(2 * Math.PI * i / n); d.y = H / 2 + R * Math.sin(2 * Math.PI * i / n); });
-    const k = Math.max(110, Math.sqrt(W * H / Math.max(n, 1)) * 0.75);  // separación ideal entre equipos
-    for (let it = 0; it < 350; it++) {
-      const t = 0.1 * (1 - it / 350) + 0.01;
-      NODES.forEach(a => { a.dx = 0; a.dy = 0; });
-      for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
-        const a = NODES[i], b = NODES[j]; let dx = a.x - b.x, dy = a.y - b.y; const d2 = dx * dx + dy * dy + 0.01, f = k * k / d2;
-        a.dx += dx * f; a.dy += dy * f; b.dx -= dx * f; b.dy -= dy * f;
+    const k = Math.max(130, Math.sqrt(W * H / Math.max(NODES.length, 1)) * 0.75);  // separación ideal entre equipos
+    const boxes = COMPS.map(c => {
+      const n = c.length, R = k * Math.sqrt(n) / 2, ids = new Set(c.map(x => x.id)), ls = LINKS.filter(e => ids.has(e.a));
+      c.forEach((d, i) => { d.x = R * Math.cos(2 * Math.PI * i / n); d.y = R * Math.sin(2 * Math.PI * i / n); });
+      for (let it = 0; it < 350 && n > 1; it++) {
+        const t = 0.1 * (1 - it / 350) + 0.01;
+        c.forEach(a => { a.dx = 0; a.dy = 0; });
+        for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+          const a = c[i], b = c[j]; let dx = a.x - b.x, dy = a.y - b.y; const d2 = dx * dx + dy * dy + 0.01, f = k * k / d2;
+          a.dx += dx * f; a.dy += dy * f; b.dx -= dx * f; b.dy -= dy * f;
+        }
+        ls.forEach(e => { const a = byId[e.a], b = byId[e.b]; const dx = a.x - b.x, dy = a.y - b.y, d = Math.sqrt(dx * dx + dy * dy) + 0.01, f = d / k;
+          a.dx -= dx * f; a.dy -= dy * f; b.dx += dx * f; b.dy += dy * f; });
+        c.forEach(a => { a.dx -= a.x * 0.02; a.dy -= a.y * 0.02;
+          const m = Math.sqrt(a.dx * a.dx + a.dy * a.dy) + 0.01, s = Math.min(m, k * t * 4);
+          a.x += a.dx / m * s; a.y += a.dy / m * s; });
       }
-      LINKS.forEach(e => { const a = byId[e.a], b = byId[e.b]; const dx = a.x - b.x, dy = a.y - b.y, d = Math.sqrt(dx * dx + dy * dy) + 0.01, f = d / k;
-        a.dx -= dx * f; a.dy -= dy * f; b.dx += dx * f; b.dy += dy * f; });
-      NODES.forEach(a => { a.dx += (W / 2 - a.x) * 0.02; a.dy += (H / 2 - a.y) * 0.02;
-        const m = Math.sqrt(a.dx * a.dx + a.dy * a.dy) + 0.01, s = Math.min(m, k * t * 4);
-        a.x += a.dx / m * s; a.y += a.dy / m * s; });
-    }
+      const xs = c.map(d => d.x), ys = c.map(d => d.y);
+      return {c, x0: Math.min(...xs), y0: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys)};
+    });
+    // filas de redes, con un ancho parecido a la proporción del recuadro
+    const gap = k * 0.9, area = boxes.reduce((a, b) => a + (b.w + gap) * (b.h + gap), 0);
+    const maxW = Math.max(boxes[0] ? boxes[0].w : 0, Math.sqrt(area * W / H));
+    let x = 0, y = 0, rowH = 0;
+    boxes.forEach(b => {
+      if (x > 0 && x + b.w > maxW) { x = 0; y += rowH + gap; rowH = 0; }
+      b.c.forEach(d => { d.x += x - b.x0; d.y += y - b.y0; });
+      x += b.w + gap; rowH = Math.max(rowH, b.h);
+    });
   }
   const edgeEls = [], nodeEls = {};
+  const use = (parent, id, x, y, s) => mk('use', {href: SPRITE + id, x, y, width: s, height: s}, parent);
+  const st = n => n.kind === 'new' ? 'new' : (n.status || 'pending');
+  const aria = n => n.label + ', ' + (L.roles[n.role] || '') + ' ' + (L.fams[n.fam] || '') + (n.kind === 'new' ? ', ' + L.notin_a : '');
+  // etiqueta de puerto: texto con un fondo opaco pequeño para que no la cruce ninguna línea
+  function plabel(parent, txt) {
+    if (!txt) return null;
+    const g = mk('g', {class: 'topo-port'}, parent), w = txt.length * 6.7 + 10;
+    mk('rect', {x: -w / 2, y: -8.5, width: w, height: 17, rx: 4}, g);
+    const t = mk('text', {'text-anchor': 'middle', y: 4}, g); t.textContent = txt;
+    g.w = w; return g;
+  }
   function draw() {
-    view.textContent = '';
+    view.textContent = ''; edgeEls.length = 0;
+    const edgeLayer = mk('g', {}, view), labLayer = mk('g', {}, view);
     LINKS.forEach(e => {
-      const g = mk('g', {}, view), line = mk('line', {class: 'topo-edge' + (e.air ? ' air' : '')}, g);
-      const ta = mk('text', {class: 'topo-port'}, g), tb = mk('text', {class: 'topo-port'}, g);
-      ta.textContent = e.pa || ''; tb.textContent = e.pb || '';
+      const g = mk('g', {class: 'topo-e'}, edgeLayer), hit = mk('line', {class: 'topo-hit'}, g), line = mk('line', {class: 'topo-edge' + (e.air ? ' air' : '')}, g);
+      const ta = plabel(labLayer, e.pa), tb = plabel(labLayer, e.pb);
       const t = mk('title', {}, g); t.textContent = (byId[e.a].label + ' ' + (e.pa || '') + ' ↔ ' + byId[e.b].label + ' ' + (e.pb || '')).trim();
-      edgeEls.push({e, line, ta, tb});
+      const x = {e, g, hit, line, ta, tb, on: false, hover: false, own: ''};
+      g.addEventListener('pointerenter', () => { x.hover = true; ports(); });
+      g.addEventListener('pointerleave', () => { x.hover = false; ports(); });
+      edgeEls.push(x);
     });
     NODES.forEach(n => {
-      const g = mk('g', {class: 'topo-node ' + (n.kind === 'new' ? 'new' : (n.status || 'pending')), tabindex: 0, role: 'button', 'aria-label': n.label}, view);
-      mk('circle', {r: 18}, g);
-      const v = mk('text', {class: 'vend', 'text-anchor': 'middle', dy: '3'}, g); v.textContent = n.kind === 'new' ? '?' : (n.vend || '');
-      const t = mk('text', {'text-anchor': 'middle', dy: '34'}, g); t.textContent = n.label;
-      const s = mk('text', {class: 'sub', 'text-anchor': 'middle', dy: '47'}, g); s.textContent = n.sub || '';
+      // 48 px: anillo de estado, icono del tipo en el centro y distintivo del fabricante abajo a la derecha
+      const g = mk('g', {class: 'topo-node ' + st(n), tabindex: 0, role: 'button', 'aria-label': aria(n)}, view);
+      mk('circle', {class: 'halo', r: 26.5}, g); mk('circle', {class: 'halo2', r: 30}, g);
+      mk('circle', {class: 'ring', r: 23}, g);
+      use(g, 't-' + (n.role || 'unknown'), -12, -12, 24);
+      mk('rect', {class: 'lgo-bg', x: 9, y: 7, width: 26, height: 26, rx: 8}, g);
+      use(g, 'v-' + (n.fam || 'other'), 11, 9, 22);
+      mk('rect', {class: 'lgo-edge', x: 11, y: 9, width: 22, height: 22, rx: 6}, g);
+      if (st(n) === 'error') { mk('circle', {class: 'eb', cx: -21, cy: -21, r: 10}, g);
+        const x = mk('text', {class: 'eb-t', x: -21, y: -17, 'text-anchor': 'middle'}, g); x.textContent = '!'; }
+      const t = mk('text', {class: 'name', 'text-anchor': 'middle', dy: '44'}, g); t.textContent = n.label;
+      const s = mk('text', {class: 'sub', 'text-anchor': 'middle', dy: '57'}, g); s.textContent = n.sub || '';
       g.addEventListener('click', ev => { if (!moved) select(n); ev.stopPropagation(); });
       g.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); select(n); } });
       g.addEventListener('pointerdown', ev => startDrag(ev, n));
@@ -107,41 +195,103 @@
     });
     place();
   }
+  // qué etiquetas se ven: las de los enlaces del equipo elegido (con más de 8, solo la del vecino) y las dos del enlace
+  // bajo el ratón
+  function ports() {
+    edgeEls.forEach(x => {
+      if (x.ta) x.ta.classList.toggle('show', x.hover || (x.on && x.own !== 'a'));
+      if (x.tb) x.tb.classList.toggle('show', x.hover || (x.on && x.own !== 'b'));
+    });
+  }
   function place() {
-    edgeEls.forEach(({e, line, ta, tb}) => {
-      const a = byId[e.a], b = byId[e.b];
-      line.setAttribute('x1', a.x); line.setAttribute('y1', a.y); line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
-      // el puerto, sobre el enlace y apartado del nombre del equipo
-      const dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1, o = Math.min(70, d * 0.32);
-      const nx = -dy / d * 9, ny = dx / d * 9;
-      ta.setAttribute('x', a.x + dx / d * o + nx); ta.setAttribute('y', a.y + dy / d * o + ny);
-      tb.setAttribute('x', b.x - dx / d * o + nx); tb.setAttribute('y', b.y - dy / d * o + ny);
+    const at = {};  // etiquetas visibles junto a cada equipo, para apartar las que se pisan
+    edgeEls.forEach(x => {
+      const {e, line, hit} = x, a = byId[e.a], b = byId[e.b];
+      for (const l of [line, hit]) { l.setAttribute('x1', a.x); l.setAttribute('y1', a.y); l.setAttribute('x2', b.x); l.setAttribute('y2', b.y); }
+      const dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1, ux = dx / d, uy = dy / d;
+      [[x.ta, a, ux, uy, 'a'], [x.tb, b, -ux, -uy, 'b']].forEach(([lab, n, vx, vy, end]) => {
+        if (!lab) return;
+        // sobre el enlace, fuera del anillo de 48 px: a unos 34 px del centro (más si la etiqueta es ancha y el enlace horizontal)
+        let r = 28 + Math.abs(vx) * lab.w / 2 + Math.abs(vy) * 8.5;
+        const max = Math.max(r, d / 2 - 6), mine = at[n.id] = at[n.id] || [], counts = x.on && x.own !== end;
+        let px = n.x + vx * r, py = n.y + vy * r;
+        // si se pisa con otra etiqueta del mismo equipo, se aparta 14 px por su enlace
+        for (let i = 0; counts && i < 8 && r + 14 <= max && mine.some(o => Math.abs(o.x - px) < (o.w + lab.w) / 2 + 2 && Math.abs(o.y - py) < 18); i++) {
+          r += 14; px = n.x + vx * r; py = n.y + vy * r;
+        }
+        if (counts) mine.push({x: px, y: py, w: lab.w});
+        lab.setAttribute('transform', `translate(${px},${py})`);
+      });
     });
     NODES.forEach(n => nodeEls[n.id].setAttribute('transform', `translate(${n.x},${n.y})`));
   }
+  let cur = null, refit = 0;
+  const reframe = () => { clearTimeout(refit); W = svg.clientWidth || W; H = svg.clientHeight || H; if (cur) reveal(cur); };
+  // el panel abre y cierra en 200 ms; al terminar (o, si el navegador no anima, poco después) se vuelve a encuadrar
+  side.addEventListener('transitionend', ev => { if (ev.target === side && /width|height/.test(ev.propertyName)) reframe(); });
+  function panel(open) {  // abre o cierra el panel; el mapa se encoge o crece a la vez y se vuelve a encuadrar
+    const was = wrap.classList.contains('side-open');
+    wrap.classList.toggle('side-open', open); side.toggleAttribute('inert', !open);
+    clearTimeout(refit); refit = setTimeout(reframe, was === open ? 0 : 450);
+  }
+  function unselect() {
+    cur = null; panel(false);
+    edgeEls.forEach(x => { x.line.classList.remove('hl'); x.g.classList.remove('on'); x.on = false; x.own = ''; });
+    NODES.forEach(m => nodeEls[m.id].classList.remove('sel'));
+    place(); ports();
+  }
   function select(n) {
-    const ls = LINKS.filter(e => e.a === n.id || e.b === n.id);
-    edgeEls.forEach(x => x.line.classList.toggle('hl', ls.includes(x.e)));
-    let h = `<div class="row nowrap"><b class="grow">${esc(n.label)}</b><button type="button" class="tbtn" data-x aria-label="${esc(L.close)}">✕</button></div>`;
-    h += `<div class="muted sm mono">${esc(n.sub)}${n.platform ? ' · ' + esc(n.platform) : ''}</div>`;
-    if (n.kind === 'new') h += `<p class="sm" style="margin:8px 0">${esc(L.notin)}</p>` + (ADMIN ? `<a class="btn s pri" href="/devices/new?name=${encodeURIComponent(n.name || '')}&host=${encodeURIComponent(n.ip || '')}" data-sheet data-title="${esc(L.add)}">${esc(L.add)}</a>` : '');
-    else h += `<p style="margin:8px 0"><a class="btn s" href="${esc(n.href)}">${esc(L.open)}</a></p>`;
-    h += `<div class="sm b" style="margin-top:8px">${esc(L.links)} (${ls.length})</div><ul class="sm" style="margin:4px 0 0 16px">` + ls.map(e => {
+    const ls = LINKS.filter(e => e.a === n.id || e.b === n.id), many = ls.length > 8;
+    // los puertos solo se ven en los enlaces del equipo elegido (en todos a la vez tapan el centro del mapa); con más de 8
+    // enlaces, solo el del vecino: los del propio equipo están en la lista «Enlaces» del panel
+    edgeEls.forEach(x => { const on = ls.includes(x.e); x.line.classList.toggle('hl', on); x.g.classList.toggle('on', on);
+      x.on = on; x.own = on && many ? (x.e.a === n.id ? 'a' : 'b') : ''; });
+    NODES.forEach(m => nodeEls[m.id].classList.toggle('sel', m.id === n.id));
+    cur = n; place(); ports();
+    const s = st(n);
+    let h = `<div class="row nowrap" style="align-items:flex-start;gap:12px"><svg class="vlogo" width="44" height="44" style="border-radius:12px" aria-hidden="true"><use href="${SPRITE}v-${esc(n.fam || 'other')}"/></svg>`
+      + `<div class="grow" style="min-width:0"><div class="b" style="font-size:15px;line-height:20px;overflow-wrap:anywhere">${esc(n.label)}</div><div class="muted sm mono">${esc(n.sub)}</div></div>`
+      + `<button type="button" class="tbtn" data-x aria-label="${esc(L.close)}">✕</button></div>`;
+    h += `<div class="row" style="gap:6px;flex-wrap:wrap"><span class="topo-pill">${esc(L.fams[n.fam] || '')}</span><span class="topo-pill">${esc(L.roles[n.role] || '')}</span><span class="topo-pill ${s}">${esc(L.st[s] || '')}</span></div>`;
+    if (n.how) h += `<div class="topo-how"><div class="topo-cap" style="margin-bottom:2px">${esc(L.how)}</div>${esc(n.how)}</div>`;
+    h += `<div><div class="topo-cap" style="margin-bottom:6px">${esc(L.links)} (${ls.length})</div>` + ls.map(e => {
       const me = e.a === n.id, o = byId[me ? e.b : e.a];
-      return `<li><span class="mono">${esc(me ? e.pa : e.pb) || '—'}</span> → ${esc(o.label)} <span class="mono">${esc(me ? e.pb : e.pa) || ''}</span></li>`;
-    }).join('') + '</ul>';
-    side.innerHTML = h; side.hidden = false;
-    side.querySelector('[data-x]').addEventListener('click', () => { side.hidden = true; edgeEls.forEach(x => x.line.classList.remove('hl')); });
+      return `<div class="topo-lk"><span class="mono sm">${esc(me ? e.pa : e.pb) || '—'}</span><span class="muted" aria-hidden="true">→</span><span class="o">${esc(o.label)}</span><span class="mono sm muted">${esc(me ? e.pb : e.pa) || ''}</span></div>`;
+    }).join('') + '</div>';
+    if (n.kind === 'new') h += ADMIN ? `<a class="btn pri" style="justify-content:center" href="/devices/new?name=${encodeURIComponent(n.name || '')}&host=${encodeURIComponent(n.ip || '')}" data-sheet data-title="${esc(L.add)}">${esc(L.add)}</a>` : '';
+    else h += `<a class="btn pri" style="justify-content:center" href="${esc(n.href)}">${esc(L.open)}</a>`;
+    sideIn.innerHTML = h; panel(true);
+    sideIn.querySelector('[data-x]').addEventListener('click', unselect);
   }
   // arrastrar equipos, mover y hacer zoom en el lienzo
-  let tf = {x: 0, y: 0, k: 1}, drag = null, pan = null, moved = false;
+  let tf = {x: 0, y: 0, k: 1}, drag = null, pan = null, moved = false, net = -1;
   const apply = () => view.setAttribute('transform', `translate(${tf.x},${tf.y}) scale(${tf.k})`);
   function fit() {  // que todo el mapa quepa en el recuadro
-    const xs = NODES.map(n => n.x), ys = NODES.map(n => n.y), pad = 70;
+    const vis = NODES.filter(n => net < 0 || n.comp === net), xs = vis.map(n => n.x), ys = vis.map(n => n.y), pad = 70;
     const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
     const k = Math.min(1.4, (W - 2 * pad) / Math.max(x1 - x0, 1), (H - 2 * pad - 30) / Math.max(y1 - y0, 1));
     tf = {k, x: W / 2 - (x0 + x1) / 2 * k, y: (H - 30) / 2 - (y0 + y1) / 2 * k + 10};
     apply();
+  }
+  function reveal(n) {
+    const ids = new Set([n.id]); LINKS.forEach(e => { if (e.a === n.id) ids.add(e.b); if (e.b === n.id) ids.add(e.a); });
+    const ns = NODES.filter(m => ids.has(m.id)), pad = 60;
+    const x0 = Math.min(...ns.map(m => m.x)), x1 = Math.max(...ns.map(m => m.x)), y0 = Math.min(...ns.map(m => m.y)), y1 = Math.max(...ns.map(m => m.y));
+    const k = Math.min(tf.k, (W - 2 * pad) / Math.max(x1 - x0, 1), (H - 2 * pad) / Math.max(y1 - y0, 1));
+    let tx = tf.x, ty = tf.y;
+    if (k < tf.k) { tx = W / 2 - (x0 + x1) / 2 * k; ty = H / 2 - (y0 + y1) / 2 * k; }
+    else {  // basta con mover lo justo
+      if (x0 * k + tx < pad) tx = pad - x0 * k; else if (x1 * k + tx > W - pad) tx = W - pad - x1 * k;
+      if (y0 * k + ty < pad) ty = pad - y0 * k; else if (y1 * k + ty > H - pad) ty = H - pad - y1 * k;
+    }
+    if (k === tf.k && tx === tf.x && ty === tf.y) return;
+    const from = {...tf}, to = {k, x: tx, y: ty}, t0 = performance.now(), ms = 260;
+    const ease = t => 1 - Math.pow(1 - t, 3);
+    const stepf = now => { const t = Math.min(1, (now - t0) / ms), e = ease(t);
+      tf = {k: from.k + (to.k - from.k) * e, x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e}; apply();
+      if (t < 1) requestAnimationFrame(stepf); };
+    requestAnimationFrame(stepf);
+    setTimeout(() => { tf = to; apply(); }, ms + 60);  // por si el navegador no anima (pestaña en segundo plano)
   }
   const pt = ev => { const r = svg.getBoundingClientRect(); return {x: (ev.clientX - r.left - tf.x) / tf.k, y: (ev.clientY - r.top - tf.y) / tf.k}; };
   function startDrag(ev, n) { drag = n; moved = false; svg.setPointerCapture(ev.pointerId); ev.stopPropagation(); }
@@ -166,7 +316,7 @@
   }, {passive: false});
   document.querySelectorAll('.topo-ctl [data-z]').forEach(b => b.addEventListener('click', () => zoom(+b.dataset.z)));
   document.getElementById('tfit').addEventListener('click', fit);
-  const wrap = document.getElementById('topo'), full = document.getElementById('tfull');
+  const full = document.getElementById('tfull');
   if (!wrap.requestFullscreen) full.hidden = true;
   full.addEventListener('click', () => document.fullscreenElement ? document.exitFullscreen() : wrap.requestFullscreen());
   document.addEventListener('fullscreenchange', () => { W = svg.clientWidth || W; H = svg.clientHeight || H; fit(); });
@@ -181,7 +331,30 @@
     NODES.forEach(n => { const hit = q && (n.label + ' ' + (n.sub || '')).toLowerCase().includes(q);
       nodeEls[n.id].classList.toggle('hit', !!hit); nodeEls[n.id].classList.toggle('dim', !!q && !hit); });
   });
+  document.querySelectorAll('.topo-chips [data-fam]').forEach(b => b.addEventListener('click', () => {
+    const on = b.getAttribute('aria-pressed') !== 'true', f = on ? b.dataset.fam : null;
+    document.querySelectorAll('.topo-chips [data-fam]').forEach(c => c.setAttribute('aria-pressed', String(c === b && on)));
+    NODES.forEach(n => nodeEls[n.id].classList.toggle('vdim', !!f && n.fam !== f));
+    edgeEls.forEach(x => x.g.classList.toggle('vdim', !!f && (byId[x.e.a].fam !== f || byId[x.e.b].fam !== f)));
+  }));
+  // «Red»: ver solo una de las redes aisladas
+  const netSel = document.getElementById('tnet');
+  if (netSel) netSel.addEventListener('change', () => {
+    net = +netSel.value;
+    NODES.forEach(n => { nodeEls[n.id].style.display = net < 0 || n.comp === net ? '' : 'none'; });
+    edgeEls.forEach(x => { x.g.style.display = net < 0 || byId[x.e.a].comp === net ? '' : 'none'; });
+    fit();
+  });
   document.getElementById('treset').addEventListener('click', () => { W = svg.clientWidth || W; H = svg.clientHeight || H; layout(); place(); fit(); });
+  if (netSel) {
+    const deg = {}; LINKS.forEach(e => { deg[e.a] = (deg[e.a] || 0) + 1; deg[e.b] = (deg[e.b] || 0) + 1; });
+    COMPS.forEach((c, i) => {
+      const hub = c.reduce((a, b) => (deg[b.id] || 0) > (deg[a.id] || 0) ? b : a);
+      const o = document.createElement('option'); o.value = i;
+      o.textContent = L.net.replace('{0}', hub.label).replace('{1}', c.length); netSel.appendChild(o);
+    });
+    netSel.closest('.input').hidden = COMPS.length < 2;
+  }
   layout(); draw(); fit();
 })();
 </script>

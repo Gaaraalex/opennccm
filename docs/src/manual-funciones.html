@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.10.3<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 2.11.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -175,11 +175,13 @@ con error se omiten y las válidas se importan; los grupos que no existen se cre
   en 6.0: Administración › General › Tokens de API), o un usuario y su contraseña. Basta con un usuario de solo lectura que vea
   los hosts. El token y la contraseña no se guardan; la dirección sí. Si Zabbix usa un certificado autofirmado, desmarque
   <i>Verificar el certificado</i>.</li>
-  <li><b>Elegir:</b> la vista previa lista los hosts con su nombre, dirección (IP de la interfaz principal, o su nombre DNS),
-  descripción, grupos de Zabbix y la <b>plataforma</b> deducida de las plantillas y el inventario de Zabbix (por ejemplo «Mikrotik by
-  SNMP» → MikroTik RouterOS). Las que no se reconocen quedan como «Genérico» con la marca <i>revisar</i>; cada una se puede cambiar.
-  Se puede filtrar por texto o por grupo de Zabbix. No se marcan los que ya existen en OpenNCCM (mismo nombre o dirección), los
-  que no tienen dirección ni los desactivados en Zabbix.</li>
+  <li><b>Elegir los grupos:</b> salen los grupos de Zabbix con cuántos hosts tiene cada uno y cuántos son nuevos. Marque los que
+  quiere migrar (o <i>Marcar todos</i>); solo se importan los equipos de esos grupos.</li>
+  <li><b>Quitar equipos:</b> la lista muestra los hosts de los grupos marcados con su nombre, dirección (IP de la interfaz
+  principal, o su nombre DNS), descripción, grupos de Zabbix y la <b>plataforma</b> deducida de las plantillas y el inventario de
+  Zabbix (por ejemplo «Mikrotik by SNMP» → MikroTik RouterOS). Las que no se reconocen quedan como «Genérico» con la marca
+  <i>revisar</i>; cada una se puede cambiar. Desmarque los que no quiera traer; se puede filtrar por texto. No se marcan los que
+  ya existen en OpenNCCM (mismo nombre o dirección), los que no tienen dirección ni los desactivados en Zabbix.</li>
   <li><b>Importar:</b> se guardan el nombre, la dirección (SSH, puerto 22), la descripción en <i>Notas</i> y, si Zabbix tiene
   inventario, el modelo, el n.º de serie y la ubicación. Opcionalmente, una credencial y un grupo para todos.</li>
 </ol>
@@ -263,6 +265,11 @@ inicio automático. Solo funciona con equipos configurados por SSH.</div>
 <h2>Ver una versión</h2>
 <p>En la ficha del equipo, pestaña <b>Versiones</b>, la flecha <b>›</b> de cada versión la abre en un panel lateral. Desde allí puede <b>descargar</b>, <b>comparar con la anterior</b>,
 <b>etiquetar</b> (por ejemplo «antes de migración»), <b>marcar como línea base</b> o <b>revertir el equipo a esa versión</b>.</p>
+<p>En un <b>MikroTik RouterOS</b>, el menú <b>…</b> de la ficha ofrece además <b>Descargar .rsc (último respaldo)</b>, el
+<code>/export</code> guardado listo para <code>/import</code>, y <b>Descargar .backup del equipo…</b>. Este último lo crea el router
+en el momento (<code>/system backup save</code>), OpenNCCM lo trae por SFTP y lo borra del equipo. Se le puede poner una
+contraseña para cifrarlo. El .backup incluye usuarios y contraseñas y solo se restaura en el mismo modelo; para pasar la
+configuración a otro equipo, use el .rsc. El usuario de la credencial necesita la política <i>ftp</i> (SFTP).</p>
 <figure><img src="img/06-version.png" class="tall"><figcaption>Vista de una versión con sus acciones.</figcaption></figure>
 <div class="tip"><b>Retención</b>En Ajustes puede limitar cuántas versiones guardar por equipo. Las versiones etiquetadas (incluida la
 línea base) nunca se borran.</div>
@@ -734,6 +741,11 @@ los vecinos <b>LLDP o CDP</b> que cada equipo anuncia, leídos en cada respaldo 
 <code>show cdp neighbors detail</code> en Cisco o <code>/ip neighbor print</code> en MikroTik). Lo admiten Cisco, Arista, Juniper, Huawei,
 HP/Aruba, Dell, Ruckus, Allied, MikroTik, EdgeSwitch, UniFi Switch y EXOS, si tienen LLDP o CDP activado.</p>
 <ul>
+  <li>Cada equipo tiene tres capas: el <b>anillo</b> dice el estado, el <b>icono</b> del centro qué es (router, switch, antena,
+  firewall o desconocido) y el <b>distintivo</b> de la esquina su fabricante (marcas propias de OpenNCCM, no los logotipos de las
+  marcas). El tipo sale del modelo o la plataforma y, si no dicen nada, de las capacidades que anuncia por LLDP o CDP. Los chips
+  <b>Fabricante</b> de arriba resaltan los de una marca, y el panel de cada equipo explica <b>cómo se reconoció</b>. Los puertos solo
+  se muestran en los enlaces del equipo seleccionado.</li>
   <li>Los equipos se colorean según su último respaldo. Los <b>vecinos que no están en OpenNCCM</b> llevan borde discontinuo: al
   pulsarlos, <b>Agregar a OpenNCCM</b> abre el alta con su nombre e IP.</li>
   <li>Un vecino se reconoce como equipo de OpenNCCM por su nombre (sin dominio) o, si no, por su IP de gestión.</li>
@@ -743,8 +755,15 @@ HP/Aruba, Dell, Ruckus, Allied, MikroTik, EdgeSwitch, UniFi Switch y EXOS, si ti
   NanoStation, NanoBeam, SXT, LHG…), que nunca sale: así no aparecen los clientes que van cada uno en su VLAN. En MikroTik, en un puerto con varios vecinos por cable solo cuenta el visto por LLDP.</li>
   <li>Los <b>enlaces inalámbricos</b> (un extremo es una radio: ath0, wlan1…) se dibujan con línea discontinua.</li>
   <li>En <b>Ajustes › Mapa de la red</b> se eligen los <b>tipos de equipo descubiertos</b> que salen: MikroTik, Ubiquiti,
-  Juniper, Cisco, Huawei, HP/Aruba, Extreme y otros. El tipo se reconoce por lo que anuncia el vecino (plataforma, modelo) o
-  por el nombre de sus puertos. Los equipos que ya están en OpenNCCM salen siempre.</li>
+  Juniper, Cisco, Huawei, HP/Aruba, Extreme y otros. El tipo se reconoce por lo que anuncia el vecino (plataforma, modelo),
+  por el fabricante de su MAC (los switches UniFi que no dicen su modelo) o por el nombre de sus puertos. Los equipos que ya
+  están en OpenNCCM salen siempre. Bajo el mapa se nombran los vecinos que no salen por su tipo.</li>
+  <li>Al elegir un equipo se ven los <b>puertos</b> de sus enlaces, junto a cada extremo; con más de 8 enlaces, solo el del
+  vecino (los propios están en la lista <i>Enlaces</i> del panel). Al pasar el ratón por un enlace se ven los dos. El panel
+  ocupa su propio espacio a la derecha (abajo en pantallas estrechas) y el mapa se mueve para que se vean el equipo y sus
+  vecinos.</li>
+  <li>Las <b>redes aisladas</b> (equipos sin enlaces conocidos entre sí) se colocan juntas, en filas; el selector <b>Red</b>
+  muestra solo una.</li>
   <li>Se puede filtrar por grupo, buscar y arrastrar los equipos. Para recorrerlo: arrastrar el fondo, la rueda o los botones
   + y − para el zoom, «Ver todo el mapa» y «Pantalla completa». Debajo, la lista de enlaces.</li>
   <li>Se desactiva en <b>Ajustes › Mapa de la red</b> (entonces los respaldos no leen vecinos).</li>
@@ -900,7 +919,8 @@ caracteres que usted elige, y termina en <code>.enc</code>. Sin esa contraseña 
 restaurar con <code>sudo opennccm restore ARCHIVO.enc</code> se la pide.</p>
 <p>La pestaña <b>Sistema</b> muestra además el rendimiento del servidor, el <b>espacio</b>, la <b>fecha y hora del servidor</b>, la
 base de datos y la clave en uso, y las <b>copias de recuperación</b>: <b>Crear copia ahora</b> (con o sin la clave de cifrado),
-descargar, eliminar y <b>Restaurar…</b> (explica el comando de consola que la restaura).</p>
+descargar, eliminar y <b>Restaurar…</b> (explica el comando de consola que la restaura). Se ven 4 a la vez; las demás, con la
+barra del borde (subir y bajar).</p>
 <h2>Fecha, hora y zona horaria</h2>
 <ul>
   <li><b>Zona horaria:</b> elíjala de la lista (agrupada por región) y pulse <b>Cambiar zona</b>. OpenNCCM se reinicia unos segundos

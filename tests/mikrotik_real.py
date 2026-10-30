@@ -168,5 +168,21 @@ services.push_commands(dev_id, ["/system identity set name=CHR-Final"])
 time.sleep(2)
 check("un cambio correcto se conserva al cerrar la sesión", "CHR-Final" in ros("/system identity print"))
 
+# .backup del equipo: se crea, se trae por SFTP y se borra del equipo; con contraseña, cifrado
+for pw in ("", "Clave.2026"):
+    try:
+        fname, data = services.mikrotik_backup_file(dev_id, pw)
+    except Exception as e:  # noqa: BLE001
+        fname, data = str(e), b""
+    files = ros("/file print terse")
+    check(f".backup {'cifrado' if pw else 'sin cifrar'}: llega entero y no queda en el equipo",
+          fname.endswith(".backup") and len(data) > 1000 and "opennccm-" not in files, f"{fname} {len(data)} bytes; {files[-300:]}")
+try:
+    services.mikrotik_backup_file(dev_id, 'x" ; /system reboot')
+    rejected = False
+except ValueError:
+    rejected = True
+check("una contraseña con comillas o «;» se rechaza (no se inyectan órdenes)", rejected)
+
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)

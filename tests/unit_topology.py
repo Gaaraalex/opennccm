@@ -3,7 +3,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-from app.topology import MARK, family, is_wireless, network_view, norm_name, parse, short_port  # noqa: E402
+from app.topology import MARK, device_role, family, family_why, is_wireless, network_view, norm_name, parse, role_why, short_port  # noqa: E402
 
 fails = []
 
@@ -157,9 +157,56 @@ j = parse(MARK + "show lldp neighbors\n" + JN, "juniper_junos")
 check("Junos: tabla de vecinos", j and j[0]["local_port"] == "ge-0/0/0" and j[0]["remote_name"] == "SRX-Borde"
       and j[0]["remote_port"] == "ge-0/0/1", j)
 
+# capacidades anunciadas: CDP («Router Switch»), LLDP de Cisco («B,R» habilitadas) y MikroTik («system-caps-enabled»)
+check("CDP: capacidades del vecino", by.get("SW-ACCESO-2.empresa.local", {}).get("caps") == ["bridge"]
+      and by.get("AP-Sala", {}).get("caps") == ["bridge"], [(x["remote_name"], x.get("caps")) for x in n])
+LC = """Local Intf: Gi0/1
+System Name: R-Borde
+Port id: Gi0/0
+System Capabilities: B,R
+Enabled Capabilities: R
+"""
+check("LLDP: cuentan las capacidades habilitadas", parse(MARK + "show lldp neighbors detail\n" + LC, "cisco_ios")[0].get("caps") == ["router"])
+MC = " 0 interface=ether1 identity=AP-Torre platform=MikroTik interface-name=ether1 system-caps=bridge,wlan-ap,router system-caps-enabled=bridge,wlan-ap\n"
+check("MikroTik: capacidades habilitadas (wlan-ap = antena)",
+      parse(MARK + "/ip neighbor print detail terse without-paging\n" + MC, "mikrotik_routeros")[0].get("caps") == ["bridge", "wlan"])
+
+# tipo de equipo: por el modelo primero (un CRS anuncia «router» pero es un switch); si no, por lo que anuncia
+roles = {k: role_why(*v) for k, v in {
+    "crs": ("MikroTik CRS326-24G-2S+", ["bridge", "router"]), "ccr": ("MikroTik CCR2216-1G-12XS-2XQ", None),
+    "hex": ("MikroTik hEX S", None), "lb": ("LiteBeam M5", None), "rocket": ("Rocket 5AC", None), "srx": ("Juniper SRX345", None),
+    "ex": ("Juniper Networks, Inc. ex4300-48t Ethernet Switch", None), "ros": ("MikroTik RouterOS", ["bridge", "router"]),
+    "br": ("", ["bridge"]), "ap": ("", ["bridge", "wlan"]), "none": ("", None)}.items()}
+check("tipo por modelo o capacidades", roles == {
+    "crs": ("switch", "model"), "ccr": ("router", "model"), "hex": ("router", "model"), "lb": ("ap", "model"),
+    "rocket": ("ap", "model"), "srx": ("firewall", "model"), "ex": ("switch", "model"), "ros": ("router", "caps"),
+    "br": ("switch", "caps"), "ap": ("ap", "caps"), "none": ("unknown", "")}, roles)
+check("tipo de un equipo de OpenNCCM: modelo, perfil o lo que anuncia",
+      device_role("mikrotik_routeros", "CRS305-1G-4S+") == ("switch", "model")
+      and device_role("ubiquiti_edgeswitch", None) == ("switch", "type")
+      and device_role("mikrotik_routeros", None, ["bridge", "router"]) == ("router", "caps")
+      and device_role("generic", None) == ("unknown", ""))
+check("fabricante y cómo se reconoció", family_why({"platform": "MikroTik"}) == ("mikrotik", "platform")
+      and family_why({"remote_port": "xe-0/0/1"}) == ("juniper", "port") and family_why({}) == ("other", ""))
+
 check("orden no admitida: sin vecinos (y sin error)", parse(MARK + "show lldp neighbors detail\n% Invalid input detected at '^' marker.\n", "cisco_ios") == [])
 check("nombres comparables sin dominio", norm_name("SW-2.empresa.local") == "sw-2" == norm_name("sw-2"))
 check("puertos CDP y LLDP equivalentes", short_port("GigabitEthernet0/1") == short_port("Gi0/1"))
+
+# switches Ubiquiti: por el modelo (UniFi de primera generación, USW, USL, EdgeSwitch «ES-») o por la MAC si no dicen nada
+ubnt = parse("""
+ 0 interface=ether3 address=10.0.0.9 mac-address=74:83:c2:11:22:33 identity="SW-UniFi-Torre" platform="" board=""
+   system-description="US-24-250W, 6.5.59.14777, Linux 3.6.5" interface-name="Port 1" discovered-by=lldp
+ 1 interface=ether4 mac-address=F0:9F:C2:AA:BB:CC identity="SW-Patio" interface-name="Port 2" discovered-by=lldp
+ 2 interface=ether5 mac-address=00:0C:42:00:00:01 identity="Desconocido" interface-name="port7" discovered-by=lldp
+""", "mikrotik_routeros")
+by = {n["remote_name"]: n for n in ubnt}
+check("switch UniFi US-24 por el modelo", family_why(by["SW-UniFi-Torre"]) == ("ubiquiti", "platform")
+      and role_why(by["SW-UniFi-Torre"]["platform"], [])[0] == "switch")
+check("Ubiquiti por la MAC cuando no anuncia modelo", family_why(by["SW-Patio"]) == ("ubiquiti", "mac")
+      and by["SW-Patio"]["mac"] == "F0:9F:C2:AA:BB:CC" and family(by["Desconocido"]) == "other")
+check("modelos USW, USL y EdgeSwitch ES-", all(family({"platform": p}) == "ubiquiti" and role_why(p, [])[0] == "switch"
+                                              for p in ("USW-Lite-16-PoE, 7.0.50", "USL8LP", "ES-24-250W", "US-8-60W")))
 
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)

@@ -912,8 +912,17 @@ async def device_zabbix_connect(request: Request):
     key = secrets.token_urlsafe(16)
     _ZBX[key] = {"user": user.id, "at": time.time(), "rows": rows}
     log_action(request, user, "zabbix_connect", f"{cli.url} (Zabbix {cli.version}): {len(rows)} hosts")
+    # grupos de Zabbix con cuántos hosts tiene cada uno y cuántos se pueden importar
+    zgroups = {}
+    for r in rows:
+        r["groups"] = r["groups"] or [_("Sin grupo")]
+        for g in r["groups"]:
+            n = zgroups.setdefault(g, [0, 0])
+            n[0] += 1
+            n[1] += r["ok"]
+    zgroups = sorted(zgroups.items(), key=lambda kv: kv[0].lower())
     return _zbx_form(request, user, url=url, verify=verify, mode=mode, username=username, key=key, rows=rows,
-                     zversion=cli.version, zgroups=sorted({g for r in rows for g in r["groups"]}, key=str.lower))
+                     zversion=cli.version, zgroups=zgroups)
 
 
 @app.post("/devices/import/zabbix/create")
@@ -934,10 +943,13 @@ async def device_zabbix_create(request: Request):
         if group_id and not db.get(DeviceGroup, group_id):
             group_id = None
         names = {n.lower() for n in db.scalars(select(Device.name))}
+        zg = set(form.getlist("zg"))  # solo se importan los hosts de los grupos de Zabbix elegidos
         for i in form.getlist("sel"):
             if not str(i).isdigit() or int(i) >= len(job["rows"]):
                 continue
             r = job["rows"][int(i)]
+            if not zg.intersection(r["groups"]):
+                continue
             dtype = form.get(f"t_{i}") or r["type"] or "generic"
             if not r["name"] or not r["host"] or r["name"].lower() in names:
                 skipped += 1
@@ -1066,6 +1078,25 @@ def device_backup(request: Request, dev_id: int):
     return go(f"/devices/{dev_id}")
 
 
+@app.post("/devices/{dev_id}/mikrotik-backup")
+async def device_mikrotik_backup(request: Request, dev_id: int):
+    """Descarga el .backup de un MikroTik, hecho en el momento (no se guarda en OpenNCCM)."""
+    user = require(request, "operator")
+    check_device(user, dev_id)
+    form = await request.form()
+    try:
+        fname, data = services.mikrotik_backup_file(dev_id, (form.get("password") or "").strip())
+    except Exception as e:  # noqa: BLE001 - el motivo se muestra tal cual
+        flash(request, _f("No se pudo traer el .backup: {0}", str(e).splitlines()[0][:300] if str(e) else e.__class__.__name__), "error")
+        return go(f"/devices/{dev_id}")
+    with SessionLocal() as db:
+        name = db.get(Device, dev_id).name
+    log_action(request, user, "mikrotik_backup", f"device={dev_id} {len(data)} bytes")
+    fname = re.sub(r"[^\w.-]+", "_", name) + "_" + fname.removeprefix("opennccm-")
+    return Response(data, media_type="application/octet-stream",
+                    headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+
+
 @app.post("/backup/all")
 async def backup_all(request: Request):
     user = require(request, "operator")
@@ -1134,7 +1165,8 @@ def version_view(request: Request, ver_id: int, raw: int = 0):
         is_baseline = v.device.baseline_version_id == v.id
         if raw:
             log_action(request, user, "config_download", f"{v.device.name} v{v.id}")
-            fname = f"{v.device.name}_{v.kind}_{v.created_at:%Y%m%d-%H%M}.txt"
+            ext = "rsc" if v.device.device_type == "mikrotik_routeros" else "txt"
+            fname = f"{v.device.name}_{v.kind}_{v.created_at:%Y%m%d-%H%M}.{ext}"
             return PlainTextResponse(text, headers={"Content-Disposition": f'attachment; filename="{fname}"'})
         prev = db.scalars(select(ConfigVersion).where(ConfigVersion.device_id == v.device_id,
                                                       ConfigVersion.kind == v.kind, ConfigVersion.id < v.id)
@@ -1273,6 +1305,28 @@ async def version_rollback(request: Request, ver_id: int):
 
 
 # --------------------------------------------------------------------------- mapa de la red
+def _topo_role_how(role: str, by: str, caps: list[str]) -> str:
+    """Cómo se supo el tipo de equipo, para el panel del mapa."""
+    if by == "caps":
+        return _f("Capacidad anunciada: {0}.", ", ".join(caps))
+    if by in ("model", "type"):
+        return _("Tipo por su modelo o plataforma.")
+    return _("No anuncia qué tipo de equipo es.")
+
+
+def _topo_how(fby: str, n: dict, rby: str, rn: dict) -> str:
+    """«Cómo se reconoció» un vecino descubierto: fabricante y tipo."""
+    if fby == "platform":
+        fam = _f("Por lo que anuncia: {0}.", n.get("platform"))
+    elif fby == "mac":
+        fam = _f("Por el fabricante de su dirección MAC ({0}).", n.get("mac"))
+    elif fby == "port":
+        fam = _f("Por el nombre de su puerto («{0}»).", n.get("remote_port"))
+    else:
+        fam = _("No anuncia nada que diga su fabricante.")
+    return fam + " " + _topo_role_how("", rby, rn.get("caps") or [])
+
+
 @app.get("/topology")
 def topology_page(request: Request, group: int = 0):
     """Equipos y enlaces descubiertos por LLDP/CDP. Los vecinos que no están en OpenNCCM se muestran aparte."""
@@ -1287,7 +1341,8 @@ def topology_page(request: Request, group: int = 0):
         by_ip = {d.host.lower(): d for d in devs if hosts.count(d.host.lower()) == 1}  # solo IP que no se repiten
         by_name = {topology.norm_name(d.name): d for d in devs}
         nodes = {f"d{d.id}": {"id": f"d{d.id}", "label": d.name, "kind": "dev", "status": d.last_status,
-                              "href": f"/devices/{d.id}", "sub": d.host, "vend": (get_profile(d.device_type).vendor)[:3].upper()}
+                              "href": f"/devices/{d.id}", "sub": d.host,
+                              "fam": topology.VENDOR_FAMILY.get(get_profile(d.device_type).vendor, "other")}
                  for d in devs}
         edges: dict = {}
         with_data = clients = 0
@@ -1296,16 +1351,22 @@ def topology_page(request: Request, group: int = 0):
             with_data += bool(d.neighbors is not None)
             views[d.id], c = topology.network_view(json.loads(d.neighbors) if d.neighbors else [])
             clients += c
-        # tipo de cada vecino descubierto: el que se reconozca desde cualquiera de los equipos que lo ven
+        # fabricante y tipo de cada vecino descubierto: lo que se reconozca desde cualquiera de los equipos que lo ven
         fams: dict = {}
+        why: dict = {}
         for nbrs in views.values():
             for n in nbrs:
                 key = topology.norm_name(n.get("remote_name")) or n.get("remote_ip")
                 if fams.get(key, "other") == "other":
-                    fams[key] = topology.family(n)
+                    fams[key], fby = topology.family_why(n)
+                    why.setdefault(key, {})["fam"] = (fby, n)
+                role, rby = topology.role_why(n.get("platform") or "", n.get("caps"))
+                if rby and not why.setdefault(key, {}).get("role"):
+                    why[key]["role"] = (role, rby, n)
         types = get_setting("topology_types", "")
         allowed = {f for f, _l in topology.FAMILIES} if not types else set(types.split(","))
-        hidden = set()
+        hidden: dict = {}
+        seen_caps: dict = {}
         for d in devs:
             for n in views[d.id]:
                 # primero por nombre (el que anuncia el vecino), luego por IP
@@ -1314,15 +1375,21 @@ def topology_page(request: Request, group: int = 0):
                     continue
                 if t is not None:
                     other = f"d{t.id}"
+                    seen_caps.setdefault(t.id, []).extend(n.get("caps") or [])  # lo que el equipo anuncia a sus vecinos
                 else:
                     key = topology.norm_name(n.get("remote_name")) or n.get("remote_ip")
                     if fams.get(key, "other") not in allowed:  # tipo de equipo que no se quiere en el mapa
-                        hidden.add(key)
+                        hidden[key] = n.get("remote_name") or n.get("remote_ip") or key
                         continue
                     other = f"u:{key}"
-                    nodes.setdefault(other, {"id": other, "label": n.get("remote_name") or n.get("remote_ip"),
-                                             "kind": "new", "sub": n.get("remote_ip") or "", "platform": n.get("platform", ""),
-                                             "ip": n.get("remote_ip") or "", "name": (n.get("remote_name") or "").split(".")[0]})
+                    if other not in nodes:
+                        w = why.get(key, {})
+                        role, rby, rn = w.get("role") or ("unknown", "", n)
+                        nodes[other] = {"id": other, "label": n.get("remote_name") or n.get("remote_ip"),
+                                        "kind": "new", "sub": n.get("remote_ip") or "", "platform": n.get("platform", ""),
+                                        "ip": n.get("remote_ip") or "", "name": (n.get("remote_name") or "").split(".")[0],
+                                        "fam": fams.get(key, "other"), "role": role,
+                                        "how": _topo_how(*(w.get("fam") or ("", n)), rby, rn)}
                 a, b = sorted([f"d{d.id}", other])
                 pa, pb = (n.get("local_port", ""), n.get("remote_port", "")) if a == f"d{d.id}" else (n.get("remote_port", ""), n.get("local_port", ""))
                 k = (a, b, topology.short_port(pa) if pa else "", topology.short_port(pb) if pb else "")
@@ -1336,14 +1403,24 @@ def topology_page(request: Request, group: int = 0):
                 else:
                     edges.setdefault(kk, []).append({"a": a, "b": b, "pa": pa, "pb": pb, "k": "|".join(k),
                                                      "air": topology.is_wireless(pa, pb)})
+    for d in devs:  # tipo de los equipos de OpenNCCM: modelo, perfil o lo que anuncian a sus vecinos
+        role, rby = topology.device_role(d.device_type, d.model, seen_caps.get(d.id))
+        nodes[f"d{d.id}"].update(role=role, how=_f("Es un equipo de OpenNCCM: {0}{1}.", get_profile(d.device_type).label,
+                                                   (", " + d.model) if d.model else "")
+                                 + " " + _topo_role_how(role, rby, sorted(set(seen_caps.get(d.id) or []))))
     links = [e for lst in edges.values() for e in lst]
     linked = {e["a"] for e in links} | {e["b"] for e in links}
     show = [n for n in nodes.values() if n["id"] in linked]
     alone = [n for n in nodes.values() if n["id"] not in linked and n["kind"] == "dev"]
     news = [n for n in show if n["kind"] == "new"]
+    fam_count: dict = {}
+    for n in show:
+        fam_count[n["fam"]] = fam_count.get(n["fam"], 0) + 1
     return render(request, "topology.html", user, nodes=show, links=links, alone=alone, news=news, groups=groups,
+                  families=topology.FAMILIES, fam_count=fam_count, roles={k: _(v) for k, v in topology.ROLES},
+                  fam_names={k: _(v) for k, v in topology.FAMILIES},
                   labels={n["id"]: n["label"] for n in show},
-                  group=group, with_data=with_data, clients=clients, hidden=len(hidden), total=len(devs), enabled=get_setting("topology_enabled", "1") == "1")
+                  group=group, with_data=with_data, clients=clients, hidden=sorted(hidden.values(), key=str.lower), total=len(devs), enabled=get_setting("topology_enabled", "1") == "1")
 
 
 # --------------------------------------------------------------------------- inventario de IP y VLAN

@@ -8,7 +8,7 @@
   <h1>{% if t.hour < 6 or t.hour >= 20 %}{{ _f('Buenas noches, {0}', user.username) }}{% elif t.hour < 13 %}{{ _f('Buenos días, {0}', user.username) }}{% else %}{{ _f('Buenas tardes, {0}', user.username) }}{% endif %}</h1></div>
   <a class="btn" href="/reports">{{ icon('file', 's') }}Informes</a>
   {% if can_run and total %}<form class="inline" method="post" action="/backup/all"><input type="hidden" name="group" value="0">
-    <button class="btn pri" onclick="return confirm('{{ _('¿Respaldar ahora todos los equipos?')|jsq }}')">{{ icon('dl', 's') }}Respaldar todos</button></form>{% endif %}
+    <button class="btn pri" onclick="return confirm('{{ _('¿Respaldar ahora todos los equipos?')|jsq }}')">{{ icon('backup', 's') }}Respaldar todos</button></form>{% endif %}
 </div>
 
 {% if h.total %}

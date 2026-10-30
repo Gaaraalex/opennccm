@@ -2,11 +2,14 @@
 
 Cada plataforma tiene su orden para ver vecinos y su formato de salida; aquí están los dos. Lo que no se reconoce no
 cuenta: si un equipo no admite la orden o no tiene LLDP/CDP activado, simplemente no aporta enlaces.
-Cada vecino es {"local_port", "remote_name", "remote_port", "remote_ip", "platform"}.
+Cada vecino es {"local_port", "remote_name", "remote_port", "remote_ip", "platform"} y, si las anuncia, "caps" (capacidades
+LLDP/CDP normalizadas: router, bridge, wlan, phone, station…).
 """
 from __future__ import annotations
 
 import re
+
+from .i18n import N_
 
 CISCO_LIKE = ["show cdp neighbors detail", "show lldp neighbors detail"]
 COMMANDS = {
@@ -34,6 +37,30 @@ def _clean(v: str | None) -> str:
     return (v or "").strip().strip('"').strip()
 
 
+# capacidades que anuncian LLDP («B,R», «Bridge, Router»), CDP («Router Switch IGMP») y MikroTik («bridge,router»)
+CAP_WORDS = {"b": "bridge", "bridge": "bridge", "switch": "bridge", "trans-bridge": "bridge", "source-route-bridge": "bridge",
+             "r": "router", "router": "router", "w": "wlan", "wlan": "wlan", "wlan-ap": "wlan", "t": "phone", "telephone": "phone",
+             "phone": "phone", "s": "station", "station": "station", "station-only": "station", "host": "station",
+             "c": "docsis", "docsis-cable-device": "docsis", "p": "repeater", "repeater": "repeater", "o": "other", "other": "other"}
+
+
+def _caps(text: str) -> list[str]:
+    t = re.sub(r"(?i)wlan access point|access point", "wlan", text or "").lower()
+    out: list[str] = []
+    for w in re.split(r"[\s,;\"'()]+", t):
+        c = CAP_WORDS.get(w)
+        if c and c not in out:
+            out.append(c)
+    return out
+
+
+def _with_caps(n: dict, text: str | None) -> dict:
+    c = _caps(text or "")
+    if c:
+        n["caps"] = c
+    return n
+
+
 def _cdp(text: str) -> list[dict]:
     out = []
     for blk in re.split(r"(?m)^-{5,}\s*$", text):
@@ -43,9 +70,10 @@ def _cdp(text: str) -> list[dict]:
         intf = re.search(r"Interface:\s*([^,\n]+),\s*Port ID \(outgoing port\):\s*(\S+)", blk)
         ip = re.search(r"(?:IP(?:v4)? [Aa]ddress|IP address):\s*(\d+\.\d+\.\d+\.\d+)", blk)
         plat = re.search(r"Platform:\s*([^,\n]+)", blk)
-        out.append({"local_port": _clean(intf.group(1)) if intf else "", "remote_name": _clean(name.group(1)),
-                    "remote_port": _clean(intf.group(2)) if intf else "", "remote_ip": ip.group(1) if ip else "",
-                    "platform": _clean(plat.group(1)) if plat else ""})
+        caps = re.search(r"Capabilities:\s*([^\n]+)", blk)
+        out.append(_with_caps({"local_port": _clean(intf.group(1)) if intf else "", "remote_name": _clean(name.group(1)),
+                               "remote_port": _clean(intf.group(2)) if intf else "", "remote_ip": ip.group(1) if ip else "",
+                               "platform": _clean(plat.group(1)) if plat else ""}, caps.group(1) if caps else None))
     return out
 
 
@@ -68,12 +96,16 @@ def _lldp_detail(text: str) -> list[dict]:
         ip = re.search(r"(?is)Management Address(?:es)?\s*[:=]?\s*(?:\n\s*)?(?:IP(?:v4)?\s*[:=]?\s*)?(\d+\.\d+\.\d+\.\d+)", blk) or \
             re.search(r"(?im)^\s*(?:IP|IPv4 Address|Address)\s*[:=]\s*(\d+\.\d+\.\d+\.\d+)", blk)
         desc = re.search(r"(?im)^\s*System Description\s*[:=]\s*\"?([^\"\r\n]*)\"?\s*\n?\s*([^\r\n]*)", blk)
+        # las habilitadas, si se dicen aparte de las que admite
+        caps = re.search(r"(?im)^\s*(?:-\s*)?(?:Enabled Capabilities|System Capabilities Enabled|Capabilities Enabled)\s*[:=]\s*(.+)$", blk) or \
+            re.search(r"(?im)^\s*(?:-\s*)?System Capabilities(?: Supported)?\s*[:=]\s*(.+)$", blk)
         if not name and not port:
             continue
         lp = next((g for g in (local.groups() if local else ()) if g), "")
-        out.append({"local_port": _clean(lp), "remote_name": _clean(name.group(1)) if name else "",
-                    "remote_port": _clean(port.group(1)) if port else "", "remote_ip": ip.group(1) if ip else "",
-                    "platform": _clean((desc.group(1) or desc.group(2))[:120]) if desc else ""})
+        out.append(_with_caps({"local_port": _clean(lp), "remote_name": _clean(name.group(1)) if name else "",
+                               "remote_port": _clean(port.group(1)) if port else "", "remote_ip": ip.group(1) if ip else "",
+                               "platform": _clean((desc.group(1) or desc.group(2))[:120]) if desc else ""},
+                              caps.group(1) if caps else None))
     return out
 
 
@@ -99,10 +131,13 @@ def _mikrotik(text: str) -> list[dict]:
         # RouterOS 7 anuncia por LLDP el puerto como «bridge1/ether1»: el puerto es el de después de la barra
         port = re.sub(r"^[A-Za-z][\w.-]*/(?=[A-Za-z])", "", _clean(kv.get("interface-name")))
         ip = next((v for v in (_clean(kv.get("address4")), _clean(kv.get("address"))) if re.fullmatch(r"[\d.]+", v)), "")
-        out.append({"local_port": local, "remote_name": _ros_text(_clean(kv.get("identity") or kv.get("system-description"))),
-                    "remote_port": port, "remote_ip": ip,
-                    "platform": _clean(" ".join(x for x in (kv.get("platform"), kv.get("board")) if x)
-                                       or kv.get("system-description"))[:80]})
+        out.append(_with_caps({"local_port": local,
+                               "remote_name": _ros_text(_clean(kv.get("identity") or kv.get("system-description"))),
+                               "remote_port": port, "remote_ip": ip, "mac": _clean(kv.get("mac-address")).upper(),
+                               # «platform=""» (vacío, como en los vecinos LLDP) no cuenta: el modelo va en la descripción
+                               "platform": (" ".join(x for x in (_clean(kv.get("platform")), _clean(kv.get("board"))) if x)
+                                            or _clean(kv.get("system-description")))[:80]},
+                              _clean(kv.get("system-caps-enabled") or kv.get("system-caps"))))
         by.append(_clean(kv.get("discovered-by")) if "discovered-by" in kv else None)
     # MNDP y CDP atraviesan los bridges y switches: por un puerto llegan todos los MikroTik del mismo segmento, no solo el
     # de enfrente. LLDP no se reenvía, así que en un puerto con varios vecinos solo cuentan los vistos por LLDP.
@@ -195,11 +230,12 @@ def network_view(nbrs: list[dict]) -> tuple[list[dict], int]:
 # tipos de equipo para el filtro del mapa (Ajustes › Mapa de la red): por lo que anuncia el vecino (plataforma, modelo,
 # descripción) y, si no dice nada, por el nombre de sus puertos
 FAMILIES = [("mikrotik", "MikroTik"), ("ubiquiti", "Ubiquiti"), ("juniper", "Juniper"), ("cisco", "Cisco"),
-            ("huawei", "Huawei"), ("aruba", "HP / Aruba"), ("extreme", "Extreme"), ("other", "Otros y desconocidos")]
+            ("huawei", "Huawei"), ("aruba", "HP / Aruba"), ("extreme", "Extreme"), ("other", N_("Otros y desconocidos"))]
 _FAM = [
     ("mikrotik", r"mikrotik|routeros|\b(?:ccr|crs|css|rb|chr)\d|\bhex\b|\bhap\b",
      r"^(?:ether|sfp-sfpplus|sfp28-|qsfp28-|qsfpplus|combo|wlan|wifi)\d"),
-    ("ubiquiti", r"ubiquiti|ubnt|edge ?(?:switch|router|point)|unifi|\busw|air ?os|airmax|airfiber|\baf-?\d|litebeam|"
+    ("ubiquiti", r"ubiquiti|ubnt|edge ?(?:switch|router|point)|unifi|\busw|\busl\d|\bus-?(?:8|16|24|48|xg)\b|\bes-\d+|"
+                 r"\budm\b|\busg\b|\buxg|air ?os|airmax|airfiber|\baf-?\d|litebeam|"
                  r"nanostation|nanobeam|powerbeam|rocket|prism|\bltu|\bloco|bullet|isostation", r"^ath\d"),
     ("juniper", r"juniper|junos|\b(?:srx|qfx|ex\d{4}|mx\d+)", r"^(?:ge|xe|et|mge)-\d+/\d+/\d+|^(?:me|em|fxp)\d$"),
     ("cisco", r"cisco|catalyst|nx-os|\bios\b|ws-c|air-ap", r"^(?:gigabitethernet|tengigabitethernet|fastethernet|gi|te|fa)\d"),
@@ -209,16 +245,83 @@ _FAM = [
 ]
 
 
+# prefijos de MAC (OUI) de fabricantes que a menudo no dicen su modelo por LLDP (los switches UniFi, por ejemplo)
+MAC_VENDOR = {o: "ubiquiti" for o in (
+    "00156D", "002722", "0418D6", "0CEA14", "18E829", "1C6A1B", "245A4C", "24A43C", "28704E", "44D9E7", "602232", "687251",
+    "68D79A", "70A741", "7483C2", "74ACB9", "784558", "788A20", "802AA8", "847848", "942A6F", "9C05D6", "AC8BA9", "B4FBE4",
+    "D021F9", "D8B370", "DC9FDB", "E063DA", "E43883", "F09FC2", "F492BF", "FCECDA")}
+
+
 def family(n: dict) -> str:
-    """Tipo de equipo de un vecino (clave de FAMILIES)."""
+    """Fabricante de un vecino (clave de FAMILIES)."""
+    return family_why(n)[0]
+
+
+def family_why(n: dict) -> tuple[str, str]:
+    """Fabricante y cómo se reconoció: «platform» (lo que anuncia), «mac» (el fabricante de su MAC), «port» (el nombre de su
+    puerto) o «» (no se sabe)."""
     plat = (n.get("platform") or "").lower()
     for fam, by_plat, _ in _FAM:
         if re.search(by_plat, plat):
-            return fam
+            return fam, "platform"
+    mac = re.sub(r"[^0-9A-F]", "", (n.get("mac") or "").upper())[:6]
+    if mac in MAC_VENDOR:
+        return MAC_VENDOR[mac], "mac"
     for fam, _, by_port in _FAM:
         if by_port and re.search(by_port, n.get("remote_port") or "", re.I):
-            return fam
-    return "other"
+            return fam, "port"
+    return "other", ""
+
+
+# tipo de equipo (icono del mapa): por el modelo o la plataforma y, si no dicen nada, por las capacidades que anuncia
+ROLES = [("router", N_("Router")), ("switch", N_("Switch")), ("ap", N_("Antena / AP")), ("firewall", N_("Firewall")),
+         ("unknown", N_("Desconocido"))]
+_ROLE_MODEL = [
+    ("firewall", r"\bsrx\d|fortigate|fortinet|\basa ?\d|palo ?alto|\bpa-\d{3}|sophos|watchguard|pfsense|opnsense|check ?point|"
+                 r"\bfirewall"),
+    ("ap", CPE_MODELS.pattern.replace("(?i)", "") + r"|rocket|prism|powerbeam|airfiber|\baf-?\d|\bltu|airmax|\buap|unifi ?ap|"
+                                                    r"nanohd|\bcap ?(?:ac|ax|xl)|\bwap|aironet|air-ap|\bgwn76|access point"),
+    ("switch", r"\bcrs\d|\bcss\d|catalyst|ws-c|\bc9[23]00|\bex\d{4}|\bqfx|edge ?switch|\busw|\busl\d|\bus-?(?:8|16|24|48|xg)\b|"
+               r"\bes-\d+|unifi ?switch|nexus|procurve|"
+               r"\bswitch"),
+    ("router", r"\bccr\d|\brb\d|\bhex\b|\bhap\b|\bchr\b|\bmx\d{2,}|\bisr\d|\basr\d|edge ?router|\ber-\d|\bl009|\brouter\b"),
+]
+# perfiles de OpenNCCM cuyo tipo se sabe aunque no se conozca el modelo
+DTYPE_ROLE = {
+    **{k: "firewall" for k in ("cisco_asa", "cisco_ftd", "fortinet", "paloalto_panos", "pfsense", "opnsense", "sophos_sfos",
+                               "watchguard_fireware", "checkpoint_gaia", "juniper_screenos", "hillstone_stoneos")},
+    **{k: "ap" for k in ("ubiquiti_airos", "ubiquiti_airfiber", "ubiquiti_unifi_ap", "cisco_ap", "extreme_wing")},
+    **{k: "switch" for k in ("ubiquiti_edgeswitch", "ubiquiti_unifiswitch", "mikrotik_swos", "cisco_s200", "cisco_s300", "cisco_s500",
+                             "aruba_aoscx", "aruba_osswitch", "hp_procurve", "extreme_exos", "dell_os6", "dell_os10",
+                             "dell_powerconnect", "tplink_jetstream", "netgear_prosafe")},
+    **{k: "router" for k in ("ubiquiti_edgerouter", "ubiquiti_usg", "vyos", "cisco_xr", "nokia_sros")},
+}
+# fabricante de los equipos de OpenNCCM, por el de su perfil
+VENDOR_FAMILY = {"MikroTik": "mikrotik", "Ubiquiti": "ubiquiti", "Juniper": "juniper", "Cisco": "cisco", "Huawei": "huawei",
+                 "HPE": "aruba", "HPE Aruba": "aruba", "Extreme": "extreme"}
+
+
+def role_why(text: str, caps: list[str] | None = None) -> tuple[str, str]:
+    """Tipo de equipo y cómo se supo: «model» (modelo o plataforma), «caps» (capacidades anunciadas) o «»."""
+    t = (text or "").lower()
+    for role, rx in _ROLE_MODEL:
+        if re.search(rx, t):
+            return role, "model"
+    c = caps or []
+    for cap, role in (("router", "router"), ("wlan", "ap"), ("bridge", "switch")):
+        if cap in c:
+            return role, "caps"
+    return "unknown", ""
+
+
+def device_role(device_type: str, model: str | None, caps: list[str] | None = None) -> tuple[str, str]:
+    """Tipo de un equipo de OpenNCCM: por su modelo; si no, por su perfil; si no, por lo que anuncia a sus vecinos."""
+    role, by = role_why(model or "")
+    if by:
+        return role, by
+    if device_type in DTYPE_ROLE:
+        return DTYPE_ROLE[device_type], "type"
+    return role_why("", caps)
 
 
 def norm_name(name: str) -> str:
