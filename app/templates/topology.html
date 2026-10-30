@@ -188,7 +188,6 @@
         const x = mk('text', {class: 'eb-t', x: -21, y: -17, 'text-anchor': 'middle'}, g); x.textContent = '!'; }
       const t = mk('text', {class: 'name', 'text-anchor': 'middle', dy: '44'}, g); t.textContent = n.label;
       const s = mk('text', {class: 'sub', 'text-anchor': 'middle', dy: '57'}, g); s.textContent = n.sub || '';
-      g.addEventListener('click', ev => { if (!moved) select(n); ev.stopPropagation(); });
       g.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); select(n); } });
       g.addEventListener('pointerdown', ev => startDrag(ev, n));
       nodeEls[n.id] = g;
@@ -294,13 +293,19 @@
     setTimeout(() => { tf = to; apply(); }, ms + 60);  // por si el navegador no anima (pestaña en segundo plano)
   }
   const pt = ev => { const r = svg.getBoundingClientRect(); return {x: (ev.clientX - r.left - tf.x) / tf.k, y: (ev.clientY - r.top - tf.y) / tf.k}; };
-  function startDrag(ev, n) { drag = n; moved = false; svg.setPointerCapture(ev.pointerId); ev.stopPropagation(); }
-  svg.addEventListener('pointerdown', ev => { pan = {x: ev.clientX - tf.x, y: ev.clientY - tf.y}; moved = false; svg.classList.add('drag'); svg.setPointerCapture(ev.pointerId); });
+  // Con el puntero capturado por el lienzo, el navegador entrega el «click» al lienzo y no al equipo:
+  // un equipo se elige al soltar sin haberlo movido más de 4 px.
+  let down = null;
+  function startDrag(ev, n) { drag = n; moved = false; down = {x: ev.clientX, y: ev.clientY}; svg.setPointerCapture(ev.pointerId); ev.stopPropagation(); }
+  svg.addEventListener('pointerdown', ev => { pan = {x: ev.clientX - tf.x, y: ev.clientY - tf.y}; moved = false; down = {x: ev.clientX, y: ev.clientY}; svg.classList.add('drag'); svg.setPointerCapture(ev.pointerId); });
   svg.addEventListener('pointermove', ev => {
-    if (drag) { const p = pt(ev); drag.x = p.x; drag.y = p.y; moved = true; place(); }
-    else if (pan) { tf.x = ev.clientX - pan.x; tf.y = ev.clientY - pan.y; moved = true; apply(); }
+    if (!drag && !pan) return;
+    if (!moved && down && Math.hypot(ev.clientX - down.x, ev.clientY - down.y) < 4) return;
+    moved = true;
+    if (drag) { const p = pt(ev); drag.x = p.x; drag.y = p.y; place(); }
+    else { tf.x = ev.clientX - pan.x; tf.y = ev.clientY - pan.y; apply(); }
   });
-  const stop = () => { drag = null; pan = null; svg.classList.remove('drag'); };
+  const stop = ev => { const n = drag; drag = null; pan = null; svg.classList.remove('drag'); if (n && !moved && ev.type === 'pointerup') select(n); };
   svg.addEventListener('pointerup', stop); svg.addEventListener('pointercancel', stop);
   function zoom(f, mx, my) {  // zoom alrededor de un punto del recuadro (por omisión, el centro)
     const r = svg.getBoundingClientRect(); mx = mx == null ? r.width / 2 : mx; my = my == null ? r.height / 2 : my;
