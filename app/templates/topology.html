@@ -4,16 +4,17 @@
    antena, firewall) y el distintivo de la esquina el fabricante. Los vecinos que no están en OpenNCCM llevan anillo
    discontinuo y se pueden agregar. La posición se calcula en el navegador (fuerzas) y se puede arrastrar; rueda = zoom. #}
 <style>
-  .topo-wrap{position:relative;height:min(72vh,760px);border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);overflow:hidden;touch-action:none}
-  #tsvg{width:100%;height:100%;display:block;cursor:grab}#tsvg.drag{cursor:grabbing}
+  .topo-wrap{position:relative;display:flex;height:min(72vh,760px);border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);overflow:hidden;touch-action:none}
+  #tsvg{flex:1;min-width:0;height:100%;display:block;cursor:grab}#tsvg.drag{cursor:grabbing}
   .topo-wrap,.topo-chips{--v-mikrotik:#ff8f6b;--v-cisco:#4cc3f0;--v-ubiquiti:#d4dbe8;--v-juniper:#5fd3a3;--v-huawei:#ff6f86;
     --v-aruba:#f5b83d;--v-extreme:#b98cff;--v-other:#5b6782;--v-edge:var(--line)}
   :root[data-theme="oscuro"] .topo-wrap,:root[data-theme="oscuro"] .topo-chips{--v-edge:transparent}
   @media (prefers-color-scheme:dark){:root[data-theme="auto"] .topo-wrap,:root[data-theme="auto"] .topo-chips{--v-edge:transparent}}
   .topo-edge{stroke:var(--line-strong);stroke-width:1.6}.topo-edge.hl{stroke:var(--brand);stroke-width:2.4}
   .topo-edge.air{stroke-dasharray:7 5}.topo-e.vdim{opacity:.2}
-  .topo-port{font:500 11px var(--f-mono);fill:var(--ink-2);pointer-events:none;paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round;display:none}
-  .topo-e.on .topo-port{display:inline}
+  .topo-hit{stroke:transparent;stroke-width:12}
+  .topo-port{pointer-events:none;display:none}.topo-port.show{display:inline}
+  .topo-port rect{fill:var(--surface);stroke:var(--line);stroke-width:1}.topo-port text{font:500 11px var(--f-mono);fill:var(--ink-2)}
   .topo-node{cursor:pointer;color:var(--ink)}.topo-node:focus{outline:none}
   .topo-node .ring{stroke-width:2;fill:var(--surface-2);stroke:var(--line-strong)}
   .topo-node.ok .ring{fill:var(--ok-soft);stroke:var(--ok)}.topo-node.error .ring{fill:var(--crit-soft);stroke:var(--crit)}
@@ -37,7 +38,18 @@
   .topo-cap{font:600 11px var(--f-sans);letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
   .topo-lk{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line);font-size:13px}
   .topo-lk .o{flex-grow:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .topo-side{position:absolute;right:12px;top:12px;width:min(300px,calc(100% - 24px));max-height:calc(100% - 24px);overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh-pop);padding:16px;display:flex;flex-direction:column;gap:12px}
+  /* el panel ocupa su propio espacio a la derecha (abajo en pantallas estrechas): el mapa se encoge, no queda tapado */
+  .topo-side{flex:none;width:0;overflow:hidden;background:var(--surface);border-left:1px solid transparent;transition:width .2s ease,border-color .2s ease}
+  .topo-wrap.side-open .topo-side{width:320px;border-left-color:var(--line)}
+  .topo-side-in{width:320px;height:100%;box-sizing:border-box;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+  .topo-wrap.side-open .topo-legend-f{max-width:calc(100% - 344px)}
+  @media (max-width:899px){
+    .topo-wrap{flex-direction:column}
+    .topo-side{width:auto;height:0;border-left:0;border-top:1px solid transparent;transition:height .2s ease,border-color .2s ease}
+    .topo-wrap.side-open .topo-side{width:auto;height:46%;border-top-color:var(--line)}
+    .topo-side-in{width:auto}
+    .topo-wrap.side-open .topo-legend-f{display:none}
+  }
   .topo-wrap:fullscreen{height:100vh;border-radius:0}
   .topo-ctl{position:absolute;left:12px;top:12px;display:flex;flex-direction:column;gap:4px}
   .topo-ctl button{width:34px;height:34px;display:grid;place-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);color:var(--ink);font:600 16px var(--f-sans);cursor:pointer}
@@ -67,7 +79,7 @@
     <span><i style="border-color:var(--crit);background:var(--crit-soft)"></i>{{ _('Último respaldo con error') }}</span>
     <span><i style="border-color:var(--brand);border-style:dashed"></i>{{ _('Vecino que no está en OpenNCCM') }}</span>
     <span><svg width="26" height="8" aria-hidden="true" style="margin-right:6px;vertical-align:1px"><line x1="0" y1="4" x2="26" y2="4" stroke="currentColor" stroke-width="1.6" stroke-dasharray="7 5"/></svg>{{ _('Enlace inalámbrico') }}</span></div>
-  <aside class="topo-side" id="tside" aria-label="{{ _('Detalle del equipo') }}" hidden></aside></div>
+  <aside class="topo-side" id="tside" aria-label="{{ _('Detalle del equipo') }}" inert><div class="topo-side-in" id="tside-in"></div></aside></div>
 <details style="margin-top:14px"><summary class="sm">{{ _f('Lista de enlaces ({0})', links|length) }}</summary>
   <div class="tw"><table class="t"><thead><tr><th>{{ _('Equipo') }}</th><th>{{ _('Puerto') }}</th><th>{{ _('Vecino') }}</th><th>{{ _('Puerto') }}</th></tr></thead><tbody data-pager>
   {% for e in links %}<tr><td>{{ labels[e.a] }}</td><td class="mono">{{ e.pa or '—' }}</td><td>{{ labels[e.b] }}</td><td class="mono">{{ e.pb or '—' }}</td></tr>{% endfor %}</tbody></table></div></details>
@@ -90,7 +102,8 @@
                        'new': _('No está en OpenNCCM')},
                 'roles': roles, 'fams': fam_names, 'net': _('Red de {0} ({1} equipos)')}|tojson }};
   const SPRITE = '/static/icons.svg?v={{ VERSION }}#';
-  const view = document.getElementById('tview'), side = document.getElementById('tside'), NS = 'http://www.w3.org/2000/svg';
+  const view = document.getElementById('tview'), side = document.getElementById('tside'), sideIn = document.getElementById('tside-in'), NS = 'http://www.w3.org/2000/svg';
+  const wrap = document.getElementById('topo');
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
   const byId = {}; NODES.forEach(n => { byId[n.id] = n; });
   let W = svg.clientWidth || 900, H = svg.clientHeight || 600;
@@ -142,14 +155,25 @@
   const use = (parent, id, x, y, s) => mk('use', {href: SPRITE + id, x, y, width: s, height: s}, parent);
   const st = n => n.kind === 'new' ? 'new' : (n.status || 'pending');
   const aria = n => n.label + ', ' + (L.roles[n.role] || '') + ' ' + (L.fams[n.fam] || '') + (n.kind === 'new' ? ', ' + L.notin_a : '');
+  // etiqueta de puerto: texto con un fondo opaco pequeño para que no la cruce ninguna línea
+  function plabel(parent, txt) {
+    if (!txt) return null;
+    const g = mk('g', {class: 'topo-port'}, parent), w = txt.length * 6.7 + 10;
+    mk('rect', {x: -w / 2, y: -8.5, width: w, height: 17, rx: 4}, g);
+    const t = mk('text', {'text-anchor': 'middle', y: 4}, g); t.textContent = txt;
+    g.w = w; return g;
+  }
   function draw() {
-    view.textContent = '';
+    view.textContent = ''; edgeEls.length = 0;
+    const edgeLayer = mk('g', {}, view), labLayer = mk('g', {}, view);
     LINKS.forEach(e => {
-      const g = mk('g', {class: 'topo-e'}, view), line = mk('line', {class: 'topo-edge' + (e.air ? ' air' : '')}, g);
-      const ta = mk('text', {class: 'topo-port'}, g), tb = mk('text', {class: 'topo-port'}, g);
-      ta.textContent = e.pa || ''; tb.textContent = e.pb || '';
+      const g = mk('g', {class: 'topo-e'}, edgeLayer), hit = mk('line', {class: 'topo-hit'}, g), line = mk('line', {class: 'topo-edge' + (e.air ? ' air' : '')}, g);
+      const ta = plabel(labLayer, e.pa), tb = plabel(labLayer, e.pb);
       const t = mk('title', {}, g); t.textContent = (byId[e.a].label + ' ' + (e.pa || '') + ' ↔ ' + byId[e.b].label + ' ' + (e.pb || '')).trim();
-      edgeEls.push({e, g, line, ta, tb});
+      const x = {e, g, hit, line, ta, tb, on: false, hover: false, own: ''};
+      g.addEventListener('pointerenter', () => { x.hover = true; ports(); });
+      g.addEventListener('pointerleave', () => { x.hover = false; ports(); });
+      edgeEls.push(x);
     });
     NODES.forEach(n => {
       // 48 px: anillo de estado, icono del tipo en el centro y distintivo del fabricante abajo a la derecha
@@ -171,28 +195,59 @@
     });
     place();
   }
+  // qué etiquetas se ven: las de los enlaces del equipo elegido (con más de 8, solo la del vecino) y las dos del enlace
+  // bajo el ratón
+  function ports() {
+    edgeEls.forEach(x => {
+      if (x.ta) x.ta.classList.toggle('show', x.hover || (x.on && x.own !== 'a'));
+      if (x.tb) x.tb.classList.toggle('show', x.hover || (x.on && x.own !== 'b'));
+    });
+  }
   function place() {
-    edgeEls.forEach(({e, line, ta, tb}) => {
-      const a = byId[e.a], b = byId[e.b];
-      line.setAttribute('x1', a.x); line.setAttribute('y1', a.y); line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
-      // el puerto, sobre el enlace y apartado del nombre del equipo
-      const dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1, o = Math.min(78, d * 0.32);
-      const nx = -dy / d * 9, ny = dx / d * 9;
-      ta.setAttribute('x', a.x + dx / d * o + nx); ta.setAttribute('y', a.y + dy / d * o + ny);
-      tb.setAttribute('x', b.x - dx / d * o + nx); tb.setAttribute('y', b.y - dy / d * o + ny);
+    const at = {};  // etiquetas visibles junto a cada equipo, para apartar las que se pisan
+    edgeEls.forEach(x => {
+      const {e, line, hit} = x, a = byId[e.a], b = byId[e.b];
+      for (const l of [line, hit]) { l.setAttribute('x1', a.x); l.setAttribute('y1', a.y); l.setAttribute('x2', b.x); l.setAttribute('y2', b.y); }
+      const dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1, ux = dx / d, uy = dy / d;
+      [[x.ta, a, ux, uy, 'a'], [x.tb, b, -ux, -uy, 'b']].forEach(([lab, n, vx, vy, end]) => {
+        if (!lab) return;
+        // sobre el enlace, fuera del anillo de 48 px: a unos 34 px del centro (más si la etiqueta es ancha y el enlace horizontal)
+        let r = 28 + Math.abs(vx) * lab.w / 2 + Math.abs(vy) * 8.5;
+        const max = Math.max(r, d / 2 - 6), mine = at[n.id] = at[n.id] || [], counts = x.on && x.own !== end;
+        let px = n.x + vx * r, py = n.y + vy * r;
+        // si se pisa con otra etiqueta del mismo equipo, se aparta 14 px por su enlace
+        for (let i = 0; counts && i < 8 && r + 14 <= max && mine.some(o => Math.abs(o.x - px) < (o.w + lab.w) / 2 + 2 && Math.abs(o.y - py) < 18); i++) {
+          r += 14; px = n.x + vx * r; py = n.y + vy * r;
+        }
+        if (counts) mine.push({x: px, y: py, w: lab.w});
+        lab.setAttribute('transform', `translate(${px},${py})`);
+      });
     });
     NODES.forEach(n => nodeEls[n.id].setAttribute('transform', `translate(${n.x},${n.y})`));
   }
+  let cur = null, refit = 0;
+  const reframe = () => { clearTimeout(refit); W = svg.clientWidth || W; H = svg.clientHeight || H; if (cur) reveal(cur); };
+  // el panel abre y cierra en 200 ms; al terminar (o, si el navegador no anima, poco después) se vuelve a encuadrar
+  side.addEventListener('transitionend', ev => { if (ev.target === side && /width|height/.test(ev.propertyName)) reframe(); });
+  function panel(open) {  // abre o cierra el panel; el mapa se encoge o crece a la vez y se vuelve a encuadrar
+    const was = wrap.classList.contains('side-open');
+    wrap.classList.toggle('side-open', open); side.toggleAttribute('inert', !open);
+    clearTimeout(refit); refit = setTimeout(reframe, was === open ? 0 : 450);
+  }
   function unselect() {
-    side.hidden = true;
-    edgeEls.forEach(x => { x.line.classList.remove('hl'); x.g.classList.remove('on'); });
+    cur = null; panel(false);
+    edgeEls.forEach(x => { x.line.classList.remove('hl'); x.g.classList.remove('on'); x.on = false; x.own = ''; });
     NODES.forEach(m => nodeEls[m.id].classList.remove('sel'));
+    place(); ports();
   }
   function select(n) {
-    const ls = LINKS.filter(e => e.a === n.id || e.b === n.id);
-    // los puertos solo se ven en los enlaces del equipo elegido (en todos a la vez tapan el centro del mapa)
-    edgeEls.forEach(x => { const on = ls.includes(x.e); x.line.classList.toggle('hl', on); x.g.classList.toggle('on', on); });
+    const ls = LINKS.filter(e => e.a === n.id || e.b === n.id), many = ls.length > 8;
+    // los puertos solo se ven en los enlaces del equipo elegido (en todos a la vez tapan el centro del mapa); con más de 8
+    // enlaces, solo el del vecino: los del propio equipo están en la lista «Enlaces» del panel
+    edgeEls.forEach(x => { const on = ls.includes(x.e); x.line.classList.toggle('hl', on); x.g.classList.toggle('on', on);
+      x.on = on; x.own = on && many ? (x.e.a === n.id ? 'a' : 'b') : ''; });
     NODES.forEach(m => nodeEls[m.id].classList.toggle('sel', m.id === n.id));
+    cur = n; place(); ports();
     const s = st(n);
     let h = `<div class="row nowrap" style="align-items:flex-start;gap:12px"><svg class="vlogo" width="44" height="44" style="border-radius:12px" aria-hidden="true"><use href="${SPRITE}v-${esc(n.fam || 'other')}"/></svg>`
       + `<div class="grow" style="min-width:0"><div class="b" style="font-size:15px;line-height:20px;overflow-wrap:anywhere">${esc(n.label)}</div><div class="muted sm mono">${esc(n.sub)}</div></div>`
@@ -205,8 +260,8 @@
     }).join('') + '</div>';
     if (n.kind === 'new') h += ADMIN ? `<a class="btn pri" style="justify-content:center" href="/devices/new?name=${encodeURIComponent(n.name || '')}&host=${encodeURIComponent(n.ip || '')}" data-sheet data-title="${esc(L.add)}">${esc(L.add)}</a>` : '';
     else h += `<a class="btn pri" style="justify-content:center" href="${esc(n.href)}">${esc(L.open)}</a>`;
-    side.innerHTML = h; side.hidden = false;
-    side.querySelector('[data-x]').addEventListener('click', unselect);
+    sideIn.innerHTML = h; panel(true);
+    sideIn.querySelector('[data-x]').addEventListener('click', unselect);
   }
   // arrastrar equipos, mover y hacer zoom en el lienzo
   let tf = {x: 0, y: 0, k: 1}, drag = null, pan = null, moved = false, net = -1;
@@ -217,6 +272,26 @@
     const k = Math.min(1.4, (W - 2 * pad) / Math.max(x1 - x0, 1), (H - 2 * pad - 30) / Math.max(y1 - y0, 1));
     tf = {k, x: W / 2 - (x0 + x1) / 2 * k, y: (H - 30) / 2 - (y0 + y1) / 2 * k + 10};
     apply();
+  }
+  function reveal(n) {
+    const ids = new Set([n.id]); LINKS.forEach(e => { if (e.a === n.id) ids.add(e.b); if (e.b === n.id) ids.add(e.a); });
+    const ns = NODES.filter(m => ids.has(m.id)), pad = 60;
+    const x0 = Math.min(...ns.map(m => m.x)), x1 = Math.max(...ns.map(m => m.x)), y0 = Math.min(...ns.map(m => m.y)), y1 = Math.max(...ns.map(m => m.y));
+    const k = Math.min(tf.k, (W - 2 * pad) / Math.max(x1 - x0, 1), (H - 2 * pad) / Math.max(y1 - y0, 1));
+    let tx = tf.x, ty = tf.y;
+    if (k < tf.k) { tx = W / 2 - (x0 + x1) / 2 * k; ty = H / 2 - (y0 + y1) / 2 * k; }
+    else {  // basta con mover lo justo
+      if (x0 * k + tx < pad) tx = pad - x0 * k; else if (x1 * k + tx > W - pad) tx = W - pad - x1 * k;
+      if (y0 * k + ty < pad) ty = pad - y0 * k; else if (y1 * k + ty > H - pad) ty = H - pad - y1 * k;
+    }
+    if (k === tf.k && tx === tf.x && ty === tf.y) return;
+    const from = {...tf}, to = {k, x: tx, y: ty}, t0 = performance.now(), ms = 260;
+    const ease = t => 1 - Math.pow(1 - t, 3);
+    const stepf = now => { const t = Math.min(1, (now - t0) / ms), e = ease(t);
+      tf = {k: from.k + (to.k - from.k) * e, x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e}; apply();
+      if (t < 1) requestAnimationFrame(stepf); };
+    requestAnimationFrame(stepf);
+    setTimeout(() => { tf = to; apply(); }, ms + 60);  // por si el navegador no anima (pestaña en segundo plano)
   }
   const pt = ev => { const r = svg.getBoundingClientRect(); return {x: (ev.clientX - r.left - tf.x) / tf.k, y: (ev.clientY - r.top - tf.y) / tf.k}; };
   function startDrag(ev, n) { drag = n; moved = false; svg.setPointerCapture(ev.pointerId); ev.stopPropagation(); }
@@ -241,7 +316,7 @@
   }, {passive: false});
   document.querySelectorAll('.topo-ctl [data-z]').forEach(b => b.addEventListener('click', () => zoom(+b.dataset.z)));
   document.getElementById('tfit').addEventListener('click', fit);
-  const wrap = document.getElementById('topo'), full = document.getElementById('tfull');
+  const full = document.getElementById('tfull');
   if (!wrap.requestFullscreen) full.hidden = true;
   full.addEventListener('click', () => document.fullscreenElement ? document.exitFullscreen() : wrap.requestFullscreen());
   document.addEventListener('fullscreenchange', () => { W = svg.clientWidth || W; H = svg.clientHeight || H; fit(); });

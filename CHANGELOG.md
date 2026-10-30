@@ -11,6 +11,10 @@
 - **Mapa de la red: redes juntas y filtro «Red».** Las redes sin enlaces entre sí ya no quedan muy separadas: se colocan
   en filas y se puede ver solo una. Iconos por tipo de equipo y distintivos por fabricante, con filtro por fabricante y
   «Cómo se reconoció» en el panel. Se nombran los vecinos que no salen por su tipo.
+- **Mapa de la red: puertos legibles y panel que no tapa.** Cada puerto va sobre su enlace, junto al equipo y con fondo;
+  los que se pisan se apartan. En un equipo con más de 8 enlaces solo se ve el puerto del vecino (los propios están en
+  «Enlaces») y al pasar el ratón por un enlace se ven los dos. El panel ocupa su propio espacio (abajo en pantallas
+  estrechas) y el mapa se encuadra para que se vean el equipo y sus vecinos.
 - **Copias de recuperación: 4 a la vista** y una barra en el borde para subir y bajar.
 - **Respaldar con su propio icono**, que ya no parece el de descargar.
 
