@@ -1,5 +1,9 @@
 # Historial de versiones
 
+## 2.11.1
+- **Mapa de la red: el clic en un equipo vuelve a abrir su panel.** Con un clic de ratón no pasaba nada; ahora se abre
+  el panel con cómo se reconoció, sus enlaces y «Agregar a OpenNCCM» o «Abrir el equipo».
+
 ## 2.11.0
 - **Importar desde Zabbix por grupos.** Al conectar salen los grupos de Zabbix con cuántos hosts y nuevos tiene cada uno.
   Se marcan los que se quieren migrar y solo se listan e importan sus equipos; en la lista se desmarcan los que no se
