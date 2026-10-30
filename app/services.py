@@ -324,9 +324,13 @@ def mikrotik_backup_file(device_id: int, password: str = "") -> tuple[str, bytes
                     raise RuntimeError("El equipo no dejó el .backup a la vista por SFTP (¿el usuario tiene permiso «ftp»?)")
                 with sftp.open(path, "rb") as f:
                     data = f.read()
+                # se borra por SFTP: en RouterOS 6 «/file remove» justo después aún no ve el archivo y lo deja
+                try:
+                    sftp.remove(path)
+                except OSError:
+                    conn.send_command(f'/file remove "{path}"', read_timeout=30)
             finally:
                 sftp.close()
-            conn.send_command(f'/file remove "{path}"', read_timeout=30)
         finally:
             conn.disconnect()
         return name + ".backup", data
