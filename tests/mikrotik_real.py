@@ -184,5 +184,46 @@ except ValueError:
     rejected = True
 check("una contraseña con comillas o «;» se rechaza (no se inyectan órdenes)", rejected)
 
+# puertos de la ficha: el respaldo lee /interface ethernet y su estado
+import json  # noqa: E402
+
+from app import restore  # noqa: E402
+
+services.backup_device(dev_id, "manual", "ci")
+with SessionLocal() as db:
+    d = db.get(Device, dev_id)
+    pj = json.loads(d.ports or "{}")
+    model = d.model
+print("PUERTOS:", pj)
+by = {p["n"]: p for p in pj.get("ports", [])}
+check("puertos: el respaldo lee los ethernet del equipo con su estado", pj.get("status") is True and "ether1" in by
+      and by["ether1"]["s"] == "up", pj)
+
+# restaurar en «otro equipo» (el mismo CHR por SSH, como si fuera uno nuevo): mismo modelo, vuelve a la copia
+with SessionLocal() as db:
+    ver = db.scalars(select(ConfigVersion).where(ConfigVersion.device_id == dev_id).order_by(ConfigVersion.id.desc())).first()
+    ver_id = ver.id
+ros("/system identity set name=CHR-Restaurar", "/interface bridge add name=br-quitar comment=para-quitar")
+with SessionLocal() as db:
+    src = db.get(Device, dev_id)
+    target = restore.transient(src, "127.0.0.1", PORT, "admin", PASSWORD)
+res = restore.check_ssh(ver_id, target, "ci")
+check("restaurar en otro equipo: mismo modelo y comandos calculados", res["ok"] and res["model"] == model, res)
+if res.get("token"):
+    restore.start(res["token"], "ci")
+    for _ in range(120):
+        time.sleep(0.5)
+        if restore.get(res["token"], "ci")["state"] in ("done", "error"):
+            break
+    job = restore.get(res["token"], "ci")
+    check("restaurar en otro equipo: aplicado en modo seguro", job["state"] == "done", job.get("error"))
+    check("el equipo vuelve a la copia (identidad y sin el bridge añadido)", "CHR-Final" in ros("/system identity print")
+          and "br-quitar" not in ros("/interface bridge print terse"), res["cmds"])
+with SessionLocal() as db:
+    db.get(Device, dev_id).model = "RB760iGS"
+    db.commit()
+res = restore.check_ssh(ver_id, target, "ci")
+check("restaurar en otro equipo: otro modelo se rechaza", not res["ok"] and "mismo modelo" in res["error"], res)
+
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)

@@ -114,6 +114,8 @@ class Device(Base):
     baseline_version_id: Mapped[int | None] = mapped_column(Integer)  # versión "línea base"
     baseline_drift: Mapped[bool] = mapped_column(Boolean, default=False)
     neighbors: Mapped[str | None] = mapped_column(Text)  # JSON: vecinos LLDP/CDP del último respaldo (mapa de la red)
+    # JSON {"at", "status", "ports"}: puertos físicos y su estado leídos en el último respaldo (app/ports.py)
+    ports: Mapped[str | None] = mapped_column(Text)
 
     credential = relationship("Credential")
     group = relationship("DeviceGroup")

@@ -1,0 +1,178 @@
+{# Puertos del equipo: franja bajo la cabecera (en todas las pestañas) y pestaña «Puertos». Los dibuja el script del
+   final a partir de «ports» (app/ports.py), leídos en el último respaldo. #}
+<style>
+  .pstrip,.ptab{--p-up:#1f9d55;--p-hole:#0f1720;--p-down:#e3e7ee;--p-down-e:#8a94a6;--p-off:#fbefd6;--p-off-e:#b07400;--p-empty:#f4f6f9;
+    --p-sel:var(--brand);--p-face:#eef1f5;--p-face-e:var(--line)}
+  .pstrip{position:relative;margin-top:20px;display:flex;flex-wrap:wrap;align-items:center;gap:18px 28px;padding:14px 18px;
+    border:1px solid var(--line);border-radius:var(--r-lg,16px);background:var(--surface)}
+  :root[data-theme="oscuro"] .pstrip,:root[data-theme="oscuro"] .ptab{--p-up:#4ade80;--p-hole:#0b0f17;--p-down:#273046;--p-down-e:#5b6782;--p-off:#2a2110;--p-off-e:#f5b83d;--p-empty:#121826;--p-face:#070a10;--p-face-e:#1a2233}
+  @media (prefers-color-scheme:dark){:root[data-theme="auto"] .pstrip,:root[data-theme="auto"] .ptab{--p-up:#4ade80;--p-hole:#0b0f17;--p-down:#273046;--p-down-e:#5b6782;--p-off:#2a2110;--p-off-e:#f5b83d;--p-empty:#121826;--p-face:#070a10;--p-face-e:#1a2233}}
+  .pstrip .pnew{position:absolute;top:-9px;left:16px;font:700 10px var(--f-sans);letter-spacing:.06em;color:#0b0f17;background:#c6f432;border-radius:99px;padding:2px 8px}
+  .pface{display:flex;align-items:center;gap:14px;max-width:100%;overflow-x:auto;border-radius:12px;background:var(--p-face);border:1px solid var(--p-face-e);padding:8px 18px 6px 14px}
+  .pface-id{display:flex;flex-direction:column;gap:6px;padding-right:14px;border-right:1px solid var(--p-face-e);flex:none}
+  .pface-id .m{font:700 12px var(--f-mono);color:var(--ink)}.pface-id .c{font:500 10px var(--f-mono);color:var(--muted)}
+  .pface-id .pwr{display:inline-flex;align-items:center;gap:4px;font:500 9.5px var(--f-mono);color:var(--muted)}
+  .pface-id .pwr i{width:6px;height:6px;border-radius:99px;background:var(--line-strong)}.pface-id .pwr.on i{background:var(--p-up);box-shadow:0 0 6px var(--p-up)}
+  .pfp{position:relative;flex:none}
+  .pfp .pn{position:absolute;text-align:center;font:500 10px/12px var(--f-mono);color:var(--line-strong)}.pfp .pn.up{color:var(--ink-2)}.pfp .pn.sel{color:var(--ink)}
+  .pfp .pg{position:absolute;text-align:center;font:500 10px var(--f-sans);color:var(--muted);white-space:nowrap}
+  .pt{position:absolute;padding:0;border:0;background:transparent;line-height:0;cursor:pointer;border-radius:6px;transition:transform .12s cubic-bezier(.2,0,0,1),opacity .14s}
+  .pt:hover{transform:translateY(-1px)}.pt:focus-visible,.pt[aria-pressed="true"]{outline:2px solid var(--p-sel);outline-offset:3px}
+  .pt.dim{opacity:.22}
+  .psel{flex:1 1 300px;min-width:0;display:flex;flex-direction:column;gap:6px}
+  .psel .nm{font:600 15px var(--f-mono);color:var(--ink)}.psel .ln{font-size:13.5px;color:var(--ink)}.psel .nb{font-size:12.5px;color:var(--muted)}
+  .ppill{font:600 12px var(--f-sans);padding:2px 10px;border-radius:999px;background:var(--surface-3);color:var(--ink-2)}
+  .ppill.up{background:var(--ok-soft);color:var(--ok)}.ppill.off{background:var(--warn-soft);color:var(--warn)}
+  .psum{display:flex;flex-direction:column;align-items:flex-end;gap:8px;font-size:13px;color:var(--ink-2)}
+  .psum b{color:var(--ok);font-weight:600}
+  .pleg{display:flex;flex-wrap:wrap;gap:12px;font-size:11.5px;color:var(--muted)}.pleg span{display:inline-flex;align-items:center;gap:5px}
+  .pleg i{width:10px;height:10px;border-radius:3px}
+  .pleg .up{background:var(--p-up)}.pleg .down{background:var(--p-down);box-shadow:inset 0 0 0 1px var(--p-down-e)}.pleg .off{background:var(--p-off);box-shadow:inset 0 0 0 1px var(--p-off-e)}
+  .ptab{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+  .ptab>.card:first-child{flex:999 1 560px;min-width:0}.ptab>.pcard{flex:1 1 320px;max-width:400px}
+  .ptab .chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .ptab .chip[aria-pressed="true"]{border-color:var(--brand);background:var(--brand-soft);color:var(--ink)}
+  .ptab .chip .n{color:var(--muted);font-family:var(--f-mono)}
+  .ptab tbody tr{cursor:pointer}.ptab tbody tr.sel{background:var(--brand-soft)}
+  .ptab .pdot{display:inline-block;width:8px;height:8px;border-radius:99px;margin-right:6px;vertical-align:1px}
+  .pcard .kv{grid-template-columns:104px minmax(0,1fr);font-size:13px}
+  .pcfg{margin:0;padding:10px 12px;border-radius:12px;background:var(--p-face);border:1px solid var(--line);font:400 12px/18px var(--f-mono);white-space:pre-wrap;word-break:break-all}
+  .pcfg span{display:block;color:var(--ink-2)}.pcfg .c{color:var(--muted)}.pcfg .up{color:var(--ok)}.pcfg .off{color:var(--warn)}
+  @media (max-width:700px){.psum{align-items:flex-start}}
+</style>
+{% set p_up = ports.ports|selectattr('s', 'equalto', 'up')|list|length %}
+<section class="pstrip" aria-label="{{ _('Puertos del equipo') }}" id="pstrip">
+  <span class="pnew">{{ _('NUEVO') }}</span>
+  <div class="pface">
+    <div class="pface-id"><span class="m">{{ device.model or profile.vendor }}</span><span class="c">{{ device.os_version or profile.label }}</span>
+      <span class="pwr {{ 'on' if device.last_status == 'ok' }}"><i></i>PWR</span></div>
+    <div class="pfp" id="pfp"></div>
+  </div>
+  <div class="psel" id="psel" aria-live="polite"></div>
+  <div class="psum">
+    <span>{% if ports.status %}<b>{{ _f('{0} activos', p_up) }}</b> {{ _f('de {0}', ports.ports|length) }}{% else %}{{ _f('{0} puertos', ports.ports|length) }} · {{ _('sin estado de enlace') }}{% endif %} · <span title="{{ ports.at|dt }}">{{ _f('leído en el respaldo {0}', ports.at|ago) }}</span></span>
+    <div class="pleg">{% if ports.status %}<span><i class="up"></i>{{ _('Activo') }}</span><span><i class="down"></i>{{ _('Sin enlace') }}</span>{% else %}<span><i class="down"></i>{{ _('Habilitado') }}</span>{% endif %}<span><i class="off"></i>{{ _('Apagado') }}</span></div>
+    <a href="#ports" data-tab-link class="b">{{ _('Ver todos los puertos') }} ›</a>
+  </div>
+</section>
+<script>
+(function () {
+  const P = {{ ports.ports|tojson }}, HAS = {{ ports.status|tojson }}, NAME = {{ device.name|tojson }}, DT = {{ device.device_type|tojson }};
+  const T = {{ {'up': _('Activo'), 'down': _('Sin enlace'), 'off': _('Apagado'), 'empty': _('Sin módulo'), 'on': _('Habilitado'),
+    'cu': _('Cobre'), 'sfp': _('Fibra'), 'neigh': _('Vecino'), 'type': _('Tipo'), 'desc': _('Descripción'), 'speed': _('Velocidad'),
+    'net': _('Dirección'), 'module': _('Módulo'), 'nomod': _('No hay módulo en la jaula'), 'said': _('LO QUE DICE EL RESPALDO'),
+    'cfg': _('configuración'), 'state': _('estado al respaldar'), 'nostate': _('sin estado de enlace'),
+    'all': _('Todos'), 'fup': _('Activos'), 'fdown': _('Inactivos'), 'ffib': _('Fibra'), 'foff': _('Apagados'), 'fcu': _('Cobre'),
+    'port': _('Puerto'), 'st': _('Estado'), 'nocfg': _('La configuración no menciona este puerto.')}|tojson }};
+  const big = P.length > 14, CW = 32, SW = 42, H = 28, GAP = 6, GG = 12, SEP = 16;
+  const cu = P.filter(p => p.k !== 'sfp'), sf = P.filter(p => p.k === 'sfp');
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c]);
+  const tail = n => (n.match(/(\d+)$/) || [, n])[1];
+  const gbe = list => { const v = list.map(p => parseFloat(p.sp) * (/G/.test(p.sp) ? 1000 : 1)).filter(x => x > 0); if (!v.length) return '';
+    const m = Math.max(...v); return m >= 1000 ? ' · ' + (m / 1000) + ' GbE' : ' · ' + m + ' Mbps'; };
+  const sfpCap = () => sf.length === 1 && !big ? T.sfp : T.sfp + ' · ' + (sf.some(p => /qsfp/i.test(p.n)) ? 'QSFP' : sf.some(p => /plus|^xe-|^te/i.test(p.n)) ? 'SFP+' : 'SFP') + gbe(sf);
+  const capW = t => t.length * 5.8 + 4;  // ancho aproximado de un rótulo (10 px)
+  const caps = (groups, top) => groups.map(g => { const w = Math.max(g[1], capW(g[2])), x = g[0] + (g[1] - w) / 2;
+    return `<span class="pg" style="left:${Math.max(0, x)}px;top:${top}px;width:${w}px">${esc(g[2])}</span>`; }).join('');
+  const capEnd = groups => Math.max(0, ...groups.map(g => g[0] + (g[1] + Math.max(g[1], capW(g[2]))) / 2));
+  const kindOf = p => p.k === 'sfp' ? sfpCap() : T.cu + gbe(cu);
+  let sel = (P.find(p => p.s === 'up' && p.k === 'sfp') || P.find(p => p.s === 'up') || P[0]).n, filt = 'all';
+
+  function icon(p, flip) {
+    const off = p.s === 'off', st = p.s;
+    const body = st === 'up' ? 'var(--p-up)' : off ? 'var(--p-off)' : st === 'empty' ? 'var(--p-empty)' : 'var(--p-down)';
+    const edge = st === 'up' ? 'var(--p-up)' : off ? 'var(--p-off-e)' : 'var(--p-down-e)', dash = off ? ' stroke-dasharray="3 2"' : '';
+    if (p.k !== 'sfp') {
+      const pin = st === 'up' ? 'var(--p-up)' : 'var(--p-down-e)';
+      return `<svg width="32" height="28" viewBox="0 0 32 28" aria-hidden="true"><g${flip ? ' transform="translate(0 28) scale(1 -1)"' : ''}><rect x=".75" y=".75" width="30.5" height="26.5" rx="4" fill="${body}" stroke="${edge}" stroke-width="1.5"${dash}/>` +
+        `<path d="M7 10h5V6h8v4h5v13H7z" fill="var(--p-hole)"/><path d="M9.5 19.5v2.5M11.4 19.5v2.5M13.3 19.5v2.5M15.2 19.5v2.5M17.1 19.5v2.5M19 19.5v2.5M20.9 19.5v2.5M22.8 19.5v2.5" stroke="${pin}" stroke-width=".9"/></g></svg>`;
+    }
+    const lc = st === 'up' ? 'var(--ok-soft)' : off ? 'var(--p-off)' : 'var(--p-down)', fer = st === 'up' ? '#e8edf6' : 'var(--p-down-e)';
+    return `<svg width="42" height="28" viewBox="0 0 42 28" aria-hidden="true"><rect x=".75" y=".75" width="40.5" height="26.5" rx="2.5" fill="${body}" stroke="${edge}" stroke-width="1.5"${dash}/>` +
+      `<path d="M4 4.5h34M4 23.5h34" stroke="var(--p-down-e)" stroke-width="1" opacity=".5"/><rect x="6" y="7" width="30" height="14" rx="1.5" fill="var(--p-hole)"/>` +
+      (st === 'empty' ? '' : `<rect x="9.5" y="8.5" width="10" height="11" rx="2.5" fill="${lc}"/><rect x="22.5" y="8.5" width="10" height="11" rx="2.5" fill="${lc}"/><circle cx="14.5" cy="14" r="2" fill="${fer}"/><circle cx="27.5" cy="14" r="2" fill="${fer}"/>`) + '</svg>';
+  }
+  const tip = p => [p.n, T[p.s], p.s === 'up' && p.sp, p.d].filter(Boolean).join(' · ');
+  const match = (k, p) => k === 'all' || (k === 'up' && p.s === 'up') || (k === 'down' && (p.s === 'down' || p.s === 'empty'))
+    || (k === 'off' && p.s === 'off') || (k === 'fiber' && p.k === 'sfp') || (k === 'cu' && p.k !== 'sfp');
+
+  function front() {
+    const box = document.getElementById('pfp'); if (!box) return;
+    let h = '', W = 0;
+    const put = (p, x, y, w, flip, numY) => {
+      const on = p.n === sel;
+      h += `<span class="pn${p.s === 'up' ? ' up' : ''}${on ? ' sel' : ''}" aria-hidden="true" style="left:${x}px;top:${numY}px;width:${w}px">${esc(sf.length === 1 && p.k === 'sfp' ? 'SFP' : tail(p.n))}</span>`;
+      h += `<button type="button" class="pt${match(filt, p) ? '' : ' dim'}" data-p="${esc(p.n)}" title="${esc(tip(p))}" aria-label="${esc(tip(p))}" aria-pressed="${on}" style="left:${x}px;top:${y}px">${icon(p, flip)}</button>`;
+    };
+    let cuW = 0, groups = [];
+    if (!big) {
+      let x = 0;
+      cu.forEach(p => { put(p, x, 16, CW, false, 0); x += CW + GAP; });
+      cuW = cu.length ? x - GAP : 0;
+      let sx = cu.length ? cuW + SEP : 0;
+      const s0 = sx;
+      sf.forEach(p => { put(p, sx, 16, SW, false, 0); sx += SW + GAP; });
+      W = sf.length ? sx - GAP : cuW;
+      if (cu.length) groups.push([0, cuW, T.cu + gbe(cu)]);
+      if (sf.length) groups.push([s0, Math.max(W - s0, 42), sfpCap()]);
+      h += caps(groups, 52);
+      box.style.width = Math.max(W, capEnd(groups)) + 'px'; box.style.height = '66px';
+    } else {  // dos filas: impares arriba, pares abajo (la fila de abajo con el RJ45 invertido), grupos de 6 columnas
+      const Y0 = 16, Y1 = Y0 + H + 8, cx = c => c * (CW + GAP) + Math.floor(c / 6) * GG;
+      const cols = Math.ceil(cu.length / 2);
+      cu.forEach((p, i) => { const c = Math.floor(i / 2), b = i % 2 === 1; put(p, cx(c), b ? Y1 : Y0, CW, b, b ? Y1 + H + 3 : 0); });
+      cuW = cols ? cx(cols - 1) + CW : 0;
+      const sx0 = cu.length ? cuW + SEP : 0, scol = Math.ceil(sf.length / 2);
+      sf.forEach((p, i) => { const c = Math.floor(i / 2), b = i % 2 === 1; put(p, sx0 + c * (SW + GAP), b ? Y1 : Y0, SW, false, b ? Y1 + H + 3 : 0); });
+      W = sf.length ? sx0 + scol * (SW + GAP) - GAP : cuW;
+      if (cu.length) groups.push([0, cuW, T.cu + gbe(cu)]);
+      if (sf.length) groups.push([sx0, Math.max(W - sx0, 92), sfpCap()]);
+      h += caps(groups, Y1 + H + 18);
+      box.style.width = Math.max(W, capEnd(groups)) + 'px'; box.style.height = (Y1 + H + 32) + 'px';
+    }
+    box.innerHTML = h;
+  }
+  const pill = p => `<span class="ppill ${p.s === 'up' ? 'up' : p.s === 'off' ? 'off' : ''}">${esc(T[p.s])}</span>`;
+  function selected() {
+    const p = P.find(x => x.n === sel) || P[0];
+    const line = [p.d, p.s === 'up' && p.sp, p.net].filter(Boolean).join(' · ');
+    const el = document.getElementById('psel');
+    if (el) el.innerHTML = `<div class="row" style="gap:10px"><span class="nm">${esc(p.n)}</span>${pill(p)}<span class="muted sm">${esc(kindOf(p))}</span></div>` +
+      (line ? `<div class="ln">${esc(line)}</div>` : '') + `<div class="nb">${esc(T.neigh)}: ${esc(p.nb || '—')}</div>`;
+    const c = document.getElementById('pcard'); if (!c) return;
+    const cm = /^juniper|^mikrotik/.test(DT) ? '#' : '!';
+    let cfg = `<span class="c">${cm} ${esc(T.cfg)}</span>` + ((p.cfg || []).length ? p.cfg.map(l => `<span class="${p.s === 'off' && /disabled=yes|^\s*shutdown|\sdisable$/.test(l) ? 'off' : ''}">${esc(l)}</span>`).join('') : `<span class="c">${esc(T.nocfg)}</span>`);
+    cfg += `<span class="c">${cm} ${esc(T.state)}</span><span class="${p.s === 'up' ? 'up' : p.s === 'off' ? 'off' : ''}">${esc(p.st || T.nostate)}</span>`;
+    c.innerHTML = `<div class="row" style="gap:10px"><span class="mono b grow" style="font-size:16px">${esc(p.n)}</span>${pill(p)}</div>` +
+      `<dl class="kv"><dt>${esc(T.type)}</dt><dd>${esc(kindOf(p))}</dd><dt>${esc(T.desc)}</dt><dd>${esc(p.d || '—')}</dd><dt>${esc(T.speed)}</dt><dd>${esc(p.s === 'up' && p.sp || '—')}</dd>` +
+      `<dt>${esc(T.net)}</dt><dd>${esc(p.net || '—')}</dd><dt>${esc(T.neigh)}</dt><dd>${esc(p.nb || '—')}</dd>` +
+      (p.k === 'sfp' ? `<dt>${esc(T.module)}</dt><dd>${esc(p.s === 'empty' ? T.nomod : p.mod || '—')}</dd>` : '') + '</dl>' +
+      `<div class="topo-cap" style="font:600 11px var(--f-sans);letter-spacing:.06em;color:var(--muted)">${esc(T.said)}</div><pre class="pcfg">${cfg}</pre>`;
+  }
+  function table() {
+    const f = document.getElementById('pfilt'), rows = document.getElementById('prows'); if (!f || !rows) return;
+    const keys = [['all', T.all]].concat(HAS ? [['up', T.fup], ['down', T.fdown]] : []).concat(big || !HAS ? [['off', T.foff]] : [])
+      .concat(sf.length ? [['fiber', T.ffib]] : []).concat(big && sf.length ? [['cu', T.fcu]] : []);
+    f.innerHTML = keys.map(([k, n]) => `<button type="button" class="chip" data-f="${k}" aria-pressed="${filt === k}">${esc(n)} <span class="n">${P.filter(p => match(k, p)).length}</span></button>`).join('');
+    rows.innerHTML = P.filter(p => match(filt, p)).map(p => `<tr data-p="${esc(p.n)}" class="${p.n === sel ? 'sel' : ''}" tabindex="0"><td class="mono">${esc(p.n)}</td><td>${esc(p.k === 'sfp' ? T.sfp : T.cu)}</td>` +
+      `<td style="white-space:nowrap"><span class="pdot" style="background:${p.s === 'up' ? 'var(--p-up)' : p.s === 'off' ? 'var(--p-off-e)' : 'var(--p-down-e)'}"></span>${esc(T[p.s])}</td><td class="mono">${esc(p.s === 'up' && p.sp || '—')}</td><td>${esc(p.d || '—')}</td><td class="muted">${esc(p.nb || '—')}</td></tr>`).join('');
+  }
+  function draw() { front(); selected(); table(); }
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-p]'); if (b && (b.closest('#pfp') || b.closest('#prows'))) { sel = b.dataset.p; draw(); return; }
+    const fb = e.target.closest('#pfilt [data-f]'); if (fb) { filt = fb.dataset.f; draw(); }
+  });
+  document.addEventListener('keydown', e => { const r = e.target.closest && e.target.closest('#prows tr[data-p]'); if (r && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); sel = r.dataset.p; draw(); } });
+  const csv = document.getElementById('pcsv');
+  if (csv) csv.addEventListener('click', () => {
+    const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+    const lines = [[T.port, T.type, T.st, T.speed, T.desc, T.net, T.neigh, T.module].map(q).join(',')]
+      .concat(P.map(p => [p.n, p.k === 'sfp' ? T.sfp : T.cu, T[p.s], p.s === 'up' ? p.sp : '', p.d, p.net, p.nb, p.mod].map(q).join(',')));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\r\n')], {type: 'text/csv'}));
+    a.download = NAME + '_puertos.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  draw();
+  document.addEventListener('DOMContentLoaded', draw);  // la pestaña «Puertos» está más abajo en la página
+})();
+</script>

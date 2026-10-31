@@ -16,6 +16,7 @@
   <span class="grow"></span>
   {% if can_run and v.kind == 'running' %}
   {% if not is_baseline %}<form method="post" action="/versions/{{ v.id }}/baseline"><button class="btn">{{ icon('flag', 's') }}Marcar como línea base</button></form>{% endif %}
+  {% if user.role == 'admin' %}<a class="btn" href="/versions/{{ v.id }}/restore">{{ icon('server', 's') }}{{ _('Restaurar en otro equipo…') }}</a>{% endif %}
   <button type="button" class="btn dz" data-dialog="vrev-dlg">{{ icon('undo', 's') }}Revertir a esta versión…</button>
   {% endif %}
 </div>

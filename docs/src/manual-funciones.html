@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.11.1<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 2.12.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -213,6 +213,25 @@ editar, comparar con otro equipo, ver las diferencias con la línea base, volver
 permite marcar la última versión) y eliminar. Para eliminar un equipo hay que escribir su nombre, porque se borra con todo su
 historial.</p>
 <figure><img src="img/05-dispositivo.png"><figcaption>Ficha del dispositivo R1, pestaña Resumen.</figcaption></figure>
+<h3>Puertos del equipo</h3>
+<p>Entre la cabecera y las pestañas, una <b>franja de puertos</b> dibuja el frente del equipo con un icono por puerto en su orden
+físico: RJ45 para cobre y jaula SFP para fibra (vacía si no tiene módulo). En los equipos grandes van en dos filas, los impares
+arriba y los pares abajo. Al tocar un puerto se ven su estado, tipo, descripción, velocidad, dirección y vecino; «Ver todos los
+puertos» abre la pestaña <b>Puertos</b>, con la tabla <i>Interfaces</i> (filtros Todos, Activos, Inactivos, Fibra y, en equipos
+grandes, Apagados y Cobre; <b>Exportar CSV</b>) y una tarjeta del puerto con <b>Lo que dice el respaldo</b>: la línea de la
+configuración y la línea de estado que explican su color.</p>
+<table>
+  <tr><th>Color</th><th>Significa</th></tr>
+  <tr><td>Verde</td><td>Activo: tiene enlace.</td></tr>
+  <tr><td>Gris</td><td>Habilitado sin enlace (o, si la plataforma no da el estado, habilitado sin más).</td></tr>
+  <tr><td>Ámbar con borde discontinuo</td><td>Apagado en la configuración (<code>disabled=yes</code>, <code>shutdown</code>).</td></tr>
+  <tr><td>Jaula vacía</td><td>Puerto de fibra sin módulo SFP.</td></tr>
+</table>
+<p>La configuración solo dice si un puerto está apagado; el enlace se lee en la misma conexión del respaldo y se muestra «leído en
+el respaldo de hace…». MikroTik: <code>/interface ethernet print</code> y <code>monitor</code> (estado, velocidad y módulo SFP);
+Cisco IOS/IOS-XE: <code>show interfaces status</code>; ASA/FTD: <code>show interface ip brief</code>; Juniper:
+<code>show interfaces terse</code>. En las demás plataformas con bloques <code>interface</code> los puertos salen en gris
+(apagado o habilitado) con el aviso «sin estado de enlace». Aparecen tras el primer respaldo con OpenNCCM 2.12.0.</p>
 <figure><img src="img/05c-dispositivo-cumplimiento.png" style="max-height:120mm"><figcaption>Pestaña Cumplimiento: reglas agrupadas por política, con «Corregir N».</figcaption></figure>
 </section>
 
@@ -478,6 +497,29 @@ sola aunque la aprobación esté desactivada.</p>
 cortado: revertir a ella borraría del equipo todo lo que falta. La página de esa versión lo advierte y el botón normal de reversión
 desaparece; solo se puede crear con «Entiendo el riesgo: revertir de todas formas…». Desde la versión 1.4.0 los respaldos cortados o
 paginados («--More--») se rechazan y no se guardan.</div>
+<h2>Restaurar una copia en otro equipo</h2>
+<p><b>Para qué sirve:</b> pasar la configuración de un equipo a otro <b>del mismo modelo</b>, por ejemplo al reemplazar un equipo
+averiado. El equipo de origen y sus versiones no se eliminan ni se modifican. Solo administradores.</p>
+<ol class="steps">
+  <li>Abra la versión (o, en la ficha, menú <b>⋯ → Restaurar en otro equipo…</b>, que usa la última) y pulse <b>Restaurar en otro
+  equipo…</b></li>
+  <li>Elija el destino:
+    <ul>
+      <li><b>Otro equipo de OpenNCCM</b>: se usa su credencial; los de otro modelo no se pueden elegir.</li>
+      <li><b>Equipo nuevo por IP (SSH)</b>: su IP de administración, puerto, usuario y contraseña. El equipo debe tener
+      <b>SSH habilitado</b> y ser accesible desde el servidor. La contraseña solo se usa para esa restauración: no se guarda.</li>
+      <li><b>Cable de consola (puerto serie)</b>: con el cable conectado al PC del administrador, en Chrome o Edge (la página por
+      HTTPS). El navegador abre el puerto serie, usted inicia sesión en el equipo en la propia página y OpenNCCM lee el inventario y
+      la configuración por la consola. Disponible para MikroTik y las plataformas de sintaxis Cisco, Huawei y Junos.</li>
+    </ul></li>
+  <li>OpenNCCM lee el modelo del destino y lo compara con el del origen. Si no coincide, no se envía nada. Si coincide, muestra los
+  <b>comandos</b> que llevarán el destino a la configuración de la copia (borra lo que sobra y añade lo que falta).</li>
+  <li>Pulse <b>Restaurar</b>. Por SSH se aplica con la red de seguridad del equipo (modo seguro en MikroTik, commit confirmed en
+  Junos) y se detiene en el primer comando rechazado; por consola, el navegador escribe las líneas y se detiene en la primera que el
+  equipo rechace.</li>
+</ol>
+<div class="warn"><b>Direcciones repetidas</b>La copia lleva el nombre y las direcciones IP del equipo de origen. Si los dos quedan
+conectados a la misma red habrá direcciones repetidas. La dirección por la que OpenNCCM gestiona el destino se conserva.</div>
 <h2>Reversión automática</h2>
 <p>Si el dispositivo tiene activada <b>«Revertir automáticamente cambios no autorizados»</b>, cuando un cambio se detecta por syslog o
 por un respaldo programado, y no proviene de una solicitud aprobada, OpenNCCM aplica de inmediato los comandos inversos, vuelve a

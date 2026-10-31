@@ -1,5 +1,17 @@
 # Historial de versiones
 
+## 2.12.0
+- **Puertos en la ficha del equipo.** Una franja entre la cabecera y las pestañas dibuja el frente del equipo con cada puerto en
+  su orden físico (RJ45 de cobre, jaula SFP con o sin módulo; dos filas en equipos grandes) y su estado: activo, sin enlace,
+  apagado o sin módulo. Al tocarlo se ven su descripción, velocidad, dirección y vecino. Pestaña nueva **Puertos** con la tabla
+  de interfaces, filtros, «Exportar CSV» y «Lo que dice el respaldo» (la línea de la configuración y la de estado). El estado se
+  lee en la misma conexión del respaldo: MikroTik, Cisco IOS/IOS-XE, ASA/FTD y Juniper; en el resto, apagado o habilitado según
+  la configuración.
+- **Restaurar una copia en otro equipo del mismo modelo.** Desde la versión o el menú «…» de la ficha: en otro equipo de
+  OpenNCCM, en uno nuevo por SSH (IP, usuario y contraseña, que no se guardan) o por cable de consola conectado al PC del
+  administrador (puerto serie desde Chrome o Edge). Primero se valida que el modelo coincide y se muestran los comandos; el
+  equipo de origen y sus copias no se tocan.
+
 ## 2.11.1
 - **Mapa de la red: el clic en un equipo vuelve a abrir su panel.** Con un clic de ratón no pasaba nada; ahora se abre
   el panel con cómo se reconoció, sus enlaces y «Agregar a OpenNCCM» o «Abrir el equipo».
