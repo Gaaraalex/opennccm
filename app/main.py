@@ -10,7 +10,7 @@ import re
 import secrets
 import time
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from fastapi import FastAPI, Request
 from starlette.concurrency import run_in_threadpool
@@ -379,7 +379,8 @@ def account(request: Request):
     user = require(request)
     from .db import ApiToken
     with SessionLocal() as db:
-        tokens = db.scalars(select(ApiToken).where(ApiToken.user_id == user.id).order_by(ApiToken.id.desc())).all()
+        tokens = db.scalars(select(ApiToken).where(ApiToken.user_id == user.id, ApiToken.client.is_(None))
+                           .order_by(ApiToken.id.desc())).all()
     new_token = request.session.pop("new_token", None)  # se muestra una sola vez
     return render(request, "account.html", user, themes=THEMES, accents=ACCENTS, tokens=tokens, new_token=new_token,
                   base_url=str(request.base_url).rstrip("/"))
@@ -1026,23 +1027,9 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
             last_run = next((v for v in versions if v.kind == "running"), None)
             if base_v and last_run:
                 drift_n = sum(services.diff_stats(try_decrypt(base_v.content_enc, ""), try_decrypt(last_run.content_enc, "")))
-        pinfo = None  # puertos y su estado del último respaldo (franja y pestaña «Puertos»)
-        try:
-            pj = json.loads(dev.ports) if dev.ports else None
-        except ValueError:
-            pj = None
-        if pj and pj.get("ports"):
-            from . import ports as ports_mod
-            last_run = next((v for v in versions if v.kind == "running"), None)
-            try:
-                nbs = json.loads(dev.neighbors or "[]")
-            except ValueError:
-                nbs = []
-            ports_mod.enrich(pj["ports"], dev.device_type, try_decrypt(last_run.content_enc, "") if last_run else "", nbs)
-            pinfo = {"ports": pj["ports"], "status": bool(pj.get("status")), "at": datetime.fromisoformat(pj["at"]),
-                     "layout": ports_mod.layout(dev.model, pj["ports"]), "raw": pj.get("raw") or "",
-                     "rear": pj.get("rear") if (pj.get("rear") or {}).get("psu") or (pj.get("rear") or {}).get("fan")
-                     else ports_mod.rear_from_model(dev.model, dev.last_status == "ok") or {"psu": [], "fan": []}}
+        from . import ports as ports_mod
+        last_run = next((v for v in versions if v.kind == "running"), None)
+        pinfo = ports_mod.view(dev, try_decrypt(last_run.content_enc, "") if last_run else "")
         audit_rows = db.scalars(select(AuditLog).where(or_(AuditLog.detail.like(f"%{dev.name}%"),
                                                            AuditLog.detail.like(f"%device={dev_id}%")))
                                 .order_by(AuditLog.id.desc()).limit(20)).all()
@@ -2013,43 +2000,48 @@ def change_detail(request: Request, cr_id: int):
                   kind_label=kind_label, vend=vend, example=example, risks=risks)
 
 
-@app.post("/changes/{cr_id}/review")
-async def change_review(request: Request, cr_id: int):
-    user = require(request, "admin")
-    form = await request.form()
-    decision = form.get("decision")
+def review_change(user: User, cr_id: int, decision: str, comment: str) -> tuple[bool, str]:
+    """Aprueba o rechaza una solicitud de cambio (web y app). (hecho, mensaje para el usuario)."""
     with SessionLocal() as db:
         cr = db.get(ChangeRequest, cr_id)
+        if cr is None:
+            return False, _("La solicitud no existe")
         if cr.status != "pending":
-            flash(request, _("La solicitud ya fue revisada"), "error")
-            return go(f"/changes/{cr_id}")
+            return False, _("La solicitud ya fue revisada")
         if cr.requested_by == user.username and get_setting("allow_self_approval", "1") != "1":
-            flash(request, _("No puede aprobar sus propias solicitudes (ver Ajustes)"), "error")
-            return go(f"/changes/{cr_id}")
+            return False, _("No puede aprobar sus propias solicitudes (ver Ajustes)")
         bad = services.example_addresses((cr.body or "") + " " + (cr.variables or ""))
         risks = []
         if decision == "approve" and cr.kind != "firmware":
             devs = list(db.scalars(select(Device).where(Device.id.in_(json.loads(cr.device_ids or "[]")))))
             risks = services.lockout_risks(cr.body, [(d, d.credential)[0] for d in devs])
         if risks:
-            flash(request, _("No se puede aprobar:") + " " + " ".join(risks), "error")
-            return go(f"/changes/{cr_id}")
+            return False, _("No se puede aprobar:") + " " + " ".join(risks)
         if decision == "approve" and bad:
-            msg = _f("No se puede aprobar: los comandos usan direcciones de ejemplo ({0}) que no existen en ninguna red. Recházala y crea una con las direcciones reales.", ", ".join(bad))
-            flash(request, msg, "error")
-            return go(f"/changes/{cr_id}")
-        if decision != "approve" and not (form.get("comment") or "").strip():
-            flash(request, _("Escribe por qué se rechaza: así quien la pidió sabe qué cambiar."), "error")
-            return go(f"/changes/{cr_id}")
+            return False, _f("No se puede aprobar: los comandos usan direcciones de ejemplo ({0}) que no existen en ninguna red. Recházala y crea una con las direcciones reales.", ", ".join(bad))
+        if decision != "approve" and not (comment or "").strip():
+            return False, _("Escribe por qué se rechaza: así quien la pidió sabe qué cambiar.")
         cr.status = "approved" if decision == "approve" else "rejected"
-        cr.reviewed_by, cr.review_comment = user.username, form.get("comment")
+        cr.reviewed_by, cr.review_comment = user.username, comment
         db.commit()
-    log_action(request, user, f"change_{cr.status}", f"#{cr_id}")
-    if cr.status == "approved":
+        status = cr.status
+    if status == "approved":
         services.jobs.submit(services.execute_change_request, cr_id)
-        flash(request, _("Solicitud aprobada: ejecutándose en segundo plano"))
+        return True, _("Solicitud aprobada: ejecutándose en segundo plano")
+    return True, _("Solicitud rechazada")
+
+
+@app.post("/changes/{cr_id}/review")
+async def change_review(request: Request, cr_id: int):
+    user = require(request, "admin")
+    form = await request.form()
+    ok, msg = review_change(user, cr_id, form.get("decision") or "", form.get("comment") or "")
+    if ok:
+        log_action(request, user, "change_approved" if form.get("decision") == "approve" else "change_rejected", f"#{cr_id}")
+    if ok:
+        flash(request, msg)
     else:
-        flash(request, _("Solicitud rechazada"))
+        flash(request, msg, "error")
     return go(f"/changes/{cr_id}")
 
 
@@ -3055,6 +3047,9 @@ from . import routes_ops  # noqa: E402  (rutas de firmware, EOL, análisis y sis
 
 app.include_router(routes_ops.router)
 from . import console, security  # noqa: E402  (consola SSH web; 2 pasos, certificado, privacidad)
+from . import mobile  # noqa: E402  (app Android: su API, teléfonos vinculados y la APK)
+
+app.include_router(mobile.router)
 
 app.include_router(security.router)
 app.include_router(console.router)

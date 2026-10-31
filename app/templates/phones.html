@@ -1,0 +1,33 @@
+{% extends "base.html" %}{% block title %}{{ _('App Android') }}{% endblock %}
+{% block crumbs %}<a href="/account">{{ _('Mi cuenta') }}</a>{{ icon('right', 's') }}<b>{{ _('App Android') }}</b>{% endblock %}
+{% block content %}
+<div class="ph"><div class="grow"><h1>{{ _('App Android') }}</h1>
+  <p class="muted" style="margin-top:4px">{{ _('Equipos, alarmas, cambios por aprobar y avisos en el teléfono, con los mismos permisos que en la web.') }}</p></div>
+  {% if has_apk %}<a class="btn pri" href="/app/android.apk">{{ icon('dl', 's') }}{{ _('Descargar la app (APK)') }}</a>{% endif %}</div>
+<div class="bento">
+  <section class="card c6 stack"><div class="card-h"><h2>{{ _('1. Instalar') }}</h2></div>
+    {% if has_apk %}<p>{{ _('Descargue la APK desde el teléfono (abra esta página en él) o pásela al teléfono, y ábrala. Android pedirá permitir instalar apps de esta fuente la primera vez.') }}</p>
+    <a class="btn" href="/app/android.apk">{{ icon('dl', 's') }}{{ _('Descargar OpenNCCM.apk') }}</a>
+    {% else %}<div class="banner warn">{{ icon('alert') }}<span class="grow">{{ _('Esta instalación no trae la app Android (se compila con cada versión publicada). Actualice OpenNCCM a una versión publicada para tenerla.') }}</span></div>{% endif %}
+    <p class="muted sm">{{ _('Requiere Android 8 o superior.') }}</p></section>
+  <section class="card c6 stack"><div class="card-h"><h2>{{ _('2. Conectar') }}</h2></div>
+    <p>{{ _('En la app, elija una de las dos formas:') }}</p>
+    <ul class="stack" style="gap:6px;margin:0;padding-left:18px">
+      <li><b>{{ _('Escanear el QR') }}</b>: {{ _('pulse «Vincular con QR» aquí y escanéelo con la app. Vale 5 minutos y una sola vez; sirve también para cuentas de Microsoft.') }}</li>
+      <li><b>{{ _('Dirección, usuario y contraseña') }}</b>: {{ _('escriba la dirección de este servidor, su usuario y su contraseña (y el código de dos pasos si lo tiene activado).') }}</li>
+    </ul>
+    <div class="kv" style="margin-top:6px"><dl class="kv"><dt>{{ _('Dirección') }}</dt><dd class="mono">{{ url }}</dd>
+      {% if fp %}<dt>{{ _('Huella del certificado') }}</dt><dd class="mono sm" style="word-break:break-all">{{ fp|upper }}</dd>{% endif %}</dl></div>
+    {% if fp %}<p class="muted sm">{{ _('La primera vez, la app muestra la huella del certificado del servidor: compruebe que es la misma. Con el QR se comprueba sola.') }}</p>{% endif %}
+    <form method="post" action="/account/phones/pair"><button class="btn pri">{{ icon('phone', 's') }}{{ _('Vincular con QR') }}</button></form>
+    {% if qr %}<div class="stack" style="align-items:center;gap:8px;padding:12px;border-radius:12px;background:#fff"><img src="{{ qr }}" alt="{{ _('Código QR para vincular el teléfono') }}" style="width:260px;height:260px"></div>
+    <p class="muted sm">{{ _('Escanéelo con la app en los próximos 5 minutos. No lo comparta: quien lo escanee entra con su cuenta.') }}</p>
+    <p class="sm">{{ _('Sin cámara: en la app, «Escribir el código» y copie este:') }} <code class="mono" id="pair-code">{{ code }}</code></p>{% endif %}
+  </section>
+  <section class="card c12 flush"><div class="card-h"><h2>{{ _('Teléfonos vinculados') }}</h2><span class="muted sm">{{ _('Cada teléfono tiene su propio acceso; desvincúlelo si lo pierde.') }}</span></div>
+    {% if phones %}<div class="tw"><table class="t"><thead><tr><th>{{ _('Teléfono') }}</th><th>{{ _('Vinculado') }}</th><th>{{ _('Último uso') }}</th><th></th></tr></thead><tbody>
+    {% for t in phones %}<tr><td>{{ t.name }}</td><td>{{ t.created_at|ago }}</td><td>{{ t.last_used_at|ago if t.last_used_at else _('nunca') }}</td>
+      <td><form method="post" action="/account/phones/{{ t.id }}/revoke" style="margin:0"><button class="btn s dz">{{ _('Desvincular') }}</button></form></td></tr>{% endfor %}
+    </tbody></table></div>{% else %}<div class="empty"><p>{{ _('Aún no hay teléfonos vinculados.') }}</p></div>{% endif %}</section>
+</div>
+{% endblock %}

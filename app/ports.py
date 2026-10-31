@@ -525,3 +525,26 @@ def _short(name: str) -> str:
     """«GigabitEthernet1/0/1» y «Gi1/0/1» son el mismo puerto."""
     m = re.match(r"^([A-Za-z]{2})[A-Za-z-]*\s*([\d/.:]+)$", name or "")
     return (m.group(1).lower() + m.group(2)) if m else (name or "").lower()
+
+
+def view(dev, config: str) -> dict | None:
+    """Puertos del último respaldo listos para mostrar (ficha web y app): estado, datos de la configuración y del mapa,
+    disposición del frente y parte de atrás (de los sensores o, si no hay, del modelo)."""
+    import json
+    from datetime import datetime
+    try:
+        pj = json.loads(dev.ports) if dev.ports else None
+    except ValueError:
+        pj = None
+    if not pj or not pj.get("ports"):
+        return None
+    try:
+        nbs = json.loads(dev.neighbors or "[]")
+    except ValueError:
+        nbs = []
+    enrich(pj["ports"], dev.device_type, config, nbs)
+    rear = pj.get("rear") or {}
+    if not rear.get("psu") and not rear.get("fan"):
+        rear = rear_from_model(dev.model, dev.last_status == "ok") or {"psu": [], "fan": []}
+    return {"ports": pj["ports"], "status": bool(pj.get("status")), "at": datetime.fromisoformat(pj["at"]),
+            "layout": layout(dev.model, pj["ports"]), "raw": pj.get("raw") or "", "rear": rear}

@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% block title %}{{ _f('Etiqueta de {0}', d.name) }}{% endblock %}
+{% block crumbs %}<a href="/devices">{{ _('Dispositivos') }}</a>{{ icon('right', 's') }}<a href="/devices/{{ dev_id }}">{{ d.name }}</a>{{ icon('right', 's') }}<b>{{ _('Etiqueta QR') }}</b>{% endblock %}
+{% block content %}
+<style>
+  .qlabel{width:62mm;padding:4mm;border:1px dashed #9aa3b2;border-radius:3mm;background:#fff;color:#000;display:flex;gap:3mm;align-items:center;font-family:var(--f-sans)}
+  .qlabel img{width:24mm;height:24mm;flex:none}.qlabel b{display:block;font-size:11pt}.qlabel span{display:block;font:9pt var(--f-mono)}
+  @media print{body *{visibility:hidden}.qprint,.qprint *{visibility:visible}.qprint{position:absolute;left:0;top:0}.qlabel{border:0}}
+</style>
+<div class="ph"><div class="grow"><h1>{{ _('Etiqueta QR') }}</h1>
+  <p class="muted" style="margin-top:4px">{{ _('Péguela en el equipo: al escanearla con la app de OpenNCCM se abre su ficha.') }}</p></div>
+  <button type="button" class="btn pri" onclick="window.print()">{{ icon('file', 's') }}{{ _('Imprimir') }}</button></div>
+<div class="qprint"><div class="qlabel"><img src="{{ qr }}" alt="QR"><div><b>{{ d.name }}</b><span>{{ d.host }}</span><span>{{ d.model or d.platform }}</span></div></div></div>
+{% endblock %}
