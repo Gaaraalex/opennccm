@@ -1124,6 +1124,32 @@ consola; para restaurar, <i>Restore Backup</i> en SwitchOS con el archivo descar
 abre la barra lateral completa) y los indicadores se muestran en dos columnas. Si el teléfono usa tema oscuro, la aplicación también.</p>
 <p>No requiere instalar ninguna app: basta con abrir la dirección del servidor en el navegador del teléfono (dentro de la VPN o la red
 de gestión).</p>
+<h2>App Android</h2>
+<p><b>Para qué sirve:</b> ver los equipos, sus puertos (frente y atrás), las alarmas y los cambios por aprobar desde el teléfono,
+respaldar un equipo, reconocer alarmas y aprobar o rechazar cambios con la huella, y recibir avisos. Usa los mismos roles y
+grupos que la web. Requiere Android 8 o superior.</p>
+<ol class="steps">
+  <li><b>Instalar:</b> en <b>Mi cuenta › App Android</b>, «Descargar la app (APK)». El servidor la obtiene de la versión publicada
+  en GitHub la primera vez (si no tiene Internet, copie <code>OpenNCCM-&lt;versión&gt;.apk</code> en
+  <code>/var/lib/opennccm/android/</code>). Ábrala en el teléfono y permita instalar apps de esa fuente.</li>
+  <li><b>Conectar</b>, de una de estas formas:
+    <ul>
+      <li><b>Con QR:</b> «Vincular con QR» en la web y, en la app, «Vincular con el QR del servidor». Vale 5 minutos y una vez;
+      también para cuentas de Microsoft. Sin cámara, se puede escribir el código que aparece debajo del QR.</li>
+      <li><b>Con dirección, usuario y contraseña:</b> la IP o el nombre del servidor, su usuario y su contraseña (locales o de
+      Active Directory) y, si la tiene, el código de verificación en dos pasos.</li>
+    </ul>
+    La contraseña no se guarda en el teléfono: el servidor le da al teléfono su propio acceso, que aparece en
+    <b>Teléfonos vinculados</b> y se puede quitar con «Desvincular». Con el certificado propio de OpenNCCM, la primera vez la app
+    muestra su huella para compararla con la de esa página (con el QR se comprueba sola).</li>
+  <li><b>Usar:</b> pestañas Panel, Equipos, Alarmas, Cambios y Más. Antes de respaldar, reconocer, aprobar o rechazar, la app pide
+  la huella (o el bloqueo de pantalla). Las acciones quedan en Auditoría con «[Android]».</li>
+</ol>
+<p><b>Avisos:</b> cada 15 minutos la app pregunta al servidor si hay alarmas graves o cambios por aprobar y los muestra en el
+teléfono (sin servicios de Google). Se desactivan en Más. <b>Etiquetas QR:</b> en la ficha de un equipo, menú ⋯ › «Etiqueta QR para
+la app…» imprime una etiqueta; al escanearla con la app se abre la ficha del equipo. Las pantallas se guardan cifradas en el
+teléfono para verlas sin conexión. Plantillas, reglas, firmware, credenciales, tareas programadas y la administración del servidor
+se editan en la web.</p>
 <h2>API JSON</h2>
 <p>Para scripts y otras herramientas, cada usuario crea sus <b>tokens de API</b> en <b>Mi cuenta › Tokens de API</b> (con nombre y
 caducidad opcional de 30, 90 o 365 días). El token se muestra <b>una sola vez</b>; OpenNCCM solo guarda su huella, así que si se
