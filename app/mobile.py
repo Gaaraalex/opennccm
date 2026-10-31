@@ -26,15 +26,19 @@ from starlette.concurrency import run_in_threadpool
 
 from . import __version__, services
 from .auth import ROLES, check_device, device_scope, require
-from .config import BASE_DIR, TLS_CA
+from .config import DATA_DIR, TLS_CA, TLS_CERT, UPDATE_REPO
 from .crypto import dummy_verify, verify_password
 from .db import ApiToken, ChangeRequest, ConfigVersion, Device, Event, SessionLocal, User, now
 from .drivers import PROFILE_MAP, get_profile
-from .i18n import _
+from .i18n import _, _f
 from .web import audit, flash, go, ip, render
 
 router = APIRouter()
-APK = BASE_DIR / "static" / "android" / "opennccm.apk"
+# La APK se compila y firma en la CI con cada versión y se publica junto a ella en GitHub. El servidor la descarga la
+# primera vez que alguien pulsa «Descargar la app» (o la deja el administrador en esta ruta si no hay Internet).
+APK_DIR = DATA_DIR / "android"
+APK_NAME = f"OpenNCCM-{__version__}.apk"
+APK_URL = f"https://github.com/{UPDATE_REPO}/releases/download/v{__version__}/{APK_NAME}"
 PAIR_TTL = 300
 _pairs: dict[str, tuple[int, float]] = {}   # código -> (usuario, caducidad)
 _fails: dict[str, list[float]] = {}         # intentos fallidos por dirección
@@ -46,15 +50,19 @@ def base_url(request: Request) -> str:
     return f"{proto}://{host}"
 
 
-def ca_fingerprint() -> str:
-    """SHA-256 del certificado de la autoridad de OpenNCCM (la app lo fija para confiar en el servidor)."""
+def fingerprint(path) -> str:
+    """SHA-256 de un certificado PEM (la app lo compara con el que presenta el servidor)."""
     try:
         from cryptography import x509
         from cryptography.hazmat.primitives import hashes
-        cert = x509.load_pem_x509_certificate(Path(TLS_CA).read_bytes())
-        return cert.fingerprint(hashes.SHA256()).hex()
-    except Exception:  # noqa: BLE001 - sin CA propia (certificado de una autoridad pública o HTTP)
+        return x509.load_pem_x509_certificate(Path(path).read_bytes()).fingerprint(hashes.SHA256()).hex()
+    except Exception:  # noqa: BLE001 - sin certificado propio (Let's Encrypt, HTTP o fuera de nginx)
         return ""
+
+
+def ca_fingerprint() -> str:
+    """Huella que se muestra y se manda en el QR: la del certificado del servidor (y, aparte, la de su autoridad)."""
+    return fingerprint(TLS_CERT)
 
 
 def _issue(user: User, device: str) -> str:
@@ -396,7 +404,7 @@ def phones_page(request: Request):
     with SessionLocal() as db:
         phones = db.scalars(select(ApiToken).where(ApiToken.user_id == user.id, ApiToken.client == "android")
                             .order_by(ApiToken.id.desc())).all()
-    return render(request, "phones.html", user, phones=phones, has_apk=APK.exists(), qr=None, url=base_url(request),
+    return render(request, "phones.html", user, phones=phones, has_apk=True, qr=None, url=base_url(request),
                   fp=ca_fingerprint())
 
 
@@ -408,13 +416,14 @@ def phones_pair(request: Request):
         _pairs.pop(k, None)
     code = secrets.token_urlsafe(24)
     _pairs[code] = (user.id, time.time() + PAIR_TTL)
-    payload = json.dumps({"opennccm": 1, "url": base_url(request), "code": code, "fp": ca_fingerprint()},
+    payload = json.dumps({"opennccm": 1, "url": base_url(request), "code": code, "fp": ca_fingerprint(),
+                          "ca": fingerprint(TLS_CA)},
                          separators=(",", ":"))
     with SessionLocal() as db:
         phones = db.scalars(select(ApiToken).where(ApiToken.user_id == user.id, ApiToken.client == "android")
                             .order_by(ApiToken.id.desc())).all()
     audit(user.username, "phone_pair_qr", "", ip(request))
-    return render(request, "phones.html", user, phones=phones, has_apk=APK.exists(), url=base_url(request),
+    return render(request, "phones.html", user, phones=phones, has_apk=True, url=base_url(request),
                   fp=ca_fingerprint(), qr=segno.make(payload, error="m").svg_data_uri(scale=6, border=2), code=code)
 
 
@@ -431,16 +440,46 @@ def phones_revoke(request: Request, tid: int):
     return go("/account/phones")
 
 
+def apk_path() -> Path:
+    return APK_DIR / APK_NAME
+
+
+def _fetch_apk() -> str | None:
+    """Descarga la APK de esta versión desde GitHub (una vez). None si quedó guardada; si no, el motivo."""
+    import requests
+    APK_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = apk_path().with_suffix(".part")
+    try:
+        with requests.get(APK_URL, stream=True, timeout=(10, 120), headers={"User-Agent": f"OpenNCCM/{__version__}"}) as r:
+            if r.status_code != 200:
+                return f"HTTP {r.status_code}"
+            with open(tmp, "wb") as f:
+                for chunk in r.iter_content(1 << 16):
+                    f.write(chunk)
+        if tmp.stat().st_size < 100_000 or tmp.read_bytes()[:2] != b"PK":
+            tmp.unlink(missing_ok=True)
+            return _("el archivo descargado no es una APK")
+        tmp.replace(apk_path())
+        for old in APK_DIR.glob("OpenNCCM-*.apk"):  # las de versiones anteriores ya no sirven
+            if old.name != APK_NAME:
+                old.unlink(missing_ok=True)
+        return None
+    except Exception as e:  # noqa: BLE001
+        tmp.unlink(missing_ok=True)
+        return str(e)[:200]
+
+
 @router.get("/app/android.apk")
-def android_apk(request: Request):
-    """La app Android que viene con esta versión de OpenNCCM."""
+async def android_apk(request: Request):
+    """La app Android de esta versión de OpenNCCM (se descarga de GitHub la primera vez y queda en el servidor)."""
     user = require(request)
-    if not APK.exists():
-        flash(request, _("Esta instalación no trae la app Android (se compila con cada versión publicada)."), "error")
-        return go("/account/phones")
+    if not apk_path().exists():
+        why = await run_in_threadpool(_fetch_apk)
+        if why:
+            flash(request, _f("No se pudo obtener la app Android de esta versión ({0}). Si el servidor no tiene acceso a Internet, descargue {1} de la página de la versión en GitHub y cópiela en {2}.", why, APK_NAME, str(APK_DIR)), "error")
+            return go("/account/phones")
     audit(user.username, "apk_download", "", ip(request))
-    return FileResponse(APK, media_type="application/vnd.android.package-archive",
-                        filename=f"OpenNCCM-{__version__}.apk")
+    return FileResponse(apk_path(), media_type="application/vnd.android.package-archive", filename=APK_NAME)
 
 
 @router.get("/devices/{dev_id}/label")

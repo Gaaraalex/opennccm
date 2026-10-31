@@ -189,15 +189,50 @@ jobs:
         if: failure()
         run: sudo tail -n 120 /var/log/opennccm-install.log || true
 
+  android:
+    name: App Android (APK)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+      - name: Compilar y firmar la APK
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          # con la clave del proyecto (secretos del repositorio); sin ella (PR de otros), con la de depuración
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/opennccm.p12"
+            export ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/opennccm.p12"
+          fi
+          gradle -p android --no-daemon assembleRelease
+          VER=$(sed -n 's/__version__ = "\(.*\)"/\1/p' app/__init__.py)
+          mkdir -p dist && cp android/app/build/outputs/apk/release/app-release.apk "dist/OpenNCCM-$VER.apk"
+          ls -l dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: dist/*.apk
+
   release:
     name: Publicar versión
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [lint, app, directories, linux, zabbix, mikrotik, install, package, tui]
+    needs: [lint, app, directories, linux, zabbix, mikrotik, install, package, tui, android]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk
+          path: dist
       - name: Crear la versión en GitHub
         env:
           GH_TOKEN: ${{ github.token }}
@@ -208,4 +243,4 @@ jobs:
           printf '\n### Instalar\n```bash\ncurl -fsSL https://raw.githubusercontent.com/%s/main/install.sh -o install.sh && sudo bash install.sh\n```\n### Actualizar una instalación existente\n```bash\nsudo opennccm update\n```\n' "$GITHUB_REPOSITORY" >> notas.md
           git archive --format=tar.gz --prefix=opennccm/ -o "opennccm-$VER.tar.gz" "$TAG"
           gh release create "$TAG" --title "OpenNCCM $VER" --notes-file notas.md \
-            "opennccm-$VER.tar.gz" docs/*.pdf
+            "opennccm-$VER.tar.gz" docs/*.pdf dist/*.apk
