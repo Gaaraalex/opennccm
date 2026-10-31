@@ -1,5 +1,19 @@
 # Historial de versiones
 
+## 2.14.0
+- **App Android.** App nativa (Kotlin, Android 8 o superior) que se descarga desde Mi cuenta › App Android. Se conecta con
+  el QR de esa página o con la dirección del servidor, usuario y contraseña (locales o de Active Directory, con el código de
+  dos pasos si la cuenta lo tiene); la contraseña no se guarda y cada teléfono tiene su propio acceso, que se quita en
+  «Teléfonos vinculados». Panel, equipos con su ficha (puertos de frente y de atrás, versiones y eventos), «Respaldar ahora»,
+  alarmas (reconocer), cambios (aprobar o rechazar) con la huella antes de cada acción, avisos de alarmas graves y cambios por
+  aprobar, etiquetas QR por equipo para abrir su ficha, y las pantallas guardadas cifradas para verlas sin conexión. Con el
+  certificado propio de OpenNCCM, la app confía en el servidor por la huella de su certificado y de su autoridad.
+- **API de la app** (/api/mobile): sesión del teléfono, panel, equipos, ficha con puertos, respaldo, versiones, alarmas, cambios
+  y avisos, con los mismos roles y grupos que la web; las acciones quedan en Auditoría con «[Android]».
+- **EdgeSwitch 18X:** frente con sus 16 RJ45 y los 2 SFP (gi17 y gi18), sin comillas en las descripciones y, atrás, su entrada
+  de 24 V y «sin ventiladores». La ficha guarda lo que respondió el equipo al leer los puertos (pestaña Puertos, solo
+  administradores) para corregir las plataformas que no den el estado de enlace.
+
 ## 2.13.1
 - **Puertos de los EdgeSwitch con chip Realtek (por ejemplo ES-18X, puertos «gi1»…).** No salían: se probaba solo la orden
   de los EdgeSwitch clásicos. Ahora se lee también «show interfaces status» y, si el equipo no da la tabla, los puertos
