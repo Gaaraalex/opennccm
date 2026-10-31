@@ -7,8 +7,12 @@
     border:1px solid var(--line);border-radius:var(--r-lg,16px);background:var(--surface)}
   :root[data-theme="oscuro"] .pstrip,:root[data-theme="oscuro"] .ptab{--p-up:#4ade80;--p-hole:#0b0f17;--p-down:#273046;--p-down-e:#5b6782;--p-off:#2a2110;--p-off-e:#f5b83d;--p-empty:#121826;--p-face:#070a10;--p-face-e:#1a2233}
   @media (prefers-color-scheme:dark){:root[data-theme="auto"] .pstrip,:root[data-theme="auto"] .ptab{--p-up:#4ade80;--p-hole:#0b0f17;--p-down:#273046;--p-down-e:#5b6782;--p-off:#2a2110;--p-off-e:#f5b83d;--p-empty:#121826;--p-face:#070a10;--p-face-e:#1a2233}}
-  .pstrip .pnew{position:absolute;top:-9px;left:16px;font:700 10px var(--f-sans);letter-spacing:.06em;color:#0b0f17;background:#c6f432;border-radius:99px;padding:2px 8px}
+  .pface-w{position:relative;max-width:100%;min-width:0}
   .pface{display:flex;align-items:center;gap:14px;max-width:100%;overflow-x:auto;border-radius:12px;background:var(--p-face);border:1px solid var(--p-face-e);padding:8px 18px 6px 14px}
+  /* en pantallas estrechas el frente se desplaza de lado: un degradado en el borde derecho avisa de que queda más */
+  .pface-w::after{content:"";position:absolute;top:1px;right:1px;bottom:1px;width:24px;border-radius:0 11px 11px 0;pointer-events:none;
+    background:linear-gradient(to right,transparent,var(--p-face));opacity:0;transition:opacity .15s}
+  .pface-w.more::after{opacity:1}
   .pface-id{display:flex;flex-direction:column;gap:6px;padding-right:14px;border-right:1px solid var(--p-face-e);flex:none}
   .pface-id .m{font:700 12px var(--f-mono);color:var(--ink)}.pface-id .c{font:500 10px var(--f-mono);color:var(--muted)}
   .pface-id .pwr{display:inline-flex;align-items:center;gap:4px;font:500 9.5px var(--f-mono);color:var(--muted)}
@@ -19,40 +23,47 @@
   .pt{position:absolute;padding:0;border:0;background:transparent;line-height:0;cursor:pointer;border-radius:6px;transition:transform .12s cubic-bezier(.2,0,0,1),opacity .14s}
   .pt:hover{transform:translateY(-1px)}.pt:focus-visible,.pt[aria-pressed="true"]{outline:2px solid var(--p-sel);outline-offset:3px}
   .pt.dim{opacity:.22}
+  /* columna derecha: detalle del puerto y, al lado o debajo de él (nunca debajo del frente), el resumen */
+  .pright{flex:1 1 300px;min-width:0;display:flex;flex-wrap:wrap;align-items:center;gap:10px 28px;container-type:inline-size}
   .psel{flex:1 1 300px;min-width:0;display:flex;flex-direction:column;gap:6px}
   .psel .nm{font:600 15px var(--f-mono);color:var(--ink)}.psel .ln{font-size:13.5px;color:var(--ink)}.psel .nb{font-size:12.5px;color:var(--muted)}
   .ppill{font:600 12px var(--f-sans);padding:2px 10px;border-radius:999px;background:var(--surface-3);color:var(--ink-2)}
   .ppill.up{background:var(--ok-soft);color:var(--ok)}.ppill.off{background:var(--warn-soft);color:var(--warn)}
-  .psum{display:flex;flex-direction:column;align-items:flex-end;gap:8px;font-size:13px;color:var(--ink-2)}
+  .psum{flex:0 1 auto;display:flex;flex-direction:column;align-items:flex-end;gap:8px;font-size:13px;color:var(--ink-2)}
+  @container (max-width:640px){.psum{flex-basis:100%;align-items:flex-start}}
   .psum b{color:var(--ok);font-weight:600}
   .pleg{display:flex;flex-wrap:wrap;gap:12px;font-size:11.5px;color:var(--muted)}.pleg span{display:inline-flex;align-items:center;gap:5px}
   .pleg i{width:10px;height:10px;border-radius:3px}
   .pleg .up{background:var(--p-up)}.pleg .down{background:var(--p-down);box-shadow:inset 0 0 0 1px var(--p-down-e)}.pleg .off{background:var(--p-off);box-shadow:inset 0 0 0 1px var(--p-off-e)}
   .ptab{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
   .ptab>.card:first-child{flex:999 1 560px;min-width:0}.ptab>.pcard{flex:1 1 320px;max-width:400px}
-  .ptab .chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .ptab .pbar{flex:1 1 auto;display:flex;flex-wrap:wrap;gap:8px;align-items:center}.ptab .pbar .chips{display:contents}
+  .ptab .pbar #pcsv{margin-left:auto}
   .ptab .chip[aria-pressed="true"]{border-color:var(--brand);background:var(--brand-soft);color:var(--ink)}
   .ptab .chip .n{color:var(--muted);font-family:var(--f-mono)}
-  .ptab tbody tr{cursor:pointer}.ptab tbody tr.sel{background:var(--brand-soft)}
+  .ptab tbody tr{cursor:pointer;height:40px}.ptab tbody tr.sel{background:var(--brand-soft)}
+  .ptab table.pt-t{table-layout:fixed;width:100%}
+  .ptab .pt-t td,.ptab .pt-t th{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-top:0;padding-bottom:0;height:40px}
   .ptab .pdot{display:inline-block;width:8px;height:8px;border-radius:99px;margin-right:6px;vertical-align:1px}
   .pcard .kv{grid-template-columns:104px minmax(0,1fr);font-size:13px}
   .pcfg{margin:0;padding:10px 12px;border-radius:12px;background:var(--p-face);border:1px solid var(--line);font:400 12px/18px var(--f-mono);white-space:pre-wrap;word-break:break-all}
   .pcfg span{display:block;color:var(--ink-2)}.pcfg .c{color:var(--muted)}.pcfg .up{color:var(--ok)}.pcfg .off{color:var(--warn)}
-  @media (max-width:700px){.psum{align-items:flex-start}}
+  @media (max-width:599px){.pface-id{display:none}}
 </style>
 {% set p_up = ports.ports|selectattr('s', 'equalto', 'up')|list|length %}
 <section class="pstrip" aria-label="{{ _('Puertos del equipo') }}" id="pstrip">
-  <span class="pnew">{{ _('NUEVO') }}</span>
-  <div class="pface">
+  <div class="pface-w" id="pface-w"><div class="pface" id="pface">
     <div class="pface-id"><span class="m">{{ device.model or profile.vendor }}</span><span class="c">{{ device.os_version or profile.label }}</span>
       <span class="pwr {{ 'on' if device.last_status == 'ok' }}"><i></i>PWR</span></div>
     <div class="pfp" id="pfp"></div>
-  </div>
+  </div></div>
+  <div class="pright">
   <div class="psel" id="psel" aria-live="polite"></div>
   <div class="psum">
     <span>{% if ports.status %}<b>{{ _f('{0} activos', p_up) }}</b> {{ _f('de {0}', ports.ports|length) }}{% else %}{{ _f('{0} puertos', ports.ports|length) }} · {{ _('sin estado de enlace') }}{% endif %} · <span title="{{ ports.at|dt }}">{{ _f('leído en el respaldo {0}', ports.at|ago) }}</span></span>
     <div class="pleg">{% if ports.status %}<span><i class="up"></i>{{ _('Activo') }}</span><span><i class="down"></i>{{ _('Sin enlace') }}</span>{% else %}<span><i class="down"></i>{{ _('Habilitado') }}</span>{% endif %}<span><i class="off"></i>{{ _('Apagado') }}</span></div>
     <a href="#ports" data-tab-link class="b">{{ _('Ver todos los puertos') }} ›</a>
+  </div>
   </div>
 </section>
 <script>
@@ -60,11 +71,12 @@
   const P = {{ ports.ports|tojson }}, HAS = {{ ports.status|tojson }}, NAME = {{ device.name|tojson }}, DT = {{ device.device_type|tojson }};
   const T = {{ {'up': _('Activo'), 'down': _('Sin enlace'), 'off': _('Apagado'), 'empty': _('Sin módulo'), 'on': _('Habilitado'),
     'cu': _('Cobre'), 'sfp': _('Fibra'), 'neigh': _('Vecino'), 'type': _('Tipo'), 'desc': _('Descripción'), 'speed': _('Velocidad'),
-    'net': _('Dirección'), 'module': _('Módulo'), 'nomod': _('No hay módulo en la jaula'), 'said': _('LO QUE DICE EL RESPALDO'),
+    'net': _('Dirección'), 'bridge': _('Bridge'), 'netg': _('Red'), 'module': _('Módulo'), 'nomod': _('No hay módulo en la jaula'), 'said': _('LO QUE DICE EL RESPALDO'),
     'cfg': _('configuración'), 'state': _('estado al respaldar'), 'nostate': _('sin estado de enlace'),
     'all': _('Todos'), 'fup': _('Activos'), 'fdown': _('Inactivos'), 'ffib': _('Fibra'), 'foff': _('Apagados'), 'fcu': _('Cobre'),
     'port': _('Puerto'), 'st': _('Estado'), 'nocfg': _('La configuración no menciona este puerto.')}|tojson }};
-  const big = P.length > 14, CW = 32, SW = 42, H = 28, GAP = 6, GG = 12, SEP = 16;
+  // Y0: fila de arriba; los números (12 px de alto) quedan a 8 px del icono, fuera del contorno de selección (5 px)
+  const big = P.length > 14, CW = 32, SW = 42, H = 28, GAP = 6, GG = 12, SEP = 16, Y0 = 20;
   const cu = P.filter(p => p.k !== 'sfp'), sf = P.filter(p => p.k === 'sfp');
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c]);
   const tail = n => (n.match(/(\d+)$/) || [, n])[1];
@@ -107,31 +119,35 @@
     let cuW = 0, groups = [];
     if (!big) {
       let x = 0;
-      cu.forEach(p => { put(p, x, 16, CW, false, 0); x += CW + GAP; });
+      cu.forEach(p => { put(p, x, Y0, CW, false, 0); x += CW + GAP; });
       cuW = cu.length ? x - GAP : 0;
       let sx = cu.length ? cuW + SEP : 0;
       const s0 = sx;
-      sf.forEach(p => { put(p, sx, 16, SW, false, 0); sx += SW + GAP; });
+      sf.forEach(p => { put(p, sx, Y0, SW, false, 0); sx += SW + GAP; });
       W = sf.length ? sx - GAP : cuW;
       if (cu.length) groups.push([0, cuW, T.cu + gbe(cu)]);
       if (sf.length) groups.push([s0, Math.max(W - s0, 42), sfpCap()]);
-      h += caps(groups, 52);
-      box.style.width = Math.max(W, capEnd(groups)) + 'px'; box.style.height = '66px';
+      h += caps(groups, Y0 + H + 8);
+      box.style.width = Math.max(W, capEnd(groups)) + 'px'; box.style.height = (Y0 + H + 22) + 'px';
     } else {  // dos filas: impares arriba, pares abajo (la fila de abajo con el RJ45 invertido), grupos de 6 columnas
-      const Y0 = 16, Y1 = Y0 + H + 8, cx = c => c * (CW + GAP) + Math.floor(c / 6) * GG;
+      const Y1 = Y0 + H + 8, NB = Y1 + H + 8, cx = c => c * (CW + GAP) + Math.floor(c / 6) * GG;
       const cols = Math.ceil(cu.length / 2);
-      cu.forEach((p, i) => { const c = Math.floor(i / 2), b = i % 2 === 1; put(p, cx(c), b ? Y1 : Y0, CW, b, b ? Y1 + H + 3 : 0); });
+      cu.forEach((p, i) => { const c = Math.floor(i / 2), b = i % 2 === 1; put(p, cx(c), b ? Y1 : Y0, CW, b, b ? NB : 0); });
       cuW = cols ? cx(cols - 1) + CW : 0;
       const sx0 = cu.length ? cuW + SEP : 0, scol = Math.ceil(sf.length / 2);
-      sf.forEach((p, i) => { const c = Math.floor(i / 2), b = i % 2 === 1; put(p, sx0 + c * (SW + GAP), b ? Y1 : Y0, SW, false, b ? Y1 + H + 3 : 0); });
+      sf.forEach((p, i) => { const c = Math.floor(i / 2), b = i % 2 === 1; put(p, sx0 + c * (SW + GAP), b ? Y1 : Y0, SW, false, b ? NB : 0); });
       W = sf.length ? sx0 + scol * (SW + GAP) - GAP : cuW;
       if (cu.length) groups.push([0, cuW, T.cu + gbe(cu)]);
       if (sf.length) groups.push([sx0, Math.max(W - sx0, 92), sfpCap()]);
-      h += caps(groups, Y1 + H + 18);
-      box.style.width = Math.max(W, capEnd(groups)) + 'px'; box.style.height = (Y1 + H + 32) + 'px';
+      h += caps(groups, NB + 16);
+      box.style.width = Math.max(W, capEnd(groups)) + 'px'; box.style.height = (NB + 30) + 'px';
     }
     box.innerHTML = h;
+    more();
   }
+  const fw = document.getElementById('pface-w'), fc = document.getElementById('pface');
+  const more = () => { if (fw) fw.classList.toggle('more', fc.scrollLeft + fc.clientWidth < fc.scrollWidth - 1); };
+  if (fc) { fc.addEventListener('scroll', more, {passive: true}); window.addEventListener('resize', more); }
   const pill = p => `<span class="ppill ${p.s === 'up' ? 'up' : p.s === 'off' ? 'off' : ''}">${esc(T[p.s])}</span>`;
   function selected() {
     const p = P.find(x => x.n === sel) || P[0];
@@ -145,7 +161,7 @@
     cfg += `<span class="c">${cm} ${esc(T.state)}</span><span class="${p.s === 'up' ? 'up' : p.s === 'off' ? 'off' : ''}">${esc(p.st || T.nostate)}</span>`;
     c.innerHTML = `<div class="row" style="gap:10px"><span class="mono b grow" style="font-size:16px">${esc(p.n)}</span>${pill(p)}</div>` +
       `<dl class="kv"><dt>${esc(T.type)}</dt><dd>${esc(kindOf(p))}</dd><dt>${esc(T.desc)}</dt><dd>${esc(p.d || '—')}</dd><dt>${esc(T.speed)}</dt><dd>${esc(p.s === 'up' && p.sp || '—')}</dd>` +
-      `<dt>${esc(T.net)}</dt><dd>${esc(p.net || '—')}</dd><dt>${esc(T.neigh)}</dt><dd>${esc(p.nb || '—')}</dd>` +
+      `<dt>${esc(p.nk === 'ip' ? T.net : p.nk === 'bridge' ? T.bridge : T.netg)}</dt><dd>${esc(p.net || '—')}</dd><dt>${esc(T.neigh)}</dt><dd>${esc(p.nb || '—')}</dd>` +
       (p.k === 'sfp' ? `<dt>${esc(T.module)}</dt><dd>${esc(p.s === 'empty' ? T.nomod : p.mod || '—')}</dd>` : '') + '</dl>' +
       `<div class="topo-cap" style="font:600 11px var(--f-sans);letter-spacing:.06em;color:var(--muted)">${esc(T.said)}</div><pre class="pcfg">${cfg}</pre>`;
   }
@@ -154,8 +170,9 @@
     const keys = [['all', T.all]].concat(HAS ? [['up', T.fup], ['down', T.fdown]] : []).concat(big || !HAS ? [['off', T.foff]] : [])
       .concat(sf.length ? [['fiber', T.ffib]] : []).concat(big && sf.length ? [['cu', T.fcu]] : []);
     f.innerHTML = keys.map(([k, n]) => `<button type="button" class="chip" data-f="${k}" aria-pressed="${filt === k}">${esc(n)} <span class="n">${P.filter(p => match(k, p)).length}</span></button>`).join('');
-    rows.innerHTML = P.filter(p => match(filt, p)).map(p => `<tr data-p="${esc(p.n)}" class="${p.n === sel ? 'sel' : ''}" tabindex="0"><td class="mono">${esc(p.n)}</td><td>${esc(p.k === 'sfp' ? T.sfp : T.cu)}</td>` +
-      `<td style="white-space:nowrap"><span class="pdot" style="background:${p.s === 'up' ? 'var(--p-up)' : p.s === 'off' ? 'var(--p-off-e)' : 'var(--p-down-e)'}"></span>${esc(T[p.s])}</td><td class="mono">${esc(p.s === 'up' && p.sp || '—')}</td><td>${esc(p.d || '—')}</td><td class="muted">${esc(p.nb || '—')}</td></tr>`).join('');
+    const td = (v, cls) => `<td${cls ? ` class="${cls}"` : ''} title="${esc(v)}">${esc(v)}</td>`;
+    rows.innerHTML = P.filter(p => match(filt, p)).map(p => `<tr data-p="${esc(p.n)}" class="${p.n === sel ? 'sel' : ''}" tabindex="0">${td(p.n, 'mono')}${td(p.k === 'sfp' ? T.sfp : T.cu)}` +
+      `<td title="${esc(T[p.s])}"><span class="pdot" style="background:${p.s === 'up' ? 'var(--p-up)' : p.s === 'off' ? 'var(--p-off-e)' : 'var(--p-down-e)'}"></span>${esc(T[p.s])}</td>${td(p.s === 'up' && p.sp || '—', 'mono')}${td(p.d || '—')}${td(p.nb || '—', 'muted')}</tr>`).join('');
   }
   function draw() { front(); selected(); table(); }
   document.addEventListener('click', e => {

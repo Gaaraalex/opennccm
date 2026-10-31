@@ -29,7 +29,8 @@ ROS = (M + "/interface ethernet print terse\n"
        + M + '/interface ethernet monitor "sfp1" once\n    name: sfp1\n  status: link-ok\n    rate: 1Gbps\n'
        "  sfp-module-present: yes\n  sfp-vendor-name: FS\n  sfp-vendor-part-number: SFP-GE-LX\n  sfp-wavelength: 1310nm\n")
 CFG = ("/interface ethernet\nset [ find default-name=ether1 ] comment=\"WAN\"\nset [ find default-name=ether5 ] disabled=yes\n"
-       "/interface bridge port add bridge=bridge interface=ether2\n/ip address add address=200.75.40.18/30 interface=ether1\n")
+       "/interface bridge port add bridge=bridge interface=ether2\n"
+       "/interface bridge port add bridge=bridge interface=ether3 pvid=10\n/ip address add address=200.75.40.18/30 interface=ether1\n")
 p, st = ports.parse(ROS, "mikrotik_routeros", CFG)
 by = {x["n"]: x for x in p}
 check("MikroTik: 6 puertos en orden físico", [x["n"] for x in p] == ["ether1", "ether2", "ether3", "ether4", "ether5", "sfp1"], p)
@@ -42,7 +43,9 @@ check("MikroTik: deshabilitado = apagado", by["ether5"]["s"] == "off")
 check("MikroTik: SFP con módulo", by["sfp1"]["k"] == "sfp" and by["sfp1"]["mod"] == "FS · SFP-GE-LX · 1310 nm", by["sfp1"])
 ports.enrich(p, "mikrotik_routeros", CFG, [{"local_port": "sfp1", "remote_name": "SW-NEGOCIOS", "remote_port": "sfp-sfpplus9"}])
 check("MikroTik: dirección de la configuración", by["ether1"]["net"] == "200.75.40.18/30", by["ether1"]["net"])
-check("MikroTik: puerto en un puente", "bridge" in by["ether2"]["net"], by["ether2"]["net"])
+check("MikroTik: puerto en un bridge, con su etiqueta", by["ether2"]["net"] == "bridge" and by["ether2"]["nk"] == "bridge", by["ether2"])
+check("MikroTik: puerto con IP, etiqueta «Dirección»", by["ether1"]["nk"] == "ip")
+check("MikroTik: bridge con VLAN (pvid)", by["ether3"]["net"] == "bridge · VLAN 10", by["ether3"]["net"])
 check("MikroTik: vecino del mapa", by["sfp1"]["nb"] == "SW-NEGOCIOS · sfp-sfpplus9", by["sfp1"]["nb"])
 check("MikroTik: línea de la configuración que lo apaga", any("disabled=yes" in l for l in by["ether5"]["cfg"]), by["ether5"]["cfg"])
 empty = ROS.replace("sfp-module-present: yes", "sfp-module-present: no").replace("  status: link-ok\n    rate: 1Gbps\n  sfp", "  status: no-link\n  sfp")

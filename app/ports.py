@@ -16,7 +16,7 @@ Cada puerto es {"n": nombre, "k": "cu" | "sfp", "s": "up" | "down" | "off" | "em
 import re
 
 from .drivers import HUAWEI, IOS, get_profile
-from .i18n import _, _f
+from .i18n import _
 
 MARK = "### puertos: "  # separa la salida de cada orden en el texto leído
 MAX_MONITOR = 64        # MikroTik: puertos a consultar uno por uno con «monitor» (los CCR grandes tienen ~30)
@@ -282,7 +282,7 @@ def enrich(ports: list[dict], device_type: str, config: str, neighbors: list[dic
     blocks = dict(_ios_blocks(config)) if device_type != "mikrotik_routeros" else {}
     if device_type == "mikrotik_routeros":
         addr: dict[str, list[str]] = {}
-        bridge: dict[str, str] = {}
+        bridge: dict[str, tuple[str, str]] = {}
         for l in lines:
             if l.startswith("/ip address add "):
                 kv = dict(_ROS_KV.findall(l))
@@ -291,7 +291,7 @@ def enrich(ports: list[dict], device_type: str, config: str, neighbors: list[dic
             elif l.startswith("/interface bridge port add "):
                 kv = dict(_ROS_KV.findall(l))
                 if kv.get("interface"):
-                    bridge[_ros_text(kv["interface"])] = _ros_text(kv.get("bridge", ""))
+                    bridge[_ros_text(kv["interface"])] = (_ros_text(kv.get("bridge", "")), _ros_text(kv.get("pvid", "")))
     for p in ports:
         n = p["n"]
         p["nb"] = neigh.get(n) or next((v for k, v in neigh.items() if _short(k) == _short(n)), "")
@@ -300,8 +300,11 @@ def enrich(ports: list[dict], device_type: str, config: str, neighbors: list[dic
             dn = p.get("dn") or n
             pat = re.compile(rf'(default-name={re.escape(dn)}(\s|$)|interface="?{re.escape(n)}"?(\s|$))')
             cfg = [l for l in lines if pat.search(l)][:4]
-            if not p.get("net"):
-                p["net"] = ", ".join(addr.get(n, [])) or (_f("puente {0}", bridge[n]) if n in bridge else "")
+            if not p.get("net") and addr.get(n):
+                p["net"], p["nk"] = ", ".join(addr[n]), "ip"
+            elif not p.get("net") and n in bridge:
+                br, pvid = bridge[n]
+                p["net"], p["nk"] = br + (f" · VLAN {pvid}" if pvid and pvid != "1" else ""), "bridge"
         elif device_type.startswith("juniper"):
             cfg = [l for l in lines if l.startswith(f"set interfaces {n} ")][:4]
             if not p.get("d"):
@@ -328,6 +331,8 @@ def enrich(ports: list[dict], device_type: str, config: str, neighbors: list[dic
                         p["net"] = "trunk"
         if p.get("net") == "trunk":
             p["net"] = _("Troncal")
+        if p.get("net") and not p.get("nk"):  # IP leída del equipo o de la configuración; si no, VLAN o troncal
+            p["nk"] = "ip" if re.match(r"^[\d.]+(/\d+)?$|^[0-9a-fA-F:]+:[0-9a-fA-F:]*(/\d+)?$", p["net"].split(",")[0].strip()) else "net"
         p["cfg"] = cfg
 
 
