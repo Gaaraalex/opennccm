@@ -8,7 +8,7 @@
   :root[data-theme="oscuro"] .pstrip,:root[data-theme="oscuro"] .ptab{--p-up:#4ade80;--p-hole:#0b0f17;--p-down:#273046;--p-down-e:#5b6782;--p-off:#2a2110;--p-off-e:#f5b83d;--p-empty:#121826;--p-face:#070a10;--p-face-e:#1a2233}
   @media (prefers-color-scheme:dark){:root[data-theme="auto"] .pstrip,:root[data-theme="auto"] .ptab{--p-up:#4ade80;--p-hole:#0b0f17;--p-down:#273046;--p-down-e:#5b6782;--p-off:#2a2110;--p-off-e:#f5b83d;--p-empty:#121826;--p-face:#070a10;--p-face-e:#1a2233}}
   .pface-w{position:relative;max-width:100%;min-width:0}
-  .pface{display:flex;align-items:center;gap:14px;max-width:100%;overflow-x:auto;border-radius:12px;background:var(--p-face);border:1px solid var(--p-face-e);padding:8px 18px 6px 14px}
+  .pface{display:flex;align-items:center;gap:14px;max-width:100%;overflow-x:auto;border-radius:12px;background:var(--p-face);border:1px solid var(--p-face-e);padding:8px 18px 12px 14px}
   /* en pantallas estrechas el frente se desplaza de lado: un degradado en el borde derecho avisa de que queda más */
   .pface-w::after{content:"";position:absolute;top:1px;right:1px;bottom:1px;width:24px;border-radius:0 11px 11px 0;pointer-events:none;
     background:linear-gradient(to right,transparent,var(--p-face));opacity:0;transition:opacity .15s}
@@ -68,7 +68,19 @@
   .prear .lb{font:500 10px var(--f-mono);color:var(--muted)}.prear .cap{font:500 10px var(--f-sans);color:var(--muted)}
   .prear .none{font-size:12.5px;color:var(--muted);max-width:340px;padding:12px 4px}
   .psum .alarm{color:var(--crit);font-weight:600}
-  @media (max-width:599px){.pface-id{display:none}}
+  @media (max-width:599px){
+    .pface-id{display:none}
+    .ptab table.pt-t,.ptab .pt-t tbody{display:block;width:100%}.ptab .pt-t thead,.ptab .pt-t colgroup{display:none}
+    .ptab .pt-t tbody tr{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"n s v" "t d d";
+      align-content:center;column-gap:10px;row-gap:2px;height:56px;padding:0 14px;border-top:1px solid var(--line)}
+    .ptab .pt-t td{height:auto;padding:0;border:0;min-width:0}
+    .ptab .pt-t td:nth-child(1){grid-area:n;overflow:visible}.ptab .pt-t td:nth-child(3){grid-area:s}
+    .ptab .pt-t td:nth-child(4){grid-area:v;text-align:right}
+    .ptab .pt-t td:nth-child(2){grid-area:t;font-size:12.5px;color:var(--muted)}
+    .ptab .pt-t td:nth-child(2)::after{content:" ·"}
+    .ptab .pt-t td:nth-child(5){grid-area:d;font-size:12.5px;color:var(--muted)}
+    .ptab .pt-t td:nth-child(6){display:none}
+  }
 </style>
 {% set p_up = ports.ports|selectattr('s', 'equalto', 'up')|list|length %}
 <section class="pstrip" aria-label="{{ _('Puertos del equipo') }}" id="pstrip">
@@ -103,8 +115,8 @@
     'psu_absent': _('No instalada'), 'fan_ok': _('Funcionando'), 'fan_fail': _('Parado o con fallo'), 'fan_absent': _('No instalado'),
     'norear': _('El equipo no informó de sus fuentes ni de sus ventiladores en el respaldo (no todos los modelos lo dicen por SSH).'),
     'rpm': _('{0} RPM'), 'port': _('Puerto'), 'st': _('Estado'), 'pos': _('{0}–{1} de {2} interfaces'), 'nocfg': _('La configuración no menciona este puerto.')}|tojson }};
-  // Y0: fila de arriba; los números (12 px de alto) quedan a 8 px del icono, fuera del contorno de selección (5 px)
-  const big = L.rows === 2, CW = 32, SW = 42, H = 28, GAP = 6, GG = 12, SEP = 16, Y0 = 20;
+  // Y0: fila de arriba; números y rótulos quedan a 12 px del icono: el contorno de selección (5 px) no los toca
+  const big = L.rows === 2, CW = 32, SW = 42, H = 28, GAP = 6, GG = 12, SEP = 16, NG = 12, Y0 = 12 + NG;
   const cu = P.filter(p => p.k !== 'sfp'), sf = P.filter(p => p.k === 'sfp');
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c]);
   const tail = n => (n.match(/(\d+)$/) || [, n])[1];
@@ -155,10 +167,10 @@
       W = sf.length ? sx - GAP : cuW;
       if (cu.length) groups.push([0, cuW, T.cu + gbe(cu)]);
       if (sf.length) groups.push([s0, Math.max(W - s0, 42), sfpCap()]);
-      h += caps(groups, Y0 + H + 8);
-      box.style.width = Math.max(W, capEnd(groups)) + 'px'; box.style.height = (Y0 + H + 22) + 'px';
+      h += caps(groups, Y0 + H + NG);
+      box.style.width = Math.max(W, capEnd(groups)) + 'px'; box.style.height = (Y0 + H + NG + 14) + 'px';
     } else {  // dos filas: impares arriba, pares abajo (la fila de abajo con el RJ45 invertido), grupos de 6 columnas
-      const Y1 = Y0 + H + 8, NB = Y1 + H + 8, cx = c => c * (CW + GAP) + Math.floor(c / (L.grp || 6)) * GG;
+      const Y1 = Y0 + H + 8, NB = Y1 + H + NG, cx = c => c * (CW + GAP) + Math.floor(c / (L.grp || 6)) * GG;
       const cols = Math.ceil(cu.length / 2);
       // impares arriba y pares abajo (la fila de abajo con el RJ45 invertido); en bloques de L.grp columnas
       cu.forEach((p, i) => { const c = Math.floor(i / 2), b = i % 2 === 1; put(p, cx(c), b ? Y1 : Y0, CW, b, b ? NB : 0); });
@@ -174,8 +186,8 @@
       }
       if (cu.length) groups.push([0, cuW, T.cu + gbe(cu)]);
       if (sf.length) groups.push([sx0, Math.max(W - sx0, 92), sfpCap()]);
-      h += caps(groups, NB + 16);
-      box.style.width = Math.max(W, capEnd(groups)) + 'px'; box.style.height = (NB + 30) + 'px';
+      h += caps(groups, NB + 12 + 6);
+      box.style.width = Math.max(W, capEnd(groups)) + 'px'; box.style.height = (NB + 12 + 6 + 14) + 'px';
     }
     box.innerHTML = h;
     more();
