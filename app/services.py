@@ -387,6 +387,16 @@ def _read_neighbors(conn, device_type: str) -> str | None:
     return "\n".join(out)
 
 
+def _read_ports(conn, device_type: str) -> str | None:
+    """Estado de los puertos (enlace, velocidad, módulo SFP) para la ficha del equipo. Nunca hace fallar el respaldo."""
+    from . import ports
+    try:
+        return ports.read(conn, device_type)
+    except Exception as e:  # noqa: BLE001
+        log.info("puertos (%s): %s", device_type, e)
+        return None
+
+
 def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
@@ -400,7 +410,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
                     raise RuntimeError("El dispositivo no tiene credencial asignada")
                 cred = (dev.credential.username, decrypt(dev.credential.password_enc) if dev.credential.password_enc else "")
                 running, inventory = swos.backup(dev, cred)
-                startup = neighbors_raw = None
+                startup = neighbors_raw = ports_raw = None
             else:
                 with connect(dev) as conn:
                     running = conn.send_command(dev.custom_backup_cmd or prof.backup, read_timeout=180)
@@ -408,6 +418,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
                     inventory = "\n\n".join(conn.send_command(c, read_timeout=60) for c in prof.inventory.split("\n")
                                             if c.strip()) if prof.inventory else None
                     neighbors_raw = _read_neighbors(conn, dev.device_type)
+                    ports_raw = _read_ports(conn, dev.device_type)
         except Exception as e:  # noqa: BLE001
             dev.last_status, dev.last_error = "error", (str(e) or repr(e))[:2000]
             db.commit()
@@ -468,6 +479,11 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
         if neighbors_raw is not None:
             from . import topology
             dev.neighbors = json.dumps(topology.parse(neighbors_raw, dev.device_type))
+
+        if prof.key not in HTTP_ONLY:  # puertos y su estado, para la ficha del equipo
+            from . import ports as ports_mod
+            plist, has_status = ports_mod.parse(ports_raw, dev.device_type, running)
+            dev.ports = json.dumps({"at": now().isoformat(), "status": has_status, "ports": plist}) if plist else None
 
         if inventory:
             inv = parse_inventory(inventory, prof)
@@ -684,53 +700,62 @@ def _push(device_id: int, commands: list[str], exec_mode: bool) -> str:
             # ventana máxima por si el proceso muere; normalmente se cierra al terminar el respaldo post-cambio
             dev.maintenance_until = now() + timedelta(minutes=5)
             db.commit()
-        confirmed = prof.key in CONFIRMED
-        with connect(dev) as conn:
-            if exec_mode:
+        if exec_mode:
+            with connect(dev) as conn:
                 out = []
                 for c in commands:
                     out.append(f"### {c}\n" + conn.send_command(c, read_timeout=180))
                 return "\n".join(out)
-            safe = prof.key in SAFE_MODE
-            out = _mikrotik_safe_mode(conn, True) if safe else ""
+        return apply_config(dev, commands)
+
+
+def apply_config(dev: Device, commands: list[str]) -> str:
+    """Aplica comandos de configuración con la red de seguridad del equipo (modo seguro, commit confirmed), se detiene
+    en el primero que el equipo rechace y guarda. «dev» puede ser un equipo que no está en OpenNCCM (restaurar una
+    copia en otro equipo): solo se usan su dirección, puerto, tipo y credencial."""
+    prof = get_profile(dev.device_type)
+    confirmed = prof.key in CONFIRMED
+    with connect(dev) as conn:
+        safe = prof.key in SAFE_MODE
+        out = _mikrotik_safe_mode(conn, True) if safe else ""
+        try:
+            out += _push_stepwise(conn, commands, prof)
+        except Exception:
+            if safe:  # deshacer todo lo aplicado en modo seguro antes de cerrar la sesión
+                _mikrotik_safe_undo(conn)
+            raise
+        if safe:
+            out += _mikrotik_safe_mode(conn, False)
+        if confirmed:
+            out += "\n" + conn.commit(confirm=True, confirm_delay=CONFIRM_MINUTES)
+        elif prof.commit:
+            out += "\n" + conn.commit()
+        if prof.commit:
             try:
-                out += _push_stepwise(conn, commands, prof)
-            except Exception:
-                if safe:  # deshacer todo lo aplicado en modo seguro antes de cerrar la sesión
-                    _mikrotik_safe_undo(conn)
-                raise
-            if safe:
-                out += _mikrotik_safe_mode(conn, False)
-            if confirmed:
-                out += "\n" + conn.commit(confirm=True, confirm_delay=CONFIRM_MINUTES)
-            elif prof.commit:
+                conn.exit_config_mode()
+            except Exception:  # noqa: BLE001
+                pass
+        if prof.save and not confirmed:
+            try:
+                out += "\n" + conn.save_config()
+            except (NotImplementedError, AttributeError):
+                pass
+    if confirmed:
+        # volver a entrar demuestra que el cambio no cortó el acceso; entonces se confirma
+        try:
+            with connect(dev) as conn:
+                conn.config_mode()
                 out += "\n" + conn.commit()
-            if prof.commit:
                 try:
                     conn.exit_config_mode()
                 except Exception:  # noqa: BLE001
                     pass
-            if prof.save and not confirmed:
-                try:
-                    out += "\n" + conn.save_config()
-                except (NotImplementedError, AttributeError):
-                    pass
-        if confirmed:
-            # volver a entrar demuestra que el cambio no cortó el acceso; entonces se confirma
-            try:
-                with connect(dev) as conn:
-                    conn.config_mode()
-                    out += "\n" + conn.commit()
-                    try:
-                        conn.exit_config_mode()
-                    except Exception:  # noqa: BLE001
-                        pass
-            except Exception as e:  # noqa: BLE001
-                raise RuntimeError(
-                    f"El cambio se aplicó con «commit confirmed {CONFIRM_MINUTES}», pero OpenNCCM no pudo volver a "
-                    f"conectar para confirmarlo ({e}). Si el cambio cortó el acceso, el equipo volverá solo a la "
-                    f"configuración anterior en {CONFIRM_MINUTES} minutos.") from e
-        return out
+        except Exception as e:  # noqa: BLE001
+            raise RuntimeError(
+                f"El cambio se aplicó con «commit confirmed {CONFIRM_MINUTES}», pero OpenNCCM no pudo volver a "
+                f"conectar para confirmarlo ({e}). Si el cambio cortó el acceso, el equipo volverá solo a la "
+                f"configuración anterior en {CONFIRM_MINUTES} minutos.") from e
+    return out
 
 
 _jinja = SandboxedEnvironment(trim_blocks=True, lstrip_blocks=True)

@@ -10,9 +10,10 @@ import re
 import secrets
 import time
 from contextlib import asynccontextmanager
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from fastapi import FastAPI, Request
+from starlette.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import case, delete, func, or_, select
@@ -1025,6 +1026,20 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
             last_run = next((v for v in versions if v.kind == "running"), None)
             if base_v and last_run:
                 drift_n = sum(services.diff_stats(try_decrypt(base_v.content_enc, ""), try_decrypt(last_run.content_enc, "")))
+        pinfo = None  # puertos y su estado del último respaldo (franja y pestaña «Puertos»)
+        try:
+            pj = json.loads(dev.ports) if dev.ports else None
+        except ValueError:
+            pj = None
+        if pj and pj.get("ports"):
+            from . import ports as ports_mod
+            last_run = next((v for v in versions if v.kind == "running"), None)
+            try:
+                nbs = json.loads(dev.neighbors or "[]")
+            except ValueError:
+                nbs = []
+            ports_mod.enrich(pj["ports"], dev.device_type, try_decrypt(last_run.content_enc, "") if last_run else "", nbs)
+            pinfo = {"ports": pj["ports"], "status": bool(pj.get("status")), "at": datetime.fromisoformat(pj["at"])}
         audit_rows = db.scalars(select(AuditLog).where(or_(AuditLog.detail.like(f"%{dev.name}%"),
                                                            AuditLog.detail.like(f"%device={dev_id}%")))
                                 .order_by(AuditLog.id.desc()).limit(20)).all()
@@ -1048,6 +1063,7 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
     from .routes_ops import FW_SOURCES as _FW_SOURCES
     from .console import console_allowed
     return render(request, "device.html", user, key_error=key_error, can_console=console_allowed(user, dev.id), device=dev,
+                  ports=pinfo,
                   versions=versions, comp=comp, vulns=vulns, comp_groups=comp_groups,
                   comp_fails=sum(g["fails"] for g in comp_groups),
                   vuln_high=sum(1 for v in vulns if (v.severity or "").upper() in ("CRITICAL", "HIGH")),
@@ -1302,6 +1318,136 @@ async def version_rollback(request: Request, ver_id: int):
     log_action(request, user, "rollback_request", f"{name} -> v{ver_id}")
     flash(request, _("Se generó la solicitud de reversión. Revise los comandos antes de aprobar."))
     return go(f"/changes/{cr_id}")
+
+
+# --------------------------------------------------------------------------- restaurar una copia en otro equipo
+def _restore_ctx(db, v, user):
+    """Datos comunes de la página «Restaurar en otro equipo»."""
+    from . import restore
+    src = v.device
+    others = [d for d in db.scalars(select(Device).where(Device.device_type == src.device_type, Device.id != src.id)
+                                    .order_by(Device.name))]
+    n = db.scalar(select(func.count(ConfigVersion.id)).where(ConfigVersion.device_id == v.device_id,
+                                                              ConfigVersion.id <= v.id)) or 1
+    prof = get_profile(src.device_type)
+    from .rollback import rollback_supported
+    return {"v": v, "src": src, "n": n, "profile": prof, "others": others,
+            "same": {d.id for d in others if restore.same_model(src.model, d.model)},
+            "can_cmd": rollback_supported(prof) and prof.key not in services.HTTP_ONLY,
+            "serial_ok": restore.serial_supported(src.device_type),
+            "serial_pre": restore.serial_pre(src.device_type),
+            "inv_cmds": [c for c in (prof.inventory or "").split("\n") if c.strip()], "backup_cmd": prof.backup,
+            "err_re": services.DEVICE_ERROR.pattern.removeprefix("(?im)"), "prompt_re": services.PROMPT_END}
+
+
+@app.get("/versions/{ver_id}/restore")
+def version_restore_page(request: Request, ver_id: int, job: str = ""):
+    user = require(request, "admin")
+    from . import restore
+    with SessionLocal() as db:
+        v = db.get(ConfigVersion, ver_id)
+        if not v or v.kind != "running":
+            return go("/devices")
+        check_device(user, v.device_id)
+        ctx = _restore_ctx(db, v, user)
+        ctx["src"].name  # carga la relación antes de cerrar la sesión
+    j = restore.get(job, user.username) if job else None
+    return render(request, "restore.html", user, job=job if j else "", jstate=j["state"] if j else "", **ctx)
+
+
+@app.post("/versions/{ver_id}/restore/check")
+async def version_restore_check(request: Request, ver_id: int):
+    user = require(request, "admin")
+    from . import restore
+    form = await request.form()
+    mode = form.get("mode", "")
+    with SessionLocal() as db:
+        v = db.get(ConfigVersion, ver_id)
+        if not v or v.kind != "running":
+            return go("/devices")
+        check_device(user, v.device_id)
+        ctx = _restore_ctx(db, v, user)
+        src = ctx["src"]
+        target, target_id, label = None, None, ""
+        if mode == "device":
+            try:
+                target_id = int(form.get("target_id") or 0)
+            except ValueError:
+                target_id = 0
+            t = db.get(Device, target_id) if target_id else None
+            if t is None or t.id == src.id or t.device_type != src.device_type:
+                flash(request, _("Elija el equipo de destino."), "error")
+                return go(f"/versions/{ver_id}/restore")
+            check_device(user, t.id)
+            if t.credential is None:
+                flash(request, _f("{0} no tiene credencial asignada.", t.name), "error")
+                return go(f"/versions/{ver_id}/restore")
+            (t.credential.username, t.host)  # carga la credencial antes de cerrar la sesión
+            target, label = t, f"{t.name} ({t.host})"
+    if mode == "ssh":
+        host = (form.get("host") or "").strip()
+        user_n = (form.get("username") or "").strip()
+        try:
+            port = int(form.get("port") or 22)
+        except ValueError:
+            port = 0
+        if not re.fullmatch(r"[A-Za-z0-9.:_-]{1,255}", host) or not user_n or not (0 < port < 65536):
+            flash(request, _("Escriba la IP (o nombre), el puerto, el usuario y la contraseña del equipo nuevo."), "error")
+            return go(f"/versions/{ver_id}/restore")
+        target = restore.transient(src, host, port, user_n, form.get("password") or "", form.get("secret") or "")
+        label = f"{host}:{port}"
+    if target is None:
+        return go(f"/versions/{ver_id}/restore")
+    res = await run_in_threadpool(restore.check_ssh, ver_id, target, user.username, target_id)
+    log_action(request, user, "restore_check", f"{src.name} v{ver_id} -> {label}: "
+               + ("ok" if res["ok"] else res["error"][:200]))
+    return render(request, "restore.html", user, res=res, target_label=label, mode=mode, job="", jstate="", **ctx)
+
+
+@app.post("/versions/{ver_id}/restore/apply")
+async def version_restore_apply(request: Request, ver_id: int):
+    user = require(request, "admin")
+    from . import restore
+    form = await request.form()
+    tok = form.get("token") or ""
+    j = restore.get(tok, user.username)
+    dest = j["target"].host if j and j.get("target") is not None else ""
+    if not j or j["ver_id"] != ver_id or not restore.start(tok, user.username):
+        flash(request, _("La validación caducó o ya se usó. Vuelva a validar el equipo de destino."), "error")
+        return go(f"/versions/{ver_id}/restore")
+    log_action(request, user, "restore_apply", f"v{ver_id} -> {dest}")
+    return go(f"/versions/{ver_id}/restore?job={tok}")
+
+
+@app.get("/restore/{tok}/status")
+def version_restore_status(request: Request, tok: str):
+    user = require(request, "admin")
+    from . import restore
+    j = restore.get(tok, user.username)
+    if not j:
+        return JSONResponse({"state": "missing"})
+    return JSONResponse({"state": j["state"], "out": j["out"], "error": j["error"]})
+
+
+@app.post("/versions/{ver_id}/restore/serial")
+async def version_restore_serial(request: Request, ver_id: int):
+    """Consola serie: el navegador manda lo que leyó del equipo; se valida el modelo y se devuelve el guion."""
+    user = require(request, "admin")
+    from . import restore
+    with SessionLocal() as db:
+        v = db.get(ConfigVersion, ver_id)
+        if not v or v.kind != "running":
+            return JSONResponse({"ok": False, "error": _("La versión no existe")}, 404)
+        check_device(user, v.device_id)
+        name = v.device.name
+    try:
+        body = await request.json()
+    except ValueError:
+        body = {}
+    inv, cfg = str(body.get("inventory") or "")[:200000], str(body.get("config") or "")[:2000000]
+    res = await run_in_threadpool(restore.serial_check, ver_id, inv, cfg)
+    log_action(request, user, "restore_serial_check", f"{name} v{ver_id}: " + ("ok" if res["ok"] else res["error"][:200]))
+    return JSONResponse(res)
 
 
 # --------------------------------------------------------------------------- mapa de la red

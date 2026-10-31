@@ -29,6 +29,7 @@
       {% if can_run %}<button type="button" data-dialog="mtbk-dlg">{{ icon('dl', 's') }}{{ _('Descargar .backup del equipo…') }}</button>{% endif %}<hr>{% endif %}
       {% if is_admin %}<a href="/devices/{{ device.id }}/edit" data-sheet data-title="{{ _f('Editar {0}', device.name) }}">{{ icon('edit', 's') }}Editar</a>{% endif %}
       {% if latest_run %}<a href="/diff?a={{ latest_run }}&b={{ latest_run }}">{{ icon('branch', 's') }}Comparar con otro equipo</a>{% endif %}
+      {% if latest_run and is_admin %}<a href="/versions/{{ latest_run }}/restore">{{ icon('server', 's') }}{{ _('Restaurar en otro equipo…') }}</a>{% endif %}
       <hr>
       {% if device.baseline_version_id %}<a href="?a={{ device.baseline_version_id }}&b={{ latest_run }}#versions">{{ icon('flag', 's') }}Ver diferencias con la línea base</a>
       {% if can_run %}<button type="button" data-revert="{{ device.baseline_version_id }}" data-n="{{ base_n }}">{{ icon('undo', 's') }}Volver a la línea base…</button>{% endif %}
@@ -39,9 +40,11 @@
       {% if is_admin %}<button type="button" class="dz" data-dialog="del-dlg">{{ icon('trash', 's') }}Eliminar equipo…</button>{% endif %}
     </div></span>
 </div>
+{% if ports %}{% include "_ports.html" %}{% endif %}
 
 <nav class="tabs" data-tabs aria-label="Secciones del equipo">
   <a href="#resumen">Resumen</a>
+  {% if ports %}<a href="#ports">{{ _('Puertos') }} <span class="cnt2">{{ ports.ports|length }}</span></a>{% endif %}
   <a href="#versions">Versiones{% if total_v %} <span class="cnt2">{{ total_v }}</span>{% endif %}</a>
   <a href="#compliance">Cumplimiento{% if comp_fails %} <span class="cnt2 crit">{{ comp_fails }}</span>{% endif %}</a>
   <a href="#vulns">Vulnerabilidades{% if vulns %} <span class="cnt2 {{ 'crit' if crit_cves }}">{{ vulns|length }}</span>{% endif %}</a>
@@ -85,6 +88,16 @@
     </div>
   </div>
 </section>
+
+{% if ports %}
+<section id="ports" aria-label="{{ _('Puertos') }}">
+  <div class="ptab">
+    <section class="card flush"><div class="card-h" style="flex-wrap:wrap;gap:8px"><h2 style="margin-right:8px;flex:none">{{ _('Interfaces') }}</h2><div class="chips" id="pfilt" role="group" aria-label="{{ _('Filtrar puertos') }}"></div><span class="grow"></span><button type="button" class="btn s ghost" id="pcsv">{{ icon('dl', 's') }}{{ _('Exportar CSV') }}</button></div>
+      <div class="tw"><table class="t"><thead><tr><th>{{ _('Puerto') }}</th><th>{{ _('Tipo') }}</th><th>{{ _('Estado') }}</th><th>{{ _('Velocidad') }}</th><th>{{ _('Descripción') }}</th><th>{{ _('Vecino') }}</th></tr></thead><tbody id="prows"></tbody></table></div></section>
+    <section class="card pcard stack" id="pcard" aria-live="polite"></section>
+  </div>
+</section>
+{% endif %}
 
 <section id="versions" aria-label="Versiones">
   {% if tl %}

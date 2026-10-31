@@ -1,0 +1,191 @@
+{% extends "base.html" %}{% block title %}{{ _('Restaurar en otro equipo') }}{% endblock %}
+{% block crumbs %}<a href="/devices">{{ _('Dispositivos') }}</a>{{ icon('right', 's') }}<a href="/devices/{{ src.id }}#versions">{{ src.name }}</a>{{ icon('right', 's') }}<b>{{ _('Restaurar en otro equipo') }}</b>{% endblock %}
+{% block content %}
+<style>
+  .rs-opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+  .rs-opt{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);cursor:pointer}
+  .rs-opt:has(input:checked){border-color:var(--brand);background:var(--brand-soft)}
+  .rs-opt input{margin-top:3px}.rs-opt b{display:block}.rs-opt span{font-size:12.5px;color:var(--muted)}
+  .rs-term{margin:0;height:260px;overflow:auto;padding:10px 12px;border-radius:var(--r-md);background:#070a10;color:#c3cbd9;font:400 12px/17px var(--f-mono);white-space:pre-wrap;word-break:break-all}
+  .rs-cmds{max-height:320px;overflow:auto}
+</style>
+<div class="ph"><div class="grow"><h1>{{ _('Restaurar en otro equipo') }}</h1>
+  <p class="muted" style="margin-top:4px">{{ _f('Versión {0} de {1}', n, src.name) }} · {{ profile.label }} · {{ _('modelo') }} <b>{{ src.model or '—' }}</b> · <span title="{{ v.created_at|dt }}">{{ v.created_at|ago }}</span></p></div>
+  <a class="btn ghost" href="/versions/{{ v.id }}">{{ _('Ver la versión') }}</a></div>
+
+<div class="stack">
+  <div class="banner info">{{ icon('info') }}<span class="grow">{{ _f('{0} y sus copias no se eliminan ni se modifican: la configuración solo se envía al equipo de destino.', src.name) }}
+    {{ _('El destino debe ser del mismo modelo; OpenNCCM lo comprueba antes de enviar nada y le muestra los comandos.') }}</span></div>
+  <div class="banner warn">{{ icon('alert') }}<span class="grow">{{ _f('La copia lleva el nombre y las direcciones IP de {0}. Si los dos equipos quedan conectados a la misma red, habrá direcciones repetidas. La dirección por la que se gestiona el equipo de destino se conserva.', src.name) }}</span></div>
+  {% if not src.model %}<div class="banner crit" role="alert">{{ icon('alert') }}<span class="grow">{{ _f('No se conoce el modelo de {0}: haga un respaldo de ese equipo para leer su inventario y vuelva a intentarlo.', src.name) }}</span></div>{% endif %}
+  {% if not can_cmd %}<div class="banner crit" role="alert">{{ icon('alert') }}<span class="grow">{{ _f('OpenNCCM no puede restaurar {0} por comandos. Descargue la versión y restáurela con la herramienta del fabricante.', profile.label) }}</span></div>{% endif %}
+
+  {% if job %}
+  <section class="card" id="rs-job" data-status="/restore/{{ job }}/status"><div class="card-h"><h2>{{ _('Restauración') }}</h2><span class="pill info" id="rs-st">{{ _('Enviando la configuración…') }}</span></div>
+    <p class="muted" id="rs-msg">{{ _('Puede tardar unos minutos. No cierre esta página si quiere ver el resultado.') }}</p>
+    <pre class="cv" id="rs-out" style="padding:10px 12px;white-space:pre-wrap;max-height:360px;overflow:auto" hidden></pre>
+    <div class="row" style="margin-top:12px"><a class="btn" href="/devices/{{ src.id }}">{{ _f('Volver a {0}', src.name) }}</a>
+      <a class="btn ghost" id="rs-add" href="/devices/new" data-sheet data-title="{{ _('Agregar a OpenNCCM') }}" hidden>{{ _('Agregar el equipo de destino a OpenNCCM') }}</a></div></section>
+  <script>
+  (function () {
+    const box = document.getElementById('rs-job'), st = document.getElementById('rs-st'), msg = document.getElementById('rs-msg'), out = document.getElementById('rs-out');
+    const T = {{ {'done': _('Restaurada'), 'error': _('Falló'), 'missing': _('Sin datos'), 'ok': _('La configuración se envió y se guardó en el equipo de destino.'),
+      'bad': _('El equipo rechazó un comando y se detuvo. En MikroTik y Junos se deshace lo aplicado; en el resto, revise el equipo.'),
+      'gone': _('Esta restauración ya no está en memoria (el servidor se reinició o pasaron más de 15 minutos).')}|tojson }};
+    const tick = () => fetch(box.dataset.status, {cache: 'no-store'}).then(r => r.json()).then(j => {
+      if (j.state === 'running' || j.state === 'ready') return setTimeout(tick, 2000);
+      st.textContent = T[j.state] || j.state; st.className = 'pill ' + (j.state === 'done' ? 'ok' : 'crit');
+      msg.textContent = j.state === 'done' ? T.ok : j.state === 'error' ? T.bad : T.gone;
+      if (j.state === 'done') document.getElementById('rs-add').hidden = false;
+      const t = j.state === 'error' ? j.error : j.out; if (t) { out.textContent = t; out.hidden = false; }
+    }).catch(() => setTimeout(tick, 4000));
+    tick();
+  })();
+  </script>
+
+  {% elif res %}
+  <section class="card"><div class="card-h"><h2>{{ _f('Destino: {0}', target_label) }}</h2>
+    {% if res.model %}<span class="pill {{ 'ok' if res.ok else 'crit' if res.mismatch }}">{{ _f('Modelo {0}', res.model) }}</span>{% endif %}</div>
+    {% if res.ok %}
+    <div class="banner info" role="status">{{ icon('check') }}<span class="grow">{{ _f('Mismo modelo que {0} ({1}). Se enviarán {2} comandos para dejarlo con la configuración de la versión {3}.', src.name, src.model, res.cmds|length, n) }}</span></div>
+    {% for note in res.notes %}<div class="banner warn">{{ icon('alert') }}<span class="grow">{{ note }}</span></div>{% endfor %}
+    <details open style="margin-top:12px"><summary class="b sm">{{ _('Comandos que se enviarán') }}</summary>
+      <pre class="cv rs-cmds" style="padding:10px 12px;white-space:pre-wrap;margin-top:8px">{{ res.cmds|join('\n') }}</pre></details>
+    <form method="post" action="/versions/{{ v.id }}/restore/apply" class="row end" style="margin-top:14px">
+      <input type="hidden" name="token" value="{{ res.token }}"><a class="btn ghost" href="/versions/{{ v.id }}/restore">{{ _('Cancelar') }}</a>
+      <button class="btn pri">{{ icon('undo', 's') }}{{ _f('Restaurar en {0}', target_label) }}</button></form>
+    {% else %}
+    <div class="banner crit" role="alert">{{ icon('alert') }}<span class="grow">{{ res.error }}</span></div>
+    <div class="row" style="margin-top:12px"><a class="btn" href="/versions/{{ v.id }}/restore">{{ _('Volver') }}</a></div>
+    {% endif %}</section>
+
+  {% elif can_cmd %}
+  <section class="card"><div class="card-h"><h2>{{ _('¿Dónde restaurar?') }}</h2></div>
+    <div class="rs-opts" role="radiogroup" aria-label="{{ _('Destino') }}">
+      <label class="rs-opt"><input type="radio" name="rs-mode" value="device" {{ 'checked' if others }} {{ 'disabled' if not others }}><div><b>{{ _('Otro equipo de OpenNCCM') }}</b><span>{{ _f('{0} equipos {1} con su credencial', others|length, profile.label) }}</span></div></label>
+      <label class="rs-opt"><input type="radio" name="rs-mode" value="ssh" {{ 'checked' if not others }}><div><b>{{ _('Equipo nuevo por IP (SSH)') }}</b><span>{{ _('Su IP de administración, usuario y contraseña') }}</span></div></label>
+      <label class="rs-opt"><input type="radio" name="rs-mode" value="serial" {{ 'disabled' if not serial_ok }}><div><b>{{ _('Cable de consola (puerto serie)') }}</b><span>{{ _('Conectado a este PC; con Chrome o Edge') if serial_ok else _f('No disponible para {0}', profile.label) }}</span></div></label>
+    </div>
+
+    <form method="post" action="/versions/{{ v.id }}/restore/check" class="stack" data-rs="device" style="margin-top:18px">
+      <input type="hidden" name="mode" value="device">
+      <div class="field"><label for="rs-dev">{{ _('Equipo de destino') }}</label><div class="input"><select id="rs-dev" name="target_id" required>
+        <option value="">{{ _('Elija un equipo…') }}</option>
+        {% for d in others %}<option value="{{ d.id }}" {{ 'disabled' if d.model and src.model and d.id not in same }}>{{ d.name }} · {{ d.host }} · {{ d.model or _('modelo sin leer') }}{% if d.model and src.model and d.id not in same %} · {{ _('otro modelo') }}{% endif %}</option>{% endfor %}
+      </select></div><span class="help">{{ _('Se usa la credencial del equipo. Los de otro modelo no se pueden elegir.') }}</span></div>
+      <div class="row end"><button class="btn pri" {{ 'disabled' if not src.model }}>{{ icon('search', 's') }}{{ _('Validar el modelo y ver los comandos') }}</button></div>
+    </form>
+
+    <form method="post" action="/versions/{{ v.id }}/restore/check" class="stack" data-rs="ssh" style="margin-top:18px" hidden autocomplete="off">
+      <input type="hidden" name="mode" value="ssh">
+      <div class="banner info">{{ icon('info') }}<span class="grow">{{ _('El equipo nuevo debe tener SSH habilitado y su IP de administración debe ser accesible desde el servidor de OpenNCCM. La contraseña solo se usa para esta restauración: no se guarda.') }}</span></div>
+      <div class="bento" style="gap:12px">
+        <div class="field c8"><label for="rs-host">{{ _('IP de administración') }}</label><div class="input"><input id="rs-host" name="host" required maxlength="255" placeholder="192.168.88.1" inputmode="url"></div></div>
+        <div class="field c4"><label for="rs-port">{{ _('Puerto SSH') }}</label><div class="input"><input id="rs-port" name="port" type="number" min="1" max="65535" value="22" required></div></div>
+        <div class="field c6"><label for="rs-user">{{ _('Usuario') }}</label><div class="input"><input id="rs-user" name="username" required maxlength="128" autocomplete="off"></div></div>
+        <div class="field c6"><label for="rs-pw">{{ _('Contraseña') }}</label><div class="input"><input id="rs-pw" name="password" type="password" maxlength="256" autocomplete="new-password"></div></div>
+        {% if profile.family in ('ios', 'fastpath') %}<div class="field c6"><label for="rs-sec">{{ _('Contraseña de enable (si la pide)') }}</label><div class="input"><input id="rs-sec" name="secret" type="password" maxlength="256" autocomplete="new-password"></div></div>{% endif %}
+      </div>
+      <div class="row end"><button class="btn pri" {{ 'disabled' if not src.model }}>{{ icon('search', 's') }}{{ _('Conectar, validar el modelo y ver los comandos') }}</button></div>
+    </form>
+
+    {% if serial_ok %}
+    <div class="stack" data-rs="serial" style="margin-top:18px" hidden>
+      <div class="banner info">{{ icon('info') }}<span class="grow">{{ _('Conecte el cable de consola del equipo a este PC. El navegador habla con el puerto serie (Chrome o Edge en Windows, macOS o Linux); el servidor solo valida el modelo y calcula los comandos.') }}</span></div>
+      <div class="banner crit" id="rs-noserial" hidden>{{ icon('alert') }}<span class="grow">{{ _('Este navegador no puede usar el puerto serie. Abra OpenNCCM con Chrome o Edge en el PC conectado al equipo (la página debe abrirse por HTTPS).') }}</span></div>
+      <div class="row"><div class="input" style="min-height:36px"><select id="rs-baud" aria-label="{{ _('Velocidad') }}">{% for b in [9600, 19200, 38400, 57600, 115200] %}<option value="{{ b }}" {{ 'selected' if b == (115200 if src.device_type == 'mikrotik_routeros' else 9600) }}>{{ b }} bps</option>{% endfor %}</select></div>
+        <button type="button" class="btn" id="rs-open">{{ icon('term', 's') }}{{ _('Conectar al puerto serie') }}</button><span class="muted sm" id="rs-pst"></span></div>
+      <pre class="rs-term" id="rs-term" aria-live="off"></pre>
+      <form class="row nowrap" id="rs-send"><label class="input grow">{{ icon('term', 's') }}<input id="rs-line" autocomplete="off" aria-label="{{ _('Escribir en la consola') }}" placeholder="{{ _('Inicie sesión aquí si el equipo lo pide (usuario, Enter, contraseña, Enter)') }}"></label>
+        <label class="ck sm"><input type="checkbox" id="rs-hide"> {{ _('Ocultar') }}</label><button class="btn">{{ _('Enviar') }}</button></form>
+      <div class="row end"><button type="button" class="btn pri" id="rs-validate" disabled>{{ icon('search', 's') }}{{ _('Validar el modelo y ver los comandos') }}</button></div>
+      <div id="rs-sres" class="stack"></div>
+    </div>
+    {% endif %}
+  </section>
+  <script>
+  (function () {
+    const radios = document.querySelectorAll('input[name="rs-mode"]');
+    const show = () => { const m = (document.querySelector('input[name="rs-mode"]:checked') || {}).value;
+      document.querySelectorAll('[data-rs]').forEach(f => { f.hidden = f.dataset.rs !== m; }); };
+    radios.forEach(r => r.addEventListener('change', show)); show();
+  })();
+  </script>
+  {% if serial_ok %}
+  <script>
+  (function () {
+    const C = {{ {'pre': serial_pre, 'inv': inv_cmds, 'backup': backup_cmd, 'err': err_re, 'prompt': prompt_re, 'url': '/versions/' ~ v.id ~ '/restore/serial'}|tojson }};
+    const T = {{ {'open': _('Conectado'), 'closed': _('Sin conectar'), 'reading': _('Leyendo el inventario y la configuración por la consola…'),
+      'ok': _('Mismo modelo ({0}). Se escribirán {1} líneas por la consola.'), 'go': _('Restaurar por el puerto serie'), 'sending': _('Enviando {0} de {1}…'),
+      'done': _('Restauración terminada. Si el equipo no está en OpenNCCM, agréguelo para respaldarlo.'), 'add': _('Agregar a OpenNCCM'),
+      'rej': _('El equipo rechazó la línea {0}: «{1}». Se detuvo ahí; revise el equipo.'), 'err': _('No se pudo validar: {0}'),
+      'notes': _('Avisos'), 'cmds': _('Comandos que se enviarán')}|tojson }};
+    const term = document.getElementById('rs-term'), pst = document.getElementById('rs-pst'), res = document.getElementById('rs-sres');
+    const val = document.getElementById('rs-validate'), errRe = new RegExp(C.err, 'im'), promptRe = new RegExp(C.prompt);
+    if (!('serial' in navigator)) { document.getElementById('rs-noserial').hidden = false; document.getElementById('rs-open').disabled = true; return; }
+    let port, writer, buf = '', last = 0;
+    const enc = new TextEncoder(), clean = s => s.replace(/\x1b\[[0-9;?]*[A-Za-z]|\x1b[()][A-Z0-9]/g, '').replace(/\r/g, '');
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c]);
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    async function readLoop() {
+      const dec = new TextDecoder();
+      while (port && port.readable) {
+        const reader = port.readable.getReader();
+        try { for (;;) { const {value, done} = await reader.read(); if (done) break;
+          const t = dec.decode(value, {stream: true}); buf += t; last = Date.now();
+          term.textContent = clean(buf).slice(-20000); term.scrollTop = term.scrollHeight; }
+        } catch (e) { break; } finally { reader.releaseLock(); }
+      }
+    }
+    const send = s => writer.write(enc.encode(s + '\r'));
+    async function run(cmd, timeout) {  // escribe una orden y espera al prompt (pasando las páginas «--More--»)
+      const mark = buf.length; await send(cmd); const t0 = Date.now();
+      for (;;) {
+        await sleep(200);
+        const out = clean(buf.slice(mark)), tail = out.split('\n').pop();
+        if (/-+ ?more ?-+|press any key/i.test(tail)) { await writer.write(enc.encode(' ')); continue; }
+        if (promptRe.test(tail) && Date.now() - last > 600) return out;
+        if (Date.now() - t0 > timeout) return out;
+      }
+    }
+    document.getElementById('rs-open').addEventListener('click', async () => {
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({baudRate: +document.getElementById('rs-baud').value});
+        writer = port.writable.getWriter(); pst.textContent = T.open; val.disabled = false;
+        readLoop(); await send('');
+      } catch (e) { pst.textContent = String(e.message || e); }
+    });
+    document.getElementById('rs-hide').addEventListener('change', e => { document.getElementById('rs-line').type = e.target.checked ? 'password' : 'text'; });
+    document.getElementById('rs-send').addEventListener('submit', async e => {
+      e.preventDefault(); if (!writer) return; const i = document.getElementById('rs-line'); await send(i.value); i.value = '';
+    });
+    val.addEventListener('click', async () => {
+      val.disabled = true; res.innerHTML = `<div class="banner info">${esc(T.reading)}</div>`;
+      try {
+        for (const c of C.pre) await run(c, 8000);
+        let inv = ''; for (const c of C.inv) inv += await run(c, 20000) + '\n';
+        const cfg = await run(C.backup, 180000);
+        const r = await fetch(C.url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({inventory: inv, config: cfg})}).then(x => x.json());
+        if (!r.ok) { res.innerHTML = `<div class="banner crit" role="alert">${esc(T.err.replace('{0}', r.error))}</div>`; val.disabled = false; return; }
+        res.innerHTML = `<div class="banner info" role="status">${esc(T.ok.replace('{0}', r.model).replace('{1}', r.script.length))}</div>` +
+          (r.notes || []).map(n => `<div class="banner warn">${esc(n)}</div>`).join('') +
+          `<details open><summary class="b sm">${esc(T.cmds)}</summary><pre class="cv rs-cmds" style="padding:10px 12px;white-space:pre-wrap;margin-top:8px">${esc(r.script.join('\n'))}</pre></details>` +
+          `<div class="row end"><button type="button" class="btn pri" id="rs-go">${esc(T.go)}</button></div><div id="rs-prog"></div>`;
+        document.getElementById('rs-go').addEventListener('click', async ev => {
+          ev.target.disabled = true; const prog = document.getElementById('rs-prog');
+          for (let i = 0; i < r.script.length; i++) {
+            prog.innerHTML = `<p class="muted sm">${esc(T.sending.replace('{0}', i + 1).replace('{1}', r.script.length))}</p>`;
+            const out = await run(r.script[i], 60000), body = out.split('\n').slice(1).join('\n');
+            if (errRe.test(body)) { prog.innerHTML = `<div class="banner crit" role="alert">${esc(T.rej.replace('{0}', i + 1).replace('{1}', r.script[i]))}</div>`; return; }
+          }
+          prog.innerHTML = `<div class="banner info" role="status">${esc(T.done)} <a href="/devices/new" data-sheet data-title="${esc(T.add)}">${esc(T.add)}</a></div>`;
+        });
+      } catch (e) { res.innerHTML = `<div class="banner crit" role="alert">${esc(String(e.message || e))}</div>`; val.disabled = false; }
+    });
+  })();
+  </script>
+  {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

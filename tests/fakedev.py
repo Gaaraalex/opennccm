@@ -247,6 +247,12 @@ def handle(line, mode, ctx):
                     "Interface: GigabitEthernet0/1,  Port ID (outgoing port): GigabitEthernet1/0/48\n")
         if s == "show lldp neighbors detail":
             return "% LLDP is not enabled"
+        if s == "show interfaces status":  # puertos de la ficha del equipo
+            return ("Port      Name               Status       Vlan       Duplex  Speed Type\n"
+                    "Gi0/0     WAN                connected    routed     a-full a-1000 10/100/1000BaseTX\n"
+                    "Gi0/1     LAN                connected    routed     a-full  a-100 10/100/1000BaseTX\n"
+                    "Gi0/2                        disabled     1            auto   auto 10/100/1000BaseTX\n"
+                    "Gi0/3                        notconnect   1            auto   auto 10/100/1000BaseTX\n")
         if s in ("configure terminal", "conf t"):
             mode[0] = "config"
             return "Enter configuration commands, one per line.  End with CNTL/Z."
