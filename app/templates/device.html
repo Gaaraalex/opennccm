@@ -109,6 +109,8 @@
       <p class="muted sm" id="pr-pos" aria-live="polite" style="margin:0;padding:8px 16px 12px;text-align:right" hidden></p></section>
     <section class="card pcard stack" id="pcard" aria-live="polite"></section>
   </div>
+  {% if is_admin and ports.raw %}<details class="card" style="margin-top:16px"><summary class="b sm" style="cursor:pointer">{{ _('Lo que respondió el equipo al leer los puertos (diagnóstico)') }}</summary>
+    <pre class="cv" style="padding:10px 12px;margin-top:8px;white-space:pre-wrap;max-height:420px;overflow:auto">{{ ports.raw }}</pre></details>{% endif %}
 </section>
 {% endif %}
 

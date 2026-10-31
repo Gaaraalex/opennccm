@@ -114,7 +114,7 @@
     'psu': _('Fuentes de alimentación'), 'fan': _('Ventiladores'), 'psu_ok': _('Con corriente'), 'psu_fail': _('Sin corriente o con fallo'),
     'psu_absent': _('No instalada'), 'fan_ok': _('Funcionando'), 'fan_fail': _('Parado o con fallo'), 'fan_absent': _('No instalado'),
     'norear': _('El equipo no informó de sus fuentes ni de sus ventiladores en el respaldo (no todos los modelos lo dicen por SSH).'),
-    'rpm': _('{0} RPM'), 'port': _('Puerto'), 'st': _('Estado'), 'pos': _('{0}–{1} de {2} interfaces'), 'nocfg': _('La configuración no menciona este puerto.')}|tojson }};
+    'rpm': _('{0} RPM'), 'fanless': _('Sin ventiladores (refrigeración pasiva)'), 'port': _('Puerto'), 'st': _('Estado'), 'pos': _('{0}–{1} de {2} interfaces'), 'nocfg': _('La configuración no menciona este puerto.')}|tojson }};
   // Y0: fila de arriba; números y rótulos quedan a 12 px del icono: el contorno de selección (5 px) no los toca
   const big = L.rows === 2, CW = 32, SW = 42, H = 28, GAP = 6, GG = 12, SEP = 16, NG = 12, Y0 = 12 + NG;
   const cu = P.filter(p => p.k !== 'sfp'), sf = P.filter(p => p.k === 'sfp');
@@ -215,10 +215,11 @@
     const box = document.getElementById('prear'); if (!box) return;
     const items = [...(R.psu || []).map(x => ({...x, k: 'psu'})), ...(R.fan || []).map(x => ({...x, k: 'fan'}))];
     if (!items.length) { box.innerHTML = `<p class="none">${esc(T.norear)}</p>`; return; }
+    const nofan = R.fanless ? `<div class="grp"><p class="none" style="padding:6px 4px">${esc(T.fanless)}</p><span class="cap">${esc(T.fan)}</span></div>` : '';
     const it = x => { const on = rsel === x.k + x.n;
       return `<button type="button" class="it" data-r="${esc(x.k + x.n)}" aria-pressed="${on}" title="${esc(x.n + ' · ' + rlabel(x))}" aria-label="${esc(x.n + ' · ' + rlabel(x))}">${x.k === 'psu' ? psuIcon(x) : fanIcon(x)}<span class="lb">${esc(x.n)}</span></button>`; };
     const grp = (k, cap) => { const l = items.filter(x => x.k === k); return l.length ? `<div class="grp"><div class="its">${l.map(it).join('')}</div><span class="cap">${esc(cap)}</span></div>` : ''; };
-    box.innerHTML = grp('psu', T.psu) + grp('fan', T.fan);
+    box.innerHTML = grp('psu', T.psu) + (grp('fan', T.fan) || nofan);
   }
   function rearSelected() {
     const el = document.getElementById('psel'); if (!el) return;
