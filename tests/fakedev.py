@@ -247,6 +247,12 @@ def handle(line, mode, ctx):
                     "Interface: GigabitEthernet0/1,  Port ID (outgoing port): GigabitEthernet1/0/48\n")
         if s == "show lldp neighbors detail":
             return "% LLDP is not enabled"
+        if s == "show environment all":  # parte de atrás de la ficha: fuentes y ventiladores
+            return ("FAN 1 is OK\nFAN 2 is FAULTY\nSYSTEM TEMPERATURE is OK\n"
+                    "SW  PID                 Serial#     Status           Sys Pwr  PoE Pwr  Watts\n"
+                    "--  ------------------  ----------  ---------------  -------  -------  -----\n"
+                    "1A  C3KX-PWR-350WAC     DTN1234567  OK               Good     Good     350/0\n"
+                    "1B  C3KX-PWR-350WAC     DTN7654321  No Input Power   Bad      Bad      350/0\n")
         if s == "show interfaces status":  # puertos de la ficha del equipo
             return ("Port      Name               Status       Vlan       Duplex  Speed Type\n"
                     "Gi0/0     WAN                connected    routed     a-full a-1000 10/100/1000BaseTX\n"

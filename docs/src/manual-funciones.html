@@ -227,11 +227,37 @@ configuración y la línea de estado que explican su color.</p>
   <tr><td>Ámbar con borde discontinuo</td><td>Apagado en la configuración (<code>disabled=yes</code>, <code>shutdown</code>).</td></tr>
   <tr><td>Jaula vacía</td><td>Puerto de fibra sin módulo SFP.</td></tr>
 </table>
-<p>La configuración solo dice si un puerto está apagado; el enlace se lee en la misma conexión del respaldo y se muestra «leído en
-el respaldo de hace…». MikroTik: <code>/interface ethernet print</code> y <code>monitor</code> (estado, velocidad y módulo SFP);
-Cisco IOS/IOS-XE: <code>show interfaces status</code>; ASA/FTD: <code>show interface ip brief</code>; Juniper:
-<code>show interfaces terse</code>. En las demás plataformas con bloques <code>interface</code> los puertos salen en gris
-(apagado o habilitado) con el aviso «sin estado de enlace». Aparecen tras el primer respaldo con OpenNCCM 2.12.0.</p>
+<p>El frente se dibuja como el del modelo: una fila en routers y switches pequeños (hEX, RB4011 con su separación tras el
+puerto 5, US-8, firewalls de escritorio) y dos filas en los grandes, en bloques como en el equipo (CRS326 de 4 en 4 con los SFP+
+abajo a la derecha; UniFi y EdgeSwitch de 24/48 y Cisco de 6 en 6 con los SFP de dos en dos). Los modelos que OpenNCCM no conoce
+se dibujan según cuántos puertos tienen.</p>
+<p>La configuración solo dice si un puerto está apagado; el enlace se lee en la misma conexión del respaldo («leído en el respaldo
+de hace…»), con la orden de cada plataforma:</p>
+<table>
+  <tr><th>Plataforma</th><th>Orden</th></tr>
+  <tr><td>MikroTik RouterOS</td><td><code>/interface ethernet print</code> y <code>monitor</code> (estado, velocidad, módulo SFP)</td></tr>
+  <tr><td>Cisco IOS/IOS-XE, Arista, Dell, TP-Link, Ruckus y la mayoría de switches con CLI tipo Cisco</td><td><code>show interfaces status</code> (o <code>show interface status/brief</code>)</td></tr>
+  <tr><td>Ubiquiti EdgeSwitch y UniFi (FastPath)</td><td><code>show interfaces status all</code></td></tr>
+  <tr><td>Huawei, H3C, HPE Comware</td><td><code>display interface brief</code></td></tr>
+  <tr><td>HPE ProCurve / Aruba OS-Switch · Aruba AOS-CX</td><td><code>show interfaces brief</code> · <code>show interface brief</code></td></tr>
+  <tr><td>Cisco NX-OS · ASA/FTD · WLC</td><td><code>show interface status</code> · <code>show interface ip brief</code> · <code>show port summary</code></td></tr>
+  <tr><td>Juniper · Extreme EXOS · Nokia SR OS</td><td><code>show interfaces terse</code> · <code>show ports no-refresh</code> · <code>show port</code></td></tr>
+  <tr><td>EdgeRouter, USG, VyOS</td><td><code>show interfaces</code> (columna S/L)</td></tr>
+  <tr><td>FortiGate · Palo Alto · Check Point</td><td><code>get system interface physical</code> · <code>show interface all</code> · <code>show interfaces all</code></td></tr>
+  <tr><td>Linux, Ubuntu, airOS, airFiber, UniFi AP · pfSense, OPNsense</td><td><code>/sys/class/net</code> · <code>ifconfig -a</code></td></tr>
+</table>
+<p>Si el equipo no responde a ninguna, los puertos salen de la configuración en gris (apagado o habilitado) con el aviso «sin
+estado de enlace».</p>
+<h3>Parte de atrás: fuentes y ventiladores</h3>
+<p>El botón <b>Atrás</b> de la franja muestra las <b>fuentes de alimentación</b> y los <b>ventiladores</b> del equipo: en verde
+los que funcionan (fuente con corriente, ventilador girando) y en rojo los que fallan o están sin corriente; con borde
+discontinuo, los que no están instalados. Así se ve de un vistazo si un equipo con dos fuentes tiene las dos conectadas. Si alguna
+falla, la franja lo avisa también desde el frente («Sin corriente o con fallo: PSU 2», «Ventilador parado: Fan 3») y el botón
+Atrás lleva un punto rojo. Se lee en el respaldo con la orden de cada fabricante: MikroTik <code>/system health print</code>,
+Cisco <code>show environment all</code>, Juniper <code>show chassis environment</code>, Huawei <code>display power</code> y
+<code>display fan</code>, HPE <code>show system fans/power-supply</code>, Aruba AOS-CX y Arista <code>show environment …</code>,
+FastPath <code>show environment</code>, Extreme <code>show fans/power</code> y FortiGate <code>execute sensor list</code>. Los
+equipos que no informan de ello por SSH (por ejemplo, los routers pequeños sin ventiladores) lo indican en la vista Atrás.</p>
 <figure><img src="img/05c-dispositivo-cumplimiento.png" style="max-height:120mm"><figcaption>Pestaña Cumplimiento: reglas agrupadas por política, con «Corregir N».</figcaption></figure>
 </section>
 

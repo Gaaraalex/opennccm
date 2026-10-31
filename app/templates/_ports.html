@@ -56,33 +56,53 @@
   .pcard .kv{grid-template-columns:104px minmax(0,1fr);font-size:13px}
   .pcfg{margin:0;padding:10px 12px;border-radius:12px;background:var(--p-face);border:1px solid var(--line);font:400 12px/18px var(--f-mono);white-space:pre-wrap;word-break:break-all}
   .pcfg span{display:block;color:var(--ink-2)}.pcfg .c{color:var(--muted)}.pcfg .up{color:var(--ok)}.pcfg .off{color:var(--warn)}
+  /* atrás: fuentes de alimentación y ventiladores */
+  .pview{display:inline-flex;gap:2px;padding:2px;margin-bottom:8px;border-radius:9px;background:var(--surface-2);border:1px solid var(--line)}
+  .pview button{border:0;background:transparent;color:var(--ink-2);font:600 12px var(--f-sans);padding:4px 12px;border-radius:7px;cursor:pointer}
+  .pview button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 0 0 1px var(--line)}
+  .pview .bad{display:inline-block;width:7px;height:7px;margin-left:6px;border-radius:99px;background:var(--crit);vertical-align:1px}
+  .prear{display:flex;align-items:flex-start;gap:26px;padding:4px 2px}
+  .prear .grp{display:flex;flex-direction:column;align-items:center;gap:6px}.prear .its{display:flex;gap:12px}
+  .prear .it{display:flex;flex-direction:column;align-items:center;gap:4px;border:0;background:none;padding:0;cursor:pointer;border-radius:6px}
+  .prear .it:focus-visible,.prear .it[aria-pressed="true"]{outline:2px solid var(--p-sel);outline-offset:3px}
+  .prear .lb{font:500 10px var(--f-mono);color:var(--muted)}.prear .cap{font:500 10px var(--f-sans);color:var(--muted)}
+  .prear .none{font-size:12.5px;color:var(--muted);max-width:340px;padding:12px 4px}
+  .psum .alarm{color:var(--crit);font-weight:600}
   @media (max-width:599px){.pface-id{display:none}}
 </style>
 {% set p_up = ports.ports|selectattr('s', 'equalto', 'up')|list|length %}
 <section class="pstrip" aria-label="{{ _('Puertos del equipo') }}" id="pstrip">
+  <div style="min-width:0;max-width:100%">
+  <div class="pview" role="group" aria-label="{{ _('Vista del equipo') }}"><button type="button" data-view="front" aria-pressed="true">{{ _('Frente') }}</button><button type="button" data-view="rear" aria-pressed="false">{{ _('Atrás') }}{% if ports.rear.psu|selectattr('s', 'ne', 'ok')|list or ports.rear.fan|selectattr('s', 'ne', 'ok')|list %}<i class="bad" title="{{ _('Hay una fuente o un ventilador que no funciona') }}"></i>{% endif %}</button></div>
   <div class="pface-w" id="pface-w"><div class="pface" id="pface">
     <div class="pface-id"><span class="m">{{ device.model or profile.vendor }}</span><span class="c">{{ device.os_version or profile.label }}</span>
       <span class="pwr {{ 'on' if device.last_status == 'ok' }}"><i></i>PWR</span></div>
     <div class="pfp" id="pfp"></div>
-  </div></div>
+    <div class="prear" id="prear" hidden></div>
+  </div></div></div>
   <div class="pright">
   <div class="psel" id="psel" aria-live="polite"></div>
   <div class="psum">
     <span>{% if ports.status %}<b>{{ _f('{0} activos', p_up) }}</b> {{ _f('de {0}', ports.ports|length) }}{% else %}{{ _f('{0} puertos', ports.ports|length) }} · {{ _('sin estado de enlace') }}{% endif %} · <span title="{{ ports.at|dt }}">{{ _f('leído en el respaldo {0}', ports.at|ago) }}</span></span>
     <div class="pleg">{% if ports.status %}<span><i class="up"></i>{{ _('Activo') }}</span><span><i class="down"></i>{{ _('Sin enlace') }}</span>{% else %}<span><i class="down"></i>{{ _('Habilitado') }}</span>{% endif %}<span><i class="off"></i>{{ _('Apagado') }}</span></div>
+    {% set bad_psu = ports.rear.psu|selectattr('s', 'equalto', 'fail')|list %}{% set bad_fan = ports.rear.fan|selectattr('s', 'equalto', 'fail')|list %}
+    {% if bad_psu or bad_fan %}<span class="alarm" role="status">{% if bad_psu %}{{ _f('Sin corriente o con fallo: {0}', bad_psu|map(attribute='n')|join(', ')) }}{% endif %}{% if bad_psu and bad_fan %} · {% endif %}{% if bad_fan %}{{ _f('Ventilador parado: {0}', bad_fan|map(attribute='n')|join(', ')) }}{% endif %}</span>{% endif %}
     <a href="#ports" data-tab-link class="b">{{ _('Ver todos los puertos') }} ›</a>
   </div>
   </div>
 </section>
 <script>
 (function () {
-  const L = {{ ports.layout|tojson }}, P = {{ ports.ports|tojson }}, HAS = {{ ports.status|tojson }}, NAME = {{ device.name|tojson }}, DT = {{ device.device_type|tojson }};
+  const R = {{ ports.rear|tojson }}, L = {{ ports.layout|tojson }}, P = {{ ports.ports|tojson }}, HAS = {{ ports.status|tojson }}, NAME = {{ device.name|tojson }}, DT = {{ device.device_type|tojson }};
   const T = {{ {'up': _('Activo'), 'down': _('Sin enlace'), 'off': _('Apagado'), 'empty': _('Sin módulo'), 'on': _('Habilitado'),
     'cu': _('Cobre'), 'sfp': _('Fibra'), 'neigh': _('Vecino'), 'type': _('Tipo'), 'desc': _('Descripción'), 'speed': _('Velocidad'),
     'net': _('Dirección'), 'bridge': _('Bridge'), 'netg': _('Red'), 'module': _('Módulo'), 'nomod': _('No hay módulo en la jaula'), 'said': _('LO QUE DICE EL RESPALDO'),
     'cfg': _('configuración'), 'state': _('estado al respaldar'), 'nostate': _('sin estado de enlace'),
     'all': _('Todos'), 'fup': _('Activos'), 'fdown': _('Inactivos'), 'ffib': _('Fibra'), 'foff': _('Apagados'), 'fcu': _('Cobre'),
-    'port': _('Puerto'), 'st': _('Estado'), 'pos': _('{0}–{1} de {2} interfaces'), 'nocfg': _('La configuración no menciona este puerto.')}|tojson }};
+    'psu': _('Fuentes de alimentación'), 'fan': _('Ventiladores'), 'psu_ok': _('Con corriente'), 'psu_fail': _('Sin corriente o con fallo'),
+    'psu_absent': _('No instalada'), 'fan_ok': _('Funcionando'), 'fan_fail': _('Parado o con fallo'), 'fan_absent': _('No instalado'),
+    'norear': _('El equipo no informó de sus fuentes ni de sus ventiladores en el respaldo (no todos los modelos lo dicen por SSH).'),
+    'rpm': _('{0} RPM'), 'port': _('Puerto'), 'st': _('Estado'), 'pos': _('{0}–{1} de {2} interfaces'), 'nocfg': _('La configuración no menciona este puerto.')}|tojson }};
   // Y0: fila de arriba; los números (12 px de alto) quedan a 8 px del icono, fuera del contorno de selección (5 px)
   const big = L.rows === 2, CW = 32, SW = 42, H = 28, GAP = 6, GG = 12, SEP = 16, Y0 = 20;
   const cu = P.filter(p => p.k !== 'sfp'), sf = P.filter(p => p.k === 'sfp');
@@ -163,6 +183,49 @@
   const fw = document.getElementById('pface-w'), fc = document.getElementById('pface');
   const more = () => { if (fw) fw.classList.toggle('more', fc.scrollLeft + fc.clientWidth < fc.scrollWidth - 1); };
   if (fc) { fc.addEventListener('scroll', more, {passive: true}); window.addEventListener('resize', more); }
+  // ---- atrás: fuentes (toma IEC con su LED) y ventiladores (rejilla); verde solo lo que funciona
+  let view = 'front', rsel = null;
+  const rcol = s => s === 'ok' ? 'var(--p-up)' : s === 'fail' ? 'var(--crit)' : 'var(--p-down-e)';
+  function psuIcon(x) {
+    const c = rcol(x.s), dash = x.s === 'absent' ? ' stroke-dasharray="3 2"' : '';
+    return `<svg width="54" height="32" viewBox="0 0 54 32" aria-hidden="true"><rect x=".75" y=".75" width="52.5" height="30.5" rx="4" fill="${x.s === 'absent' ? 'var(--p-empty)' : 'var(--p-down)'}" stroke="${c}" stroke-width="1.5"${dash}/>` +
+      (x.s === 'absent' ? '' : `<path d="M9 9h16l3 4v8l-3 4H9z" fill="var(--p-hole)"/><rect x="12" y="15" width="2" height="6" fill="${c}"/><rect x="17" y="15" width="2" height="6" fill="${c}"/><rect x="22" y="15" width="2" height="6" fill="${c}"/>` +
+      `<circle cx="42" cy="16" r="4.5" fill="${c}"${x.s === 'ok' ? ' style="filter:drop-shadow(0 0 3px var(--p-up))"' : ''}/>`) + '</svg>';
+  }
+  function fanIcon(x) {
+    const c = rcol(x.s), dash = x.s === 'absent' ? ' stroke-dasharray="3 2"' : '';
+    return `<svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect x=".75" y=".75" width="32.5" height="32.5" rx="5" fill="var(--p-down)" stroke="${c}" stroke-width="1.5"${dash}/>` +
+      (x.s === 'absent' ? '' : `<circle cx="17" cy="17" r="12" fill="var(--p-hole)" stroke="${c}" stroke-width="1.2"/>` +
+      [0, 90, 180, 270].map(a => `<path d="M17 17c1-5 5-8 8-6-1 3-4 6-8 6z" fill="${c}" transform="rotate(${a} 17 17)"/>`).join('') + `<circle cx="17" cy="17" r="2.2" fill="${c}"/>`) + '</svg>';
+  }
+  const rlabel = x => T[(x.k || 'psu') + '_' + x.s];
+  function rear() {
+    const box = document.getElementById('prear'); if (!box) return;
+    const items = [...(R.psu || []).map(x => ({...x, k: 'psu'})), ...(R.fan || []).map(x => ({...x, k: 'fan'}))];
+    if (!items.length) { box.innerHTML = `<p class="none">${esc(T.norear)}</p>`; return; }
+    const it = x => { const on = rsel === x.k + x.n;
+      return `<button type="button" class="it" data-r="${esc(x.k + x.n)}" aria-pressed="${on}" title="${esc(x.n + ' · ' + rlabel(x))}" aria-label="${esc(x.n + ' · ' + rlabel(x))}">${x.k === 'psu' ? psuIcon(x) : fanIcon(x)}<span class="lb">${esc(x.n)}</span></button>`; };
+    const grp = (k, cap) => { const l = items.filter(x => x.k === k); return l.length ? `<div class="grp"><div class="its">${l.map(it).join('')}</div><span class="cap">${esc(cap)}</span></div>` : ''; };
+    box.innerHTML = grp('psu', T.psu) + grp('fan', T.fan);
+  }
+  function rearSelected() {
+    const el = document.getElementById('psel'); if (!el) return;
+    const items = [...(R.psu || []).map(x => ({...x, k: 'psu'})), ...(R.fan || []).map(x => ({...x, k: 'fan'}))];
+    const x = items.find(i => i.k + i.n === rsel) || items.find(i => i.s !== 'ok') || items[0];
+    if (!x) { el.innerHTML = ''; return; }
+    rsel = x.k + x.n;
+    const cls = x.s === 'ok' ? 'up' : x.s === 'fail' ? 'off' : '';
+    el.innerHTML = `<div class="row" style="gap:10px"><span class="nm">${esc(x.n)}</span><span class="ppill ${cls}"${x.s === 'fail' ? ' style="background:var(--crit-soft);color:var(--crit)"' : ''}>${esc(rlabel(x))}</span><span class="muted sm">${esc(x.k === 'psu' ? T.psu : T.fan)}</span></div>` +
+      (x.rpm != null ? `<div class="ln">${esc(T.rpm.replace('{0}', x.rpm))}</div>` : '') + `<div class="nb mono">${esc(x.st || '')}</div>`;
+  }
+  function setView(v) {
+    view = v;
+    document.querySelectorAll('.pview [data-view]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === v)));
+    document.getElementById('pfp').hidden = v !== 'front'; document.getElementById('prear').hidden = v !== 'rear';
+    const id = document.querySelector('.pface-id'); if (id) id.hidden = v !== 'front';
+    if (v === 'rear') { rear(); rearSelected(); } else { front(); selected(); }
+    more();
+  }
   const pill = p => `<span class="ppill ${p.s === 'up' ? 'up' : p.s === 'off' ? 'off' : ''}">${esc(T[p.s])}</span>`;
   function selected() {
     const p = P.find(x => x.n === sel) || P[0];
@@ -222,11 +285,13 @@
     addEventListener('resize', rsync);
     document.addEventListener('oc-tab', e => { if (e.detail === 'ports') rsync(); });  // la pestaña oculta no tiene medidas
   }
-  function draw() { front(); selected(); table(); rsync(); }
+  function draw() { if (view === 'front') { front(); selected(); } else { rear(); rearSelected(); } table(); rsync(); }
   document.addEventListener('click', e => {
+    const v = e.target.closest('.pview [data-view]'); if (v) { setView(v.dataset.view); return; }
+    const r = e.target.closest('#prear [data-r]'); if (r) { rsel = r.dataset.r; rear(); rearSelected(); return; }
     const b = e.target.closest('[data-p]');
     if (b && (b.closest('#pfp') || b.closest('#prows'))) {
-      sel = b.dataset.p; draw();
+      sel = b.dataset.p; if (view !== 'front') setView('front'); draw();
       if (b.closest('#pfp') && list) {  // el puerto elegido en el frente queda a la vista en la tabla
         const i = [...list.querySelectorAll('tbody tr')].findIndex(r => r.dataset.p === sel);
         if (i >= 0 && (i < to || i >= to + VIS)) { to = i < to ? i : Math.max(0, i - VIS + 1); list.scrollTop = to * (list.querySelector('tbody tr').offsetHeight || 40); rsync(); }
