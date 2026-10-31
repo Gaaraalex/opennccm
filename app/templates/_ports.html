@@ -44,6 +44,14 @@
   .ptab tbody tr{cursor:pointer;height:40px}.ptab tbody tr.sel{background:var(--brand-soft)}
   .ptab table.pt-t{table-layout:fixed;width:100%}
   .ptab .pt-t td,.ptab .pt-t th{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-top:0;padding-bottom:0;height:40px}
+  /* 10 interfaces a la vista; la barra del borde derecho baja y sube (como las copias de recuperación) */
+  .ptab .prw{display:flex;gap:10px;align-items:stretch}
+  .ptab .plist{flex:1;min-width:0;overflow-y:auto;scrollbar-width:none;overscroll-behavior:contain}.ptab .plist::-webkit-scrollbar{display:none}
+  .ptab .plist thead th{position:sticky;top:0;z-index:1;background:var(--surface)}
+  .ptab .prail{display:flex;flex-direction:column;align-items:center;gap:6px;width:30px;padding:8px 10px 8px 0}
+  .ptab .prail[hidden]{display:none}.ptab .prail .btn{width:30px;height:30px;padding:0;justify-content:center}.ptab .prail .up svg{transform:rotate(180deg)}
+  .ptab .prtrack{position:relative;flex:1;width:6px;border-radius:3px;background:var(--surface-2);cursor:pointer}
+  .ptab .prthumb{position:absolute;left:0;right:0;border-radius:3px;background:var(--brand);transition:top .15s ease}
   .ptab .pdot{display:inline-block;width:8px;height:8px;border-radius:99px;margin-right:6px;vertical-align:1px}
   .pcard .kv{grid-template-columns:104px minmax(0,1fr);font-size:13px}
   .pcfg{margin:0;padding:10px 12px;border-radius:12px;background:var(--p-face);border:1px solid var(--line);font:400 12px/18px var(--f-mono);white-space:pre-wrap;word-break:break-all}
@@ -74,7 +82,7 @@
     'net': _('Dirección'), 'bridge': _('Bridge'), 'netg': _('Red'), 'module': _('Módulo'), 'nomod': _('No hay módulo en la jaula'), 'said': _('LO QUE DICE EL RESPALDO'),
     'cfg': _('configuración'), 'state': _('estado al respaldar'), 'nostate': _('sin estado de enlace'),
     'all': _('Todos'), 'fup': _('Activos'), 'fdown': _('Inactivos'), 'ffib': _('Fibra'), 'foff': _('Apagados'), 'fcu': _('Cobre'),
-    'port': _('Puerto'), 'st': _('Estado'), 'nocfg': _('La configuración no menciona este puerto.')}|tojson }};
+    'port': _('Puerto'), 'st': _('Estado'), 'pos': _('{0}–{1} de {2} interfaces'), 'nocfg': _('La configuración no menciona este puerto.')}|tojson }};
   // Y0: fila de arriba; los números (12 px de alto) quedan a 8 px del icono, fuera del contorno de selección (5 px)
   const big = P.length > 14, CW = 32, SW = 42, H = 28, GAP = 6, GG = 12, SEP = 16, Y0 = 20;
   const cu = P.filter(p => p.k !== 'sfp'), sf = P.filter(p => p.k === 'sfp');
@@ -174,10 +182,51 @@
     rows.innerHTML = P.filter(p => match(filt, p)).map(p => `<tr data-p="${esc(p.n)}" class="${p.n === sel ? 'sel' : ''}" tabindex="0">${td(p.n, 'mono')}${td(p.k === 'sfp' ? T.sfp : T.cu)}` +
       `<td title="${esc(T[p.s])}"><span class="pdot" style="background:${p.s === 'up' ? 'var(--p-up)' : p.s === 'off' ? 'var(--p-off-e)' : 'var(--p-down-e)'}"></span>${esc(T[p.s])}</td>${td(p.s === 'up' && p.sp || '—', 'mono')}${td(p.d || '—')}${td(p.nb || '—', 'muted')}</tr>`).join('');
   }
-  function draw() { front(); selected(); table(); }
+  // tabla: 10 filas a la vista; la barra baja y sube de una en una (también con la rueda)
+  const VIS = 10;
+  let list = null, rail = null;  // la tabla está más abajo en la página: se buscan al cargarla
+  let to = 0;
+  function rsync() {
+    if (!list || !rail) return;
+    const rows = list.querySelectorAll('tbody tr'), pos = document.getElementById('pr-pos');
+    const many = rows.length > VIS;
+    rail.hidden = pos.hidden = !many;
+    if (!many) { list.style.maxHeight = ''; return; }
+    const head = list.querySelector('thead').offsetHeight, step = rows[0].offsetHeight || 40;
+    list.style.maxHeight = (head + VIS * step) + 'px';
+    const max = list.scrollHeight - list.clientHeight, first = Math.round(list.scrollTop / step);
+    const track = document.getElementById('pr-track'), thumb = document.getElementById('pr-thumb');
+    const h = track.clientHeight * list.clientHeight / list.scrollHeight;
+    thumb.style.height = h + 'px'; thumb.style.top = (max ? (track.clientHeight - h) * list.scrollTop / max : 0) + 'px';
+    document.getElementById('pr-up').disabled = list.scrollTop <= 4; document.getElementById('pr-down').disabled = list.scrollTop >= max - 4;
+    pos.textContent = T.pos.replace('{0}', first + 1).replace('{1}', Math.min(first + VIS, rows.length)).replace('{2}', rows.length);
+  }
+  function initRail() {
+    list = document.getElementById('plist'); rail = document.getElementById('prail');
+    if (!list || !rail) return;
+    const step = () => (list.querySelector('tbody tr') || {}).offsetHeight || 40;
+    const go = d => { const n = list.querySelectorAll('tbody tr').length; to = Math.max(0, Math.min(n - VIS, to + d)); list.scrollTo({top: to * step()}); rsync(); };
+    list.addEventListener('scroll', rsync);
+    list.addEventListener('scrollend', () => { to = Math.round(list.scrollTop / step()); });
+    document.getElementById('pr-up').addEventListener('click', () => go(-1));
+    document.getElementById('pr-down').addEventListener('click', () => go(1));
+    document.getElementById('pr-track').addEventListener('click', ev => { const r = ev.currentTarget.getBoundingClientRect();
+      list.scrollTop = (ev.clientY - r.top) / r.height * list.scrollHeight - list.clientHeight / 2; });
+    addEventListener('resize', rsync);
+    document.addEventListener('oc-tab', e => { if (e.detail === 'ports') rsync(); });  // la pestaña oculta no tiene medidas
+  }
+  function draw() { front(); selected(); table(); rsync(); }
   document.addEventListener('click', e => {
-    const b = e.target.closest('[data-p]'); if (b && (b.closest('#pfp') || b.closest('#prows'))) { sel = b.dataset.p; draw(); return; }
-    const fb = e.target.closest('#pfilt [data-f]'); if (fb) { filt = fb.dataset.f; draw(); }
+    const b = e.target.closest('[data-p]');
+    if (b && (b.closest('#pfp') || b.closest('#prows'))) {
+      sel = b.dataset.p; draw();
+      if (b.closest('#pfp') && list) {  // el puerto elegido en el frente queda a la vista en la tabla
+        const i = [...list.querySelectorAll('tbody tr')].findIndex(r => r.dataset.p === sel);
+        if (i >= 0 && (i < to || i >= to + VIS)) { to = i < to ? i : Math.max(0, i - VIS + 1); list.scrollTop = to * (list.querySelector('tbody tr').offsetHeight || 40); rsync(); }
+      }
+      return;
+    }
+    const fb = e.target.closest('#pfilt [data-f]'); if (fb) { filt = fb.dataset.f; to = 0; if (list) list.scrollTop = 0; draw(); }
   });
   document.addEventListener('keydown', e => { const r = e.target.closest && e.target.closest('#prows tr[data-p]'); if (r && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); sel = r.dataset.p; draw(); } });
   const csv = document.getElementById('pcsv');
@@ -190,6 +239,6 @@
     a.download = NAME + '_puertos.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   });
   draw();
-  document.addEventListener('DOMContentLoaded', draw);  // la pestaña «Puertos» está más abajo en la página
+  document.addEventListener('DOMContentLoaded', () => { initRail(); draw(); });  // la pestaña «Puertos» está más abajo en la página
 })();
 </script>

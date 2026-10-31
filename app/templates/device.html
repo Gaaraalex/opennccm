@@ -102,7 +102,11 @@
 <section id="ports" aria-label="{{ _('Puertos') }}">
   <div class="ptab">
     <section class="card flush"><div class="card-h" style="flex-wrap:wrap;gap:8px"><h2 style="margin-right:8px;flex:none">{{ _('Interfaces') }}</h2><div class="pbar"><div class="chips" id="pfilt" role="group" aria-label="{{ _('Filtrar puertos') }}"></div><button type="button" class="btn s ghost" id="pcsv">{{ icon('dl', 's') }}{{ _('Exportar CSV') }}</button></div></div>
-      <div class="tw"><table class="t pt-t"><colgroup><col style="width:140px"><col style="width:72px"><col style="width:120px"><col style="width:104px"><col style="width:calc((100% - 436px) * .583)"><col style="width:calc((100% - 436px) * .417)"></colgroup><thead><tr><th>{{ _('Puerto') }}</th><th>{{ _('Tipo') }}</th><th>{{ _('Estado') }}</th><th>{{ _('Velocidad') }}</th><th>{{ _('Descripción') }}</th><th>{{ _('Vecino') }}</th></tr></thead><tbody id="prows"></tbody></table></div></section>
+      <div class="prw"><div class="tw plist" id="plist"><table class="t pt-t"><colgroup><col style="width:140px"><col style="width:72px"><col style="width:120px"><col style="width:104px"><col style="width:calc((100% - 436px) * .583)"><col style="width:calc((100% - 436px) * .417)"></colgroup><thead><tr><th>{{ _('Puerto') }}</th><th>{{ _('Tipo') }}</th><th>{{ _('Estado') }}</th><th>{{ _('Velocidad') }}</th><th>{{ _('Descripción') }}</th><th>{{ _('Vecino') }}</th></tr></thead><tbody id="prows"></tbody></table></div>
+        <div class="prail" id="prail" hidden><button type="button" class="btn s ghost up" id="pr-up" aria-label="{{ _('Interfaces anteriores') }}" title="{{ _('Interfaces anteriores') }}">{{ icon('down', 's') }}</button>
+          <div class="prtrack" id="pr-track" aria-hidden="true"><div class="prthumb" id="pr-thumb"></div></div>
+          <button type="button" class="btn s ghost" id="pr-down" aria-label="{{ _('Interfaces siguientes') }}" title="{{ _('Interfaces siguientes') }}">{{ icon('down', 's') }}</button></div></div>
+      <p class="muted sm" id="pr-pos" aria-live="polite" style="margin:0;padding:8px 16px 12px;text-align:right" hidden></p></section>
     <section class="card pcard stack" id="pcard" aria-live="polite"></section>
   </div>
 </section>
