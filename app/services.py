@@ -495,7 +495,9 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
         if inventory:
             inv = parse_inventory(inventory, prof)
             dev.os_version = inv["os_version"] or dev.os_version
-            dev.model = inv["model"] or dev.model
+            # sin modelo en el inventario (EdgeSwitch de chip Realtek): la cabecera de su configuración lo dice
+            sysdesc = re.search(r"(?m)^! System Description:\s*(?:RTK\s+)?(\S+)", running)
+            dev.model = inv["model"] or (sysdesc.group(1) if sysdesc else None) or dev.model
             dev.serial = inv["serial"] or dev.serial
             dev.inventory_raw_enc = encrypt(inventory)
 

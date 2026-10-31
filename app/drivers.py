@@ -202,7 +202,8 @@ PROFILES: list[Profile] = [
             family=SET, commit=True, firmware={"method": "edgeos"}, version_re=[r"Version:\s+v(\S+)"],
             cpe=("cpe:2.3:o:ui:edgeos", "cpe:2.3:o:ui:edgemax_edgerouter_firmware"), cpe_version=SEMVER3),
     Profile("ubiquiti_edgeswitch", "Ubiquiti EdgeSwitch", "Ubiquiti", "show running-config", None,
-            family=FASTPATH, ignore=CISCO_IGNORE + FASTPATH_IGNORE, version_re=FASTPATH_VERSION,
+            family=FASTPATH, ignore=CISCO_IGNORE + FASTPATH_IGNORE,
+            version_re=FASTPATH_VERSION + [r"Firmware Version\s*:\s*(\S+)"],
             model_re=FASTPATH_MODEL, serial_re=FASTPATH_SERIAL,
             cpe=("cpe:2.3:o:ui:edgeswitch_firmware", "cpe:2.3:o:ubnt:edgeswitch_firmware"), cpe_version=SEMVER3),
     # airOS (airMAX M con airOS 6, airMAX AC con airOS 8), airFiber y los AP UniFi son Linux (BusyBox) y guardan toda

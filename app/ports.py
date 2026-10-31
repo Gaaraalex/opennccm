@@ -17,7 +17,7 @@ Cada puerto es {"n": nombre, "k": "cu" | "sfp", "s": "up" | "down" | "off" | "em
 import re
 
 from . import porttable as pt
-from .drivers import FASTPATH, HUAWEI, IOS, SET, get_profile
+from .drivers import FASTPATH, HUAWEI, get_profile
 from .i18n import _
 
 MARK = "### puertos: "  # separa la salida de cada orden en el texto leído
@@ -51,7 +51,7 @@ def commands(device_type: str) -> list[str]:
     if device_type in VYOS_LIKE:
         return ["show interfaces"]
     if prof.family == FASTPATH:
-        return ["show interfaces status all", "show port all"]
+        return ["show interfaces status all", "show interfaces status", "show interface status"]
     if prof.family == HUAWEI or device_type.startswith(("huawei", "h3c", "hp_comware")):
         return ["display interface brief"]
     return GENERIC
@@ -252,7 +252,7 @@ def _from_config(config: str) -> list[dict]:
     ports = []
     for name, body in _ios_blocks(config):
         if not (_PHYS.match(name) or re.match(r"(?i)^(GigabitEthernet|XGigabitEthernet|10GE|25GE|40GE|100GE|"
-                                              r"Ethernet|port\s?\d)", name)) or "." in name:
+                                              r"Ethernet|port\s?\d|xe\d|xg\d)", name)) or "." in name:
             continue
         off = any(re.match(r"^\s*shutdown\s*$", b) for b in body)
         ports.append({"n": name, "k": "sfp" if _is_sfp_name(name) or re.match(r"(?i)^(X|10GE|25GE|40GE|100GE)", name)
@@ -391,13 +391,11 @@ def parse(raw: str | None, device_type: str, config: str = "", model: str | None
         if ports:
             _apply_config_off(ports, device_type, config)
             return ports, True
-    fam = get_profile(device_type).family
-    if fam in (IOS, HUAWEI):
-        return _from_config(config), False
-    if fam == FASTPATH:
-        return _fastpath_config(config), False
-    if fam == SET:
-        return _set_config(config), False
+    # sin tabla de estado: la configuración, en el estilo que tenga (bloques con sangría, FastPath «… exit» o «set»)
+    for fn in (_from_config, _fastpath_config, _set_config):
+        ports = fn(config)
+        if ports:
+            return ports, False
     return [], False
 
 
@@ -405,14 +403,12 @@ def _apply_config_off(ports: list[dict], device_type: str, config: str) -> None:
     """Algunas tablas no distinguen «sin enlace» de «apagado» (FastPath, EdgeOS): la configuración lo dice."""
     if not config:
         return
-    off = set()
-    fam = get_profile(device_type).family
-    if fam == FASTPATH:
-        off = {n for n, body in _fastpath_blocks(config) if any(b.strip() == "shutdown" for b in body)}
-    elif fam == SET:
-        off = {m.group(1) for m in re.finditer(r"(?m)^set interfaces (?:ethernet )?(\S+) disable\s*$", config)}
+    off = {n for n, body in _fastpath_blocks(config) if any(b.strip() == "shutdown" for b in body)}
+    off |= {n for n, body in _ios_blocks(config) if any(b.strip() == "shutdown" for b in body)}
+    off |= {m.group(1) for m in re.finditer(r"(?m)^set interfaces (?:ethernet )?(\S+) disable\s*$", config)}
+    shorts = {_short(n) for n in off}
     for p in ports:
-        if p["n"] in off and p["s"] != "off":
+        if (p["n"] in off or _short(p["n"]) in shorts) and p["s"] != "off":
             p["s"], p["sp"] = "off", ""
 
 
