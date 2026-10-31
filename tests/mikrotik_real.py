@@ -203,7 +203,7 @@ check("puertos: el respaldo lee los ethernet del equipo con su estado", pj.get("
 with SessionLocal() as db:
     ver = db.scalars(select(ConfigVersion).where(ConfigVersion.device_id == dev_id).order_by(ConfigVersion.id.desc())).first()
     ver_id = ver.id
-ros("/system identity set name=CHR-Restaurar", "/ip address add address=192.0.2.99/32 interface=lo comment=para-quitar")
+ros("/system identity set name=CHR-Restaurar", "/interface bridge add name=br-quitar comment=para-quitar")
 with SessionLocal() as db:
     src = db.get(Device, dev_id)
     target = restore.transient(src, "127.0.0.1", PORT, "admin", PASSWORD)
@@ -217,8 +217,8 @@ if res.get("token"):
             break
     job = restore.get(res["token"], "ci")
     check("restaurar en otro equipo: aplicado en modo seguro", job["state"] == "done", job.get("error"))
-    check("el equipo vuelve a la copia (identidad y sin la IP añadida)", "CHR-Final" in ros("/system identity print")
-          and "192.0.2.99" not in ros("/ip address print terse"), ros("/system identity print"))
+    check("el equipo vuelve a la copia (identidad y sin el bridge añadido)", "CHR-Final" in ros("/system identity print")
+          and "br-quitar" not in ros("/interface bridge print terse"), res["cmds"])
 with SessionLocal() as db:
     db.get(Device, dev_id).model = "RB760iGS"
     db.commit()
