@@ -46,6 +46,13 @@ by = {p["n"]: p for p in pj.get("ports", [])}
 check("el respaldo guarda los puertos con su estado", d.last_status == "ok" and pj.get("status") is True
       and [by[n]["s"] for n in ("Gi0/0", "Gi0/1", "Gi0/2", "Gi0/3")] == ["up", "up", "off", "down"], (d.last_error, pj))
 page = s.get(B + f"/devices/{dev_id}").text
+rear = pj.get("rear", {})
+check("el respaldo lee las fuentes y los ventiladores (atrás)",
+      [(x["n"], x["s"]) for x in rear.get("psu", [])] == [("PSU 1A", "ok"), ("PSU 1B", "fail")]
+      and [(x["n"], x["s"]) for x in rear.get("fan", [])] == [("Fan 1", "ok"), ("Fan 2", "fail")], rear)
+check("la ficha avisa de la fuente sin corriente y del ventilador parado, también desde el frente",
+      "Sin corriente o con fallo: PSU 1B" in s.get(B + f"/devices/{dev_id}").text
+      and "Ventilador parado: Fan 2" in s.get(B + f"/devices/{dev_id}").text and 'data-view="rear"' in s.get(B + f"/devices/{dev_id}").text)
 check("la ficha muestra la franja de puertos", 'id="pstrip"' in page and "2 activos" in page and "de 4" in page)
 check("pestaña «Puertos» con contador, justo después de Resumen",
       page.index('<a href="#resumen"') < page.index('<a href="#ports">') < page.index('<a href="#versions"')

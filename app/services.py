@@ -389,12 +389,14 @@ def _read_neighbors(conn, device_type: str) -> str | None:
 
 def _read_ports(conn, device_type: str) -> str | None:
     """Estado de los puertos (enlace, velocidad, módulo SFP) para la ficha del equipo. Nunca hace fallar el respaldo."""
-    from . import ports
-    try:
-        return ports.read(conn, device_type)
-    except Exception as e:  # noqa: BLE001
-        log.info("puertos (%s): %s", device_type, e)
-        return None
+    from . import chassis, ports
+    out = []
+    for mod in (ports, chassis):  # puertos del frente; fuentes y ventiladores de atrás
+        try:
+            out.append(mod.read(conn, device_type) or "")
+        except Exception as e:  # noqa: BLE001
+            log.info("%s (%s): %s", mod.__name__, device_type, e)
+    return "\n".join(x for x in out if x) or None
 
 
 def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
@@ -482,8 +484,13 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
 
         if prof.key not in HTTP_ONLY:  # puertos y su estado, para la ficha del equipo
             from . import ports as ports_mod
-            plist, has_status = ports_mod.parse(ports_raw, dev.device_type, running)
-            dev.ports = json.dumps({"at": now().isoformat(), "status": has_status, "ports": plist}) if plist else None
+            mdl = (parse_inventory(inventory, prof)["model"] if inventory else None) or dev.model
+            from . import chassis
+            praw, _, craw = (ports_raw or "").partition(chassis.MARK)
+            plist, has_status = ports_mod.parse(praw, dev.device_type, running, mdl)
+            rear = chassis.parse(chassis.MARK + craw if craw else None, dev.device_type)
+            dev.ports = json.dumps({"at": now().isoformat(), "status": has_status, "ports": plist, "rear": rear}) \
+                if plist or any(rear.values()) else None
 
         if inventory:
             inv = parse_inventory(inventory, prof)

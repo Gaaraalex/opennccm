@@ -5,9 +5,10 @@ Por eso el estado se lee en la misma conexión del respaldo y se guarda en el eq
 
 * MikroTik: «/interface ethernet print terse» (bandera R = con enlace, X = deshabilitado) y, por puerto,
   «/interface ethernet monitor <puerto> once» (status, rate, sfp-module-present y datos del módulo).
-* Cisco IOS / IOS-XE: «show interfaces status». ASA / FTD: «show interface ip brief». Juniper: «show interfaces terse».
-* El resto de plataformas con bloques «interface …» (sintaxis Cisco/Huawei): solo lo que dice la configuración
-  (apagado o habilitado), sin estado de enlace.
+* ASA / FTD: «show interface ip brief». Juniper: «show interfaces terse».
+* El resto, con la orden de cada fabricante (COMMANDS) y los lectores de app/porttable.py; si el equipo no tiene ninguna
+  de ellas se prueban las habituales («show interfaces status», «show interface brief»…).
+* Si ninguna da la tabla: solo lo que dice la configuración (apagado o habilitado), sin estado de enlace.
 
 Cada puerto es {"n": nombre, "k": "cu" | "sfp", "s": "up" | "down" | "off" | "empty" | "on", "sp": velocidad,
 "d": descripción, "net": dirección o VLAN, "mod": módulo SFP, "st": línea de estado tal como la dio el equipo}.
@@ -15,21 +16,49 @@ Cada puerto es {"n": nombre, "k": "cu" | "sfp", "s": "up" | "down" | "off" | "em
 """
 import re
 
-from .drivers import HUAWEI, IOS, get_profile
-from .i18n import _, _f
+from . import porttable as pt
+from .drivers import FASTPATH, HUAWEI, IOS, SET, get_profile
+from .i18n import _
 
 MARK = "### puertos: "  # separa la salida de cada orden en el texto leído
 MAX_MONITOR = 64        # MikroTik: puertos a consultar uno por uno con «monitor» (los CCR grandes tienen ~30)
 
-STATUS = {
-    "cisco_ios": ["show interfaces status"], "cisco_xe": ["show interfaces status"],
+# orden(es) que dan el estado de los puertos, por tipo de equipo; se prueban en orden hasta que una da la tabla
+LINUX = ("linux", "ubuntu_server", "alpine_linux", "cumulus_linux", "dell_sonic", "edgecore_sonic", "opengear_linux",
+         "ubiquiti_airos", "ubiquiti_airfiber", "ubiquiti_unifi_ap")
+COMMANDS = {
     "cisco_asa": ["show interface ip brief"], "cisco_ftd": ["show interface ip brief"],
     "juniper_junos": ["show interfaces terse"], "juniper": ["show interfaces terse"],
+    "cisco_nxos": ["show interface status"], "cisco_wlc": ["show port summary"],
+    "hp_procurve": ["show interfaces brief"], "aruba_osswitch": ["show interfaces brief"],
+    "aruba_aoscx": ["show interface brief"], "extreme_exos": ["show ports no-refresh"],
+    "fortinet": ["get system interface physical"], "paloalto_panos": ["show interface all"],
+    "checkpoint_gaia": ["show interfaces all"], "nokia_sros": ["show port"],
+    "pfsense": ["ifconfig -a"], "opnsense": ["ifconfig -a"],
+    "ubiquiti_unifiswitch": ["show interfaces status all", "show port all"],
+    "broadcom_icos": ["show interfaces status all", "show port all"],
+    "netgear_prosafe": ["show interfaces status all", "show interfaces status"],
+    **{k: [pt.LINUX_CMD] for k in LINUX},
 }
+GENERIC = ["show interfaces status", "show interface status", "show interfaces brief", "show interface brief"]
+VYOS_LIKE = ("vyos", "ubiquiti_edgerouter", "ubiquiti_usg")
+
+
+def commands(device_type: str) -> list[str]:
+    if device_type in COMMANDS:
+        return COMMANDS[device_type]
+    prof = get_profile(device_type)
+    if device_type in VYOS_LIKE:
+        return ["show interfaces"]
+    if prof.family == FASTPATH:
+        return ["show interfaces status all", "show port all"]
+    if prof.family == HUAWEI or device_type.startswith(("huawei", "h3c", "hp_comware")):
+        return ["display interface brief"]
+    return GENERIC
 
 
 def has_status(device_type: str) -> bool:
-    return device_type == "mikrotik_routeros" or device_type in STATUS
+    return device_type == "mikrotik_routeros" or bool(commands(device_type))
 
 
 def read(conn, device_type: str) -> str | None:
@@ -50,11 +79,14 @@ def read(conn, device_type: str) -> str | None:
                 pass
         return "\n".join(raw)
     out = []
-    for c in STATUS.get(device_type, []):
+    for c in commands(device_type):
         try:
-            out.append(MARK + c + "\n" + conn.send_command(c, read_timeout=30))
+            text = conn.send_command(c, read_timeout=30)
         except Exception:  # noqa: BLE001
-            pass
+            continue
+        out.append(MARK + c + "\n" + text)
+        if _parse_section(c, text, device_type):  # la primera que da puertos basta
+            break
     return "\n".join(out) or None
 
 
@@ -229,6 +261,43 @@ def _from_config(config: str) -> list[dict]:
     return ports
 
 
+def _fastpath_blocks(config: str) -> list[tuple[str, list[str]]]:
+    """FastPath (EdgeSwitch, UniFi): «interface 0/1» … «exit», sin sangría."""
+    out, cur = [], None
+    for line in (config or "").splitlines():
+        m = re.match(r"^interface\s+(\d+/\d+)\s*$", line.strip())
+        if m:
+            cur = (m.group(1), [])
+            out.append(cur)
+        elif cur is not None:
+            if line.strip() == "exit":
+                cur = None
+            else:
+                cur[1].append(line.strip())
+    return out
+
+
+def _fastpath_config(config: str) -> list[dict]:
+    return [{"n": n, "k": "cu", "s": "off" if "shutdown" in body else "on", "sp": "",
+             "d": next((b[12:].strip("'\"") for b in body if b.startswith("description ")), ""), "net": "", "mod": "", "st": ""}
+            for n, body in _fastpath_blocks(config) if n.startswith("0/")]
+
+
+def _set_config(config: str) -> list[dict]:
+    """Junos / VyOS / EdgeOS en formato «set»: interfaces físicas y si tienen «disable»."""
+    seen: dict[str, dict] = {}
+    for m in re.finditer(r"(?m)^set interfaces (?:ethernet )?((?:ge|xe|et|fe|mge|xle)-\d+/\d+/\d+|eth\d+)(?:\s+(.*))?$",
+                         config or ""):
+        n, rest = m.group(1), (m.group(2) or "").strip()
+        p = seen.setdefault(n, {"n": n, "k": "sfp" if n.startswith(("xe-", "et-", "xle-")) else "cu", "s": "on", "sp": "",
+                                "d": "", "net": "", "mod": "", "st": ""})
+        if rest == "disable":
+            p["s"] = "off"
+        elif rest.startswith("description "):
+            p["d"] = rest[12:].strip("'\"")
+    return list(seen.values())
+
+
 def _ios_blocks(config: str) -> list[tuple[str, list[str]]]:
     out, cur = [], None
     for line in (config or "").splitlines():
@@ -243,24 +312,108 @@ def _ios_blocks(config: str) -> list[tuple[str, list[str]]]:
     return out
 
 
-def parse(raw: str | None, device_type: str, config: str = "") -> tuple[list[dict], bool]:
+# Frente de los modelos más comunes (fotos del fabricante): filas del cobre, columnas por bloque, huecos en una fila y
+# si los SFP van en una fila (al lado de la fila de abajo, como en el CRS326) o en dos.
+#   rows: 1 | 2 · grp: columnas por bloque (fila doble) · gaps: tras qué puertos hay un hueco (fila simple)
+#   sfp: "row" (todos en una fila), "bottom" (en la fila de abajo, junto al cobre) o "pairs" (de dos en dos)
+LAYOUTS = [
+    # MikroTik
+    (r"(?i)^(CRS3\d\d|CSS3\d\d|CRS354|CSS610|CRS510|CRS518)", {"rows": 2, "grp": 4, "sfp": "bottom"}),
+    (r"(?i)^(CCR1036-12G|CCR1016-12G|CCR2116-12G|CCR1072)", {"rows": 2, "grp": 6, "sfp": "pairs"}),
+    (r"(?i)^(CCR2004-16G|CCR2216)", {"rows": 2, "grp": 4, "sfp": "pairs"}),
+    (r"(?i)^(RB4011|RB2011|RB3011|RB1100)", {"rows": 1, "gaps": [5], "sfp": "row"}),
+    (r"(?i)^(RB5009|CCR2004-1G|CCR1009|hEX|hAP|RB750|RB760|RB951|RB952|RB941|L009|RB450|RB850)", {"rows": 1, "sfp": "row"}),
+    # Ubiquiti (UniFi, EdgeSwitch, EdgeRouter)
+    (r"(?i)^(US-?8|USW-?(Lite-)?8|USW-?Flex|ES-?8|ES-?10|ER-|EdgeRouter|ER\d|USW-Ultra|USG)", {"rows": 1, "sfp": "row"}),
+    (r"(?i)^(US-?16|USW-?(Lite-)?16|ES-?16)", {"rows": 2, "grp": 4, "sfp": "pairs"}),
+    (r"(?i)^(US-?24|USW-?24|ES-?24|US-?48|USW-?48|ES-?48|USW-Pro)", {"rows": 2, "grp": 6, "sfp": "pairs"}),
+    # firewalls de escritorio: una fila
+    (r"(?i)^(FortiGate|FG-?\d|FGT|PA-?2\d\d|PA-?4\d\d|PA-?1[45]\d\d|SG-\d|Netgate|XG\s?\d|Firebox)", {"rows": 1, "sfp": "row"}),
+]
+
+
+def layout(model: str | None, ports: list[dict]) -> dict:
+    """Disposición del frente: del catálogo por modelo o, si no está, según el número de puertos de cobre."""
+    for pat, lay in LAYOUTS:
+        if re.search(pat, (model or "").strip()):
+            return {"rows": 1, "grp": 6, "gaps": [], "sfp": "row", **lay}
+    cu = sum(1 for p in ports if p["k"] != "sfp")
+    sfp = len(ports) - cu
+    if cu <= 12:
+        return {"rows": 1, "grp": 6, "gaps": [], "sfp": "row" if sfp <= 4 else "pairs"}
+    cols = (cu + 1) // 2
+    return {"rows": 2, "grp": 6 if cols % 6 == 0 else 4 if cols % 4 == 0 else cols, "gaps": [],
+            "sfp": "bottom" if sfp <= 2 else "pairs"}
+
+
+def model_ports(model: str | None) -> int | None:
+    """Puertos de cobre que dice el modelo («US-24-250W» -> 24, «WS-C2960X-48FPD-L» -> 48), para saber que los
+    siguientes son SFP cuando el equipo no dice el tipo de cada puerto."""
+    m = re.search(r"(?i)(?:^|[-_ ])(?:[a-z]*?)(8|10|16|18|24|26|28|48|52)(?:[a-z]*)?(?:[-_ ]|$)", model or "")
+    return int(m.group(1)) if m else None
+
+
+def _parse_section(cmd: str, text: str, device_type: str, model: str | None = None) -> list[dict]:
+    if cmd == "show interface ip brief":
+        return _asa(text)
+    if cmd == "show interfaces terse":
+        return _junos(text)
+    if cmd == "show interfaces" and device_type in VYOS_LIKE:
+        return pt.vyos(text)
+    if cmd == "get system interface physical":
+        return pt.fortigate(text)
+    if cmd == "show interface all" and device_type == "paloalto_panos":
+        return pt.panos(text)
+    if cmd == "show interfaces all" and device_type == "checkpoint_gaia":
+        return pt.gaia(text)
+    if cmd == pt.LINUX_CMD:
+        return pt.linux(text)
+    if cmd == "ifconfig -a":
+        return pt.bsd(text)
+    ports = pt.from_table(text, model_ports(model))
+    if get_profile(device_type).family == FASTPATH or cmd in ("show interfaces status all", "show port all"):
+        # FastPath (EdgeSwitch, UniFi): los puertos del frente son 0/N; 3/N son agregados (LAG) y 4/N, VLAN
+        ports = [p for p in ports if re.match(r"^0/\d+$", p["n"])] or ports
+    return ports
+
+
+def parse(raw: str | None, device_type: str, config: str = "", model: str | None = None) -> tuple[list[dict], bool]:
     """(puertos, hay_estado_de_enlace). Sin salida de estado se usa la configuración (apagado / habilitado)."""
     ports: list[dict] = []
     if raw:
-        sec = _sections(raw)
         if device_type == "mikrotik_routeros":
             ports = _mikrotik(raw)
-        elif "show interfaces status" in sec:
-            ports = _ios_status(sec["show interfaces status"])
-        elif "show interface ip brief" in sec:
-            ports = _asa(sec["show interface ip brief"])
-        elif "show interfaces terse" in sec:
-            ports = _junos(sec["show interfaces terse"])
+        else:
+            for cmd, text in _sections(raw).items():
+                ports = _parse_section(cmd, text, device_type, model)
+                if ports:
+                    break
         if ports:
+            _apply_config_off(ports, device_type, config)
             return ports, True
-    if get_profile(device_type).family in (IOS, HUAWEI):
+    fam = get_profile(device_type).family
+    if fam in (IOS, HUAWEI):
         return _from_config(config), False
+    if fam == FASTPATH:
+        return _fastpath_config(config), False
+    if fam == SET:
+        return _set_config(config), False
     return [], False
+
+
+def _apply_config_off(ports: list[dict], device_type: str, config: str) -> None:
+    """Algunas tablas no distinguen «sin enlace» de «apagado» (FastPath, EdgeOS): la configuración lo dice."""
+    if not config:
+        return
+    off = set()
+    fam = get_profile(device_type).family
+    if fam == FASTPATH:
+        off = {n for n, body in _fastpath_blocks(config) if any(b.strip() == "shutdown" for b in body)}
+    elif fam == SET:
+        off = {m.group(1) for m in re.finditer(r"(?m)^set interfaces (?:ethernet )?(\S+) disable\s*$", config)}
+    for p in ports:
+        if p["n"] in off and p["s"] != "off":
+            p["s"], p["sp"] = "off", ""
 
 
 # --------------------------------------------------------------------------- datos de la configuración (al mostrar)
@@ -282,7 +435,7 @@ def enrich(ports: list[dict], device_type: str, config: str, neighbors: list[dic
     blocks = dict(_ios_blocks(config)) if device_type != "mikrotik_routeros" else {}
     if device_type == "mikrotik_routeros":
         addr: dict[str, list[str]] = {}
-        bridge: dict[str, str] = {}
+        bridge: dict[str, tuple[str, str]] = {}
         for l in lines:
             if l.startswith("/ip address add "):
                 kv = dict(_ROS_KV.findall(l))
@@ -291,7 +444,7 @@ def enrich(ports: list[dict], device_type: str, config: str, neighbors: list[dic
             elif l.startswith("/interface bridge port add "):
                 kv = dict(_ROS_KV.findall(l))
                 if kv.get("interface"):
-                    bridge[_ros_text(kv["interface"])] = _ros_text(kv.get("bridge", ""))
+                    bridge[_ros_text(kv["interface"])] = (_ros_text(kv.get("bridge", "")), _ros_text(kv.get("pvid", "")))
     for p in ports:
         n = p["n"]
         p["nb"] = neigh.get(n) or next((v for k, v in neigh.items() if _short(k) == _short(n)), "")
@@ -300,8 +453,11 @@ def enrich(ports: list[dict], device_type: str, config: str, neighbors: list[dic
             dn = p.get("dn") or n
             pat = re.compile(rf'(default-name={re.escape(dn)}(\s|$)|interface="?{re.escape(n)}"?(\s|$))')
             cfg = [l for l in lines if pat.search(l)][:4]
-            if not p.get("net"):
-                p["net"] = ", ".join(addr.get(n, [])) or (_f("puente {0}", bridge[n]) if n in bridge else "")
+            if not p.get("net") and addr.get(n):
+                p["net"], p["nk"] = ", ".join(addr[n]), "ip"
+            elif not p.get("net") and n in bridge:
+                br, pvid = bridge[n]
+                p["net"], p["nk"] = br + (f" · VLAN {pvid}" if pvid and pvid != "1" else ""), "bridge"
         elif device_type.startswith("juniper"):
             cfg = [l for l in lines if l.startswith(f"set interfaces {n} ")][:4]
             if not p.get("d"):
@@ -328,6 +484,8 @@ def enrich(ports: list[dict], device_type: str, config: str, neighbors: list[dic
                         p["net"] = "trunk"
         if p.get("net") == "trunk":
             p["net"] = _("Troncal")
+        if p.get("net") and not p.get("nk"):  # IP leída del equipo o de la configuración; si no, VLAN o troncal
+            p["nk"] = "ip" if re.match(r"^[\d.]+(/\d+)?$|^[0-9a-fA-F:]+:[0-9a-fA-F:]*(/\d+)?$", p["net"].split(",")[0].strip()) else "net"
         p["cfg"] = cfg
 
 

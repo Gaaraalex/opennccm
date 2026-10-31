@@ -1039,7 +1039,8 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
             except ValueError:
                 nbs = []
             ports_mod.enrich(pj["ports"], dev.device_type, try_decrypt(last_run.content_enc, "") if last_run else "", nbs)
-            pinfo = {"ports": pj["ports"], "status": bool(pj.get("status")), "at": datetime.fromisoformat(pj["at"])}
+            pinfo = {"ports": pj["ports"], "status": bool(pj.get("status")), "at": datetime.fromisoformat(pj["at"]),
+                     "layout": ports_mod.layout(dev.model, pj["ports"]), "rear": pj.get("rear") or {"psu": [], "fan": []}}
         audit_rows = db.scalars(select(AuditLog).where(or_(AuditLog.detail.like(f"%{dev.name}%"),
                                                            AuditLog.detail.like(f"%device={dev_id}%")))
                                 .order_by(AuditLog.id.desc()).limit(20)).all()

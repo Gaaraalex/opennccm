@@ -1,5 +1,21 @@
 # Historial de versiones
 
+## 2.13.0
+- **Puertos en todas las plataformas.** El estado de los puertos se lee con la orden de cada fabricante: Ubiquiti
+  EdgeSwitch y UniFi (FastPath), Huawei, H3C/Comware, HPE ProCurve/Aruba OS-Switch, Aruba AOS-CX, Cisco IOS/IOS-XE,
+  NX-OS, ASA/FTD y WLC, Arista, Dell, TP-Link y demás switches con CLI tipo Cisco, Juniper, Extreme EXOS, Nokia SR OS,
+  EdgeRouter/USG/VyOS, FortiGate, Palo Alto, Check Point, Linux (también airOS, airFiber y UniFi AP) y pfSense/OPNsense.
+  Si el equipo no responde a ninguna, los puertos salen de la configuración (apagado o habilitado).
+- **Frente fiel al modelo.** Una fila en routers y switches pequeños (hEX, RB4011 con su separación, US-8, firewalls de
+  escritorio) y dos filas en los grandes, en bloques como en el equipo (CRS326 de 4 en 4 con los SFP+ abajo; UniFi,
+  EdgeSwitch y Cisco de 6 en 6 con los SFP de dos en dos). Los SFP sin tipo se reconocen por el modelo (ES-24: 25 y 26).
+- **Parte de atrás: fuentes y ventiladores.** Botón «Atrás» en la franja de puertos: fuentes de alimentación y
+  ventiladores en verde si funcionan y en rojo si fallan o están sin corriente; aviso en la franja si alguno falla.
+  Se lee en el respaldo (MikroTik, Cisco, Juniper, Huawei, HPE, Aruba, Arista, FastPath, Extreme y FortiGate).
+- **Ficha con puertos, ajustes de diseño:** resumen en la columna derecha, números fuera del contorno de selección,
+  tabla Interfaces en una línea por puerto con 10 a la vista y barra para desplazarse, «Dirección», «Bridge» o «Red»
+  según el puerto, frente desplazable en el móvil y cabecera del equipo ordenada en pantallas estrechas.
+
 ## 2.12.0
 - **Puertos en la ficha del equipo.** Una franja entre la cabecera y las pestañas dibuja el frente del equipo con cada puerto en
   su orden físico (RJ45 de cobre, jaula SFP con o sin módulo; dos filas en equipos grandes) y su estado: activo, sin enlace,

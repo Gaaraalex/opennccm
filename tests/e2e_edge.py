@@ -1,6 +1,7 @@
 """Ubiquiti EdgeSwitch (FastPath) simulado: inventario, respaldos sin falsos cambios y reversión completa.
 Requiere haber ejecutado antes e2e.py (usuario admin). Levanta su propio equipo simulado (puerto 2226)."""
 import html as htmlmod
+import json
 import os
 import re
 import subprocess
@@ -67,6 +68,12 @@ try:
     check("inventario: serie 7483C2ABCDEF", re.search(r"<dd[^>]*>7483C2ABCDEF</dd>", page) is not None)
     check("inventario: firmware 1.9.3.5263085", "1.9.3.5263085" in page)
     check("grupo creado desde el formulario del equipo", "Oficina principal</a>" in page)
+    m = re.search(r", L = (\{.*?\}), P = (\[.*?\]), HAS = true", page)
+    lay, pts = (json.loads(m.group(1)), {p["n"]: p for p in json.loads(m.group(2))}) if m else ({}, {})
+    check("puertos del EdgeSwitch en la ficha (FastPath: solo 0/N, ES-16: 17 y 18 son SFP)",
+          list(pts) == ["0/1", "0/2", "0/17", "0/18"] and pts["0/1"]["s"] == "up" and pts["0/1"]["d"] == "Servidor"
+          and pts["0/17"]["k"] == "sfp" and pts["0/18"]["k"] == "sfp" and pts["0/2"]["k"] == "cu", (lay, pts))
+    check("frente del ES-16: dos filas en bloques de 4", lay.get("rows") == 2 and lay.get("grp") == 4, lay)
 
     f = backup(dev)
     check("segundo respaldo sin cambios (se ignora el tiempo encendido)", any("sin cambios" in x for x in f), f)
