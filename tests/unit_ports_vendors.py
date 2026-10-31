@@ -46,6 +46,43 @@ by, _ = states("ubiquiti_unifiswitch", "show interfaces status all", ES, "", "US
 check("UniFi (FastPath): mismos puertos", len(by) == 5 and by["0/1"]["s"] == "up")
 check("EdgeSwitch: comandos de su familia", ports.commands("ubiquiti_edgeswitch")[0] == "show interfaces status all")
 
+# EdgeSwitch con chip Realtek (ES-18X: «interface gi1», CLI tipo Cisco Small Business)
+RTK_CFG = """SYSTEM CONFIG FILE ::= BEGIN
+! System Description: RTK ES-18X Switch
+system name " VNT-SW-TW"
+interface gi1
+ switchport hybrid allowed vlan add 40-42 tagged
+ description "S-1"
+!
+interface gi2
+ shutdown
+ description "S-2"
+!
+interface gi3
+!
+"""
+RTK = """
+                                             Flow Link          Back   Mdix
+Port     Type         Duplex  Speed Neg      ctrl State       Pressure Mode
+-------- ------------ ------  ----- -------- ---- ----------- -------- -------
+gi1      1G-Copper    Full    1000  Enabled  Off  Up          Disabled Off
+gi2      1G-Copper      --      --     --     --  Down            --     --
+gi3      1G-Copper      --      --     --     --  Down (nc)       --     --
+gi17     1G-Fiber     Full    1000  Enabled  Off  Up          Disabled Off
+"""
+by, st = states("ubiquiti_edgeswitch", "show interfaces status", RTK, RTK_CFG)
+check("EdgeSwitch Realtek: tabla «show interfaces status»", st and [(k, by[k]["s"]) for k in by]
+      == [("gi1", "up"), ("gi2", "off"), ("gi3", "down"), ("gi17", "up")] and by["gi17"]["k"] == "sfp"
+      and by["gi1"]["sp"] == "1 Gbps", by)
+check("EdgeSwitch Realtek: también prueba «show interfaces status»", "show interfaces status" in ports.commands("ubiquiti_edgeswitch"))
+p, st = ports.parse(M + "show interfaces status all\n% Invalid input detected", "ubiquiti_edgeswitch", RTK_CFG)
+check("EdgeSwitch Realtek sin tabla: puertos gi de la configuración", not st and [(x["n"], x["s"]) for x in p]
+      == [("gi1", "on"), ("gi2", "off"), ("gi3", "on")], p)
+from app.drivers import get_profile, parse_inventory  # noqa: E402
+inv = parse_inventory("Loader Version   : 1.3.5\nLoader Date      : Jan 17 2025\nFirmware Version : 1.11.1\n",
+                      get_profile("ubiquiti_edgeswitch"))
+check("EdgeSwitch Realtek: el firmware es 1.11.1, no la versión del cargador", inv["os_version"] == "1.11.1", inv)
+
 # Huawei VRP «display interface brief»
 HW = """PHY: Physical
 *down: administratively down
