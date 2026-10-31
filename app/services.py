@@ -482,7 +482,8 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
 
         if prof.key not in HTTP_ONLY:  # puertos y su estado, para la ficha del equipo
             from . import ports as ports_mod
-            plist, has_status = ports_mod.parse(ports_raw, dev.device_type, running)
+            mdl = (parse_inventory(inventory, prof)["model"] if inventory else None) or dev.model
+            plist, has_status = ports_mod.parse(ports_raw, dev.device_type, running, mdl)
             dev.ports = json.dumps({"at": now().isoformat(), "status": has_status, "ports": plist}) if plist else None
 
         if inventory:

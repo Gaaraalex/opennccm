@@ -76,7 +76,7 @@
 </section>
 <script>
 (function () {
-  const P = {{ ports.ports|tojson }}, HAS = {{ ports.status|tojson }}, NAME = {{ device.name|tojson }}, DT = {{ device.device_type|tojson }};
+  const L = {{ ports.layout|tojson }}, P = {{ ports.ports|tojson }}, HAS = {{ ports.status|tojson }}, NAME = {{ device.name|tojson }}, DT = {{ device.device_type|tojson }};
   const T = {{ {'up': _('Activo'), 'down': _('Sin enlace'), 'off': _('Apagado'), 'empty': _('Sin módulo'), 'on': _('Habilitado'),
     'cu': _('Cobre'), 'sfp': _('Fibra'), 'neigh': _('Vecino'), 'type': _('Tipo'), 'desc': _('Descripción'), 'speed': _('Velocidad'),
     'net': _('Dirección'), 'bridge': _('Bridge'), 'netg': _('Red'), 'module': _('Módulo'), 'nomod': _('No hay módulo en la jaula'), 'said': _('LO QUE DICE EL RESPALDO'),
@@ -84,7 +84,7 @@
     'all': _('Todos'), 'fup': _('Activos'), 'fdown': _('Inactivos'), 'ffib': _('Fibra'), 'foff': _('Apagados'), 'fcu': _('Cobre'),
     'port': _('Puerto'), 'st': _('Estado'), 'pos': _('{0}–{1} de {2} interfaces'), 'nocfg': _('La configuración no menciona este puerto.')}|tojson }};
   // Y0: fila de arriba; los números (12 px de alto) quedan a 8 px del icono, fuera del contorno de selección (5 px)
-  const big = P.length > 14, CW = 32, SW = 42, H = 28, GAP = 6, GG = 12, SEP = 16, Y0 = 20;
+  const big = L.rows === 2, CW = 32, SW = 42, H = 28, GAP = 6, GG = 12, SEP = 16, Y0 = 20;
   const cu = P.filter(p => p.k !== 'sfp'), sf = P.filter(p => p.k === 'sfp');
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c]);
   const tail = n => (n.match(/(\d+)$/) || [, n])[1];
@@ -127,7 +127,7 @@
     let cuW = 0, groups = [];
     if (!big) {
       let x = 0;
-      cu.forEach(p => { put(p, x, Y0, CW, false, 0); x += CW + GAP; });
+      cu.forEach((p, i) => { if (i && (L.gaps || []).includes(i)) x += GG; put(p, x, Y0, CW, false, 0); x += CW + GAP; });
       cuW = cu.length ? x - GAP : 0;
       let sx = cu.length ? cuW + SEP : 0;
       const s0 = sx;
@@ -138,13 +138,20 @@
       h += caps(groups, Y0 + H + 8);
       box.style.width = Math.max(W, capEnd(groups)) + 'px'; box.style.height = (Y0 + H + 22) + 'px';
     } else {  // dos filas: impares arriba, pares abajo (la fila de abajo con el RJ45 invertido), grupos de 6 columnas
-      const Y1 = Y0 + H + 8, NB = Y1 + H + 8, cx = c => c * (CW + GAP) + Math.floor(c / 6) * GG;
+      const Y1 = Y0 + H + 8, NB = Y1 + H + 8, cx = c => c * (CW + GAP) + Math.floor(c / (L.grp || 6)) * GG;
       const cols = Math.ceil(cu.length / 2);
+      // impares arriba y pares abajo (la fila de abajo con el RJ45 invertido); en bloques de L.grp columnas
       cu.forEach((p, i) => { const c = Math.floor(i / 2), b = i % 2 === 1; put(p, cx(c), b ? Y1 : Y0, CW, b, b ? NB : 0); });
       cuW = cols ? cx(cols - 1) + CW : 0;
       const sx0 = cu.length ? cuW + SEP : 0, scol = Math.ceil(sf.length / 2);
-      sf.forEach((p, i) => { const c = Math.floor(i / 2), b = i % 2 === 1; put(p, sx0 + c * (SW + GAP), b ? Y1 : Y0, SW, false, b ? NB : 0); });
-      W = sf.length ? sx0 + scol * (SW + GAP) - GAP : cuW;
+      if (L.sfp === 'pairs') {
+        sf.forEach((p, i) => { const c = Math.floor(i / 2), b = i % 2 === 1; put(p, sx0 + c * (SW + GAP), b ? Y1 : Y0, SW, false, b ? NB : 0); });
+        W = sf.length ? sx0 + scol * (SW + GAP) - GAP : cuW;
+      } else {  // en una fila: la de abajo, junto al cobre (CRS326), o la de arriba
+        const b = L.sfp === 'bottom';
+        sf.forEach((p, i) => put(p, sx0 + i * (SW + GAP), b ? Y1 : Y0, SW, false, b ? NB : 0));
+        W = sf.length ? sx0 + sf.length * (SW + GAP) - GAP : cuW;
+      }
       if (cu.length) groups.push([0, cuW, T.cu + gbe(cu)]);
       if (sf.length) groups.push([sx0, Math.max(W - sx0, 92), sfpCap()]);
       h += caps(groups, NB + 16);

@@ -382,6 +382,15 @@ def edge_handle(s, mode, ctx):
             return edge_render()
         if s == "show version":
             return EDGE_VERSION
+        if s == "show interfaces status all":  # puertos de la ficha (FastPath): 0/N del frente, 3/N LAG
+            return ("\n                                    Link    Physical    Physical    Media       Flow\n"
+                    "Port       Name                     State   Mode        Status      Type        Control     VLAN\n"
+                    "---------  -----------------------  ------  ----------  ----------  ----------  ----------  ----------\n"
+                    "0/1        Servidor                 Up      Auto        1000 Full   Copper      Inactive    1\n"
+                    "0/2                                 Down    Auto                    Copper      Inactive    1\n"
+                    "0/17                                Up      Auto        1000 Full   Fiber       Inactive    Trunk\n"
+                    "0/18                                Down    Auto                    Unknown     Inactive    1\n"
+                    "3/1                                 Down\n")
         if s == "configure":
             mode[0] = "config"
             return ""
