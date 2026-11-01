@@ -550,6 +550,18 @@ dialog.dlg:not([open]){display:none}
 @media (max-width:1240px){.donate .dt small{display:none}.donate{height:36px}.search-top{min-width:0;width:36px;padding:0;justify-content:center}.search-top span,.search-top kbd{display:none}}
 @media (max-width:860px){.donate{width:36px;height:36px;padding:0;justify-content:center}.donate .dt,.donate .dbtn{display:none}}
 @media (prefers-reduced-motion:reduce){.donate{transition:none}}
+/* «Soporte profesional» (estilo «Aurora» de Diseño UX): enlace a la comunidad; mismo alto que «Apoya OpenNCCM» */
+.btn-soporte{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 14px;border-radius:999px;color:#fff;font:600 13px var(--f-sans);white-space:nowrap;flex:none;text-decoration:none;
+  background:linear-gradient(110deg,#2563eb,#7c3aed,#0891b2,#2563eb);background-size:300% 100%;animation:aurora 6s linear infinite;
+  box-shadow:0 8px 24px -12px #7c3aed;transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s}
+.btn-soporte:hover{color:#fff;text-decoration:none;transform:translateY(-1px);box-shadow:0 10px 30px -8px #7c3aed;animation-play-state:paused}
+.btn-soporte:focus-visible{outline:2px solid #fff;outline-offset:3px;color:#fff}
+.btn-soporte .ico{width:15px;height:15px;color:#fff}
+@keyframes aurora{to{background-position:300% 0}}
+@media (max-width:1240px){.btn-soporte{height:36px}}
+@media (max-width:1100px){.donate .dt{display:none}.donate{padding:0 5px 0 10px}}
+@media (max-width:600px){.btn-soporte{width:36px;padding:0;justify-content:center}.btn-soporte span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}}
+@media (prefers-reduced-motion:reduce){.btn-soporte{animation:none;transition:none}}
 
 /* Ajustes › Asistente IA */
 .ai-provs{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}.ai-prov{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;cursor:pointer;background:var(--surface)}.ai-prov:has(input:checked){border-color:var(--brand);box-shadow:0 0 0 2px color-mix(in srgb,var(--brand) 25%,transparent)}.ai-prov input{position:absolute;opacity:0;pointer-events:none}.ai-prov span{display:flex;flex-direction:column;line-height:1.25}.ai-plogo{width:30px;height:30px;border-radius:8px;display:grid!important;place-items:center;font:700 14px var(--f-sans);background:var(--surface-3);flex:none}.ai-prov .pill{margin-left:auto}.ai-prev{background:var(--surface-2);border-radius:10px;padding:10px 12px;margin:0;white-space:pre-wrap;max-height:220px;overflow:auto}.ai-big{font-size:22px}

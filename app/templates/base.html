@@ -64,6 +64,7 @@
 <header class="top" id="top">
   <button type="button" class="tbtn menu-btn" data-drawer aria-label="Abrir menú">{{ icon('menu') }}</button>
   <div class="crumbs grow">{% block crumbs %}<b>{{ self.title() }}</b>{% endblock %}</div>
+  {% set SUP = support_link() %}{% if SUP %}<a class="btn-soporte" href="{{ SUP }}" target="_blank" rel="noopener" title="{{ _('Soporte profesional') }}">{{ icon('headset') }}<span>{{ _('Soporte profesional') }}</span></a>{% endif %}
   {% set DL = donate_links() %}{% from "_donate.html" import donate_body %}
   {% if user.role == 'admin' and DL %}<span class="dropw"><button type="button" class="donate" data-drop="don-pop" aria-haspopup="true" aria-expanded="false" aria-label="{{ _('Apoya OpenNCCM: donar') }}" title="{{ _('Apoya OpenNCCM') }}">{{ icon('heart') }}<span class="dt"><b>Apoya OpenNCCM</b><small>Libre y gratis gracias a ti</small></span><span class="dbtn">Donar</span></button>
     <div class="drop don-pop" id="don-pop" hidden>{{ donate_body(DL) }}</div></span>{% endif %}

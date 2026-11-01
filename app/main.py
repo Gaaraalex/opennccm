@@ -2775,17 +2775,17 @@ SETTING_KEYS = ["smtp_host", "smtp_port", "smtp_security", "smtp_user", "smtp_fr
                 "allow_self_approval", "notify_compliance", "retention_versions", "cisco_api_client_id",
                 "dr_keep", "dr_remote_host", "dr_remote_port", "dr_remote_user", "dr_remote_path",
                 "session_idle_minutes", "remember_days", "require_2fa_admins", "console_access", "console_autologin", "update_check",
-                "topology_enabled", "topology_types", "git_enabled", "git_url", "git_branch", "git_user", "git_mask", "org_name", "org_contact", "org_address", "default_lang",
+                "topology_enabled", "topology_types", "git_enabled", "git_url", "git_branch", "git_user", "git_mask", "org_name", "org_contact", "org_address", "default_lang", "support_button",
                 "ldap_enabled", "ldap_url", "ldap_starttls", "ldap_verify_tls", "ldap_bind_dn", "ldap_base_dn",
                 "ldap_user_filter", "ldap_group_admin", "ldap_group_operator", "ldap_group_viewer", "ldap_default_role",
                 "oidc_enabled", "oidc_tenant", "oidc_client_id", "oidc_discovery", "oidc_button", "oidc_redirect",
                 "oidc_group_admin", "oidc_group_operator", "oidc_group_viewer", "oidc_default_role"]
 CHECKBOX_KEYS = ("require_approval", "allow_self_approval", "notify_compliance", "require_2fa_admins",
                  "console_autologin", "update_check", "ldap_enabled", "ldap_starttls", "ldap_verify_tls", "oidc_enabled",
-                 "topology_enabled", "git_enabled", "git_mask")
+                 "topology_enabled", "git_enabled", "git_mask", "support_button")
 # valores por defecto cuando el ajuste nunca se guardó
 SETTING_DEFAULTS = {"allow_self_approval": "1", "session_idle_minutes": "30", "remember_days": "14", "require_2fa_admins": "0",
-                    "console_access": "admin", "console_autologin": "0", "update_check": "1", "topology_enabled": "1", "git_mask": "1", "git_branch": "main",
+                    "console_access": "admin", "console_autologin": "0", "update_check": "1", "topology_enabled": "1", "git_mask": "1", "support_button": "1", "git_branch": "main",
                     "ldap_verify_tls": "1", "ldap_user_filter": "(&(objectClass=user)(sAMAccountName={username}))"}
 SECRET_FORM_KEYS = ["git_token", "smtp_password", "cisco_api_secret", "dr_remote_password", "ldap_bind_password", "oidc_client_secret",
                     "nvd_api_key"]

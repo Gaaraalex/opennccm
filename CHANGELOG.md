@@ -1,6 +1,9 @@
 # Historial de versiones
 
 ## Próxima versión
+- **Botón «Soporte profesional»** en la barra superior, a la izquierda de «Apoya OpenNCCM»: un enlace a la página de soporte de pago
+  (en otra pestaña) con una animación suave que se detiene si el sistema pide reducir el movimiento. No cambia ninguna función;
+  el administrador lo oculta para todos en **Ajustes › Organización**.
 - **Base de conocimiento (Equipo › Base de conocimiento):** cada caso resuelto queda escrito con síntoma, causa, pasos con sus
   comandos («Copiar» sin la clave oculta y «Abrir en consola», que lo deja escrito sin ejecutarlo), comprobación y prevención.
   «Falta documentar» se llena sola con las alarmas críticas cerradas y los cambios revertidos (y, si se activa, las sesiones de
