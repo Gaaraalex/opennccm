@@ -202,7 +202,7 @@ if enc:
 bad = s.get(B + "/system/backups/..%2Fsecret.key")
 check("descarga con nombre inválido rechazada", bad.status_code == 404 or bad.url.endswith("/system"), bad.status_code)
 bad = s.get(B + "/system/backups/opennccm.db")
-check("descarga de archivo que no es copia rechazada", bad.url.endswith("/system") and b"SQLite" not in bad.content)
+check("descarga de archivo que no es copia rechazada", bad.url.endswith("/system") and b"SQLite format 3" not in bad.content)
 r = s.post(B + "/schedules", data={"name": "DR diario", "action": "system_backup", "cron": "30 1 * * *"})
 check("tarea de copia diaria", "DR diario" in r.text)
 sid = re.search(r'</span>DR diario</div></td>[\s\S]*?/schedules/(\d+)/run', r.text).group(1)
