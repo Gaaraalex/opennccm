@@ -30,6 +30,7 @@ from .crypto import try_decrypt
 from .db import (AiChat, AiUsage, ChangeRequest, ComplianceResult, ConfigVersion, Device, DeviceGroup, EolEntry, Event,
                  Schedule, SessionLocal, audit, now)
 from .drivers import get_profile
+from .errors import short_error
 from .i18n import _, _f, get_lang
 
 router = APIRouter()
@@ -66,7 +67,7 @@ def f_equipos(user, estado: str = "todos", texto: str = "") -> dict:
             out.append({"id": d.id, "nombre": d.name, "ip": d.host, "plataforma": get_profile(d.device_type).label,
                         "modelo": d.model, "version": d.os_version, "grupo": d.group.name if d.group else None,
                         "estado": d.last_status, "ultimo_respaldo": _ago(d.last_backup_at),
-                        "error": (d.last_error or "")[:160] or None})
+                        "error": short_error(d.last_error) if d.last_status == "error" else None})
         return {"total": len(out), "equipos": out[:60]}
 
 
@@ -79,7 +80,8 @@ def f_equipo(user, nombre: str) -> dict:
         ev = db.scalars(select(Event).where(Event.device_id == d.id, Event.acknowledged.is_(False))
                         .order_by(Event.id.desc()).limit(8)).all()
         return {"id": d.id, "nombre": d.name, "ip": d.host, "plataforma": get_profile(d.device_type).label, "modelo": d.model,
-                "version": d.os_version, "serie": d.serial, "estado": d.last_status, "error": (d.last_error or "")[:300] or None,
+                "version": d.os_version, "serie": d.serial, "estado": d.last_status,
+                "error": short_error(d.last_error) if d.last_status == "error" else None,
                 "ultimo_respaldo": _ago(d.last_backup_at), "difiere_linea_base": d.baseline_drift,
                 "versiones": [{"id": v.id, "fecha": _ago(v.created_at), "agregadas": v.added, "quitadas": v.removed,
                                "origen": v.trigger} for v in vs],
@@ -93,7 +95,7 @@ def f_respaldos_fallidos(user, dias: int = 7) -> dict:
         fail = [d for d in ids.values() if d.last_status == "error"]
         ev = db.scalars(select(Event).where(Event.category == "Respaldo fallido", Event.created_at >= lim)
                         .order_by(Event.id.desc()).limit(80)).all()
-        return {"con_error_ahora": [{"id": d.id, "nombre": d.name, "error": (d.last_error or "")[:160]} for d in fail],
+        return {"con_error_ahora": [{"id": d.id, "nombre": d.name, "error": short_error(d.last_error)} for d in fail],
                 "fallos_en_el_periodo": [{"equipo": ids[e.device_id].name, "fecha": _ago(e.created_at), "texto": e.message[:140]}
                                          for e in ev if e.device_id in ids][:40]}
 
@@ -266,7 +268,7 @@ def _system(lang: str, page: dict) -> str:
             "de los últimos 7 días» o «Manual › Tareas programadas»). Acciones: «ir» con una url interna de OpenNCCM "
             "(/devices/ID, /devices/ID/console, /diff?a=ID&b=ID, /changes, /compliance, /events, /schedules, /search?q=…); "
             "«respaldar» con los equipos; «tarea» (accion_tarea, cron de 5 campos, nombre_tarea); «solicitud_cambio» "
-            "(equipos y comandos). Nunca digas que hiciste algo: solo lo preparas y el usuario confirma. En los «¿cómo "
+            "(equipos y comandos). En «motivo» usa el «error» corto que dan las funciones, tal cual. Nunca digas que hiciste algo: solo lo preparas y el usuario confirma. En los «¿cómo "
             "hago…?» ofrece dejarlo listo y «Ver cómo se hace» (ir a la página). Los secretos aparecen como ******. ")
     if lang == "en":
         base += "Answer in English. "

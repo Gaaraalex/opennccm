@@ -94,5 +94,12 @@ filled = recipes.fill(recipes.BY_KEY["ros-vlan"], {"nombre": "vlan30", "vlan": "
 check("receta: se sustituyen las variables (y las vacías toman el valor por omisión)",
       filled[0]["c"] == "/interface vlan add name=vlan30 vlan-id=30 interface=ether2", filled[0]["c"])
 
+from app.errors import short_error  # noqa: E402
+for raw, want in [("TCP connection to device failed. Common causes of this problem are: 1. Incorrect hostname", "sin respuesta por SSH"),
+                  ("Authentication to device failed.", "credencial rechazada"), ("BadHostKeyException: Host key for server", "cambió la clave SSH del equipo"),
+                  ("El equipo entró en modo usuario («>») y pide contraseña para el modo privilegiado (enable)", "falta la contraseña enable"),
+                  ("Pattern not detected: 'R1#' in output", "respaldo incompleto"), ("Read timed out", "tiempo agotado"), ("algo raro", "falló el respaldo")]:
+    check(f"motivo corto: «{want}»", short_error(raw) == want, short_error(raw))
+
 print("\nRESULTADO:", "TODO OK" if not fails else f"{len(fails)} fallos: {fails}")
 sys.exit(1 if fails else 0)
