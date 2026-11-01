@@ -480,7 +480,8 @@ async def console_ws(ws: WebSocket, dev_id: int):
                             text = "\r" + plain(tail).rsplit("\n", 1)[-1]  # solo el prompt, en la línea del anterior
                         else:
                             text = ""
-                    if text and pending_note[0] and re.search(r"[#>$\]]\s*$", plain(tail)):
+                    if text and pending_note[0] and re.search(r"[#>$\]]\s*$", plain(tail)) and \
+                            not cc.in_config(os_key, plain(tail).rsplit("\n", 1)[-1]):
                         cut = text.rfind("\n") + 1  # la respuesta del comando, el aviso y después el prompt
                         if cut:
                             show(text[:cut])

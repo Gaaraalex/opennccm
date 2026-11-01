@@ -308,13 +308,25 @@
       $('rec-player').scrollIntoView({behavior: 'smooth', block: 'nearest'});
     });
   }
+  function paint(h) {  // los mismos colores que la consola: prompt y comando, IP, activo, caído, deshabilitado, errores
+    return h.split('\n').map(function (l) {
+      var m = l.match(/^([\w.\-\/@()\[\]&;<>]{1,60}?[#>$])(.*)$/);
+      if (m && !/\s{3,}/.test(m[1])) return '<span class="k-host">' + m[1] + '</span><span class="k-path">' + m[2] + '</span>';
+      if (/^\s*(%|bad command|syntax error|Error:|failure:)/i.test(l)) return '<span class="k-bad">' + l + '</span>';
+      if (/^(Interface|Port|Device ID|Flags:|Columns:)\s/.test(l)) return '<span class="k-head">' + l + '</span>';
+      return l.replace(/\b(\d{1,3}(?:\.\d{1,3}){3}(?:\/\d{1,2})?)\b/g, '<span class="k-ip">$1</span>')
+        .replace(/\b(administratively down|disabled|notconnect)\b/g, '<span class="k-warn">$1</span>')
+        .replace(/\b(up|connected|running|enabled|YES)\b/g, '<span class="k-ok">$1</span>')
+        .replace(/\b(down|errors?|CRC|failed|invalid)\b/g, '<span class="k-bad">$1</span>');
+    }).join('\n');
+  }
   function fmt(s) { s = Math.round(s); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
   function draw() {
     var html = '';
     ev.forEach(function (e) {
       if (e[0] > pos) return;
       if (e[1] === 'n') html += '\n<span class="k-note">' + esc(e[2]) + '</span>\n';
-      else if (e[1] === 'o') html += esc(e[2]).replace(/^([\w.\-\/@()\[\]<>]{1,60}[#>$])(.*)$/gm, '<span class="k-host">$1</span><span class="k-path">$2</span>');
+      else if (e[1] === 'o') html += paint(esc(e[2]));
     });
     $('rp-out').innerHTML = html; $('rp-out').scrollTop = $('rp-out').scrollHeight;
     Array.prototype.forEach.call(document.querySelectorAll('#rp-cmds button'), function (b) { b.classList.toggle('on', +b.dataset.t <= pos); });

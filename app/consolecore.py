@@ -43,6 +43,16 @@ def os_of(device_type: str) -> str:
 PAGING_OFF = {"ios": "terminal length 0", "nxos": "terminal length 0", "eos": "terminal length 0",
               "fastpath": "terminal length 0", "vrp": "screen-length 0 temporary", "junos": "set cli screen-length 0",
               "exos": "disable clipaging"}
+# prompt de modo configuración: mientras se vea, el cambio aún no terminó (el aviso espera a que se salga)
+CONFIG_PROMPT = {"ios": r"\(config[^)]*\)#", "nxos": r"\(config[^)]*\)#", "eos": r"\(config[^)]*\)#",
+                 "fastpath": r"\(Config|\(Interface|\(Vlan", "vrp": r"^\[[^\]]+\]", "junos": r"\[edit", "exos": r"$^"}
+
+
+def in_config(os_key: str, prompt_line: str) -> bool:
+    p = CONFIG_PROMPT.get(os_key)
+    return bool(p and re.search(p, prompt_line.strip()))
+
+
 # si aun así el equipo pagina, la consola responde sola con un espacio
 MORE = re.compile(r"(-+ ?\(?more\)?[^\n]*-*|--More--|---- More ----|Press any key to continue[^\n]*)\s*$", re.I)
 

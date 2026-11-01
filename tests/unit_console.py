@@ -46,6 +46,9 @@ check("lo permitido no se bloquea", cc.denied("show version", "reload\n/write\\s
 check("paginado apagado con lo mismo que usa netmiko", cc.PAGING_OFF["ios"] == "terminal length 0" and
       cc.PAGING_OFF["vrp"] == "screen-length 0 temporary" and cc.PAGING_OFF["exos"] == "disable clipaging")
 check("«--More--» se reconoce", cc.MORE.search("line\n --More-- ") and cc.MORE.search("  ---- More ----"))
+check("prompt de configuración: Cisco y Huawei sí; el normal y RouterOS no",
+      cc.in_config("ios", "R1(config-if)#") and cc.in_config("vrp", "[HUAWEI]") and not cc.in_config("ios", "R1#")
+      and not cc.in_config("ros", "[admin@CACHENA] >") and not cc.in_config("vrp", "<HUAWEI>"))
 prof = cc.client_profile("ros", lambda s: s)
 check("frecuentes: los que cortan el servicio van marcados", ["/system reboot", True] in prof["frequent"])
 
