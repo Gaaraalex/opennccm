@@ -1,6 +1,14 @@
 # Historial de versiones
 
 ## Próxima versión
+- **Base de conocimiento (Equipo › Base de conocimiento):** cada caso resuelto queda escrito con síntoma, causa, pasos con sus
+  comandos («Copiar» sin la clave oculta y «Abrir en consola», que lo deja escrito sin ejecutarlo), comprobación y prevención.
+  «Falta documentar» se llena sola con las alarmas críticas cerradas y los cambios revertidos (y, si se activa, las sesiones de
+  consola de más de 15 min); una alarma crítica ya no se cierra sin caso o enlace a uno existente. Los operadores envían a
+  revisión y el administrador aprueba o pide cambios; «Proponer cambio» en casos ajenos, versiones, comentarios, «Me sirvió»,
+  «Convertir en configlet», asistente IA para proponer causa y comprobación, casos parecidos y resumen por correo los lunes.
+  Solo para administradores y operadores (solo lectura, si el administrador lo activa); las contraseñas, claves y comunidades
+  SNMP se ocultan al guardar y cada lectura y edición queda en Auditoría.
 - **Restaurar en un servidor nuevo:** `sudo opennccm restore` con una copia que incluye la clave reemplaza la que creó el
   instalador (la anterior queda como `secret.key.antes-de-restaurar-FECHA`); antes se quedaba con la del instalador y las
   configuraciones y contraseñas no se podían leer. Si la copia no trae la clave y la del servidor no descifra los datos

@@ -2508,6 +2508,7 @@ def events(request: Request, sev: str = "", unack: int | None = None, page: int 
 
 @app.post("/events/ack")
 async def events_ack(request: Request):
+    from . import kb
     user = require(request, "operator")
     form = await request.form()
     with SessionLocal() as db:
@@ -2517,11 +2518,20 @@ async def events_ack(request: Request):
         scope = device_scope(user)
         if scope is not None:
             stmt = stmt.where(Event.device_id.in_(scope))
-        ids = []
+        ids, critical = [], []
         for e in db.scalars(stmt):
+            if kb.needs_case(e, user):  # se cierra desde la base de conocimiento, con su caso o un enlace
+                critical.append(e.id)
+                continue
             e.acknowledged = True
             ids.append(e.id)
         db.commit()
+    if form.get("id") and critical:
+        return go(f"/kb/close/{critical[0]}")
+    if critical:
+        msg = N_("{0} alarmas críticas no se cerraron: cada una necesita su caso o un enlace a uno existente. Ciérrelas una por una.")
+        flash(request, _f(msg, len(critical)) if len(critical) > 1 else
+              _("Una alarma crítica no se cerró: necesita su caso o un enlace a uno existente. Ciérrela desde su fila."), "error")
     log_action(request, user, "events_ack", form.get("id") or "all")
     if ids:
         flash(request, _("Alarma reconocida") if len(ids) == 1 else _f("{0} alarmas reconocidas", len(ids)))
@@ -3070,6 +3080,9 @@ app.include_router(consolecenter.router)
 from . import aichat  # noqa: E402  (chat del asistente en todo el sistema)
 
 app.include_router(aichat.router)
+from . import kb  # noqa: E402  (Equipo › Base de conocimiento)
+
+app.include_router(kb.router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)

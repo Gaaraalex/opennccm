@@ -39,6 +39,7 @@
   <li>Fin de vida (EOL/EOS)</li>
   <li>Tareas programadas</li>
   <li>Alarmas y notificaciones</li>
+  <li>Base de conocimiento</li>
   <li>Análisis</li>
   <li>Informes</li>
   <li>Credenciales y grupos</li>
@@ -879,11 +880,67 @@ el asistente en un panel lateral; <b>Ejecutar ya</b> la lanza al momento y <b>El
 equipo y hace cuánto ocurrió (el detalle completo aparece al pasar el ratón), con <b>Abrir equipo</b> y <b>Reconocer</b>; también se
 pueden reconocer todas (con <b>Deshacer</b> en el aviso).
 Las de severidad igual o mayor a la configurada en Ajustes se envían por correo, webhook (Teams, Slack…) y/o Telegram.</p>
+<p>Si la regla «Al cerrar una alarma crítica» de la base de conocimiento está activa (lo está por omisión), una alarma
+<b>crítica</b> no se cierra con <b>Reconocer</b>: se abre <b>Cerrar alarma crítica</b>, donde se elige <b>Cerrar y documentar</b> o
+<b>Cerrar y enlazar</b> a un caso que ya existe. «Reconocer todas» deja abiertas las críticas (ver capítulo 19).</p>
 <figure><img src="img/21-alarmas.png" class="tall"><figcaption>Alarmas y eventos.</figcaption></figure>
 </section>
 
 <section class="chapter">
-<h1>19. Análisis</h1>
+<h1>19. Base de conocimiento</h1>
+<p><b>Para qué sirve:</b> que cada caso que se resuelve en la red quede escrito: el síntoma, la causa, la solución paso a paso con
+sus comandos, cómo comprobar que quedó y qué hacer para que no vuelva a pasar. Está en el menú, en la sección <b>Equipo</b>; la
+insignia ámbar cuenta lo que falta documentar.</p>
+<h2>Quién la ve</h2>
+<table>
+  <tr><th>Rol</th><th>Qué puede hacer</th></tr>
+  <tr><td>Administrador</td><td>Todo: lee, documenta, aprueba o pide cambios, archiva y restaura, decide «No hace falta» y configura
+    <b>Acceso y reglas</b>. No se le puede quitar el acceso.</td></tr>
+  <tr><td>Operador</td><td>Lee, documenta y comenta. Envía sus casos a revisión (o los publica, si el administrador eligió
+    «Admin y operadores» en <b>Quién publica sin revisión</b>). Edita sus casos; en los ajenos, <b>Proponer cambio</b>.</td></tr>
+  <tr><td>Solo lectura</td><td>Apagado por omisión. Si entra por un enlace ve un aviso con <b>Pedir acceso a un admin</b>, que deja
+    una alarma informativa para el administrador. Si el administrador lo activa, lee los casos publicados.</td></tr>
+</table>
+<p>Los permisos se comprueban en el servidor, no solo en la pantalla, y cada lectura y cada edición queda en <b>Auditoría</b>.</p>
+<h2>Pestañas</h2>
+<ul>
+  <li><b>Casos:</b> indicadores (publicados, falta documentar, % de alarmas críticas con caso en los últimos 30 días con meta del
+    95 % y resueltas con un caso este mes), filtros por categoría y estado, y la tabla con ID <span class="mono">KB-0000</span>,
+    equipos, autor, estado y votos «Me sirvió». El buscador (Ctrl K) busca en el título, el síntoma, la causa, los pasos y los
+    nombres o direcciones de los equipos.</li>
+  <li><b>Falta documentar:</b> lo que se cerró sin caso, asignado a quien lo resolvió: <b>Documentar</b>, <b>Ya existe</b> (lo
+    enlaza a un caso publicado) y <b>No hace falta</b> (solo administrador, queda quién lo decidió). A los 5 días la fecha se
+    pone en rojo y el administrador recibe una alarma.</li>
+  <li><b>En revisión:</b> los casos nuevos y los cambios propuestos, con lo que trae cada uno (pasos, contraseñas ocultadas,
+    a qué está enlazado). El administrador usa <b>Pedir cambios</b> (vuelve a borrador con un comentario) o <b>Aprobar y
+    publicar</b>.</li>
+  <li><b>Acceso y reglas</b> (solo administrador): quién la ve, quién publica sin revisión y cuándo se pide un caso.</li>
+</ul>
+<h2>Reglas que generan pendientes</h2>
+<table>
+  <tr><th>Regla</th><th>Por omisión</th><th>Qué hace</th></tr>
+  <tr><td>Al cerrar una alarma crítica</td><td>Encendida</td><td>No se cierra sin caso nuevo o enlace a uno existente.</td></tr>
+  <tr><td>Al revertir un cambio</td><td>Encendida</td><td>Al terminar una reversión queda el pendiente con sus comandos y equipos.</td></tr>
+  <tr><td>Sesiones de consola de más de 15 min</td><td>Apagada</td><td>Pendiente con la grabación, para traer sus comandos.</td></tr>
+  <tr><td>Resumen de pendientes los lunes</td><td>Encendida</td><td>Correo a cada persona con lo suyo (si su cuenta tiene correo).</td></tr>
+  <tr><td>Ocultar contraseñas, claves y comunidades SNMP</td><td>Siempre</td><td>Se detectan al guardar y se reemplazan por ••••••.</td></tr>
+</table>
+<h2>Ficha del caso y editor</h2>
+<p>La ficha muestra el estado, la categoría, el fabricante, la versión y la fecha; síntoma, causa, los pasos, la comprobación y la
+prevención; los comentarios del equipo; y a un lado <b>Me sirvió</b>, <b>Editar</b> o <b>Proponer cambio</b>, <b>Archivar</b>
+(se puede restaurar), los equipos afectados, de dónde salió (alarma, cambio o grabación) y las versiones (v1, v2…). Cada comando
+tiene <b>Copiar</b> (la clave oculta no se copia) y <b>Abrir en consola</b>, que deja el comando escrito en la consola del equipo
+sin ejecutarlo. <b>Convertir en configlet</b> crea un configlet con los comandos para revisarlo antes de usarlo.</p>
+<p>El editor, abierto desde un pendiente, ya trae enlazados la alarma o el cambio, el equipo y la grabación de consola. Para enviar
+hacen falta título y equipo, síntoma, causa, al menos un paso y la comprobación; la lista y la barra de avance muestran lo que
+falta. Se guarda solo cada pocos segundos (y con <b>Guardar borrador</b>). <b>Traer comandos de la grabación</b> agrega los
+comandos de la sesión como pasos, y si el asistente IA está activo, <b>Proponer lo que falta</b> sugiere la causa y la comprobación,
+marcadas para revisarlas. <b>Casos parecidos</b> avisa si ya hay uno igual. Los cambios en un caso publicado van como propuesta:
+el caso no cambia hasta que un administrador la aprueba.</p>
+</section>
+
+<section class="chapter">
+<h1>20. Análisis</h1>
 <p><b>Para qué sirve:</b> identificar patrones: qué equipos cambian más, quién cambia, por qué vía, qué versiones de firmware predominan
 y cómo está el cumplimiento y el ciclo de vida.</p>
 <p>Elija el período (7, 30 o 90 días). La página muestra:</p>
@@ -940,7 +997,7 @@ HP/Aruba, Dell, Ruckus, Allied, MikroTik, EdgeSwitch, UniFi Switch y EXOS, si ti
 </section>
 
 <section class="chapter">
-<h1>20. Informes</h1>
+<h1>21. Informes</h1>
 <p>Cada informe es una tarjeta con <b>Ver</b> (en pantalla, con el periodo de 7, 30, 90 días o un año cuando aplica) y <b>CSV</b>
 (UTF-8, se abre directamente en Excel). Los administradores pueden <b>enviarlos por correo ahora</b> o <b>programar el envío</b>.</p>
 <table>
@@ -962,7 +1019,7 @@ HP/Aruba, Dell, Ruckus, Allied, MikroTik, EdgeSwitch, UniFi Switch y EXOS, si ti
 </section>
 
 <section class="chapter">
-<h1>21. Credenciales y grupos</h1>
+<h1>22. Credenciales y grupos</h1>
 <p><b>Credenciales:</b> perfiles de usuario, contraseña y contraseña privilegiada (<i>enable</i>) para conectarse a los equipos. Si el
 equipo entra en modo usuario («&gt;») y la credencial no tiene <i>enable</i>, OpenNCCM prueba la contraseña de ingreso; si no sirve,
 el error indica en qué credencial escribirla. Se guardan
@@ -980,7 +1037,7 @@ un equipo a un grupo: ábralo y pulse <b>asignar grupo</b> (o <b>Editar</b>). Al
 </section>
 
 <section class="chapter">
-<h1>22. Usuarios, mi cuenta, idioma y temas</h1>
+<h1>23. Usuarios, mi cuenta, idioma y temas</h1>
 <h2>Crear un usuario (administradores)</h2>
 <ol class="steps">
   <li><b>Administración → Usuarios → Crear usuario</b> (se abre un panel lateral).</li>
@@ -1062,7 +1119,7 @@ la contraseña cierra también las sesiones recordadas.</p>
 </section>
 
 <section class="chapter">
-<h1>23. Auditoría</h1>
+<h1>24. Auditoría</h1>
 <p>Registro de <b>quién hizo qué, cuándo y desde qué IP</b>: ingresos (y fallidos), respaldos, descargas de configuración, cambios de
 dispositivos y credenciales, solicitudes y aprobaciones, reversiones, firmware, informes y ajustes. Se puede buscar por usuario,
 acción o detalle y exportar.</p>
@@ -1070,7 +1127,7 @@ acción o detalle y exportar.</p>
 </section>
 
 <section class="chapter">
-<h1>24. Sistema y recuperación</h1>
+<h1>25. Sistema y recuperación</h1>
 <h2>Actualizaciones</h2>
 <p>La tarjeta <b>Actualizaciones</b> muestra la versión instalada y la última publicada. <b>Buscar ahora</b>
 consulta GitHub; OpenNCCM también lo hace una vez al día (desactivable en Ajustes) y, si hay una versión nueva, muestra a los
@@ -1118,7 +1175,7 @@ se pulsan, en una pestaña nueva, y no se envía ningún dato del servidor.</p>
 </section>
 
 <section class="chapter">
-<h1>25. Ajustes</h1>
+<h1>26. Ajustes</h1>
 <p>Los ajustes están en <b>Administración → Ajustes</b>, separados en secciones que se eligen a la izquierda: Seguridad y acceso,
 Organización, Flujo de cambios, Notificaciones, Fin de vida (Cisco EoX), Vulnerabilidades (NVD), Mapa de la red, Copia en Git,
 Recuperación ante desastres y Actualizaciones. Al modificar
@@ -1181,7 +1238,7 @@ las licencias.</p>
 </section>
 
 <section class="chapter">
-<h1>26. Plataformas soportadas</h1>
+<h1>27. Plataformas soportadas</h1>
 <p><b>Administración → Plataformas</b>. Muestra las 131 plataformas en fichas (las comprobadas en su red llevan una marca) y,
 en <b>Comandos de cada plataforma</b>, su <code>device_type</code> y los comandos que se ejecutan en cada una: <b>respaldo</b>, <b>arranque</b> (startup, para detectar cambios sin guardar) e <b>inventario</b> (modelo, serie y versión);
 además el tipo de reversión y si admite actualización de firmware.</p>
@@ -1218,7 +1275,7 @@ consola; para restaurar, <i>Restore Backup</i> en SwitchOS con el archivo descar
 </section>
 
 <section class="chapter">
-<h1>27. Uso desde el teléfono y API</h1>
+<h1>28. Uso desde el teléfono y API</h1>
 <div class="two">
 <div>
 <p>La interfaz se adapta a pantallas pequeñas: abajo aparece una barra con Panel, Equipos, Cambios, Alarmas y Más (que
@@ -1248,7 +1305,7 @@ en Auditoría.</p>
 </section>
 
 <section class="chapter">
-<h1>28. Glosario</h1>
+<h1>29. Glosario</h1>
 <table>
   <tr><th style="width:28%">Término</th><th>Significado</th></tr>
   <tr><td>Running / startup</td><td>Configuración en ejecución (activa) / guardada para el próximo arranque.</td></tr>

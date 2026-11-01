@@ -56,7 +56,15 @@ ev = requests.get(B + "/api/mobile/events", headers=H).json()
 mine = [e for e in ev if e["device_id"] == dev_id and e["message"] == "R-Movil: prueba"]
 check("alarmas abiertas", mine, ev[:3])
 if mine:
-    check("reconocer una alarma", requests.post(B + f"/api/mobile/events/{mine[0]['id']}/ack", headers=H).json()["ok"])
+    r = requests.post(B + f"/api/mobile/events/{mine[0]['id']}/ack", headers=H)
+    check("una alarma crítica no se cierra sin caso (base de conocimiento)", r.status_code == 409
+          and r.json().get("error") == "needs_case" and r.json().get("url", "").startswith("/kb/close/"), r.text)
+with SessionLocal() as db:
+    e = Event(severity="major", category="Respaldo fallido", device_id=dev_id, message="R-Movil: mayor")
+    db.add(e)
+    db.commit()
+    major_id = e.id
+check("reconocer una alarma", requests.post(B + f"/api/mobile/events/{major_id}/ack", headers=H).json()["ok"])
 ch = [c for c in requests.get(B + "/api/mobile/changes", headers=H).json() if c["title"] == "Cambio de prueba (móvil)"]
 check("cambios por aprobar con sus equipos", ch and ch[0]["status"] == "pending" and ch[0]["devices"] == ["R-Movil"], ch)
 if ch:

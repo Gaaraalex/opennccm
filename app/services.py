@@ -135,6 +135,35 @@ def add_event(severity: str, category: str, message: str, device_id: int | None 
             pool.submit(send_alert, f"[OpenNCCM][{severity.upper()}] {category}", message)
 
 
+def send_mail(to: list[str], subject: str, body: str, attachments: list[tuple[str, bytes]] | None = None) -> str | None:
+    """Correo por el SMTP de Ajustes; devuelve el error (o None). Sin servidor configurado no hace nada."""
+    host = get_setting("smtp_host")
+    if not (to and host):
+        return None
+    try:
+        msg = EmailMessage()
+        msg["Subject"] = subject
+        msg["From"] = get_setting("smtp_from", "opennccm@localhost")
+        msg["To"] = ", ".join(to)
+        msg.set_content(body)
+        for name, data in attachments or []:
+            msg.add_attachment(data, maintype="text", subtype="csv", filename=name)
+        port = int(get_setting("smtp_port", "587") or 587)
+        security = get_setting("smtp_security", "starttls")
+        cls = smtplib.SMTP_SSL if security == "ssl" else smtplib.SMTP
+        with cls(host, port, timeout=20) as s:
+            if security == "starttls":
+                s.starttls()
+            user = get_setting("smtp_user")
+            if user:
+                s.login(user, get_setting("smtp_password"))
+            s.send_message(msg)
+    except Exception as e:  # noqa: BLE001
+        log.warning("Fallo al enviar correo: %s", e)
+        return f"SMTP: {e}"
+    return None
+
+
 def send_alert(subject: str, body: str, attachments: list[tuple[str, bytes]] | None = None,
                email_only: bool = False) -> list[str]:
     errors = []
@@ -143,27 +172,9 @@ def send_alert(subject: str, body: str, attachments: list[tuple[str, bytes]] | N
     if email_only and not (to and host):
         return ["Configure el servidor SMTP y los destinatarios en Ajustes"]
     if to and host:
-        try:
-            msg = EmailMessage()
-            msg["Subject"] = subject
-            msg["From"] = get_setting("smtp_from", "opennccm@localhost")
-            msg["To"] = ", ".join(to)
-            msg.set_content(body)
-            for name, data in attachments or []:
-                msg.add_attachment(data, maintype="text", subtype="csv", filename=name)
-            port = int(get_setting("smtp_port", "587") or 587)
-            security = get_setting("smtp_security", "starttls")
-            cls = smtplib.SMTP_SSL if security == "ssl" else smtplib.SMTP
-            with cls(host, port, timeout=20) as s:
-                if security == "starttls":
-                    s.starttls()
-                user = get_setting("smtp_user")
-                if user:
-                    s.login(user, get_setting("smtp_password"))
-                s.send_message(msg)
-        except Exception as e:  # noqa: BLE001
-            errors.append(f"SMTP: {e}")
-            log.warning("Fallo al enviar correo: %s", e)
+        err = send_mail(to, subject, body, attachments)
+        if err:
+            errors.append(err)
     if email_only:
         return errors
     hook = get_setting("webhook_url")
@@ -821,6 +832,9 @@ def execute_change_request(cr_id: int):
         cr.result = "\n\n".join(report)
         cr.executed_at = now()
         db.commit()
+        if cr.is_rollback:
+            from . import kb
+            kb.on_rollback_done(cr.id)  # «Falta documentar»: el cambio revertido
         sev = "info" if fail == 0 else "major"
         add_event(sev, "Solicitud de cambio ejecutada",
                   f"#{cr.id} '{cr.title}': {ok} OK, {fail} con error.")

@@ -269,6 +269,7 @@
   });
   if (aiBtn && store('ai') === '1' && !C.embed) aiBtn.click();
   window.CXinsert = function (text) { inp.value = text; showGhost(); inp.focus(); };
+  try { var pre = new URLSearchParams(location.search).get('cmd'); if (pre) window.CXinsert(pre.split('\n')[0]); } catch (e) { /* sin parámetro */ }
   window.CXcolor = colorCmd;
   window.addEventListener('message', function (e) {  // diálogo de la página o centro de consola
     if (e.origin !== location.origin || !e.data || e.data.oc !== 'console') return;

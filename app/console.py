@@ -582,6 +582,8 @@ async def console_ws(ws: WebSocket, dev_id: int):
             if cs:
                 cs.ended_at, cs.commands, cs.danger = now(), stats["cmds"], stats["danger"]
                 db.commit()
+        from . import kb
+        kb.on_console_closed(sid)
         audit(user.username, "console_close", f"{name}: {int(time.time() - started)} s · {stats['cmds']} comandos", addr)
 
 

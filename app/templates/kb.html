@@ -1,0 +1,144 @@
+{% extends "base.html" %}{% block title %}{{ _('Base de conocimiento') }}{% endblock %}
+{% block crumbs %}<span class="muted">{{ _('Equipo') }}</span>{{ icon('right', 's') }}<b>{{ _('Base de conocimiento') }}</b>{% endblock %}
+{% block content %}
+{% include "_kb_head.html" %}
+
+{% if tab == 'casos' %}
+<div class="kb-main">
+  <section style="min-width:0">
+    <div class="kb-kpis">{% for s in stats %}<div class="kb-kpi"><div class="l">{{ s.l }}</div><div class="v {{ s.cls }}">{{ s.v }}</div><div class="d">{{ s.d }}</div></div>{% endfor %}</div>
+    <div class="kb-filters">
+      {% set qs = ('&q=' ~ q|urlencode) if q else '' %}
+      <a class="chip {{ 'on' if not cat }}" href="/kb?st={{ st }}{{ qs }}">{{ _('Todos') }}</a>
+      {% for k, l in cats %}<a class="chip {{ 'on' if cat == k }}" href="/kb?cat={{ k }}&st={{ st }}{{ qs }}">{{ _(l) }}</a>{% endfor %}
+      <span class="grow"></span>
+      <div class="seg" role="group" aria-label="{{ _('Estado') }}">
+        {% for k, l in [('', _('Todos')), ('published', _('Publicados')), ('review', _('En revisión')), ('draft', _('Borradores'))] + ([('archived', _('Archivados'))] if is_admin else []) %}
+        <a href="/kb?cat={{ cat }}&st={{ k }}{{ qs }}" class="{{ 'on' if st == k }}">{{ l }}</a>{% endfor %}
+      </div>
+    </div>
+    <div class="card kb-list">
+      <div class="kb-lh"><span>{{ _('Caso') }}</span><span>{{ _('Título') }}</span><span>{{ _('Equipos') }}</span><span>{{ _('Autor') }}</span><span>{{ _('Estado') }}</span><span style="text-align:right">{{ _('Útil') }}</span></div>
+      {% for c in cases %}
+      <a class="kb-row" href="/kb/{{ c.id }}">
+        <span class="id">{{ c.code }}</span>
+        <span style="min-width:0"><span class="t">{{ c.title }}</span><small>{{ [c.cat, c.vendor, c.when|fecha]|select|join(' · ') }}</small></span>
+        <span class="devs">{{ c.devs }}</span>
+        <span class="sm">{{ c.author }}</span>
+        <span><span class="pill {{ c.cls }}">{{ c.st }}</span></span>
+        <span class="u">▲ {{ c.votes }}</span>
+      </a>{% else %}
+      <div class="muted" style="padding:30px;text-align:center">{% if q or cat or st %}{{ _('No hay casos con ese filtro.') }}{% else %}{{ _('Todavía no hay casos. Documenta el primero con «Documentar caso» o desde «Falta documentar».') }}{% endif %}</div>
+      {% endfor %}
+    </div>
+  </section>
+  <aside class="kb-side">
+    <div class="card kb-warncard">
+      <div class="row"><div class="grow tt">{{ _('Falta documentar') }} {{ n_pend or '' }}</div><a class="btn s" href="/kb/pending">{{ _('Ver todos') }}</a></div>
+      <div class="sm" style="margin-top:4px;line-height:1.45;color:var(--ink-2)">{{ _('Alarmas, cambios y sesiones cerradas que todavía no tienen su caso.') }}</div>
+      {% for p in pend_top %}<a class="kb-mini" href="/kb/new?pending={{ p.id }}"><span class="kb-k {{ p.k }}">{{ p.kl }}</span><span class="grow">{{ p.title }}</span><span class="m {{ 'kb-late' if p.late }}">{{ p.ago }}</span></a>{% else %}
+      <div class="kb-mini" style="color:var(--ok)">{{ _('Todo documentado. Buen trabajo.') }}</div>{% endfor %}
+    </div>
+    <div class="card"><div class="kb-h2">{{ _('Más consultados este mes') }}</div>
+      {% for c in top %}<a class="kb-mini" href="/kb/{{ c.id }}"><span class="m kb-id">{{ c.code }}</span><span class="grow">{{ c.title }}</span><span class="m">{{ _f('{0} vistas', c.n) }}</span></a>{% else %}
+      <div class="muted sm">{{ _('Aún no hay lecturas este mes.') }}</div>{% endfor %}
+    </div>
+    <div class="card sm muted" style="line-height:1.5"><div class="kb-h2">{{ _('Cómo se llena sola') }}</div>
+      {{ _('Al cerrar una alarma crítica o revertir un cambio, OpenNCCM pide el caso y lo deja como borrador con el equipo, la alarma y la grabación de consola ya enlazados.') }}</div>
+  </aside>
+</div>
+
+{% elif tab == 'pend' %}
+<div class="kb-main narrow">
+  <section style="min-width:0">
+    <p class="muted sm" style="margin:12px 0 0">{{ _('Cada alarma crítica cerrada, cambio revertido o sesión larga de consola deja aquí un caso por escribir. El que lo resolvió lo tiene asignado.') }}</p>
+    <div class="card kb-list kb-pend">
+      <div class="kb-lh"><span>{{ _('Origen') }}</span><span>{{ _('Qué pasó') }}</span><span>{{ _('Lo resolvió') }}</span><span>{{ _('Cerrado') }}</span><span></span></div>
+      {% for p in pend %}
+      <div class="kb-row">
+        <span><span class="kb-k {{ p.k }}">{{ p.kl }}</span></span>
+        <span style="min-width:0"><span class="t">{{ p.title }}</span><small>{{ [p.src, p.dev, p.detail]|select|join(' · ') }}</small></span>
+        <span class="sm">{{ p.who }}</span>
+        <span class="sm {{ 'kb-late' if p.late }}" title="{{ _('Más de 5 días sin caso: se avisó al admin') if p.late }}">{{ p.ago }}</span>
+        <span class="kb-acts">
+          {% if is_admin %}<form method="post" action="/kb/pending/{{ p.id }}/dismiss"><button class="btn s ghost">{{ _('No hace falta') }}</button></form>{% endif %}
+          {% if can_write %}<button type="button" class="btn s" data-dialog="kb-link" data-link="/kb/pending/{{ p.id }}/link">{{ _('Ya existe') }}</button>
+          <a class="btn s pri" href="/kb/new?pending={{ p.id }}">{{ _('Seguir el borrador') if p.case_id else _('Documentar') }}</a>{% endif %}
+        </span>
+      </div>{% else %}
+      <div class="kb-ok">{{ _('Todo documentado. Buen trabajo.') }}</div>{% endfor %}
+    </div>
+  </section>
+  <aside class="kb-side">
+    <div class="card"><div class="kb-h2">{{ _('Por persona') }}</div>
+      {% for who, n in by_person %}<div class="kb-mini"><span class="grow">{{ who }}</span><b class="m" style="color:var(--warn)">{{ _('1 pendiente') if n == 1 else _f('{0} pendientes', n) }}</b></div>{% else %}
+      <div class="muted sm">{{ _('Todos al día.') }}</div>{% endfor %}
+    </div>
+    <div class="card sm muted" style="line-height:1.5"><div class="kb-h2">{{ _('Reglas') }}</div>{{ _('Si un pendiente pasa 5 días sin caso, se marca en rojo y le llega un aviso al admin.') }}{% if is_admin %} {{ _('Solo un admin puede marcarlo como «no hace falta».') }}{% endif %}</div>
+  </aside>
+</div>
+<dialog class="dlg" id="kb-link" aria-labelledby="kb-link-h"><form method="post" class="stack" id="kb-link-f">
+  <h2 id="kb-link-h" style="margin:0">{{ _('Enlazar a un caso que ya existe') }}</h2>
+  <p class="muted sm" style="margin:0">{{ _('El pendiente queda resuelto con ese caso. Si te pasó algo distinto, añádelo como comentario en el caso.') }}</p>
+  <label class="field"><span>{{ _('Caso') }}</span><select name="case_id" required><option value="">{{ _('Elige un caso publicado…') }}</option>{% for c in published %}<option value="{{ c.id }}">{{ c.code }} · {{ c.title }}</option>{% endfor %}</select></label>
+  <div class="row"><span class="grow"></span><button type="button" class="btn ghost" data-close>{{ _('Cancelar') }}</button><button class="btn pri">{{ _('Enlazar') }}</button></div>
+</form></dialog>
+<script>document.addEventListener('click', function (e) { var b = e.target.closest('[data-link]'); if (b) document.getElementById('kb-link-f').action = b.dataset.link; });</script>
+
+{% elif tab == 'rev' %}
+<p class="muted sm" style="margin:12px 0 0">{% if is_admin %}{{ _('Lee el caso, comprueba que no queden datos sensibles y apruébalo. Si falta algo, pide cambios con un comentario.') }}{% else %}{{ _('Tus casos enviados. Un admin los revisa y los publica.') }}{% endif %}</p>
+{% for r in cards %}
+<div class="card kb-card">
+  <div class="grow">
+    <div class="row"><span class="kb-id">{{ r.code }}</span><span class="pill warn">{{ r.kind }}</span><span class="muted sm">{{ r.who }} · {{ r.when|fecha }}</span></div>
+    <div style="font:600 15px var(--f-sans);margin-top:6px">{{ r.title }}</div>
+    <div class="kb-tags">{% for x in r.tags %}<span class="pill {{ x.cls }}">{{ x.t }}</span>{% endfor %}</div>
+  </div>
+  <div class="row" style="flex:none">
+    <a class="btn s" href="/kb/{{ r.id }}">{{ _('Leer') }}</a>
+    {% if is_admin %}{% set base = ('/kb/proposals/' ~ r.prop) if r.prop else ('/kb/' ~ r.id) %}
+    <button type="button" class="btn s" data-dialog="kb-back" data-back="{{ base }}/return">{{ _('Pedir cambios') }}</button>
+    <form method="post" action="{{ base }}/approve"><button class="btn s pri">{{ _('Aprobar y publicar') }}</button></form>
+    {% else %}<span class="pill">{{ _('Esperando a un admin') }}</span>{% endif %}
+  </div>
+</div>{% else %}
+<div class="card kb-ok" style="margin-top:12px">{{ _('No hay casos esperando revisión.') }}</div>{% endfor %}
+{% if is_admin %}<dialog class="dlg" id="kb-back" aria-labelledby="kb-back-h"><form method="post" class="stack" id="kb-back-f">
+  <h2 id="kb-back-h" style="margin:0">{{ _('Pedir cambios') }}</h2>
+  <p class="muted sm" style="margin:0">{{ _('Vuelve a borrador con tu comentario para el autor.') }}</p>
+  <label class="field"><span>{{ _('Comentario') }}</span><textarea name="comment" rows="4" required placeholder="{{ _('Qué falta o qué hay que corregir…') }}"></textarea></label>
+  <div class="row"><span class="grow"></span><button type="button" class="btn ghost" data-close>{{ _('Cancelar') }}</button><button class="btn pri">{{ _('Pedir cambios') }}</button></div>
+</form></dialog>
+<script>document.addEventListener('click', function (e) { var b = e.target.closest('[data-back]'); if (b) document.getElementById('kb-back-f').action = b.dataset.back; });</script>{% endif %}
+
+{% elif tab == 'acc' %}
+<form method="post" action="/kb/access" class="kb-acc">
+  <div class="card">
+    <div style="font:700 15px var(--f-sans)">{{ _('Quién puede verla') }}</div>
+    <div class="muted sm" style="margin-top:3px">{{ _('Los clientes del soporte de pago y el foro nunca la ven: no tienen usuario en este panel.') }}</div>
+    {% for key, label, role, desc, on, lock in [('', _('Administradores'), 'admin', _('Siempre la ven. No se puede quitar.'), true, true),
+                                                ('kb_operators', _('Operadores'), 'operator', _('Leen, documentan y comentan.'), ops, false),
+                                                ('kb_viewers', _('Solo lectura'), 'viewer', _('Apagado: los casos tienen comandos y datos internos de la red.') if not viewers else _('Leen los casos publicados. No ven el editor.'), viewers, false)] %}
+    <label class="kb-sw"><span class="grow"><b>{{ label }}</b> <span class="muted sm">· {{ _('1 persona') if counts.get(role, 0) == 1 else _f('{0} personas', counts.get(role, 0)) }}</span><small>{{ desc }}</small></span>
+      <input type="checkbox" {% if key %}name="{{ key }}"{% endif %} {{ 'checked' if on }} {{ 'disabled' if lock }} aria-label="{{ label }}"></label>{% endfor %}
+    <div style="font-weight:600;margin-top:14px">{{ _('Quién publica sin revisión') }}</div>
+    <div class="seg" style="margin-top:8px" role="radiogroup" aria-label="{{ _('Quién publica sin revisión') }}">
+      <label class="{{ 'on' if publish != 'all' }}" style="padding:6px 14px;border-radius:99px;cursor:pointer"><input type="radio" name="kb_publish" value="admin" {{ 'checked' if publish != 'all' }} style="display:none">{{ _('Solo admin') }}</label>
+      <label class="{{ 'on' if publish == 'all' }}" style="padding:6px 14px;border-radius:99px;cursor:pointer"><input type="radio" name="kb_publish" value="all" {{ 'checked' if publish == 'all' }} style="display:none">{{ _('Admin y operadores') }}</label>
+    </div>
+  </div>
+  <div class="card">
+    <div style="font:700 15px var(--f-sans)">{{ _('Que cada caso quede escrito') }}</div>
+    <div class="muted sm" style="margin-top:3px">{{ _('Cuándo OpenNCCM pide un caso y lo deja como borrador.') }}</div>
+    {% for key, label, desc in [('kb_rule_critical', _('Al cerrar una alarma crítica'), _('No se cierra sin caso nuevo o enlace a uno existente.')),
+                                ('kb_rule_revert', _('Al revertir un cambio'), _('Se crea el pendiente con el diff y los equipos afectados.')),
+                                ('kb_rule_console', _('Sesiones de consola de más de 15 min'), _('Ofrece un borrador con los comandos de la grabación.')),
+                                ('kb_rule_mail', _('Resumen de pendientes los lunes'), _('Correo a cada persona con lo que le falta documentar (si tiene correo en su cuenta).'))] %}
+    <label class="kb-sw"><span class="grow"><b>{{ label }}</b><small>{{ desc }}</small></span><input type="checkbox" name="{{ key }}" {{ 'checked' if rules[key] }} aria-label="{{ label }}"></label>{% endfor %}
+    <label class="kb-sw"><span class="grow"><b>{{ _('Ocultar contraseñas, claves y comunidades SNMP') }}</b><small>{{ _('Se detectan al guardar y se reemplazan por ••••••. Siempre encendida.') }}</small></span><input type="checkbox" checked disabled aria-label="{{ _('Ocultar contraseñas, claves y comunidades SNMP') }}"></label>
+  </div>
+  <div class="row" style="grid-column:1/-1"><span class="grow"></span><button class="btn pri">{{ icon('save', 's') }}{{ _('Guardar') }}</button></div>
+</form>
+<script>document.querySelectorAll('.kb-acc .seg input').forEach(function (r) { r.addEventListener('change', function () { r.closest('.seg').querySelectorAll('label').forEach(function (l) { l.classList.toggle('on', l.contains(r)); }); }); });</script>
+{% endif %}
+{% endblock %}

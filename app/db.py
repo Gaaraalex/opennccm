@@ -373,6 +373,98 @@ class AiChat(Base):
     messages: Mapped[str] = mapped_column(Text, default="[]")  # JSON: preguntas y respuestas (con sus acciones)
 
 
+class KbCase(Base):
+    """Caso de la base de conocimiento (Equipo › Base de conocimiento): cómo se resolvió algo en la red."""
+    __tablename__ = "kb_cases"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(255), default="")
+    category: Mapped[str] = mapped_column(String(32), default="")  # respaldos | conectividad | cambios | …
+    vendor: Mapped[str | None] = mapped_column(String(64))
+    os_version: Mapped[str | None] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(16), default="draft", index=True)  # draft | review | published | archived
+    symptom: Mapped[str] = mapped_column(Text, default="")
+    cause: Mapped[str] = mapped_column(Text, default="")
+    steps: Mapped[str] = mapped_column(Text, default="[]")  # JSON: [{"t": texto, "c": comando, "hid": se ocultó una clave}]
+    verify: Mapped[str] = mapped_column(Text, default="")
+    prevent: Mapped[str] = mapped_column(Text, default="")
+    ai_marks: Mapped[str | None] = mapped_column(Text)  # JSON: campos propuestos por el asistente que faltan revisar
+    author: Mapped[str] = mapped_column(String(64), index=True)
+    reviewed_by: Mapped[str | None] = mapped_column(String(64))
+    review_comment: Mapped[str | None] = mapped_column(Text)  # «Pedir cambios»
+    source_kind: Mapped[str | None] = mapped_column(String(16))  # event | change | console
+    source_id: Mapped[int | None] = mapped_column(Integer)
+    console_id: Mapped[int | None] = mapped_column(Integer)  # grabación de consola enlazada
+    archived_by: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class KbCaseDevice(Base):
+    __tablename__ = "kb_case_devices"
+    case_id: Mapped[int] = mapped_column(ForeignKey("kb_cases.id", ondelete="CASCADE"), primary_key=True)
+    device_id: Mapped[int] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"), primary_key=True)
+
+
+class KbVersion(Base):
+    """Cada versión publicada de un caso (v1, v2…): el contenido completo en JSON."""
+    __tablename__ = "kb_versions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("kb_cases.id", ondelete="CASCADE"), index=True)
+    n: Mapped[int] = mapped_column(Integer)
+    data: Mapped[str] = mapped_column(Text)
+    note: Mapped[str] = mapped_column(String(255), default="")
+    author: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
+class KbProposal(Base):
+    """«Proponer cambio» sobre un caso publicado: espera la revisión de un admin (el caso sigue como estaba)."""
+    __tablename__ = "kb_proposals"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("kb_cases.id", ondelete="CASCADE"), index=True)
+    data: Mapped[str] = mapped_column(Text)
+    author: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(16), default="review")  # review | approved | returned
+    review_comment: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
+class KbComment(Base):
+    __tablename__ = "kb_comments"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("kb_cases.id", ondelete="CASCADE"), index=True)
+    username: Mapped[str] = mapped_column(String(64))
+    text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
+class KbVote(Base):
+    """«Me sirvió»: un voto por persona y caso."""
+    __tablename__ = "kb_votes"
+    case_id: Mapped[int] = mapped_column(ForeignKey("kb_cases.id", ondelete="CASCADE"), primary_key=True)
+    username: Mapped[str] = mapped_column(String(64), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
+class KbPending(Base):
+    """«Falta documentar»: algo que se cerró sin caso (alarma crítica, cambio revertido, sesión larga de consola)."""
+    __tablename__ = "kb_pending"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16))  # event | change | console
+    source_id: Mapped[int] = mapped_column(Integer)
+    device_id: Mapped[int | None] = mapped_column(ForeignKey("devices.id", ondelete="SET NULL"))
+    title: Mapped[str] = mapped_column(String(255))
+    detail: Mapped[str] = mapped_column(Text, default="")
+    assignee: Mapped[str] = mapped_column(String(64), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now, index=True)
+    state: Mapped[str] = mapped_column(String(16), default="open", index=True)  # open | documented | linked | dismissed
+    case_id: Mapped[int | None] = mapped_column(ForeignKey("kb_cases.id", ondelete="SET NULL"))
+    decided_by: Mapped[str | None] = mapped_column(String(64))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime)
+    overdue_sent: Mapped[bool] = mapped_column(Boolean, default=False)  # ya se avisó al admin de los 5 días
+
+
 class Setting(Base):
     __tablename__ = "settings"
     key: Mapped[str] = mapped_column(String(64), primary_key=True)

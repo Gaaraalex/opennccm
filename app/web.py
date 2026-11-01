@@ -365,7 +365,8 @@ def _nav_counts(user) -> dict:
             if scope is not None:
                 recent = recent.where(Event.device_id.in_(scope))
             sevc = {"critical": "crit", "major": "major", "warning": "minor", "minor": "minor"}
-            return {"alarms": db.scalar(stmt) or 0,
+            from . import kb
+            return {"alarms": db.scalar(stmt) or 0, "kb": kb.nav_count(user),
                     "pending": db.scalar(select(func.count(ChangeRequest.id)).where(ChangeRequest.status == "pending")) or 0,
                     # campana de la barra superior: las 5 alarmas abiertas más recientes
                     "recent": [{"sev": sevc.get(e.severity, "info"), "title": _event_title(e),

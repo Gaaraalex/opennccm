@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block title %}{{ _('Base de conocimiento') }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/kb.css?v={{ VERSION }}">
+<div class="kb-noacc"><div class="card">
+  <div style="width:52px;height:52px;margin:0 auto;border-radius:16px;background:var(--surface-3);display:grid;place-items:center">{{ icon('lock') }}</div>
+  <h1 style="font:700 19px var(--f-sans);margin:14px 0 0">{{ _('Esta sección es para administradores y operadores') }}</h1>
+  <p class="muted" style="line-height:1.55;margin:8px 0 18px">{{ _('Tu cuenta no tiene acceso. La base de conocimiento guarda cómo se resolvió cada caso de la red, con comandos y datos internos, y no aparece en tu menú.') }}</p>
+  {% if asked %}<button class="btn" disabled>{{ _('Solicitud enviada a los administradores') }}</button>
+  {% else %}<form method="post" action="/kb/request-access"><button class="btn">{{ _('Pedir acceso a un admin') }}</button></form>{% endif %}
+</div></div>
+{% endblock %}
