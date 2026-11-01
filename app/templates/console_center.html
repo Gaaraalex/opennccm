@@ -114,10 +114,11 @@
 <section class="cc-sec" id="t-herramientas" data-sec="herramientas" hidden>
   <div class="card stack">
     <div class="row"><div class="seg" id="tl-tool">{% for k, l in [('ping', 'Ping'), ('traceroute', 'Traceroute'), ('tcp', _('Puerto TCP')), ('dns', 'DNS')] %}<button type="button" data-t="{{ k }}" class="{{ 'on' if loop.first }}">{{ l }}</button>{% endfor %}</div>
-      <div class="input mono grow"><input id="tl-target" placeholder="10.0.0.1" aria-label="{{ _('IP o nombre') }}" spellcheck="false"></div>
+      <div class="input mono grow"><input id="tl-target" placeholder="8.8.8.8 -t" aria-label="{{ _('IP o nombre, con parámetros si quiere') }}" spellcheck="false" autocapitalize="off" autocomplete="off"></div>
       <div class="input" style="max-width:110px" id="tl-port-w" hidden><input id="tl-port" value="22" inputmode="numeric" aria-label="{{ _('Puerto') }}"></div>
-      <button type="button" class="btn pri" id="tl-run">{{ _('Ejecutar') }}</button></div>
-    <div class="muted sm">{{ _('Desde el servidor OpenNCCM, dentro de la red de gestión.') }}</div>
+      <button type="button" class="btn pri" id="tl-run">{{ _('Ejecutar') }}</button><button type="button" class="btn" id="tl-stop" hidden>{{ _('Detener') }}</button></div>
+    <div class="muted sm">{{ _('Desde el servidor OpenNCCM, dentro de la red de gestión. Puede añadir parámetros después de la IP o el nombre:') }}
+      {% for k, h in tool_help.items() %}<span class="mono tl-help" data-for="{{ k }}"{{ ' hidden' if not loop.first }}>{{ h }}</span>{% endfor %}</div>
   </div>
   <div class="cc-tools">
     <div class="cx" data-theme="0" style="height:auto"><div class="cx-out mono" id="tl-out" style="min-height:280px"></div></div>
@@ -167,6 +168,6 @@
         'multi': _('Usar en multi-equipo'), 'dup': _('Duplicar y adaptar'), 'edit': _('Editar'), 'del': _('Eliminar'), 'doc': _('Documentación del fabricante'), 'noact': _('Abra primero una sesión en Sesiones.'),
         'copied': _('Copiado.'), 'sent': _('Enviado a la consola activa.'), 'crdone': _('Solicitud de cambio creada.'), 'saved': _('Receta guardada.'), 'all': _('Todas'),
         'openc': _('Abrir consola de {0}'), 'pickdev': _('Elija al menos un equipo.'), 'analyze': _('Analiza estas respuestas de varios equipos al mismo comando: qué tienen distinto y cómo igualarlos.'),
-        'played': _('{0} comandos · {1}'), 'shared': _('Enlace de solo lectura copiado.')}}|tojson }}</script>
+        'played': _('{0} comandos · {1}'), 'stopped': _('Detenido.'), 'shared': _('Enlace de solo lectura copiado.')}}|tojson }}</script>
 <script src="/static/center.js?v={{ VERSION }}-{{ CX_HASH }}"></script>
 {% endblock %}

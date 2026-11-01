@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.16.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 2.17.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -322,9 +322,16 @@ sigue sola.</p>
   <tr><td>Grabaciones</td><td>Cada sesión: usuario, equipo, hora, duración y comandos, con marca roja si hubo un comando que
   corta el servicio. Busca en lo escrito y en lo visto (por ejemplo «reload»). El reproductor tiene línea de tiempo con esas
   marcas, velocidad 1×, 2× o 4× y <b>Exportar</b> (texto). Se guardan 180 días (se puede cambiar).</td></tr>
-  <tr><td>Herramientas</td><td>Ping, Traceroute, Puerto TCP y DNS desde el servidor de OpenNCCM, con la salida en colores, un
-  resumen (pérdida, tiempo, saltos…) y <b>Abrir consola</b> si el destino es un equipo de OpenNCCM. Ping y traceroute necesitan
-  permiso para enviar ICMP: el instalador y <code>sudo opennccm update</code> se lo dan al servicio.</td></tr>
+  <tr><td>Herramientas</td><td>Ping, Traceroute, Puerto TCP y DNS desde el servidor de OpenNCCM, con la salida en colores a
+  medida que llega, un resumen (pérdida, tiempo, saltos…) y <b>Abrir consola</b> si el destino es un equipo de OpenNCCM. Detrás
+  de la IP o el nombre se pueden poner parámetros, los de siempre de Windows o de Linux (debajo de la casilla se ven los de cada
+  herramienta): <code>8.8.8.8 -t</code> (ping continuo, hasta pulsar <b>Detener</b> o 10 minutos), <code>-n 10</code>,
+  <code>-l 1400 -f</code> (tamaño sin fragmentar), <code>-i 0.2</code>, <code>--ttl 5</code>, <code>-I ether1</code>;
+  traceroute <code>-h 30 -q 3 -w 2</code>, <code>-I</code> (ICMP) o <code>-T -p 443</code> (TCP); puerto TCP
+  <code>10.0.0.1:443 -c 5</code> o <code>-t</code>; DNS <code>ejemplo.com MX @1.1.1.1</code> o <code>-x 8.8.8.8</code>. Solo
+  se aceptan esas opciones y nunca se pasa el texto tal cual al sistema. Ping y traceroute necesitan permiso para enviar ICMP: el
+  instalador y <code>sudo opennccm update</code> se lo dan al servicio (y también instalan <code>dig</code> para los tipos de
+  registro DNS).</td></tr>
   <tr><td>Acceso (administradores)</td><td>Por rol: <b>Sin consola</b>, <b>Solo lectura</b> o <b>Lectura y escritura</b>. General:
   grabar todas las sesiones, aplicar los comandos prohibidos, cierre por inactividad y días que se guardan las grabaciones. Por
   grupo: <b>Acceso normal</b> o <b>Requiere aprobación</b> y su lista de comandos prohibidos (lo que empieza así, o una expresión

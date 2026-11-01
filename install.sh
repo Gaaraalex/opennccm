@@ -435,7 +435,7 @@ install_packages() {
     progress 10 "Actualizando Ubuntu (puede tardar varios minutos)…"
     run apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold full-upgrade
   fi
-  local pkgs=(git curl ca-certificates openssl rsync python3 python3-venv python3-pip whiptail sqlite3 psmisc iputils-ping traceroute)
+  local pkgs=(git curl ca-certificates openssl rsync python3 python3-venv python3-pip whiptail sqlite3 psmisc iputils-ping traceroute dnsutils)
   if [[ ${VERSION_ID:-} == 22.04 ]]; then pkgs+=(policykit-1); else pkgs+=(polkitd); fi
   [[ $TLS_MODE != none ]] && pkgs+=(nginx)
   [[ $TLS_MODE == letsencrypt ]] && pkgs+=(certbot python3-certbot-nginx)
@@ -872,7 +872,7 @@ gauge_start
 if [[ $APPLY_ONLY -eq 1 ]]; then
   # usado por "opennccm update": el código ya está en su versión; reaplicar sistema
   # herramientas de diagnóstico de la consola (ping y traceroute) en instalaciones anteriores a la 2.16
-  for p in iputils-ping traceroute; do
+  for p in iputils-ping traceroute dnsutils; do
     dpkg -s "$p" >/dev/null 2>&1 || run env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$p" || true
   done
   setup_python; setup_user_and_dirs; write_env; setup_service; setup_polkit; setup_nginx

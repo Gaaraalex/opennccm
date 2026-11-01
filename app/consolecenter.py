@@ -18,18 +18,20 @@ import platform
 import re
 import socket
 import stat
+import signal
 import subprocess
+import threading
 import time
 from concurrent.futures import as_completed
 from datetime import timedelta
 
 import paramiko
 from fastapi import APIRouter, Request, UploadFile
-from fastapi.responses import JSONResponse, PlainTextResponse, Response
+from fastapi.responses import JSONResponse, PlainTextResponse, Response, StreamingResponse
 from sqlalchemy import select
 
 from . import consolecore as cc
-from . import console, recipes
+from . import console, nettools, recipes
 from .auth import Forbidden, check_device, device_scope, require
 from .crypto import decrypt
 from .db import (ConsoleAccessRequest, ConsoleSession, Device, DeviceGroup, Recipe, SessionLocal, audit, get_setting,
@@ -98,6 +100,7 @@ def center(request: Request, tab: str = "sesiones", q: str = "", rec: int = 0, e
     ctx["cats"] = {k: _(v) for k, v in recipes.CATEGORIES.items()}
     ctx["recs"] = recordings(user, q, bool(empty))
     ctx["empty"] = bool(empty)
+    ctx["tool_help"] = {k: _(v) for k, v in nettools.HELP.items()}
     if user.role == "admin":
         ctx["acc"] = {"roles": {r: console.role_mode(r) for r in ("admin", "operator", "viewer")},
                       "record": get_setting("console_record", "1") == "1",
@@ -457,18 +460,6 @@ def rec_export(request: Request, sid: int):
 
 
 # --------------------------------------------------------------------------- herramientas
-def _run(args: list[str], timeout: int) -> str:
-    try:
-        p = subprocess.run(args, capture_output=True, timeout=timeout)  # noqa: S603
-        return (p.stdout or b"").decode("utf-8", "replace") + (p.stderr or b"").decode("utf-8", "replace")
-    except FileNotFoundError:
-        return _f("Este servidor no tiene la orden «{0}». Instálela con: sudo apt install {1}", args[0],
-                  "traceroute" if "trace" in args[0] else "iputils-ping")
-    except subprocess.TimeoutExpired as e:
-        part = (e.stdout or b"").decode("utf-8", "replace") if isinstance(e.stdout, bytes) else (e.stdout or "")
-        return (part + "\n" if part else "") + _("Se acabó el tiempo de espera.")
-
-
 def _hint(out: str) -> str:
     """Si el sistema no deja abrir sockets ICMP, cómo arreglarlo (instalaciones anteriores a la 2.16)."""
     if re.search(r"Operation not permitted|cap_net_raw|socket: Permission denied", out, re.I):
@@ -478,60 +469,187 @@ def _hint(out: str) -> str:
 
 @router.post("/console/tools")
 async def tools(request: Request):
+    """Ping, traceroute, puerto TCP y DNS con parámetros (app/nettools.py). La salida llega línea a línea; al final, tras
+    el separador \\x1e, el resumen en JSON. «Detener» (/console/tools/stop) corta un ping continuo."""
     user = require(request)
     if not console.console_allowed(user):
         raise Forbidden()
     data = await request.json()
-    tool, target = str(data.get("tool") or ""), str(data.get("target") or "").strip()
-    if not TARGET.match(target):
-        return JSONResponse({"error": _("Escriba una IP o un nombre válido.")}, 400)
-    win = platform.system() == "Windows"
-    summary: list[list[str]] = []
-    if tool == "ping":
-        out = _hint(_run(["ping", "-n", "4", target] if win else ["ping", "-c", "4", "-W", "2", target], 25))
-        m = re.search(r"(\d+(?:\.\d+)?)% (?:packet )?loss", out) or re.search(r"\((\d+)% (?:perdidos|loss)\)", out)
-        if m:
-            summary.append([_("Pérdida"), m.group(1) + " %"])
-        m = re.search(r"= [\d.]+/([\d.]+)/", out) or re.search(r"(?:Average|Media) = (\d+)ms", out)
-        if m:
-            summary.append([_("Tiempo medio"), m.group(1) + " ms"])
-    elif tool == "traceroute":
-        out = _run(["tracert", "-d", "-h", "20", "-w", "1000", target] if win else
-                   ["traceroute", "-n", "-w", "1", "-q", "1", "-m", "20", "-N", "4", target], 45)
-        if "«traceroute»" in out:
-            out = _run(["tracepath", "-n", "-m", "20", target], 45)
-        out = _hint(out)
-        hops = [x for x in out.splitlines() if re.match(r"\s*\d+\s", x)]
-        summary.append([_("Saltos"), str(len(hops))])
-    elif tool == "tcp":
-        port = int(data.get("port") or 22) if str(data.get("port") or "22").isdigit() else 22
-        t0 = time.time()
+    tool, text, run = str(data.get("tool") or ""), str(data.get("target") or "").strip(), str(data.get("run") or "")[:40]
+    try:
+        if tool == "ping":
+            spec = nettools.ping(text)
+            args, limit = nettools.ping_args(spec)
+            gen = _stream_cmd(user.username, run, [args], limit, _ping_summary)
+        elif tool == "traceroute":
+            spec = nettools.traceroute(text)
+            args, fallback, limit = nettools.trace_args(spec)
+            gen = _stream_cmd(user.username, run, [args] + ([fallback] if fallback else []), limit, _trace_summary)
+        elif tool == "tcp":
+            spec = nettools.tcp(text, str(data.get("port") or ""))
+            gen = _stream_tcp(user.username, run, spec)
+        elif tool == "dns":
+            spec = nettools.dns(text)
+            args = nettools.dns_args(spec)
+            gen = _stream_cmd(user.username, run, [args], 20, _dns_summary) if args else _stream_dns(spec, args is not None)
+        else:
+            return JSONResponse({"error": _("Herramienta desconocida.")}, 400)
+    except nettools.BadArgs as e:
+        return JSONResponse({"error": str(e)}, 400)
+    audit(user.username, "console_tool", f"{tool} {text}"[:250])
+    dev = next((d for d in _devices(user) if d["host"] == spec["target"]), None)
+
+    def body():
+        summary = []
+        for chunk in gen:
+            if isinstance(chunk, list):
+                summary = chunk
+            else:
+                yield chunk
+        yield "\x1e" + json.dumps({"summary": summary, "device": dev})
+    return StreamingResponse(body(), media_type="text/plain; charset=utf-8", headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+
+
+_RUNS: dict[tuple[str, str], subprocess.Popen] = {}
+_STOPPED: set[tuple[str, str]] = set()
+
+
+@router.post("/console/tools/stop")
+async def tools_stop(request: Request):
+    user = require(request)
+    key = (user.username, str((await request.json()).get("run") or "")[:40])
+    _STOPPED.add(key)
+    proc = _RUNS.get(key)
+    if proc:
+        _interrupt(proc)
+    return JSONResponse({"ok": True})
+
+
+def _interrupt(proc: subprocess.Popen) -> None:
+    """En Linux, como Ctrl+C: ping imprime su resumen antes de salir."""
+    if proc.poll() is None:
         try:
-            with socket.create_connection((target, port), timeout=5):
-                ms = int((time.time() - t0) * 1000)
-                out = _f("Puerto {0} de {1}: abierto ({2} ms).", port, target, ms)
-                summary += [[_("Estado"), _("abierto")], [_("Tiempo"), f"{ms} ms"]]
-        except OSError as e:
-            out = _f("Puerto {0} de {1}: no responde ({2}).", port, target, e)
-            summary.append([_("Estado"), _("cerrado o filtrado")])
-    elif tool == "dns":
-        lines = []
-        try:
-            addrs = sorted({a[4][0] for a in socket.getaddrinfo(target, None)})
-            lines += [f"{target} → {a}" for a in addrs]
-            summary.append([_("Direcciones"), str(len(addrs))])
-        except OSError as e:
-            lines.append(_f("No se pudo resolver {0}: {1}", target, e))
-        try:
-            lines.append(f"{target} ← {socket.gethostbyaddr(target)[0]}")
+            proc.send_signal(signal.SIGINT) if platform.system() != "Windows" else proc.terminate()
         except OSError:
             pass
-        out = "\n".join(lines)
-    else:
-        return JSONResponse({"error": _("Herramienta desconocida.")}, 400)
-    audit(user.username, "console_tool", f"{tool} {target}")
-    dev = next((d for d in _devices(user) if d["host"] == target), None)
-    return JSONResponse({"out": out, "summary": summary, "device": dev})
+
+
+def _dec(b: bytes) -> str:
+    try:
+        return b.decode("utf-8")
+    except UnicodeDecodeError:
+        return b.decode("cp850" if platform.system() == "Windows" else "latin-1", "replace")
+
+
+def _stream_cmd(username: str, run: str, cmds: list[list[str]], limit: int, summarize):
+    key, out = (username, run), []
+    _STOPPED.discard(key)
+    for i, args in enumerate(cmds):
+        try:
+            proc = subprocess.Popen(nettools._line_buffered(args), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)  # noqa: S603
+        except FileNotFoundError:
+            if i + 1 < len(cmds):
+                continue
+            yield _f("Este servidor no tiene la orden «{0}». Instálela con: sudo apt install {1}", args[0],
+                     {"tracepath": "iputils-tracepath", "dig": "dnsutils"}.get(args[0], "traceroute" if "trace" in args[0] else "iputils-ping"))
+            return
+        _RUNS[key] = proc
+        fired: list[bool] = []
+        timer = threading.Timer(limit, lambda: (fired.append(True), _interrupt(proc)))
+        timer.start()
+        try:
+            while True:
+                chunk = proc.stdout.read1(4096) if hasattr(proc.stdout, "read1") else proc.stdout.readline()
+                if not chunk:
+                    break
+                text = _dec(chunk).replace("\r\n", "\n")
+                out.append(text)
+                yield text
+            proc.wait(5)
+        finally:
+            timer.cancel()
+            if proc.poll() is None:
+                proc.kill()
+            _RUNS.pop(key, None)
+        if fired and key not in _STOPPED:
+            yield "\n" + _("Se acabó el tiempo de espera.")
+        break
+    full = "".join(out)
+    hint = _hint(full)
+    if hint != full:
+        yield hint[len(full):]
+    yield summarize(full)
+
+
+def _ping_summary(out: str) -> list:
+    summary = []
+    m = re.search(r"(\d+(?:\.\d+)?)% (?:packet )?loss", out) or re.search(r"\((\d+)% (?:perdidos|loss)\)", out)
+    if m:
+        summary.append([_("Pérdida"), m.group(1) + " %"])
+    m = re.search(r"= [\d.]+/([\d.]+)/", out) or re.search(r"(?:Average|Media) = (\d+)ms", out)
+    if m:
+        summary.append([_("Tiempo medio"), m.group(1) + " ms"])
+    n = len(re.findall(r"(?:bytes from|Reply from|Respuesta desde)", out, re.I))
+    if n:
+        summary.append([_("Respuestas"), str(n)])
+    return summary
+
+
+def _trace_summary(out: str) -> list:
+    return [[_("Saltos"), str(len([x for x in out.splitlines() if re.match(r"\s*\d+[\s:]", x)]))]]
+
+
+def _dns_summary(out: str) -> list:
+    n = len([x for x in out.splitlines() if x.strip() and not x.startswith(";")])
+    return [[_("Registros"), str(n)]]
+
+
+def _stream_tcp(username: str, run: str, c: dict):
+    key = (username, run)
+    _STOPPED.discard(key)
+    ok = fail = 0
+    times = []
+    end = time.time() + nettools.MAX_CONTINUOUS
+    i = 0
+    while (c["continuous"] or i < c["count"]) and time.time() < end and key not in _STOPPED:
+        if i:
+            time.sleep(1)
+        i += 1
+        t0 = time.time()
+        try:
+            with socket.create_connection((c["target"], c["port"]), timeout=c["timeout"]):
+                ms = int((time.time() - t0) * 1000)
+                ok += 1
+                times.append(ms)
+                yield _f("Puerto {0} de {1}: abierto ({2} ms).", c["port"], c["target"], ms) + "\n"
+        except OSError as e:
+            fail += 1
+            yield _f("Puerto {0} de {1}: no responde ({2}).", c["port"], c["target"], e) + "\n"
+    summary = [[_("Estado"), _("abierto") if ok else _("cerrado o filtrado")]]
+    if times:
+        summary.append([_("Tiempo"), f"{int(sum(times) / len(times))} ms"])
+    if i > 1:
+        summary.append([_("Intentos"), f"{ok}/{i}"])
+    yield summary
+
+
+def _stream_dns(d: dict, no_tool: bool):
+    lines = []
+    if no_tool:
+        lines.append(_("Este servidor no tiene «dig» para consultar tipos de registro o un servidor concreto; se resuelve con el sistema. Instálelo con: sudo apt install dnsutils"))
+    summary = []
+    try:
+        addrs = sorted({a[4][0] for a in socket.getaddrinfo(d["target"], None)})
+        lines += [f"{d['target']} → {a}" for a in addrs]
+        summary.append([_("Direcciones"), str(len(addrs))])
+    except OSError as e:
+        lines.append(_f("No se pudo resolver {0}: {1}", d["target"], e))
+    try:
+        lines.append(f"{d['target']} ← {socket.gethostbyaddr(d['target'])[0]}")
+    except OSError:
+        pass
+    yield "\n".join(lines)
+    yield summary
 
 
 # --------------------------------------------------------------------------- acceso

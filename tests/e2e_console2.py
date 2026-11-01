@@ -147,12 +147,28 @@ check("solicitud de cambio desde la consola (sin las órdenes de entrar y salir 
 if r.get("url"):
     check("la solicitud lleva solo los comandos del cambio", "ntp server 10.9.9.9" in adm.get(B + r["url"]).text)
     adm.post(B + r["url"] + "/review", data={"decision": "reject", "comment": "prueba de la consola"})  # no queda pendiente
-r = adm.post(B + "/console/tools", json={"tool": "tcp", "target": "127.0.0.1", "port": 2222}).json()
-check("herramientas: puerto TCP abierto", "abierto" in r.get("out", "") and r.get("device", {}).get("name") == "R1", r)
-r = adm.post(B + "/console/tools", json={"tool": "dns", "target": "localhost"}).json()
+def tool(sess, **kw):
+    """La salida llega por partes; tras «\x1e», el resumen en JSON."""
+    r = sess.post(B + "/console/tools", json=kw)
+    if "json" in r.headers.get("content-type", ""):
+        return {"status": r.status_code, **r.json()}
+    out, _sep, tail = r.text.partition("\x1e")
+    return {"status": r.status_code, "out": out, **(json.loads(tail) if tail else {})}
+
+
+r = tool(adm, tool="tcp", target="127.0.0.1", port=2222)
+check("herramientas: puerto TCP abierto", "abierto" in r.get("out", "") and (r.get("device") or {}).get("name") == "R1", r)
+r = tool(adm, tool="tcp", target="127.0.0.1:2222 -c 2")
+check("herramientas con parámetros: «host:puerto -c 2» prueba dos veces", r.get("out", "").count("abierto") == 2
+      and ["Intentos", "2/2"] in r.get("summary", []), r)
+r = tool(adm, tool="dns", target="localhost")
 check("herramientas: DNS", "localhost" in r.get("out", ""), r)
-r = adm.post(B + "/console/tools", json={"tool": "ping", "target": "-c 1 x"})
-check("herramientas: no aceptan opciones como destino", r.status_code == 400)
+r = tool(adm, tool="ping", target="-c 1")
+check("herramientas: sin destino (solo opciones) no se ejecuta", r["status"] == 400)
+r = tool(adm, tool="ping", target="127.0.0.1; reboot")
+check("herramientas: no se puede encadenar órdenes", r["status"] == 400, r)
+r = tool(adm, tool="ping", target="127.0.0.1 --flood")
+check("herramientas: opción no permitida, con el motivo", r["status"] == 400 and "--flood" in r.get("error", ""), r)
 check("recetas: incluidas, revisadas contra la documentación del fabricante",
       "4145-ssh.html" in center and "manual.mikrotik.com" in center and "documentation.extremenetworks.com" in center)
 r = adm.post(B + "/console/recipes", json={"name": "Ver NTP", "vendor": "Cisco", "os": "ios", "cat": "diagnostico",
@@ -280,8 +296,8 @@ check("nunca salen los secretos: contraseñas y comunidad SNMP ocultas", "$1$abc
 r = ia.post(B + "/api/ai/ask", json={"q": "Explica", "kind": "diff", "a": 1, "b": 2}).json()
 check("«✦ Explicar este cambio» con las diferencias", r.get("segments") and "Diferencias" in json.dumps(SEEN[-1]), r)
 check("botón «✦ Explicar este cambio» en la comparación", "Explicar este cambio" in adm.get(B + "/diff?a=1&b=2").text)
-r = adm.post(B + "/console/tools", json={"tool": "ping", "target": "127.0.0.1"}).json()
-check("herramientas: ping devuelve su salida o explica cómo arreglarlo", r.get("out"), r)
+r = tool(adm, tool="ping", target="127.0.0.1 -n 2")
+check("herramientas: ping con parámetros devuelve su salida o explica cómo arreglarlo", r.get("out"), r)
 ia.post(B + "/api/ai/ask", json={"q": "otra"})
 r = ia.post(B + "/api/ai/ask", json={"q": "una más"})
 check("límite de preguntas por día", r.status_code == 400 and "límite" in r.json().get("error", ""), r.text)

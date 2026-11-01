@@ -101,5 +101,12 @@ for raw, want in [("TCP connection to device failed. Common causes of this probl
                   ("Pattern not detected: 'R1#' in output", "respaldo incompleto"), ("Read timed out", "tiempo agotado"), ("algo raro", "falló el respaldo")]:
     check(f"motivo corto: «{want}»", short_error(raw) == want, short_error(raw))
 
+import glob  # noqa: E402
+import re  # noqa: E402
+from collections import Counter  # noqa: E402
+for js in sorted(glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "static", "*.js"))):
+    twice = [k for k, v in Counter(re.findall(r"^  function (\w+)\(", open(js, encoding="utf-8").read(), re.M)).items() if v > 1]
+    check(f"{os.path.basename(js)}: ninguna función repetida (la segunda tapa a la primera)", not twice, twice)
+
 print("\nRESULTADO:", "TODO OK" if not fails else f"{len(fails)} fallos: {fails}")
 sys.exit(1 if fails else 0)
