@@ -235,7 +235,7 @@
     var r = cur, o = vals();
     $('rc-steps').innerHTML = r.steps.map(function (s, i) {
       var c = fill(s.c, o);
-      return '<li class="' + (s.warn ? 'warn' : '') + (s.check ? ' check' : '') + '"><div class="sm">' + (s.warn ? '<b class="k-warn">' + esc(T.warn) + ' · </b>' : s.check ? '<b class="k-ok">' + esc(T.check) + ' · </b>' : '') + esc(s.t) + '</div>' +
+      return '<li class="' + (s.warn ? 'warn' : '') + (s.check ? ' check' : '') + '"><div class="sm">' + (s.warn ? '<b class="k-warn">' + esc(T.warn) + ' · </b>' : s.check && s.t.indexOf(T.check) !== 0 ? '<b class="k-ok">' + esc(T.check) + ' · </b>' : '') + esc(s.t) + '</div>' +
         (c ? '<div class="cx" data-theme="0" style="height:auto"><div class="cx-out mono" style="padding:8px 10px">' + esc(c) + '</div></div><div class="row"><button type="button" class="btn s ghost" data-cp="' + i + '">' + esc(T.copy) + '</button><button type="button" class="btn s ghost" data-in="' + i + '">' + esc(T.insert) + '</button></div>' : '') + '</li>';
     }).join('');
   }
