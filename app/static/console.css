@@ -100,3 +100,32 @@
 .cx-bar .grow{display:none}.cx-k{white-space:nowrap;flex:none}
 .cx.embed .cx-foot{gap:8px;font-size:11.5px;padding:5px 10px}
 .ai-top,.cx-aibtn{display:inline-flex;align-items:center;gap:6px}
+/* chat del asistente en todo el sistema (barra superior) */
+.ai-chat{position:fixed;right:0;top:0;bottom:0;width:min(440px,100vw);z-index:70;display:flex;flex-direction:column;background:var(--surface);
+  color:var(--ink);border-left:1px solid var(--line);box-shadow:-16px 0 40px rgba(0,0,0,.18)}
+.ai-chat[hidden]{display:none}
+.ai-ch{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.ai-ch b{display:block;font-size:15px}.ai-ch small{color:var(--muted);font-size:12px;display:block}
+.ai-ch .tbtn{min-width:32px;height:32px;border:0;background:none;border-radius:8px;cursor:pointer;color:var(--muted);font:600 16px var(--f-sans)}
+.ai-ch .tbtn:hover{background:var(--surface-2);color:var(--ink)}
+.ai-view{padding:7px 14px;border-bottom:1px solid var(--line);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ai-view .ok{color:var(--ok)}
+.ai-chat .ai-msgs{flex:1;min-height:0;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:12px}
+.ai-chat .ai-m.bot p{margin:0 0 8px}
+.ai-items{list-style:none;margin:0 0 8px;padding:0;display:flex;flex-direction:column;gap:4px}
+.ai-items li{display:grid;grid-template-columns:10px auto 1fr;gap:8px;align-items:center;font-size:13px;min-width:0}
+.ai-items .dot{width:8px;height:8px;border-radius:99px;background:var(--warn)}.ai-items .dot.ok{background:var(--ok)}.ai-items .dot.crit{background:var(--crit)}
+.ai-items .mono{font-weight:600}.ai-items .muted{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ai-acts{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+.ai-more summary{cursor:pointer;font-size:12.5px;color:var(--muted);margin-top:4px}
+.ai-src{font-size:11.5px;color:var(--muted);margin-top:4px}
+.ai-confirm{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:8px;background:var(--surface-2)}
+.ai-confirm p{margin:4px 0 8px;color:var(--muted)}
+.ai-chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:8px 14px 0}
+.ai-chips button{flex:none;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:4px 10px;font:12.5px var(--f-sans);cursor:pointer;white-space:nowrap}
+.ai-chat .ai-in{display:flex;gap:6px;padding:10px 14px}
+.ai-chat .ai-in textarea{flex:1;resize:none;min-height:40px;max-height:120px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:9px 11px;font:13.5px var(--f-sans)}
+.ai-chat .ai-note{padding:0 14px 12px;font-size:11.5px;color:var(--muted)}
+.ai-top[aria-pressed="true"]{border-color:var(--brand);color:var(--brand)}
+@media (min-width:1100px){body.ai-open .main{margin-right:440px}}
+body.ai-open .search-top kbd,body.ai-open .donate .dt{display:none}

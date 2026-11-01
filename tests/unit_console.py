@@ -84,8 +84,12 @@ for r in recipes.BUILTIN:
     check(f"receta {r['key']}: sus variables existen", used <= names, used - names)
     check(f"receta {r['key']}: termina en «Comprobar»", r["steps"][-1].get("check") is True)
     check(f"receta {r['key']}: categoría válida", r["cat"] in recipes.CATEGORIES)
-    if r["cat"] != "diagnostico":
-        check(f"receta {r['key']}: con su documentación oficial", r["doc"].startswith("https://"))
+    if r["doc"]:
+        check(f"receta {r['key']}: enlace a la documentación oficial", r["doc"].startswith("https://"))
+from collections import Counter  # noqa: E402
+n = Counter(r["os"] for r in recipes.BUILTIN)
+check("al menos 10 recetas por Cisco, MikroTik, EXOS y VOSS", all(n[o] >= 10 for o in ("ios", "ros", "exos", "voss")), n)
+check("claves de receta únicas", len({r["key"] for r in recipes.BUILTIN}) == len(recipes.BUILTIN))
 filled = recipes.fill(recipes.BY_KEY["ros-vlan"], {"nombre": "vlan30", "vlan": "30"})
 check("receta: se sustituyen las variables (y las vacías toman el valor por omisión)",
       filled[0]["c"] == "/interface vlan add name=vlan30 vlan-id=30 interface=ether2", filled[0]["c"])

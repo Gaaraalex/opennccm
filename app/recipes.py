@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from .i18n import N_
 
-CATEGORIES = {"seguridad": N_("Seguridad"), "interfaces": N_("Interfaces y VLAN"), "servicios": N_("Servicios"),
-              "diagnostico": N_("Diagnóstico")}
+CATEGORIES = {"sistema": N_("Sistema"), "seguridad": N_("Seguridad"), "interfaces": N_("Interfaces y VLAN"),
+              "servicios": N_("Servicios"), "diagnostico": N_("Diagnóstico")}
 
 BUILTIN = [
     {
@@ -103,6 +103,9 @@ BUILTIN = [
         ],
     },
 ]
+from .recipes_more import MORE  # noqa: E402  (las tareas comunes de Cisco, MikroTik, EXOS y VOSS)
+
+BUILTIN += MORE
 BY_KEY = {r["key"]: r for r in BUILTIN}
 
 

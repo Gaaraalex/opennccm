@@ -435,7 +435,7 @@ install_packages() {
     progress 10 "Actualizando Ubuntu (puede tardar varios minutos)…"
     run apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold full-upgrade
   fi
-  local pkgs=(git curl ca-certificates openssl rsync python3 python3-venv python3-pip whiptail sqlite3 psmisc)
+  local pkgs=(git curl ca-certificates openssl rsync python3 python3-venv python3-pip whiptail sqlite3 psmisc iputils-ping traceroute)
   if [[ ${VERSION_ID:-} == 22.04 ]]; then pkgs+=(policykit-1); else pkgs+=(polkitd); fi
   [[ $TLS_MODE != none ]] && pkgs+=(nginx)
   [[ $TLS_MODE == letsencrypt ]] && pkgs+=(certbot python3-certbot-nginx)
@@ -599,8 +599,9 @@ EnvironmentFile=$ETC_DIR/opennccm.env
 ExecStart=$APP_DIR/.venv/bin/uvicorn app.main:app --host $listen --port 8000 --workers 1 --proxy-headers
 Restart=on-failure
 RestartSec=5
-AmbientCapabilities=CAP_NET_BIND_SERVICE
-CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+# CAP_NET_RAW: ping y traceroute de Operar › Consola › Herramientas (sockets ICMP)
+AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_NET_RAW
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
@@ -870,6 +871,10 @@ case $TLS_MODE in none) URL="http://$NCM_HOST:8000/";; letsencrypt) URL="https:/
 gauge_start
 if [[ $APPLY_ONLY -eq 1 ]]; then
   # usado por "opennccm update": el código ya está en su versión; reaplicar sistema
+  # herramientas de diagnóstico de la consola (ping y traceroute) en instalaciones anteriores a la 2.16
+  for p in iputils-ping traceroute; do
+    dpkg -s "$p" >/dev/null 2>&1 || run env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$p" || true
+  done
   setup_python; setup_user_and_dirs; write_env; setup_service; setup_polkit; setup_nginx
   progress 100 "Configuración del sistema reaplicada."
   gauge_stop

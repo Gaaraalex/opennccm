@@ -3067,6 +3067,9 @@ from . import assistant, consolecenter  # noqa: E402  (asistente IA; Operar › 
 
 app.include_router(assistant.router)
 app.include_router(consolecenter.router)
+from . import aichat  # noqa: E402  (chat del asistente en todo el sistema)
+
+app.include_router(aichat.router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)

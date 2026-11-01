@@ -118,7 +118,11 @@ def texts() -> dict:
             "thinking": _("Pensando…"), "copy": _("Copiar"), "insert": _("Insertar"), "cr": _("Enviar como solicitud de cambio"),
             "copied": _("Copiado."), "risk": {"read": _("solo lectura"), "change": _("cambia la configuración"),
                                               "outage": _("corta el servicio")},
-            "source": _("Fuente: {0}"), "crdone": _("Solicitud de cambio creada."), "close": _("Cerrar"), "send": _("Enviar")}
+            "source": _("Fuente: {0}"), "crdone": _("Solicitud de cambio creada."), "close": _("Cerrar"), "send": _("Enviar"),
+            "chat": _("Asistente"), "newc": _("Nueva conversación"), "viewing": _("Viendo: {0} · {1} equipos"),
+            "chatph": _("Pregunta sobre tu red o sobre OpenNCCM…"), "more": _("Más acciones"), "cancel": _("Cancelar"),
+            "confirm": _("Confirmar"), "see": _("Ver"),
+            "chatnote": _("Solo ve lo que tú puedes ver. Prepara acciones, pero nunca las ejecuta sin que confirmes. Cada pregunta queda en Auditoría.")}
 
 
 def panel_info(user) -> dict:

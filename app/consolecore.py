@@ -12,7 +12,7 @@ import re
 from .i18n import N_
 
 OS_LABEL = {"ros": "RouterOS", "ios": "Cisco IOS", "nxos": "NX-OS", "eos": "Arista EOS", "vrp": "Huawei VRP",
-            "junos": "Junos", "exos": "EXOS", "fastpath": "EdgeSwitch", "linux": "Linux", "generic": ""}
+            "junos": "Junos", "exos": "EXOS", "voss": "VOSS / Fabric Engine", "fastpath": "EdgeSwitch", "linux": "Linux", "generic": ""}
 
 
 def os_of(device_type: str) -> str:
@@ -32,6 +32,8 @@ def os_of(device_type: str) -> str:
         return "junos"
     if t in ("extreme_exos", "extreme"):
         return "exos"
+    if t in ("extreme_vsp", "extreme_ers"):
+        return "voss"
     if t in ("ubiquiti_edgeswitch", "ubiquiti_unifiswitch", "broadcom_icos", "netgear_prosafe"):
         return "fastpath"
     if t in ("linux", "ubuntu_server", "alpine_linux", "cumulus_linux", "opengear_linux"):
@@ -42,9 +44,9 @@ def os_of(device_type: str) -> str:
 # para que la salida llegue entera (sin «--More--»). Son los mismos que usa netmiko al conectar.
 PAGING_OFF = {"ios": "terminal length 0", "nxos": "terminal length 0", "eos": "terminal length 0",
               "fastpath": "terminal length 0", "vrp": "screen-length 0 temporary", "junos": "set cli screen-length 0",
-              "exos": "disable clipaging"}
+              "exos": "disable clipaging", "voss": "terminal more disable"}
 # prompt de modo configuración: mientras se vea, el cambio aún no terminó (el aviso espera a que se salga)
-CONFIG_PROMPT = {"ios": r"\(config[^)]*\)#", "nxos": r"\(config[^)]*\)#", "eos": r"\(config[^)]*\)#",
+CONFIG_PROMPT = {"ios": r"\(config[^)]*\)#", "nxos": r"\(config[^)]*\)#", "eos": r"\(config[^)]*\)#", "voss": r"\(config[^)]*\)#",
                  "fastpath": r"\(Config|\(Interface|\(Vlan", "vrp": r"^\[[^\]]+\]", "junos": r"\[edit", "exos": r"$^"}
 
 
@@ -65,6 +67,7 @@ _QUERY = {
     "vrp": r"(dis(p(lay)?)?|ping|tracert|dir|screen-length|quit|return)\b",
     "junos": r"(show|ping|traceroute|exit|quit|file (show|list)|set cli |monitor)",
     "exos": r"(show|sh\b|ping|traceroute|disable clipaging|exit|ls)\b",
+    "voss": r"(show|sh\b|ping|traceroute|terminal|enable|exit|end)\b",
     "linux": r"(ls|cat|ip (a|addr|r|route|link)( show)?\s*$|ip -\w|ping|traceroute|uptime|df|free|ps|top -b|ss|netstat|uname|"
              r"hostname\s*$|whoami|id\s*$|journalctl|dmesg|tail|head|grep|less|more|pwd|date|who|w\s*$|systemctl status)\b",
     "generic": r"(show|sh\b|display|dis\b|ping|trace(route)?|tracert|get\b|exit|quit)\b",
@@ -80,6 +83,7 @@ _DANGER = {
     "vrp": r"^\s*(reboot|reset saved-configuration|delete\s|format\s)",
     "junos": r"request system (reboot|halt|power-off|zeroize)|load factory-default",
     "exos": r"^\s*(reboot|unconfigure switch|rm\s)",
+    "voss": r"^\s*(reset|boot\s+(?!config)|sys\s+shutdown|delete\s)",
     "linux": r"^\s*(sudo\s+)?(reboot|shutdown|halt|poweroff|init\s+[06]|rm\s+-rf?\s+/)",
     "generic": r"^\s*(reload|reboot|shutdown|halt|erase|format|factory)",
 }
@@ -198,6 +202,14 @@ SUGGEST = {
         ("show configuration", N_("configuración")), ("show session", N_("sesiones abiertas")),
         ("ping 8.8.8.8", N_("ping")), ("traceroute 8.8.8.8", N_("traceroute")), ("reboot", N_("reiniciar el equipo")),
     ],
+    "voss": [
+        ("show interfaces gigabitEthernet", N_("puertos")), ("show vlan basic", N_("VLAN")), ("show ip interface", N_("IP de cada interfaz")),
+        ("show ip route", N_("tabla de rutas")), ("show isis adjacencies", N_("vecinos de la fábrica (IS-IS)")),
+        ("show lldp neighbor", N_("vecinos LLDP")), ("show sys-info", N_("datos del switch")), ("show software", N_("versión")),
+        ("show logging file tail", N_("registro")), ("show running-config", N_("configuración en ejecución")),
+        ("show boot config flags", N_("indicadores de arranque (SSH, web…)")), ("ping 8.8.8.8", N_("ping")),
+        ("configure terminal", N_("entrar en modo configuración")), ("reset", N_("reiniciar el equipo")),
+    ],
     "fastpath": [
         ("show interfaces status all", N_("estado de los puertos")), ("show port all", N_("puertos")),
         ("show ip interface brief", N_("IP de cada interfaz")), ("show vlan brief", N_("VLAN")),
@@ -231,6 +243,7 @@ FREQUENT = {
     "junos": ["show interfaces terse", "show route", "show log messages | last 50", "show version",
               "show configuration | display set", "request system reboot"],
     "exos": ["show ports no-refresh", "show vlan", "show log", "show version", "show configuration", "reboot"],
+    "voss": ["show interfaces gigabitEthernet", "show vlan basic", "show isis adjacencies", "show sys-info", "show running-config", "reset"],
     "fastpath": ["show interfaces status all", "show vlan brief", "show logging buffered", "show version",
                  "show running-config", "reload"],
     "linux": ["ip -br addr", "ss -tulpn", "uptime", "df -h", "journalctl -n 50 --no-pager", "sudo reboot"],

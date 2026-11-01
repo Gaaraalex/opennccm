@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.15.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 2.16.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -315,13 +315,16 @@ sigue sola.</p>
   Servicios, Diagnóstico) y fabricante. Cada receta tiene introducción, <b>variables</b> que se sustituyen en los comandos, pasos
   numerados con <b>Copiar</b> e <b>Insertar</b> (en la consola activa), pasos «Ojo» en ámbar y un paso final «Comprobar». Abajo:
   <b>Aplicar como solicitud de cambio</b> (o <b>Ejecutar en la consola activa</b> si solo consulta), <b>Usar en multi-equipo</b>
-  y <b>Duplicar y adaptar</b>; <b>+ Nueva</b> crea una propia. Las recetas de OpenNCCM enlazan la documentación oficial del
-  fabricante con la que se revisaron.</td></tr>
+  y <b>Duplicar y adaptar</b>; <b>+ Nueva</b> crea una propia. Incluye al menos 10 recetas de las tareas más comunes para Cisco
+  IOS, MikroTik RouterOS, Extreme EXOS y Extreme VOSS / Fabric Engine (nombre del equipo, usuarios y contraseñas, SSH, acceso web
+  por HTTPS, SNMP, syslog hacia OpenNCCM, RADIUS, NTP, VLAN, guardar la configuración, diagnóstico…), con el enlace a la
+  documentación oficial del fabricante cuando la hay.</td></tr>
   <tr><td>Grabaciones</td><td>Cada sesión: usuario, equipo, hora, duración y comandos, con marca roja si hubo un comando que
   corta el servicio. Busca en lo escrito y en lo visto (por ejemplo «reload»). El reproductor tiene línea de tiempo con esas
   marcas, velocidad 1×, 2× o 4× y <b>Exportar</b> (texto). Se guardan 180 días (se puede cambiar).</td></tr>
   <tr><td>Herramientas</td><td>Ping, Traceroute, Puerto TCP y DNS desde el servidor de OpenNCCM, con la salida en colores, un
-  resumen (pérdida, tiempo, saltos…) y <b>Abrir consola</b> si el destino es un equipo de OpenNCCM.</td></tr>
+  resumen (pérdida, tiempo, saltos…) y <b>Abrir consola</b> si el destino es un equipo de OpenNCCM. Ping y traceroute necesitan
+  permiso para enviar ICMP: el instalador y <code>sudo opennccm update</code> se lo dan al servicio.</td></tr>
   <tr><td>Acceso (administradores)</td><td>Por rol: <b>Sin consola</b>, <b>Solo lectura</b> o <b>Lectura y escritura</b>. General:
   grabar todas las sesiones, aplicar los comandos prohibidos, cierre por inactividad y días que se guardan las grabaciones. Por
   grupo: <b>Acceso normal</b> o <b>Requiere aprobación</b> y su lista de comandos prohibidos (lo que empieza así, o una expresión
@@ -351,11 +354,28 @@ ejecuta nada.</b></p>
   salida de la consola, secretos ocultos) y preguntas sugeridas. Cada comando de la respuesta lleva su riesgo (<b>solo lectura</b>,
   <b>cambia la configuración</b>, <b>corta el servicio</b>) y los botones <b>Copiar</b>, <b>Insertar</b> y, si es un cambio,
   <b>Enviar como solicitud de cambio</b>. Indica la fuente (el respaldo del equipo o la referencia del fabricante).</td></tr>
-  <tr><td>Barra superior</td><td>Botón <b>✦ Asistente</b> en todas las páginas.</td></tr>
+  <tr><td>Barra superior</td><td>Botón <b>Asistente</b> (con el logo del proveedor) en todas las páginas: abre el chat a la
+  derecha, sin salir de la página (ver abajo).</td></tr>
   <tr><td>Comparar configuraciones</td><td><b>✦ Explicar este cambio</b>.</td></tr>
   <tr><td>Cumplimiento</td><td><b>✦ ¿Cómo lo corrijo?</b> en cada regla con infracciones.</td></tr>
 </table>
 <p>Cada pregunta queda en Auditoría con el usuario, el equipo y el proveedor.</p>
+<h3>Chat del asistente en todo el sistema</h3>
+<p>El botón <b>Asistente</b> de la barra superior abre un chat a la derecha en cualquier página. Arriba muestra el proveedor y el
+modelo, <b>+</b> (conversación nueva) y la línea «Viendo: página · N equipos · secretos ocultos». La conversación se guarda para
+retomarla. Debajo del campo de texto hay preguntas sugeridas según la página.</p>
+<ul>
+  <li><b>Datos de la red:</b> consulta OpenNCCM con funciones de solo lectura (equipos, respaldos, alarmas, cambios y versiones,
+  cumplimiento, ciclo de vida, búsqueda en configuraciones), siempre con el rol y los grupos del usuario y con los secretos
+  ocultos.</li>
+  <li><b>Cómo usar OpenNCCM:</b> busca en este manual («¿Cómo programo un respaldo diario?»).</li>
+  <li><b>Respuestas simples:</b> una o dos frases, los equipos en una línea cada uno (punto de color, nombre y motivo), como mucho
+  2 botones y el resto en <b>Más acciones</b>, y la fuente en gris.</li>
+  <li><b>Acciones:</b> los botones llevan a la página que corresponde o preparan una acción. Si cambia algo (respaldar, crear una
+  tarea, crear una solicitud de cambio), aparece una tarjeta con <b>Cancelar</b> y <b>Confirmar</b>; se hace solo al confirmar y
+  con los permisos del usuario. Las solicitudes de cambio pasan por aprobación como siempre.</li>
+</ul>
+<p>Cada pregunta queda en Auditoría con las funciones que usó y el proveedor.</p>
 <h2 id="web">Interfaz web del equipo</h2>
 <p>El icono de globo (junto al de la consola) y el botón <b>Interfaz web</b> de la página del equipo abren su página de
 administración en una ventana aparte. Por omisión se usa <code>https://IP-del-equipo/</code>; si el equipo usa otra dirección o

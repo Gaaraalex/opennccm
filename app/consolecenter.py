@@ -280,7 +280,7 @@ async def multi(request: Request):
                          "answered": len(res) - len(failed), "total": len(devs), "ms": int((time.time() - t0) * 1000)})
 
 
-_CONFIG_WRAP = re.compile(r"^\s*(configure terminal|conf t|configure|end|system-view|return|commit)\s*$", re.I)
+_CONFIG_WRAP = re.compile(r"^\s*(enable|configure terminal|conf t|configure|end|system-view|return|commit)\s*$", re.I)
 
 
 @router.post("/console/change-request")
@@ -459,12 +459,21 @@ def rec_export(request: Request, sid: int):
 # --------------------------------------------------------------------------- herramientas
 def _run(args: list[str], timeout: int) -> str:
     try:
-        p = subprocess.run(args, capture_output=True, text=True, timeout=timeout, errors="replace")  # noqa: S603
-        return (p.stdout or "") + (p.stderr or "")
+        p = subprocess.run(args, capture_output=True, timeout=timeout)  # noqa: S603
+        return (p.stdout or b"").decode("utf-8", "replace") + (p.stderr or b"").decode("utf-8", "replace")
     except FileNotFoundError:
-        return _f("Este servidor no tiene la orden «{0}».", args[0])
+        return _f("Este servidor no tiene la orden «{0}». Instálela con: sudo apt install {1}", args[0],
+                  "traceroute" if "trace" in args[0] else "iputils-ping")
     except subprocess.TimeoutExpired as e:
-        return (e.stdout or "") if isinstance(e.stdout, str) else _("Se acabó el tiempo de espera.")
+        part = (e.stdout or b"").decode("utf-8", "replace") if isinstance(e.stdout, bytes) else (e.stdout or "")
+        return (part + "\n" if part else "") + _("Se acabó el tiempo de espera.")
+
+
+def _hint(out: str) -> str:
+    """Si el sistema no deja abrir sockets ICMP, cómo arreglarlo (instalaciones anteriores a la 2.16)."""
+    if re.search(r"Operation not permitted|cap_net_raw|socket: Permission denied", out, re.I):
+        out += "\n\n" + _("El servicio de OpenNCCM no tiene permiso para enviar ICMP. Actualice OpenNCCM (sudo opennccm update): la actualización se lo da.")
+    return out
 
 
 @router.post("/console/tools")
@@ -479,7 +488,7 @@ async def tools(request: Request):
     win = platform.system() == "Windows"
     summary: list[list[str]] = []
     if tool == "ping":
-        out = _run(["ping", "-n", "4", target] if win else ["ping", "-c", "4", "-W", "2", target], 25)
+        out = _hint(_run(["ping", "-n", "4", target] if win else ["ping", "-c", "4", "-W", "2", target], 25))
         m = re.search(r"(\d+(?:\.\d+)?)% (?:packet )?loss", out) or re.search(r"\((\d+)% (?:perdidos|loss)\)", out)
         if m:
             summary.append([_("Pérdida"), m.group(1) + " %"])
@@ -488,9 +497,10 @@ async def tools(request: Request):
             summary.append([_("Tiempo medio"), m.group(1) + " ms"])
     elif tool == "traceroute":
         out = _run(["tracert", "-d", "-h", "20", "-w", "1000", target] if win else
-                   ["traceroute", "-n", "-w", "2", "-q", "1", "-m", "20", target], 60)
-        if "traceroute" in out and "no tiene" in out:
-            out = _run(["tracepath", "-n", target], 60)
+                   ["traceroute", "-n", "-w", "1", "-q", "1", "-m", "20", "-N", "4", target], 45)
+        if "«traceroute»" in out:
+            out = _run(["tracepath", "-n", "-m", "20", target], 45)
+        out = _hint(out)
         hops = [x for x in out.splitlines() if re.match(r"\s*\d+\s", x)]
         summary.append([_("Saltos"), str(len(hops))])
     elif tool == "tcp":

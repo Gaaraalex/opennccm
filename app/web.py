@@ -24,7 +24,7 @@ templates.env.globals["SHELL_HASH"] = __import__("hashlib").md5(
     (BASE_DIR / "static" / "shell.js").read_bytes()).hexdigest()[:8]
 # consola, centro de consola y asistente: una huella común para que el navegador no use una copia vieja
 templates.env.globals["CX_HASH"] = __import__("hashlib").md5(b"".join(
-    (BASE_DIR / "static" / f).read_bytes() for f in ("console.css", "console.js", "center.css", "center.js", "assistant.js")
+    (BASE_DIR / "static" / f).read_bytes() for f in ("console.css", "console.js", "center.css", "center.js", "assistant.js", "chat.js")
 )).hexdigest()[:8]
 # muestras del selector de acento de la barra superior: (claro, oscuro), los mismos valores que senal.css
 templates.env.globals["ACCENT_SWATCHES"] = {
