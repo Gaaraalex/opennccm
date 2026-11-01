@@ -58,6 +58,11 @@ def _note_version():
 async def lifespan(_app):
     init_db()
     try:
+        from .console import close_orphans
+        close_orphans()  # sesiones de consola que quedaron abiertas al reiniciarse el servidor
+    except Exception:  # noqa: BLE001
+        log.exception("No se pudieron cerrar las sesiones de consola huérfanas")
+    try:
         _note_version()
     except Exception:  # noqa: BLE001 — un aviso no debe impedir que arranque
         log.exception("No se pudo registrar la versión instalada")

@@ -645,6 +645,27 @@ async def console_watch_ws(ws: WebSocket, token: str):
         live.who()
 
 
+def close_orphans() -> int:
+    """Al arrancar no hay ninguna consola abierta: las que quedaron «en curso» se cierran con la hora de su último evento."""
+    n = 0
+    with SessionLocal() as db:
+        for cs in db.scalars(select(ConsoleSession).where(ConsoleSession.ended_at.is_(None))):
+            end = cs.started_at
+            try:
+                with open(REC_DIR / f"{cs.id}.jsonl", encoding="utf-8") as f:
+                    last = None
+                    for last in f:
+                        pass
+                if last:
+                    end = cs.started_at + timedelta(seconds=float(json.loads(last)[0]))
+            except (OSError, ValueError, IndexError):
+                pass
+            cs.ended_at = end
+            n += 1
+        db.commit()
+    return n
+
+
 def cleanup_recordings(days: int | None = None) -> int:
     """Borra las grabaciones más viejas que el plazo (Operar › Consola › Acceso; 180 días por omisión)."""
     if days is None:
