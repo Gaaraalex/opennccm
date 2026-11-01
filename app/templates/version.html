@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% block title %}{{ _f('{0} · versión {1}', v.device.name, n) }}{% endblock %}
 {% block crumbs %}<a href="/devices">Dispositivos</a>{{ icon('right', 's') }}<a href="/devices/{{ v.device_id }}#versions">{{ v.device.name }}</a>{{ icon('right', 's') }}<b>{{ _f('versión {0}', n) }}</b>{% endblock %}
 {% block content %}
-{% set trig = {'manual': _('manual'), 'scheduled': _('programado'), 'syslog': 'syslog', 'push': 'push'} %}
+{% set trig = {'manual': _('manual'), 'scheduled': _('programado'), 'syslog': 'syslog', 'push': 'push', 'console': _('consola')} %}
 {% set can_run = ROLES[user.role] >= 1 %}
 <div data-sheet-wide></div>
 <h1>{{ _f('{0} · versión {1}', v.device.name, n) }}</h1>

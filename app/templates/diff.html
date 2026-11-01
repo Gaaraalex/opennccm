@@ -15,7 +15,7 @@
   <div class="input" style="min-height:32px"><select id="ctxsel" aria-label="Líneas de contexto" style="height:30px;font-size:12.5px">
     {% for v, l in [(3, _('3 líneas de contexto')), (10, _('10 líneas de contexto')), (9999, _('Archivo completo'))] %}<option value="{{ v }}" {{ 'selected' if ctx == v }}>{{ l }}</option>{% endfor %}</select></div>
   <a class="btn s" href="?{{ qs }}&ctx={{ ctx }}&raw=1">{{ icon('dl', 's') }}.diff</a>
-  <span class="grow"></span><a class="btn s ghost" href="?a={{ vb.id }}&b={{ va.id }}&ctx={{ ctx }}&view={{ view }}">{{ icon('refresh', 's') }}Intercambiar A y B</a></div></section>
+  <span class="grow"></span>{% if ai_top %}<button type="button" class="btn s" data-ai="diff" data-a="{{ va.id }}" data-b="{{ vb.id }}" data-device="{{ vb.device_id }}" data-name="{{ vb.device.name }}" data-ask="{{ _('Explica este cambio: qué cambió y qué efecto tiene.') }}">✦ {{ _('Explicar este cambio') }}</button>{% endif %}<a class="btn s ghost" href="?a={{ vb.id }}&b={{ va.id }}&ctx={{ ctx }}&view={{ view }}">{{ icon('refresh', 's') }}Intercambiar A y B</a></div></section>
 <section class="card">
   {% set na = va.device.name %}{% set nb = vb.device.name %}{% set va_n = vn[va.id] %}{% set vb_n = vn[vb.id] %}
   {% set la = 'v' ~ va_n ~ ' · ' ~ va.kind ~ ' · ' ~ va.created_at|ago %}{% set lb = 'v' ~ vb_n ~ ' · ' ~ vb.kind ~ ' · ' ~ vb.created_at|ago %}

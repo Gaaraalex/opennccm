@@ -995,7 +995,7 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
         inventory = try_decrypt(dev.inventory_raw_enc, "") if dev.inventory_raw_enc else ""
         # línea de tiempo «Señal»: número de versión por equipo (v1…vN), origen, tamaño anormal y comparación A/B
         total_v = db.scalar(select(func.count(ConfigVersion.id)).where(ConfigVersion.device_id == dev_id)) or 0
-        trig = {"manual": _("Manual"), "scheduled": _("Programado"), "syslog": "Syslog", "push": "Push", "api": "API"}
+        trig = {"manual": _("Manual"), "scheduled": _("Programado"), "syslog": "Syslog", "push": "Push", "api": "API", "console": _("Consola")}
         tl = []
         for i, v in enumerate(versions):
             prev = next((x for x in versions[i + 1:] if x.kind == v.kind), None)
@@ -2786,7 +2786,9 @@ def settings(request: Request):
     from .config import NVD_API_KEY
     values["nvd_api_key_env"] = bool(NVD_API_KEY)  # la del archivo opennccm.env tiene prioridad
     from .topology import FAMILIES
-    return render(request, "settings.html", user, s=values, redirect_uri=_redirect_uri(request), families=FAMILIES)
+    from . import assistant
+    return render(request, "settings.html", user, s=values, redirect_uri=_redirect_uri(request), families=FAMILIES,
+                  ai=assistant.settings_values())
 
 
 @app.post("/settings/git-export")
@@ -2853,8 +2855,9 @@ async def settings_save(request: Request):
             set_setting(k, str(min(max(int(v), 5), 720)) if v.isdigit() else "30")
         elif k == "default_lang":
             set_setting(k, form.get(k) if form.get(k) in LANGS else "es")
-        elif k == "console_access":
-            set_setting(k, form.get(k) if form.get(k) in ("off", "admin", "operator") else "admin")
+        elif k == "console_access":  # ahora se decide en Operar › Consola › Acceso; se acepta por compatibilidad
+            if k in form:
+                set_setting(k, form.get(k) if form.get(k) in ("off", "admin", "operator") else "admin")
         elif k in ROLE_KEYS:
             set_setting(k, form.get(k) if form.get(k) in ROLES else "")
         elif k == "topology_types":
@@ -2865,6 +2868,9 @@ async def settings_save(request: Request):
             set_setting(k, "" if len(sel) == len(FAMILIES) else ",".join(sel) or "none")  # vacío = todos
         else:
             set_setting(k, (form.get(k) or "").strip())
+    if "ai_form" in form:  # sección Asistente IA
+        from . import assistant
+        assistant.save_settings(form)
     clear_settings_cache()
     for k in SECRET_FORM_KEYS:
         if form.get(k):
@@ -3052,6 +3058,10 @@ app.include_router(mobile.router)
 
 app.include_router(security.router)
 app.include_router(console.router)
+from . import assistant, consolecenter  # noqa: E402  (asistente IA; Operar › Consola)
+
+app.include_router(assistant.router)
+app.include_router(consolecenter.router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)

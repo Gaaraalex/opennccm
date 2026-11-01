@@ -208,6 +208,9 @@ def start():
     scheduler.start()
     reload_jobs()
     scheduler.add_job(purge_old_versions, CronTrigger(hour=3, minute=30), id="purge", replace_existing=True)
+    from . import console
+    scheduler.add_job(console.cleanup_recordings, CronTrigger(hour=3, minute=40), id="console-rec-purge",
+                      replace_existing=True)  # grabaciones de la consola más viejas que el plazo (180 días)
     # rendimiento del servidor para el panel (cada minuto) y aviso de versiones nuevas (una vez al día)
     from datetime import datetime, timedelta
 

@@ -1,83 +1,79 @@
 {% extends "base.html" %}{% block title %}{{ _f('Consola · {0}', dev.name) }}{% endblock %}
 {% block content %}
-{# Consola SSH (xterm.js). embed=1: solo el terminal, dentro del diálogo de la página (prototipo);
-   sin embed: ventana propia con la misma cabecera que el diálogo. #}
-<link rel="stylesheet" href="/static/vendor/xterm/xterm.css?v={{ VERSION }}">
-{% if embed %}
-<style>html,body,main{height:100%;margin:0;padding:0;background:var(--term);overflow:hidden}#term{height:100%;padding:8px 10px;box-sizing:border-box}</style>
-<div id="term" role="application" aria-label="{{ _f('Terminal SSH de {0}', dev.name) }}"></div>
+{# Consola de un equipo: terminal clásica con colores por significado, línea de comando fija con autocompletado,
+   frecuentes, guarda de comandos peligrosos, solo lectura y el asistente IA al costado.
+   embed=1: dentro de un diálogo de la página o de un panel de Operar › Consola. #}
+<link rel="stylesheet" href="/static/console.css?v={{ VERSION }}-{{ CX_HASH }}">
+<style>{% if embed %}html,body,main{height:100%;margin:0;padding:0;overflow:hidden;background:transparent}{% else %}main{padding:14px 16px;box-sizing:border-box;height:100vh;display:flex;flex-direction:column}main>.cx{flex:1;min-height:0}{% endif %}</style>
+{% if not can_open %}
+<div class="cx-req card stack" style="max-width:560px;margin:24px auto">
+  <h2 style="margin:0">{{ _f('Consola · {0}', dev.name) }}</h2>
+  <div class="banner warn">{{ icon('lock') }}<span class="grow">{{ _('El grupo de este equipo exige aprobación para abrir la consola. Pida acceso con el motivo y el plazo; un administrador lo aprueba en Operar › Consola › Acceso.') }}</span></div>
+  <form method="post" action="/devices/{{ dev.id }}/console/request" class="stack">
+    <div class="field"><label for="rq-why">{{ _('Motivo') }}</label><div class="input"><input id="rq-why" name="reason" required maxlength="500" placeholder="{{ _('Revisar el enlace caído de la sucursal') }}"></div></div>
+    <div class="field"><label for="rq-h">{{ _('Plazo') }}</label><div class="input" style="max-width:200px"><select id="rq-h" name="hours"><option value="1">1 h</option><option value="4">4 h</option><option value="8">8 h</option><option value="24">24 h</option></select></div></div>
+    <div class="row end"><button class="btn pri">{{ icon('send', 's') }}{{ _('Pedir acceso') }}</button></div>
+  </form>
+</div>
 {% else %}
-<style>main{padding:16px 18px;box-sizing:border-box;height:100vh;display:flex;flex-direction:column;gap:12px}#term{flex:1;min-height:0;padding:8px 10px}</style>
-<div class="row nowrap"><span class="vend">{{ dev.vend }}</span><h2 class="grow" style="margin:0">{{ _f('Consola · {0}', dev.name) }} <span class="muted sm mono" style="font-weight:400">{{ dev.host }}:{{ dev.port }}</span></h2>
-  <span id="estado" class="pill" role="status" aria-live="polite">conectando…</span>
-  <button type="button" class="btn s ghost" id="reconectar">{{ icon('refresh', 's') }}Reconectar</button>
-  <button type="button" class="btn s ghost" id="completa">{{ icon('expand', 's') }}Pantalla completa</button></div>
-<div id="term" class="term" role="application" aria-label="{{ _f('Terminal SSH de {0}', dev.name) }}"></div>
-{% if not autologin and dev.has_cred %}<div class="banner info" id="autologin-off">{{ icon('info') }}<span class="grow">{{ _('El equipo tiene una credencial asignada, pero la consola no la usa: pide usuario y contraseña.') }}
+{% if not embed and not watch and not autologin and dev.has_cred %}<div class="banner info" id="autologin-off" style="margin-bottom:10px">{{ icon('info') }}<span class="grow">{{ _('El equipo tiene una credencial asignada, pero la consola no la usa: pide usuario y contraseña.') }}
   {% if user.role == 'admin' %}<a href="/settings#seguridad" target="_top">{{ _('Activar «Entrar en la consola con la credencial del equipo» en Ajustes') }}</a>{% else %}{{ _('Un administrador puede activar el inicio automático en Ajustes.') }}{% endif %}</span></div>{% endif %}
-<p class="muted sm" style="margin:0">{% if autologin %}Inicio automático con la credencial del equipo.{% else %}Escribe el usuario y la contraseña del equipo cuando se te pidan.{% endif %}
-  Ctrl+Mayús+C / V para copiar y pegar · se cierra tras 15 min sin escribir · la sesión queda en Auditoría.</p>
-{% endif %}
-<script src="/static/vendor/xterm/xterm.js?v={{ VERSION }}"></script>
-<script src="/static/vendor/xterm/addon-fit.js?v={{ VERSION }}"></script>
+<div class="cx {{ 'embed' if embed }} {{ 'watching' if watch }}" id="cx" data-theme="0">
+  <div class="cx-col">
+    <header class="cx-head">
+      <span class="vend">{{ dev.vend }}</span>
+      <div class="grow cx-title"><b>{{ _f('Consola · {0}', dev.name) }}</b><span class="mono">{{ dev.host }}:{{ dev.port }}{% if dev.model %} · {{ dev.model }}{% endif %} · {{ dev.os }}</span></div>
+      <span class="pill cx-watch" id="cx-watch" hidden></span>
+      <div class="cx-tools" role="toolbar" aria-label="{{ _('Herramientas de la consola') }}">
+        <button type="button" class="tbtn" id="cx-find" title="{{ _('Buscar en la salida') }}" aria-label="{{ _('Buscar en la salida') }}">{{ icon('search', 's') }}</button>
+        <button type="button" class="tbtn txt" id="cx-fs-" title="{{ _('Letra más pequeña') }}">A−</button>
+        <button type="button" class="tbtn txt" id="cx-fs+" title="{{ _('Letra más grande') }}">A+</button>
+        <button type="button" class="tbtn" id="cx-copy" title="{{ _('Copiar todo') }}" aria-label="{{ _('Copiar todo') }}">{{ icon('copy', 's') }}</button>
+        <button type="button" class="tbtn" id="cx-dl" title="{{ _('Descargar el registro') }}" aria-label="{{ _('Descargar el registro') }}">{{ icon('dl', 's') }}</button>
+        <button type="button" class="tbtn" id="cx-theme" title="{{ _('Tema de la consola') }}" aria-label="{{ _('Tema de la consola') }}">{{ icon('moon', 's') }}<span id="cx-theme-n" class="vh"></span></button>
+        <button type="button" class="tbtn" id="cx-share" title="{{ _('Compartir en solo lectura') }}" aria-label="{{ _('Compartir en solo lectura') }}">{{ icon('users', 's') }}</button>
+        <button type="button" class="btn s ghost" id="cx-recon">{{ icon('refresh', 's') }}{{ _('Reconectar') }}</button>
+        {% if ai.on %}<button type="button" class="btn s ghost cx-aibtn" id="cx-ai" aria-pressed="false">✦ {{ _('Asistente') }}</button>{% endif %}
+        <button type="button" class="tbtn" id="cx-full" title="{{ _('Pantalla completa') }}" aria-label="{{ _('Pantalla completa') }}">{{ icon('expand', 's') }}</button>
+      </div>
+    </header>
+    <div class="cx-search" id="cx-search" hidden><input id="cx-q" placeholder="{{ _('Buscar en la salida…') }}" aria-label="{{ _('Buscar en la salida') }}"><span id="cx-hits" class="muted sm"></span><button type="button" class="tbtn" id="cx-q-x" aria-label="{{ _('Cerrar') }}">✕</button></div>
+    <div class="cx-term" id="cx-term">
+      <div class="cx-out mono" id="cx-out" role="log" aria-live="polite" aria-label="{{ _f('Salida de la consola de {0}', dev.name) }}" tabindex="0"></div>
+      <div class="cx-guard" id="cx-guard" hidden role="alertdialog" aria-labelledby="cx-g-t">
+        <b id="cx-g-t">{{ icon('alert', 's') }}{{ _('Este comando puede cortar el servicio') }}</b>
+        <code class="mono" id="cx-g-cmd"></code><p id="cx-g-why" class="sm"></p>
+        <div class="row end"><button type="button" class="btn s" id="cx-g-no">{{ _('Cancelar') }}</button><button type="button" class="btn s dz" id="cx-g-yes">{{ _('Ejecutar de todos modos') }}</button></div>
+      </div>
+      <div class="cx-input">
+        <div class="cx-sug" id="cx-sug" hidden role="listbox"></div>
+        <div class="cx-line mono"><span class="cx-pr" id="cx-pr">›</span><div class="cx-field"><span class="cx-ghost" id="cx-ghost" aria-hidden="true"></span><input id="cx-in" autocomplete="off" spellcheck="false" aria-label="{{ _('Comando') }}" aria-autocomplete="list" aria-controls="cx-sug"></div></div>
+        <div class="cx-bar"><span class="cx-lbl">{{ _('FRECUENTES') }}</span><div class="cx-freq" id="cx-freq"></div>
+          <span class="grow"></span><button type="button" class="cx-k" id="cx-hist">↑ {{ _('Historial') }}</button><button type="button" class="cx-k" id="cx-tab">Tab ⇥</button><button type="button" class="cx-k on" id="cx-run">{{ _('Ejecutar') }} ↵</button></div>
+      </div>
+    </div>
+    <footer class="cx-foot sm">
+      <span id="cx-st" class="cx-st">● {{ _('conectando…') }}</span>
+      <span>SSH · {% if autologin and dev.has_cred %}{{ _('entró con la credencial del equipo') }}{% else %}{{ _('usuario y contraseña del equipo') }}{% endif %}</span>
+      <span>{{ profile.label or dev.os }}</span>
+      <label class="cx-ro"><input type="checkbox" id="cx-ro" {{ 'checked disabled' if access.mode == 'ro' }}> {{ _('Solo lectura') }}</label>
+      <span class="muted">{{ _f('se cierra tras {0} min sin escribir', idle_min) }} · {{ _('sesión en Auditoría') }}{% if recording %} · <span class="cx-rec">● REC</span>{% endif %}</span>
+    </footer>
+  </div>
+  {% if ai.on %}{% include "_ai_panel.html" %}{% endif %}
+</div>
+<div class="cx-toast" id="cx-toast" role="status" hidden></div>
 <script>
-const T = {{ {'connecting': _('conectando…'), 'connected': _('conectado'), 'disconnected': _('desconectado'), 'closed': _('Desconectado'), 'denied': _('Desconectado: sin permiso para abrir esta consola'),
-  'nows': _('No se pudo abrir la conexión con el servidor. Compruebe que OpenNCCM sigue en marcha y, si hay un proxy o un antivirus entre el navegador y el servidor, que permita conexiones WebSocket (wss://).')}|tojson }};
-(function () {
-  const EMBED = {{ 'true' if embed else 'false' }};
-  const estado = document.getElementById('estado');
-  const css = getComputedStyle(document.documentElement);
-  const bg = (css.getPropertyValue('--term') || '#0b0e14').trim(), fg = (css.getPropertyValue('--term-ink') || '#d6e2f0').trim();
-  const term = new Terminal({cursorBlink: true, fontSize: 13, lineHeight: 1.25, scrollback: 5000, convertEol: false,
-    fontFamily: '"Geist Mono", "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace',
-    theme: {background: bg, foreground: fg, cursor: (css.getPropertyValue('--signal') || '#c8f560').trim()}});
-  const fit = new FitAddon.FitAddon();
-  term.loadAddon(fit);
-  term.open(document.getElementById('term'));
-  fit.fit();
-  let ws = null;
-  // el equipo tiene credencial pero la consola no la usa: el diálogo de la página lo avisa ('admin': con enlace a Ajustes)
-  const NOCRED = {{ (('admin' if user.role == 'admin' else 'user') if (not autologin and dev.has_cred) else '')|tojson }};
-  function state(s) {  // conectando / conectado / desconectado: en la ventana propia y en el diálogo de la página
-    if (estado) { estado.textContent = T[s]; estado.className = 'pill ' + ({connected: 'ok', disconnected: 'warn'}[s] || ''); }
-    if (EMBED && window.parent !== window) window.parent.postMessage({oc: 'console', state: s, nocred: NOCRED}, location.origin);
-  }
-  function connect() {
-    if (ws && ws.readyState <= 1) ws.close();
-    term.reset();
-    state('connecting');
-    const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host +
-      '/devices/{{ dev.id }}/console/ws?cols=' + term.cols + '&rows=' + term.rows;
-    const sock = ws = new WebSocket(url);
-    let opened = false;
-    sock.onopen = () => { opened = true; state('connected'); term.focus(); };
-    sock.onmessage = e => term.write(e.data);
-    sock.onclose = e => {
-      if (sock !== ws) return;  // una reconexión ya abrió otro
-      state('disconnected');
-      // sin haber llegado a abrir: el servidor no aceptó la conexión o algo en el camino la bloqueó
-      if (!opened) term.write('\x1b[31m' + T.nows + '\x1b[0m\r\n');
-      term.write('\r\n\x1b[90m[' + (e.code === 1008 ? T.denied : T.closed) + ']\x1b[0m\r\n');
-    };
-  }
-  term.onData(d => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({t: 'd', d: d})); });
-  term.onResize(s => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({t: 'r', c: s.cols, r: s.rows})); });
-  window.addEventListener('resize', () => fit.fit());  // al cambiar el tamaño (ventana o diálogo), el terminal se adapta
-  window.addEventListener('message', e => {  // botones del diálogo de la página
-    if (e.origin !== location.origin || !e.data || e.data.oc !== 'console') return;
-    if (e.data.cmd === 'reconnect') connect();
-    if (e.data.cmd === 'fit') { fit.fit(); term.focus(); }
-  });
-  if (!EMBED) {
-    document.title = {{ _f('{0} · consola', dev.name)|tojson }};
-    document.getElementById('reconectar').addEventListener('click', connect);
-    document.getElementById('completa').addEventListener('click', () => {
-      const el = document.documentElement;
-      (el.requestFullscreen ? el.requestFullscreen() : Promise.resolve()).then(() => setTimeout(() => fit.fit(), 200));
-    });
-    document.addEventListener('fullscreenchange', () => setTimeout(() => fit.fit(), 200));
-  }
-  connect();
-})();
+window.CX = {{ {'dev': dev, 'profile': profile, 'mode': access.mode, 'embed': embed, 'ai': ai, 'watch': watch.token if watch else '',
+  'watchmsg': _f('Mirando la sesión de {0} en solo lectura.', watch.owner) if watch else '',
+  'nocred': (('admin' if user.role == 'admin' else 'user') if (not autologin and dev.has_cred) else ''),
+  't': {'connecting': _('conectando…'), 'connected': _('conectado'), 'disconnected': _('desconectado'), 'closed': _('Desconectado'),
+        'denied': _('Desconectado: sin permiso para abrir esta consola'), 'copied': _('Copiado.'), 'share': _('Enlace de solo lectura copiado: quien lo abra ve la sesión sin poder escribir.'),
+        'watching': _('{0} mira'), 'hits': _('{0} coincidencias'), 'nosess': _('La sesión no está abierta.'),
+        'themes': [_('Sala de control'), _('Grafito'), _('Alto contraste')], 'rolocked': _('Su rol solo permite la consola en modo solo lectura.'),
+        'nows': _('No se pudo abrir la conexión con el servidor. Compruebe que OpenNCCM sigue en marcha y, si hay un proxy o un antivirus entre el navegador y el servidor, que permita conexiones WebSocket (wss://).')}}|tojson }};
 </script>
+<script src="/static/console.js?v={{ VERSION }}-{{ CX_HASH }}"></script>
+{% if ai.on %}<script src="/static/assistant.js?v={{ VERSION }}-{{ CX_HASH }}"></script>{% endif %}
+{% endif %}
 {% endblock %}

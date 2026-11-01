@@ -73,13 +73,13 @@ set_setting("console_autologin", "0")
 page = s.get(B + f"/devices/{dev_ids[0]}/console").text
 check("consola en ventana: aviso con enlace a Ajustes", 'id="autologin-off"' in page and 'href="/settings#seguridad"' in page)
 page = s.get(B + f"/devices/{dev_ids[0]}/console?embed=1").text
-check("consola en el diálogo: avisa a la página (nocred)", 'const NOCRED = "admin";' in page)
+check("consola en el diálogo: avisa a la página (nocred)", '"nocred": "admin"' in page)
 set_setting("console_autologin", "1")
 import time  # noqa: E402
 
 time.sleep(31)  # los ajustes se guardan en caché 30 s
 page = s.get(B + f"/devices/{dev_ids[0]}/console?embed=1").text
-check("con el inicio automático activado no hay aviso", 'const NOCRED = "";' in page)
+check("con el inicio automático activado no hay aviso", '"nocred": ""' in page)
 set_setting("console_autologin", "0")
 
 with SessionLocal() as db:

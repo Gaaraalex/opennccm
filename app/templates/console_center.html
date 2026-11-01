@@ -1,0 +1,169 @@
+{% extends "base.html" %}{% block title %}{{ _('Consola') }}{% endblock %}
+{% block crumbs %}<span class="muted">{{ _('Operar') }}</span>{{ icon('right', 's') }}<b>{{ _('Consola') }}</b>{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/console.css?v={{ VERSION }}-{{ CX_HASH }}">
+<link rel="stylesheet" href="/static/center.css?v={{ VERSION }}-{{ CX_HASH }}">
+<div class="ph"><div class="grow"><h1>{{ _('Consola') }}</h1><div class="sub" id="cc-open">{{ _('Todo queda grabado en Auditoría.') }}</div></div></div>
+<nav class="tabs" role="tablist" aria-label="{{ _('Secciones de la consola') }}" id="cc-tabs">
+  {% for k, l, i in [('sesiones', _('Sesiones'), 'term'), ('multi', _('Multi-equipo'), 'grid'), ('recetas', _('Recetas'), 'file'), ('grabaciones', _('Grabaciones'), 'play'), ('herramientas', _('Herramientas'), 'globe')] + ([('acceso', _('Acceso'), 'lock')] if user.role == 'admin' else []) %}
+  <a href="#{{ k }}" role="tab" data-tab="{{ k }}">{{ icon(i, 's') }}{{ l }}{% if k == 'acceso' and n_pending %}<span class="cnt">{{ n_pending }}</span>{% endif %}</a>{% endfor %}
+</nav>
+
+{# ------------------------------------------------------------------ Sesiones #}
+<section class="cc-sec" id="t-sesiones" data-sec="sesiones">
+  <div class="cc-sess">
+    <aside class="cc-launch card">
+      <div class="input"><input id="cc-find" placeholder="{{ _('Buscar equipo o IP…') }}" aria-label="{{ _('Buscar equipo o IP') }}"><kbd>Ctrl K</kbd></div>
+      <div class="cc-list" id="cc-list"></div>
+    </aside>
+    <div class="cc-work">
+      <div class="cc-bar"><div class="cc-tabs" id="cc-stabs" role="tablist"></div><span class="grow"></span>
+        <div class="seg" id="cc-layout" role="group" aria-label="{{ _('Vista') }}"><button type="button" data-n="1" class="on">1</button><button type="button" data-n="2">2</button><button type="button" data-n="4">4</button></div></div>
+      <div class="cc-grid" id="cc-grid" data-n="1"><div class="cc-empty muted" id="cc-empty">{{ _('Elige un equipo a la izquierda para abrir su consola.') }}</div></div>
+    </div>
+  </div>
+  <dialog class="dlg cc-files" id="cc-files" aria-labelledby="cc-files-h"><div class="stack">
+    <div class="row"><h2 id="cc-files-h" class="grow" style="margin:0">{{ _('Archivos') }} · <span id="cc-files-d"></span></h2><button type="button" class="btn s ghost" data-close>✕</button></div>
+    <p class="muted sm" style="margin:0">{{ _('SFTP con la credencial del equipo. Subir y bajar queda en Auditoría. Las imágenes de firmware siguen en Firmware y ciclo de vida.') }}</p>
+    <div class="row sm"><code class="mono grow" id="cc-files-p">/</code><button type="button" class="btn s ghost" id="cc-files-up">↑</button></div>
+    <div class="cc-flist" id="cc-flist"></div>
+    <form id="cc-files-form" class="row"><input type="file" name="file" required><button class="btn s">{{ icon('dl', 's') }}{{ _('Subir archivo al equipo') }}</button></form>
+    <div id="cc-files-msg" class="sm"></div>
+  </div></dialog>
+</section>
+
+{# ------------------------------------------------------------------ Multi-equipo #}
+<section class="cc-sec" id="t-multi" data-sec="multi" hidden>
+  <div class="cc-multi">
+    <aside class="card stack">
+      <h3 style="margin:0">{{ _('Equipos') }}</h3>
+      <div class="cc-chips" id="mu-groups"></div>
+      <div class="input"><input id="mu-find" placeholder="{{ _('Filtrar…') }}" aria-label="{{ _('Filtrar equipos') }}"></div>
+      <div class="cc-mlist" id="mu-list"></div>
+      <div class="muted sm" id="mu-n"></div>
+    </aside>
+    <div class="stack">
+      <div class="card stack">
+        <div class="row nowrap"><div class="input mono grow"><input id="mu-cmd" placeholder="show ip interface brief" aria-label="{{ _('Comando') }}" spellcheck="false"></div><button type="button" class="btn pri" id="mu-run">{{ _('Ejecutar en los elegidos') }}</button></div>
+        <div class="muted sm">{{ _('Solo se ejecutan comandos de consulta. Si es un cambio, se crea una solicitud de cambio para aprobar, con respaldo y reversión.') }}</div>
+        <div class="banner warn" id="mu-change" hidden>{{ icon('alert') }}<span class="grow" id="mu-change-t"></span><button type="button" class="btn s" id="mu-cr">{{ _('Crear solicitud de cambio') }}</button></div>
+      </div>
+      <div class="card stack" id="mu-res" hidden>
+        <div class="row"><h3 style="margin:0" class="grow">{{ _('Resultado') }}</h3><span class="pill ok" id="mu-same"></span><span class="pill warn" id="mu-diff"></span><span class="muted sm" id="mu-meta"></span>
+          {% if ai.on %}<button type="button" class="btn s" id="mu-ai">✦ {{ _('Analizar diferencias') }}</button>{% endif %}</div>
+        <div id="mu-groups-out" class="stack"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ------------------------------------------------------------------ Recetas #}
+<section class="cc-sec" id="t-recetas" data-sec="recetas" hidden>
+  <div class="cc-rhead row"><div class="input grow"><input id="rc-q" placeholder="{{ _('¿Qué quieres hacer?') }}" aria-label="{{ _('Buscar recetas') }}"></div>
+    <div class="input" style="max-width:220px"><select id="rc-vendor" aria-label="{{ _('Fabricante') }}"><option value="">{{ _('Todos los fabricantes') }}</option></select></div>
+    {% if ROLES[user.role] >= 1 %}<button type="button" class="btn pri" id="rc-new">+ {{ _('Nueva') }}</button>{% endif %}</div>
+  <div class="cc-chips" id="rc-cats"></div>
+  <div class="cc-rgrid" id="rc-grid"></div>
+  <div class="card stack cc-recipe" id="rc-detail" hidden></div>
+  <dialog class="dlg" id="rc-edit" aria-labelledby="rc-edit-h"><form class="stack" id="rc-form">
+    <h2 id="rc-edit-h" style="margin:0">{{ _('Receta') }}</h2>
+    <div class="f2"><div class="field"><label for="rf-name">{{ _('Título') }}</label><div class="input"><input id="rf-name" required maxlength="200"></div></div>
+      <div class="field"><label for="rf-vendor">{{ _('Fabricante') }}</label><div class="input"><input id="rf-vendor" maxlength="64"></div></div></div>
+    <div class="f3"><div class="field"><label for="rf-os">{{ _('Sistema') }}</label><div class="input"><select id="rf-os">{% for k, l in [('ros', 'RouterOS'), ('ios', 'Cisco IOS'), ('nxos', 'NX-OS'), ('eos', 'Arista EOS'), ('vrp', 'Huawei VRP'), ('junos', 'Junos'), ('exos', 'EXOS'), ('fastpath', 'EdgeSwitch'), ('linux', 'Linux'), ('generic', _('Otro'))] %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></div></div>
+      <div class="field"><label for="rf-cat">{{ _('Categoría') }}</label><div class="input"><select id="rf-cat">{% for k, l in (cats or {}).items() %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></div></div>
+      <div class="field"><label for="rf-osl">{{ _('Versión') }}</label><div class="input"><input id="rf-osl" maxlength="64" placeholder="RouterOS 7"></div></div></div>
+    <div class="field"><label for="rf-intro">{{ _('Introducción') }}</label><div class="input"><textarea id="rf-intro" rows="2"></textarea></div></div>
+    <div class="field"><label for="rf-vars">{{ _('Variables') }}</label><div class="input mono"><textarea id="rf-vars" rows="2" placeholder="vlan = Número de VLAN = 20"></textarea></div><span class="help">{{ _('Una por línea: nombre = etiqueta = valor por omisión. En los comandos se escribe {{nombre}}.') }}</span></div>
+    <div class="field"><label for="rf-steps">{{ _('Pasos') }}</label><div class="input mono"><textarea id="rf-steps" rows="9"></textarea></div><span class="help">{{ _('Un paso por bloque, separados por una línea vacía: la primera línea es el texto y las siguientes, los comandos. Empiece el texto con «! » para un paso «Ojo» y con «? » para el de comprobar.') }}</span></div>
+    <div class="row end"><button type="button" class="btn ghost" data-close>{{ _('Cancelar') }}</button><button class="btn pri">{{ _('Guardar') }}</button></div>
+  </form></dialog>
+  <dialog class="dlg" id="rc-apply" aria-labelledby="rc-apply-h"><form class="stack" id="rc-apply-f">
+    <h2 id="rc-apply-h" style="margin:0">{{ _('Aplicar como solicitud de cambio') }}</h2>
+    <p class="muted sm" style="margin:0">{{ _('Se crea una solicitud de cambio con los pasos que cambian la configuración (los de consulta y comprobación no). Pasa por aprobación, con respaldo antes y después.') }}</p>
+    <div class="cc-mlist" id="rc-apply-devs"></div>
+    <div class="row end"><button type="button" class="btn ghost" data-close>{{ _('Cancelar') }}</button><button class="btn pri">{{ _('Crear la solicitud') }}</button></div>
+  </form></dialog>
+</section>
+
+{# ------------------------------------------------------------------ Grabaciones #}
+<section class="cc-sec" id="t-grabaciones" data-sec="grabaciones" hidden>
+  <form class="row" method="get" action="/console#grabaciones"><input type="hidden" name="tab" value="grabaciones">
+    <div class="input grow"><input name="q" value="{{ q }}" placeholder="{{ _('Buscar en lo escrito y lo visto (por ejemplo «reload»)') }}" aria-label="{{ _('Buscar en las grabaciones') }}"></div><button class="btn">{{ icon('search', 's') }}{{ _('Buscar') }}</button></form>
+  <div class="cc-recs">
+    <div class="card flush"><div class="tw"><table class="t" id="rec-table"><thead><tr><th>{{ _('Usuario') }}</th><th>{{ _('Equipo') }}</th><th>{{ _('Cuándo') }}</th><th>{{ _('Duración') }}</th><th>{{ _('Comandos') }}</th><th></th></tr></thead><tbody>
+      {% for r in recs or [] %}<tr data-rec="{{ r.id }}" class="{{ 'cc-danger' if r.danger }}" tabindex="0"><td>{{ r.u }}</td><td>{{ r.d }}</td><td title="{{ r.when|dt }}">{{ r.when|ago }}</td>
+        <td>{{ '%d:%02d'|format(r.dur // 60, r.dur % 60) }}{% if r.live %} <span class="pill ok sm">{{ _('en curso') }}</span>{% endif %}</td><td>{{ r.cmds }}</td>
+        <td>{% if r.danger %}<span class="pill crit sm" title="{{ _('Hubo un comando que puede cortar el servicio') }}">⚠</span>{% endif %}{% if not r.rec %}<span class="muted sm">{{ _('sin grabación') }}</span>{% endif %}</td></tr>
+      {% else %}<tr><td colspan="6" class="muted">{{ _('No hay sesiones con ese filtro.') if q else _('Aún no hay sesiones de consola.') }}</td></tr>{% endfor %}
+    </tbody></table></div></div>
+    <div class="card stack cc-player" id="rec-player" hidden>
+      <div class="row"><div class="grow"><b id="rp-t"></b><div class="muted sm" id="rp-sub"></div></div><a class="btn s" id="rp-export" href="#">{{ icon('dl', 's') }}{{ _('Exportar') }}</a></div>
+      <div class="cx" data-theme="0" style="height:auto"><div class="cx-out mono" id="rp-out" style="height:360px"></div></div>
+      <div class="row nowrap"><button type="button" class="btn s" id="rp-play" aria-label="{{ _('Reproducir') }}">▶</button>
+        <div class="cc-tl grow" id="rp-tl"><input type="range" id="rp-pos" min="0" max="100" step="0.1" value="0" aria-label="{{ _('Posición') }}"><div class="cc-marks" id="rp-marks"></div></div>
+        <span class="mono sm" id="rp-time">0:00</span>
+        <div class="seg" id="rp-speed"><button type="button" data-s="1" class="on">1×</button><button type="button" data-s="2">2×</button><button type="button" data-s="4">4×</button></div></div>
+    </div>
+  </div>
+</section>
+
+{# ------------------------------------------------------------------ Herramientas #}
+<section class="cc-sec" id="t-herramientas" data-sec="herramientas" hidden>
+  <div class="card stack">
+    <div class="row"><div class="seg" id="tl-tool">{% for k, l in [('ping', 'Ping'), ('traceroute', 'Traceroute'), ('tcp', _('Puerto TCP')), ('dns', 'DNS')] %}<button type="button" data-t="{{ k }}" class="{{ 'on' if loop.first }}">{{ l }}</button>{% endfor %}</div>
+      <div class="input mono grow"><input id="tl-target" placeholder="10.0.0.1" aria-label="{{ _('IP o nombre') }}" spellcheck="false"></div>
+      <div class="input" style="max-width:110px" id="tl-port-w" hidden><input id="tl-port" value="22" inputmode="numeric" aria-label="{{ _('Puerto') }}"></div>
+      <button type="button" class="btn pri" id="tl-run">{{ _('Ejecutar') }}</button></div>
+    <div class="muted sm">{{ _('Desde el servidor OpenNCCM, dentro de la red de gestión.') }}</div>
+  </div>
+  <div class="cc-tools">
+    <div class="cx" data-theme="0" style="height:auto"><div class="cx-out mono" id="tl-out" style="min-height:280px"></div></div>
+    <aside class="card stack"><div class="label">{{ _('RESUMEN') }}</div><dl class="kv" id="tl-sum"></dl><button type="button" class="btn s" id="tl-open" hidden></button></aside>
+  </div>
+</section>
+
+{# ------------------------------------------------------------------ Acceso #}
+{% if user.role == 'admin' and acc %}
+<section class="cc-sec" id="t-acceso" data-sec="acceso" hidden>
+  <form method="post" action="/console/access" class="stack">
+    <div class="card stack"><h3 style="margin:0">{{ _('Por rol') }}</h3>
+      {% for r, l, sub in [('admin', _('Administradores'), _('Todos los equipos')), ('operator', _('Operadores'), _('Solo los equipos de sus grupos')), ('viewer', _('Lectores'), _('Solo los equipos de sus grupos'))] %}
+      <div class="row"><div class="grow"><b>{{ l }}</b><div class="muted sm">{{ sub }}</div></div>
+        <div class="seg">{% for m, ml in [('none', _('Sin consola')), ('ro', _('Solo lectura')), ('rw', _('Lectura y escritura'))] %}<label class="{{ 'on' if acc.roles[r] == m }}"><input type="radio" name="role_{{ r }}" value="{{ m }}" {{ 'checked' if acc.roles[r] == m }} hidden>{{ ml }}</label>{% endfor %}</div></div>{% endfor %}
+    </div>
+    <div class="card stack"><h3 style="margin:0">{{ _('General') }}</h3>
+      <label class="swrow"><span><b>{{ _('Grabar todas las sesiones') }}</b><div class="muted sm">{{ _('Lo escrito y lo visto, para reproducirlo en Grabaciones.') }}</div></span><input type="checkbox" class="sw" name="record" {{ 'checked' if acc.record }}></label>
+      <label class="swrow"><span><b>{{ _('Aplicar los comandos prohibidos de cada grupo') }}</b></span><input type="checkbox" class="sw" name="deny" {{ 'checked' if acc.deny }}></label>
+      <div class="f3"><div class="field"><label for="ac-idle">{{ _('Cierre por inactividad (minutos)') }}</label><div class="input" style="max-width:140px"><input id="ac-idle" name="idle" type="number" min="1" max="240" value="{{ acc.idle }}"></div></div>
+        <div class="field"><label for="ac-days">{{ _('Conservar las grabaciones (días)') }}</label><div class="input" style="max-width:140px"><input id="ac-days" name="days" type="number" min="1" value="{{ acc.days }}"></div></div></div>
+    </div>
+    <div class="card stack"><h3 style="margin:0">{{ _('Por grupo') }}</h3>
+      {% for g in groups %}{% set rule = acc.rules.get(g.id|string, {}) %}
+      <div class="cc-grule"><div class="row"><b class="grow">{{ g.name }}</b><div class="input" style="max-width:240px"><select name="g{{ g.id }}_mode" aria-label="{{ _f('Acceso a {0}', g.name) }}"><option value="normal">{{ _('Acceso normal') }}</option><option value="approval" {{ 'selected' if rule.mode == 'approval' }}>{{ _('Requiere aprobación') }}</option></select></div></div>
+        <div class="field"><label for="g{{ g.id }}-d">{{ _('Comandos prohibidos') }}</label><div class="input mono"><textarea id="g{{ g.id }}-d" name="g{{ g.id }}_deny" rows="2" placeholder="reload&#10;/system reset-configuration&#10;/write\s+erase/">{{ rule.deny }}</textarea></div><span class="help">{{ _('Uno por línea: lo que empieza así, o una expresión regular entre barras /…/.') }}</span></div></div>
+      {% else %}<p class="muted sm">{{ _('No hay grupos de equipos.') }}</p>{% endfor %}
+    </div>
+    <div class="row end"><button class="btn pri">{{ icon('save', 's') }}{{ _('Guardar') }}</button></div>
+  </form>
+  <div class="card stack"><h3 style="margin:0">{{ _('Solicitudes de acceso') }}{% if n_pending %} <span class="pill warn">{{ n_pending }}</span>{% endif %}</h3>
+    {% for r in reqs %}<div class="row cc-req"><div class="grow"><b>{{ r.u }}</b> {{ _('pide consola en') }} <b>{{ r.d }}</b> {{ _f('por {0} h', r.h) }}<div class="muted sm">«{{ r.why }}» · {{ r.when|ago }}</div></div>
+      {% if r.status == 'pending' %}<form method="post" action="/console/access/{{ r.id }}/reject" style="margin:0"><button class="btn s ghost">{{ _('Rechazar') }}</button></form><form method="post" action="/console/access/{{ r.id }}/approve" style="margin:0"><button class="btn s pri">{{ _f('Aprobar por {0} h', r.h) }}</button></form>
+      {% else %}<span class="pill {{ 'ok' if r.status == 'approved' else '' }} sm">{{ _('Aprobada') if r.status == 'approved' else _('Rechazada') }}{% if r.by %} · {{ r.by }}{% endif %}</span>{% endif %}</div>
+    {% else %}<p class="muted sm">{{ _('No hay solicitudes.') }}</p>{% endfor %}
+  </div>
+</section>
+{% endif %}
+<div class="cx-toast" id="cx-toast" role="status" hidden></div>
+<script type="application/json" id="cc-data">{{ {'devs': devs, 'favs': favs, 'recent': recent, 'groups': groups, 'recipes': recipes or [], 'cats': cats or {}, 'rec': rec,
+  'role': user.role, 'ai': ai.on, 'tab': tab,
+  't': {'rec': _('REC'), 'fav': _('Favoritos'), 'recent': _('Recientes'), 'bygroup': _('POR GRUPO'), 'nogroup': _('Sin grupo'), 'share': _('Compartir'), 'files': _('Archivos'),
+        'close': _('Cerrar'), 'open': _('{0} sesiones abiertas · todo queda grabado en Auditoría'), 'sel': _('{0} equipos elegidos'), 'same': _('{0} iguales'), 'diff': _('{0} distintos'),
+        'meta': _('respondieron {0} de {1} · {2} s'), 'equal': _('Iguales'), 'distinct': _('Distintos'), 'failed': _('No respondieron'), 'running': _('Ejecutando…'),
+        'steps': _('{0} pasos'), 'uses': _('{0} usos'), 'mine': _('mía'), 'team': _('del equipo'), 'opennccm': _('de OpenNCCM'), 'none': _('No hay recetas con ese filtro.'),
+        'copy': _('Copiar'), 'insert': _('Insertar'), 'warn': _('Ojo'), 'check': _('Comprobar'), 'apply': _('Aplicar como solicitud de cambio'), 'runact': _('Ejecutar en la consola activa'),
+        'multi': _('Usar en multi-equipo'), 'dup': _('Duplicar y adaptar'), 'edit': _('Editar'), 'del': _('Eliminar'), 'doc': _('Documentación del fabricante'), 'noact': _('Abra primero una sesión en Sesiones.'),
+        'copied': _('Copiado.'), 'sent': _('Enviado a la consola activa.'), 'crdone': _('Solicitud de cambio creada.'), 'saved': _('Receta guardada.'), 'all': _('Todas'),
+        'openc': _('Abrir consola de {0}'), 'pickdev': _('Elija al menos un equipo.'), 'analyze': _('Analiza estas respuestas de varios equipos al mismo comando: qué tienen distinto y cómo igualarlos.'),
+        'played': _('{0} comandos · {1}'), 'shared': _('Enlace de solo lectura copiado.')}}|tojson }}</script>
+<script src="/static/center.js?v={{ VERSION }}-{{ CX_HASH }}"></script>
+{% endblock %}

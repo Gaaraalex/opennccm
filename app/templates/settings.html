@@ -3,7 +3,7 @@
 {% block content %}
 {% include "_admin_tabs.html" %}
 {% set SECS = [('seguridad', _('Seguridad y acceso'), 'lock'), ('inicio', _('Inicio de sesión'), 'key'), ('organizacion', _('Organización'), 'users'), ('flujo', _('Flujo de cambios'), 'branch'),
-               ('notificaciones', _('Notificaciones'), 'bell'), ('eox', _('Fin de vida (Cisco EoX)'), 'clock'), ('nvd', _('Vulnerabilidades (NVD)'), 'bug'), ('mapa', _('Mapa de la red'), 'globe'), ('git', _('Copia en Git'), 'branch'),
+               ('notificaciones', _('Notificaciones'), 'bell'), ('asistente', _('Asistente IA'), 'chip'), ('eox', _('Fin de vida (Cisco EoX)'), 'clock'), ('nvd', _('Vulnerabilidades (NVD)'), 'bug'), ('mapa', _('Mapa de la red'), 'globe'), ('git', _('Copia en Git'), 'branch'),
                ('recuperacion', _('Recuperación ante desastres'), 'db'),
                ('actualizaciones', _('Actualizaciones'), 'refresh')] %}
 {% macro F(label, id, help='') %}<div class="field"><label for="{{ id }}">{{ label }}</label>{{ caller() }}{% if help %}<span class="help">{{ help }}</span>{% endif %}</div>{% endmacro %}
@@ -15,10 +15,7 @@
     {% call F(_('«Recordarme» mantiene la sesión abierta durante estos días'), 's-rem', _('Entre 1 y 30 días; 0 quita la opción del inicio de sesión. Las sesiones recordadas no se cierran por inactividad.')) %}<div class="input" style="max-width:200px"><input id="s-rem" name="remember_days" type="number" min="0" max="30" value="{{ s.remember_days if s.remember_days is not none and s.remember_days != '' else 14 }}"></div>{% endcall %}
     <label class="swrow"><span><b>Exigir la verificación en dos pasos a los administradores</b><div class="muted sm">Cada usuario la activa en Mi cuenta. Si se exige, un administrador sin ella solo podrá entrar a Mi cuenta hasta activarla.</div></span><input type="checkbox" class="sw" name="require_2fa_admins" {{ 'checked' if s.require_2fa_admins == '1' }}></label>
     {% call F(_('Idioma predeterminado de la interfaz'), 's-lang', _('Cada usuario puede elegir el suyo en Mi cuenta.')) %}<div class="input"><select id="s-lang" name="default_lang">{% for code, name in LANGS.items() %}<option value="{{ code }}" {{ 'selected' if (s.default_lang or 'es') == code }}>{{ name }}</option>{% endfor %}</select></div>{% endcall %}
-    {% call F(_('Quién puede abrir la consola SSH desde el navegador'), 's-console', _('Todas las sesiones de consola quedan en Auditoría.')) %}<div class="input"><select id="s-console" name="console_access">
-      <option value="admin" {{ 'selected' if s.console_access == 'admin' }}>Solo administradores</option>
-      <option value="operator" {{ 'selected' if s.console_access == 'operator' }}>Administradores y operadores (solo sus equipos)</option>
-      <option value="off" {{ 'selected' if s.console_access == 'off' }}>Nadie (consola desactivada)</option></select></div>{% endcall %}
+    <div class="field"><label>{{ _('Consola SSH desde el navegador') }}</label><div class="muted sm">{{ _('Quién puede abrirla, en solo lectura o con escritura, los comandos prohibidos por grupo y la grabación de las sesiones se configuran en Operar › Consola › Acceso.') }} <a href="/console?tab=acceso">{{ _('Ir a Acceso') }}</a></div></div>
     <label class="swrow"><span><b>Entrar en la consola con la credencial del equipo</b><div class="muted sm">Sin esta opción, la consola pide usuario y contraseña del equipo. Con ella, quien pueda abrir la consola entra sin conocer la contraseña.</div></span><input type="checkbox" class="sw" name="console_autologin" {{ 'checked' if s.console_autologin == '1' }}></label>
   </div></section>
 
@@ -101,6 +98,43 @@
       <div class="cklist">{% for f, label in families %}<label class="ck"><input type="checkbox" name="topology_types" value="{{ f }}" {{ 'checked' if not s.topology_types or f in s.topology_types.split(',') }}> {{ _(label) }}</label>{% endfor %}</div>
       <div class="muted sm">{{ _('Los equipos que ya están en OpenNCCM salen siempre. El tipo se reconoce por lo que anuncia el vecino (plataforma, modelo) o por el nombre de sus puertos.') }}</div></div>
   </div></section>
+  <section class="card" id="asistente" data-secp><div class="card-h"><h2>{{ _('Asistente IA') }} <span class="pill sm">{{ _('nuevo') }}</span></h2></div><div class="stack">
+    <input type="hidden" name="ai_form" value="1">
+    <p class="muted sm">{{ _('Conecta OpenNCCM con el modelo de IA de tu cuenta para que ayude en la consola, explique cambios y proponga correcciones. Sugiere; nunca ejecuta nada solo.') }}</p>
+    <label class="swrow"><span><b>{{ _('Activar el asistente') }}</b><div class="muted sm">{{ _('Desactivado, no aparece en la consola ni en el resto del sistema y no se envía nada a ningún proveedor.') }}</div></span><input type="checkbox" class="sw" name="ai_enabled" {{ 'checked' if ai.cfg.enabled }}></label>
+    <div class="sec"><h3>{{ _('Proveedor') }}</h3>
+      <div class="ai-provs" role="radiogroup">{% for k, p in ai.providers.items() %}
+        <label class="ai-prov"><input type="radio" name="ai_provider" value="{{ k }}" {{ 'checked' if ai.cfg.provider == k }}><span class="ai-plogo" aria-hidden="true">{{ (p.product or 'API')[:1] }}</span><span><b>{{ _('Compatible con OpenAI') if k == 'compat' else p.label }}</b><small class="muted">{{ p.product if p.product else 'OpenRouter, Groq, DeepSeek, Azure…' }}</small></span>{% if ai.keys_set[k] %}<small class="pill ok sm">{{ _('clave guardada') }}</small>{% endif %}</label>{% endfor %}</div>
+      <p class="muted sm">{{ _('Se muestran los nombres de cada proveedor; sus marcas pertenecen a sus dueños.') }}</p></div>
+    <div class="field" id="ai-base-f"><label for="ai-base">{{ _('Dirección del servicio (compatible con OpenAI)') }}</label><div class="input mono"><input id="ai-base" name="ai_base_url" value="{{ ai.cfg.base if ai.cfg.provider == 'compat' else '' }}" placeholder="https://openrouter.ai/api/v1" spellcheck="false"></div></div>
+    <div class="f2">
+      <div class="field"><label for="ai-key">{{ _('Clave de API') }}</label><div class="input mono"><input id="ai-key" name="ai_key" type="password" autocomplete="new-password" spellcheck="false" placeholder="{{ _('•••••••• (guardada)') if ai.keys_set[ai.cfg.provider] else '' }}"></div><span class="help">{{ _('Se guarda cifrada, una por proveedor. Déjela vacía para no cambiarla.') }}</span></div>
+      <div class="field"><label for="ai-model">{{ _('Modelo') }}</label><div class="row nowrap" style="gap:6px"><div class="input mono grow"><input id="ai-model" name="ai_model" value="{{ ai.cfg.model }}" list="ai-models" spellcheck="false"></div><button type="button" class="btn s" id="ai-load">{{ _('Cargar de la cuenta') }}</button></div><datalist id="ai-models"></datalist></div>
+    </div>
+    <div class="row"><button type="button" class="btn s" id="ai-test">{{ icon('refresh', 's') }}{{ _('Probar conexión') }}</button><span id="ai-res" class="sm grow"></span></div>
+    <div class="sec"><h3>{{ icon('lock', 's') }}{{ _('Privacidad') }}</h3>
+      <p class="muted sm">{{ _('Lo que preguntas y el contexto del equipo se envían al proveedor elegido, fuera de tu red. Revisa sus condiciones de uso de datos para cuentas de API.') }}</p>
+      <label class="swrow"><span><b>{{ _('Ocultar secretos antes de enviar') }}</b><div class="muted sm">{{ _('Contraseñas, comunidades SNMP, claves de VPN y de wifi. Siempre activado.') }}</div></span><input type="checkbox" class="sw" checked disabled></label>
+      <label class="swrow"><span><b>{{ _('Incluir el respaldo del equipo') }}</b><div class="muted sm">{{ _('La última configuración guardada, con los secretos ocultos.') }}</div></span><input type="checkbox" class="sw" name="ai_include_backup" {{ 'checked' if ai.cfg.backup }}></label>
+      <label class="swrow"><span><b>{{ _('Incluir la salida de la consola (últimas 200 líneas)') }}</b></span><input type="checkbox" class="sw" name="ai_include_console" {{ 'checked' if ai.cfg.console }}></label>
+      <div class="label">{{ _('ASÍ SE ENVÍA UN RESPALDO') }}</div><pre class="mono sm ai-prev">{{ ai.preview }}</pre></div>
+    <div class="sec"><h3>{{ icon('users', 's') }}{{ _('Quién puede usarlo') }}</h3>
+      <div class="cklist">{% for r, l in [('admin', _('Administradores')), ('operator', _('Operadores')), ('viewer', _('Lectores'))] %}<label class="ck"><input type="checkbox" name="ai_role_{{ r }}" {{ 'checked' if r in ai.cfg.roles }}> {{ l }}</label>{% endfor %}</div>
+      <div class="f3">
+        <div class="field"><label for="ai-lim">{{ _('Límite de preguntas por usuario y día') }}</label><div class="input" style="max-width:160px"><input id="ai-lim" name="ai_daily_limit" type="number" min="0" value="{{ ai.cfg.limit }}"></div><span class="help">{{ _('0: sin límite.') }}</span></div>
+        <div class="field"><label for="ai-pin">{{ _('Precio por millón de tokens de entrada (US$)') }}</label><div class="input" style="max-width:160px"><input id="ai-pin" name="ai_price_in" value="{{ ai.cfg.price_in if ai.cfg.price_in is not none else '' }}" inputmode="decimal"></div></div>
+        <div class="field"><label for="ai-pout">{{ _('Precio por millón de tokens de salida (US$)') }}</label><div class="input" style="max-width:160px"><input id="ai-pout" name="ai_price_out" value="{{ ai.cfg.price_out if ai.cfg.price_out is not none else '' }}" inputmode="decimal"></div><span class="help">{{ _('Opcional: para estimar el costo del mes con la tarifa de su modelo.') }}</span></div>
+      </div></div>
+    <div class="sec"><h3>{{ _('Uso este mes') }}</h3>
+      <div class="row" style="gap:28px"><div><b class="ai-big">{{ ai.usage.questions }}</b><div class="muted sm">{{ _('preguntas') }}</div></div><div><b class="ai-big">{{ '{:,}'.format(ai.usage.tokens).replace(',', '.') }}</b><div class="muted sm">tokens</div></div>
+        <div><b class="ai-big">{{ ('≈ US$%.2f'|format(ai.usage.cost)) if ai.usage.cost is not none else '—' }}</b><div class="muted sm">{{ _('estimado') }}</div></div></div>
+      <p class="muted sm">{{ _('El costo lo cobra el proveedor a su cuenta; OpenNCCM solo lo estima. Cada pregunta queda en Auditoría con usuario, equipo y proveedor.') }}</p></div>
+    <div class="sec"><h3>{{ _('Dónde aparece') }}</h3><ul class="muted sm" style="margin:0;padding-left:18px">
+      <li>{{ _('Barra superior: botón «Asistente», con el contexto de la página.') }}</li>
+      <li>{{ _('Consola: panel «Asistente de red» con el equipo, su respaldo y la salida.') }}</li>
+      <li>{{ _('Comparación de versiones: «✦ Explicar este cambio».') }}</li>
+      <li>{{ _('Cumplimiento: «✦ ¿Cómo lo corrijo?» en cada infracción.') }}</li></ul></div>
+  </div></section>
   <section class="card" id="git" data-secp><div class="card-h"><h2>{{ _('Copia en Git') }}</h2></div><div class="stack">
     <p class="muted sm">{{ _('Cada versión nueva de una configuración se sube como un commit a un repositorio Git (GitHub, GitLab, Gitea…): un archivo por equipo en una carpeta por grupo. Use un repositorio privado.') }}</p>
     <label class="swrow"><span><b>{{ _('Subir cada versión nueva a Git') }}</b></span><input type="checkbox" class="sw" name="git_enabled" {{ 'checked' if s.git_enabled == '1' }}></label>
@@ -153,6 +187,26 @@
       const j = await (await fetch('/settings/ldap-test', {method: 'POST', body: new FormData(document.getElementById('setf')), credentials: 'same-origin'})).json();
       lr.textContent = j.msg; lr.style.color = j.ok ? 'var(--ok)' : 'var(--crit)';
     } catch (e) { lr.textContent = {{ _('No se pudo hacer la prueba.')|tojson }}; lr.style.color = 'var(--crit)'; }
+  });
+  const prov = () => (document.querySelector('[name=ai_provider]:checked') || {}).value;
+  const baseF = document.getElementById('ai-base-f');
+  const syncProv = () => { baseF.hidden = prov() !== 'compat'; };
+  document.querySelectorAll('[name=ai_provider]').forEach(r => r.addEventListener('change', syncProv)); syncProv();
+  const air = document.getElementById('ai-res');
+  async function aiPost(url) {
+    air.textContent = {{ _('Probando…')|tojson }}; air.style.color = '';
+    try { return await (await fetch(url, {method: 'POST', body: new FormData(document.getElementById('setf')), credentials: 'same-origin'})).json(); }
+    catch (e) { return {ok: false, msg: {{ _('No se pudo hacer la prueba.')|tojson }}}; }
+  }
+  document.getElementById('ai-load').addEventListener('click', async () => {
+    const j = await aiPost('/settings/ai/models');
+    if (!j.ok) { air.textContent = j.msg; air.style.color = 'var(--crit)'; return; }
+    document.getElementById('ai-models').innerHTML = j.models.map(m => '<option value="' + m.replace(/"/g, '') + '">').join('');
+    air.textContent = {{ _('{0} modelos en la cuenta. Elija uno en la lista.')|tojson }}.replace('{0}', j.models.length); air.style.color = 'var(--ok)';
+    const mi = document.getElementById('ai-model'); if (!mi.value && j.models.length) mi.value = j.models[0]; mi.focus();
+  });
+  document.getElementById('ai-test').addEventListener('click', async () => {
+    const j = await aiPost('/settings/ai/test'); air.textContent = j.msg; air.style.color = j.ok ? 'var(--ok)' : 'var(--crit)';
   });
   show(location.hash.slice(1));
 })();

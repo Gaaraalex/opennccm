@@ -311,6 +311,58 @@ class FirmwareUpdate(Base):
     checked_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
+class ConsoleSession(Base):
+    """Una sesión de la consola web (Operar › Consola): quién, en qué equipo, cuánto duró y su grabación en disco."""
+    __tablename__ = "console_sessions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(64), index=True)
+    device_id: Mapped[int | None] = mapped_column(ForeignKey("devices.id", ondelete="SET NULL"))
+    device_name: Mapped[str] = mapped_column(String(128))
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=now, index=True)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime)
+    ip: Mapped[str | None] = mapped_column(String(64))
+    commands: Mapped[int] = mapped_column(Integer, default=0)
+    danger: Mapped[bool] = mapped_column(Boolean, default=False)   # hubo un comando que puede cortar el servicio
+    recorded: Mapped[bool] = mapped_column(Boolean, default=False)  # hay grabación (DATA_DIR/console/rec/<id>.jsonl)
+
+
+class ConsoleAccessRequest(Base):
+    """Pedido de consola en un equipo cuyo grupo exige aprobación (Operar › Consola › Acceso)."""
+    __tablename__ = "console_access_requests"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(64), index=True)
+    device_id: Mapped[int] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"))
+    reason: Mapped[str] = mapped_column(Text)
+    hours: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending | approved | rejected
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    reviewed_by: Mapped[str | None] = mapped_column(String(64))
+    until: Mapped[datetime | None] = mapped_column(DateTime)
+    device = relationship("Device")
+
+
+class Recipe(Base):
+    """Receta propia de un usuario (las incluidas en OpenNCCM están en app/recipes.py)."""
+    __tablename__ = "recipes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner: Mapped[str] = mapped_column(String(64))
+    data: Mapped[str] = mapped_column(Text)  # JSON: name, vendor, os, cat, intro, vars, steps
+    uses: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
+class AiUsage(Base):
+    """Una pregunta al asistente IA: para el límite diario y el uso del mes (los textos van a Auditoría, no aquí)."""
+    __tablename__ = "ai_usage"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now, index=True)
+    username: Mapped[str] = mapped_column(String(64), index=True)
+    provider: Mapped[str] = mapped_column(String(32))
+    model: Mapped[str] = mapped_column(String(128))
+    tokens_in: Mapped[int] = mapped_column(Integer, default=0)
+    tokens_out: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class Setting(Base):
     __tablename__ = "settings"
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -318,7 +370,7 @@ class Setting(Base):
 
 
 SECRET_SETTINGS = {"git_token", "smtp_password", "cisco_api_secret", "dr_remote_password", "ldap_bind_password", "oidc_client_secret",
-                   "nvd_api_key"}
+                   "nvd_api_key", "ai_key_anthropic", "ai_key_openai", "ai_key_gemini", "ai_key_mistral", "ai_key_compat"}
 
 
 def init_db():

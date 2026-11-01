@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% block title %}Dispositivos{% endblock %}
 {% block content %}
 {% set can_run = ROLES[user.role] >= 1 %}
-{% set trig = {'manual': _('manual'), 'scheduled': _('programado'), 'syslog': 'syslog', 'push': 'push'} %}
+{% set trig = {'manual': _('manual'), 'scheduled': _('programado'), 'syslog': 'syslog', 'push': 'push', 'console': _('consola')} %}
 {% set qs = ('&q=' ~ q|urlencode if q else '') ~ ('&group=' ~ group if group else '') %}
 <div class="ph"><div class="grow"><h1>Dispositivos</h1>
   <div class="sub">{{ _f('{0} equipos en {1} grupos', counts[''], n_groups) }}{% if last_global %} · {{ _f('último respaldo global {0}', last_global|ago) }}{% endif %}</div></div>

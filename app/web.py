@@ -22,6 +22,10 @@ templates.env.globals["SENAL_HASH"] = __import__("hashlib").md5(
     (BASE_DIR / "static" / "senal.css").read_bytes()).hexdigest()[:8]
 templates.env.globals["SHELL_HASH"] = __import__("hashlib").md5(
     (BASE_DIR / "static" / "shell.js").read_bytes()).hexdigest()[:8]
+# consola, centro de consola y asistente: una huella común para que el navegador no use una copia vieja
+templates.env.globals["CX_HASH"] = __import__("hashlib").md5(b"".join(
+    (BASE_DIR / "static" / f).read_bytes() for f in ("console.css", "console.js", "center.css", "center.js", "assistant.js")
+)).hexdigest()[:8]
 # muestras del selector de acento de la barra superior: (claro, oscuro), los mismos valores que senal.css
 templates.env.globals["ACCENT_SWATCHES"] = {
     "cobalto": ("#2347e8", "#7c96ff"), "bosque": ("#1f7a4d", "#5fd09a"), "oceano": ("#0b7f86", "#3cc6c0"),
@@ -315,6 +319,11 @@ def render(request: Request, name: str, user, **ctx):
         if st["available"] and not st["running"] and request.session.get("upd_dismissed") != st["latest"]:
             popup = st
     counts = _nav_counts(user) if user is not None and not ctx.get("compact") else {}
+    if user is not None and not ctx.get("compact"):  # botón «Asistente» de la barra superior
+        from . import assistant
+        ctx.setdefault("ai_top", assistant.quick_on(user))
+        from .console import role_mode
+        ctx.setdefault("can_console_nav", role_mode(user.role) != "none")
     ctx.setdefault("donate_toast", _donate_toast(request, user) if not ctx.get("compact") else None)
     return templates.TemplateResponse(request, name, {"user": user, "flashes": flashes, "undo": undo, "update_popup": popup,
                                                       "nav_counts": counts,
