@@ -19,6 +19,8 @@
 - **Grabaciones:** el reproductor muestra lo escrito y lo visto con los colores de la consola y la lista de comandos con su hora;
   las sesiones vacías se ocultan («Mostrar sesiones vacías»); al arrancar, las sesiones que quedaron «en curso» se cierran.
 - Recetas: los filtros quedan separados del buscador.
+- **Puertos de los Ubiquiti EdgeSwitch X (ES-10X, ES-18X…):** ya se ve qué puertos están activos y cuáles son de fibra. Estos
+  equipos no tienen «show interfaces status»: se lee «show interfaces GigabitEthernet 1-N» (verificado en un ES-18X real).
 
 ## 2.15.0
 - **Consola nueva:** terminal clásica con colores por significado según el sistema (prompt, rutas y comandos, verbos,
