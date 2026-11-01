@@ -104,7 +104,8 @@
     <label class="swrow"><span><b>{{ _('Activar el asistente') }}</b><div class="muted sm">{{ _('Desactivado, no aparece en la consola ni en el resto del sistema y no se envía nada a ningún proveedor.') }}</div></span><input type="checkbox" class="sw" name="ai_enabled" {{ 'checked' if ai.cfg.enabled }}></label>
     <div class="sec"><h3>{{ _('Proveedor') }}</h3>
       <div class="ai-provs" role="radiogroup">{% for k, p in ai.providers.items() %}
-        <label class="ai-prov"><input type="radio" name="ai_provider" value="{{ k }}" {{ 'checked' if ai.cfg.provider == k }}>{{ ai_logo(k, 44) }}<span><b>{{ _('Compatible con OpenAI') if k == 'compat' else p.label }}</b><small class="muted">{{ p.product if p.product else 'OpenRouter, Groq, DeepSeek, Azure…' }}</small></span>{% if ai.keys_set[k] %}<small class="pill ok sm">{{ _('clave guardada') }}</small>{% endif %}</label>{% endfor %}</div>
+        {% set pn = _('Compatible con OpenAI') if k == 'compat' else p.label %}{% set ps = p.product if p.product else 'OpenRouter, Groq, DeepSeek, Azure…' %}
+        <label class="ai-prov"><input type="radio" name="ai_provider" value="{{ k }}" {{ 'checked' if ai.cfg.provider == k }}>{{ ai_logo(k, 44) }}<span class="ai-pt"><b title="{{ pn }}">{{ pn }}</b><small class="muted" title="{{ ps }}">{{ ps }}</small></span>{% if ai.keys_set[k] %}<small class="ai-key" title="{{ _('clave guardada') }}">● {{ _('clave guardada') }}</small>{% endif %}</label>{% endfor %}</div>
       <p class="muted sm">{{ _('Se muestran los logos de cada proveedor; sus marcas pertenecen a sus dueños.') }}</p></div>
     <div class="field" id="ai-base-f"><label for="ai-base">{{ _('Dirección del servicio (compatible con OpenAI)') }}</label><div class="input mono"><input id="ai-base" name="ai_base_url" value="{{ ai.cfg.base if ai.cfg.provider == 'compat' else '' }}" placeholder="https://openrouter.ai/api/v1" spellcheck="false"></div></div>
     <div class="f2">
