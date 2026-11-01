@@ -87,7 +87,7 @@
       $('ed-steps').innerHTML = st.steps.map(function (s, i) {
         return '<div class="kb-es"><span class="kb-n">' + (i + 1) + '</span><div class="f">' +
           '<input type="text" data-st="' + i + '" data-k="t" value="' + esc(s.t) + '" placeholder="' + esc(T.step) + '" aria-label="' + esc(T.step) + '">' +
-          '<div class="row" style="gap:6px"><input type="text" class="cmd grow" data-st="' + i + '" data-k="c" value="' + esc(s.c) + '" placeholder="' + esc(T.cmd) + '" aria-label="' + esc(T.cmd) + '">' +
+          '<div class="row" style="gap:6px;align-items:flex-start"><textarea class="cmd grow" rows="' + Math.min(12, Math.max(1, s.c.split('\n').length)) + '" data-st="' + i + '" data-k="c" placeholder="' + esc(T.cmd) + '" aria-label="' + esc(T.cmd) + '">' + esc(s.c) + '</textarea>' +
           (s.hid || s.c.indexOf('••••••') >= 0 ? '<span class="kb-hid">' + esc(T.hidden) + '</span>' : '') +
           '<button type="button" class="btn s ghost" data-rmst="' + i + '" aria-label="' + esc(T.remove) + '">✕</button></div></div></div>';
       }).join('');
@@ -135,10 +135,11 @@
         steps();
       }
     }
-    function save(action) {
+    function save(action, allowDup) {
       if (saving) return Promise.resolve(null);
       saving = true; clearTimeout(timer); $('ed-state').textContent = T.saving;
-      return json('/kb/save', body(action)).then(function (j) {
+      var b = body(action); if (allowDup) b.allow_dup = true;
+      return json('/kb/save', b).then(function (j) {
         saving = false;
         if (j.id && !st.id) { st.id = j.id; history.replaceState(null, '', '/kb/' + j.id + '/edit'); }
         if (j.data) apply(j.data);
@@ -154,11 +155,14 @@
     $('ed-send').addEventListener('click', function () {
       var m = missing().filter(function (x) { return !x[1]; });
       if (m.length) { toast(T.missing + ' ' + m.map(function (x) { return x[0].toLowerCase(); }).join(', ') + '.', 'error'); return; }
-      save('send').then(function (j) {
+      var done = function (j) {
         if (!j) return;
         if (j.ok) { dirty = false; if (j.msg) sessionStorage.setItem('kb-msg', j.msg); location.href = j.url; }
+        // mismo título que otro caso: se avisa y la persona decide (mejor comentar en ese caso)
+        else if (j.dup) { if (window.confirm(j.error + '\n\n' + T.dup_q)) save('send', true).then(done); }
         else toast(j.error || (T.missing + ' ' + (j.missing || []).join(', ').toLowerCase() + '.'), 'error');
-      });
+      };
+      save('send').then(done);
     });
 
     /* traer comandos de la grabación */
@@ -189,9 +193,10 @@
     function similar() {
       clearTimeout(simT);
       simT = setTimeout(function () {
-        json('/kb/api/similar?exclude=' + (st.id || 0) + '&q=' + encodeURIComponent((st.title + ' ' + st.symptom).slice(0, 400))).then(function (j) {
+        json('/kb/api/similar?exclude=' + (st.id || 0) + '&title=' + encodeURIComponent(st.title.slice(0, 255)) + '&q=' + encodeURIComponent(st.symptom.slice(0, 400))).then(function (j) {
           $('ed-similar').innerHTML = j.items.length ? j.items.map(function (c) {
-            return '<a class="kb-mini" href="/kb/' + c.id + '" target="_blank" rel="noopener"><span class="m kb-id">' + esc(c.code) + '</span><span class="grow">' + esc(c.title) + '</span></a>';
+            return '<a class="kb-mini" href="/kb/' + c.id + '" target="_blank" rel="noopener"><span class="m kb-id">' + esc(c.code) + '</span><span class="grow">' + esc(c.title) + '</span>' +
+              (c.same ? '<span class="kb-hid">' + esc(T.same) + '</span>' : '') + '</a>';
           }).join('') : '<div style="margin-bottom:6px">' + esc(T.no_similar) + '</div>';
         }).catch(function () { /* sin sugerencias */ });
       }, 500);

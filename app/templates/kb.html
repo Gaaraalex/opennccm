@@ -40,7 +40,7 @@
       <div class="kb-mini" style="color:var(--ok)">{{ _('Todo documentado. Buen trabajo.') }}</div>{% endfor %}
     </div>
     <div class="card"><div class="kb-h2">{{ _('Más consultados este mes') }}</div>
-      {% for c in top %}<a class="kb-mini" href="/kb/{{ c.id }}"><span class="m kb-id">{{ c.code }}</span><span class="grow">{{ c.title }}</span><span class="m">{{ _f('{0} vistas', c.n) }}</span></a>{% else %}
+      {% for c in top %}<a class="kb-mini" href="/kb/{{ c.id }}"><span class="m kb-id">{{ c.code }}</span><span class="grow">{{ c.title }}</span><span class="m">{{ _('1 vista') if c.n == 1 else _f('{0} vistas', c.n) }}</span></a>{% else %}
       <div class="muted sm">{{ _('Aún no hay lecturas este mes.') }}</div>{% endfor %}
     </div>
     <div class="card sm muted" style="line-height:1.5"><div class="kb-h2">{{ _('Cómo se llena sola') }}</div>
@@ -49,7 +49,7 @@
 </div>
 
 {% elif tab == 'pend' %}
-<div class="kb-main narrow">
+<div class="kb-main wide">
   <section style="min-width:0">
     <p class="muted sm" style="margin:12px 0 0">{{ _('Cada alarma crítica cerrada, cambio revertido o sesión larga de consola deja aquí un caso por escribir. El que lo resolvió lo tiene asignado.') }}</p>
     <div class="card kb-list kb-pend">
@@ -61,7 +61,7 @@
         <span class="sm">{{ p.who }}</span>
         <span class="sm {{ 'kb-late' if p.late }}" title="{{ _('Más de 5 días sin caso: se avisó al admin') if p.late }}">{{ p.ago }}</span>
         <span class="kb-acts">
-          {% if is_admin %}<form method="post" action="/kb/pending/{{ p.id }}/dismiss"><button class="btn s ghost">{{ _('No hace falta') }}</button></form>{% endif %}
+          {% if is_admin %}<form method="post" action="/kb/pending/{{ p.id }}/dismiss"><button class="btn s">{{ _('No hace falta') }}</button></form>{% endif %}
           {% if can_write %}<button type="button" class="btn s" data-dialog="kb-link" data-link="/kb/pending/{{ p.id }}/link">{{ _('Ya existe') }}</button>
           <a class="btn s pri" href="/kb/new?pending={{ p.id }}">{{ _('Seguir el borrador') if p.case_id else _('Documentar') }}</a>{% endif %}
         </span>

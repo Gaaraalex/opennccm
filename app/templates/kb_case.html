@@ -25,7 +25,7 @@
         <div style="font-weight:500" class="kb-txt">{{ s.t }}</div>
         {% if s.c %}<div class="kb-code"><code>{{ s.c }}</code>{% if s.hid or '••••••' in s.c %}<span class="kb-hid">{{ _('clave oculta') }}</span>{% endif %}
           <button type="button" class="btn s" data-copy="{{ s.c }}" data-hid="{{ 1 if '••••••' in s.c else '' }}">{{ _('Copiar') }}</button>
-          {% if devs and not s.c.startswith('sudo opennccm') %}<button type="button" class="btn s" data-run="{{ s.c }}">{{ _('Abrir en consola') }}</button>{% endif %}</div>{% endif %}
+          {% if devs and not s.c.startswith('sudo opennccm') and s.c.splitlines()|length == 1 %}<button type="button" class="btn s" data-run="{{ s.c }}">{{ _('Abrir en consola') }}</button>{% endif %}</div>{% endif %}
       </div></div>{% else %}<div class="muted sm" style="margin-top:8px">{{ _('Sin pasos.') }}</div>{% endfor %}
     </div>
     <div class="kb-two">

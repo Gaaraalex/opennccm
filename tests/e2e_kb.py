@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sys
+import time
 
 import requests
 
@@ -16,6 +17,7 @@ from app.db import (AuditLog, ChangeRequest, Device, Event, KbPending, SessionLo
                     set_setting)
 
 B = "http://127.0.0.1:8000"
+RUN = str(int(time.time()))[-6:]  # títulos distintos en cada corrida (el editor avisa de títulos repetidos)
 fails = []
 
 
@@ -57,7 +59,7 @@ check("«Pedir acceso a un admin» deja un aviso para el admin", "Solicitud envi
 check("operador no entra a «Acceso y reglas»", op.get(B + "/kb/access").status_code == 403)
 
 # --- un operador documenta un caso
-base = {"title": "hEX rechaza el respaldo por SSH tras actualizar", "category": "respaldos", "devices": [dev_id],
+base = {"title": f"hEX rechaza el respaldo por SSH tras actualizar {RUN}", "category": "respaldos", "devices": [dev_id],
         "symptom": "ssh: handshake failed: no common algorithm", "cause": "",
         "steps": [{"t": "Ver qué acepta", "c": "/ip ssh print"}, {"t": "Usuario de respaldo", "c": "/user set opennccm password=Secreta123"}],
         "verify": ""}
@@ -113,6 +115,19 @@ check("al aprobarla queda la versión 2 con el paso nuevo", "v2" in r.text and "
 r = op.get(B + f"/kb/{cid}?v=1")
 check("se puede ver la versión 1", "Estás viendo la versión 1" in r.text and "Reiniciar SSH" not in r.text)
 
+# --- títulos repetidos: «Casos parecidos» lo marca y al enviar se avisa (se puede enviar igual)
+sim = op.get(B + "/kb/api/similar", params={"title": base["title"].upper(), "q": "", "exclude": 0}).json()
+check("«Casos parecidos» detecta el mismo título", sim["items"] and sim["items"][0]["id"] == cid and sim["items"][0]["same"], sim)
+sim = op.get(B + "/kb/api/similar", params={"title": "hEX rechaza respaldo por SSH tras actualizar " + RUN, "exclude": 0}).json()
+check("y uno casi igual", any(i["id"] == cid for i in sim["items"]), sim)
+dup = {**full, "id": None, "mode": "new"}
+j = op.post(B + "/kb/save", json=dup).json()
+check("al enviar con el mismo título avisa «Ya hay un caso con este título»", not j["ok"] and j.get("dup", {}).get("id") == cid
+      and "Ya hay un caso con este título" in j.get("error", ""), j)
+j = op.post(B + "/kb/save", json={**dup, "allow_dup": True}).json()
+check("y si la persona sigue, se envía", j["ok"] and j["status"] == "review", j)
+adm.post(B + f"/kb/{j['id']}/archive")
+
 # --- convertir en configlet
 r = op.post(B + f"/kb/{cid}/configlet", allow_redirects=False)
 check("«Convertir en configlet» crea el configlet", r.status_code == 303 and "/configlets/" in r.headers.get("location", ""))
@@ -144,7 +159,7 @@ check("«Falta documentar» lista la que falta, con quién la resolvió", "kb_op
 check("el operador no ve «No hace falta»", "No hace falta" not in r.text)
 check("ni puede usarlo", op.post(B + f"/kb/pending/{p_id}/dismiss").status_code == 403)
 j = op.post(B + "/kb/save", json={**full, "id": None, "mode": "new", "pending": p_id, "source_kind": "event", "source_id": e1_id,
-                                   "title": "Respaldo fallido: SSH colgado", "action": "send"}).json()
+                                   "title": f"Respaldo fallido: SSH colgado {RUN}", "action": "send"}).json()
 with SessionLocal() as db:
     p1 = db.get(KbPending, p_id)
     check("al enviar el caso el pendiente se enlaza a él", p1.case_id == j["id"])
@@ -175,7 +190,7 @@ adm.post(B + "/kb/access", data={"kb_viewers": "on", "kb_operators": "on", "kb_p
                                   "kb_rule_revert": "on", "kb_rule_mail": "on"})
 r = ro.get(B + f"/kb/{cid}")
 check("con «Solo lectura» encendido, lee los casos", "RouterOS 7.16" in r.text and "Editar" not in r.text)
-j = op.post(B + "/kb/save", json={**full, "id": None, "mode": "new", "title": "Caso directo", "action": "send"}).json()
+j = op.post(B + "/kb/save", json={**full, "id": None, "mode": "new", "title": f"Caso directo {RUN}", "action": "send"}).json()
 check("con «Admin y operadores», el operador publica sin revisión", j["ok"] and j["status"] == "published", j)
 adm.post(B + "/kb/access", data={"kb_publish": "admin", "kb_rule_critical": "on", "kb_rule_revert": "on", "kb_rule_mail": "on"})
 r = op.get(B + "/kb")

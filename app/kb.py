@@ -706,9 +706,10 @@ def _prefill(db, user, pending: KbPending) -> dict:
             data["devices"] = json.loads(cr.device_ids or "[]")
             data["symptom"] = mask(f"{cr.title}\n{(cr.result or '')[-1500:]}".strip())[0]
             lines = [x.strip() for x in (cr.body or "").splitlines() if x.strip()]
-            data["steps"] = [{"t": _("Aplicar la reversión") if i == 0 else "", "c": mask(x)[0]} for i, x in enumerate(lines[:12])]
-            if len(lines) > 12:
-                data["steps"].append({"t": _f("… y {0} comandos más (ver {1})", len(lines) - 12, f"CR-{cr.id:04d}"), "c": ""})
+            cmds, n = mask("\n".join(lines[:40]))
+            data["steps"] = [{"t": _("Aplicar la reversión"), "c": cmds, "hid": bool(n)}]
+            if len(lines) > 40:
+                data["steps"].append({"t": _f("… y {0} comandos más (ver {1})", len(lines) - 40, f"CR-{cr.id:04d}"), "c": ""})
     elif pending.kind == "console":
         cs = db.get(ConsoleSession, pending.source_id)
         if cs is not None:
@@ -752,7 +753,8 @@ def _editor(request: Request, user, data: dict, case: KbCase | None, mode: str, 
                      "step": _("Escribe el paso…"), "cmd": _("Comando (opcional)"), "remove": _("Quitar"),
                      "ai_busy": _("El asistente está leyendo…"), "ai_done": _("El asistente propuso lo que faltaba. Revísalo antes de enviar."),
                      "req": [label for label, _ok in requirements({})],
-                     "no_similar": _("No hay casos parecidos."), "ago_s": _("hace {0} s"), "err": _("No se pudo guardar")}}
+                     "no_similar": _("No hay casos parecidos."), "same": _("título igual"),
+                     "dup_q": _("¿Enviarlo igual? Si es el mismo problema, mejor añade un comentario a ese caso."), "ago_s": _("hace {0} s"), "err": _("No se pudo guardar")}}
     return render(request, "kb_edit.html", user, tab="casos", title=title, payload=payload, cats=CATS, origins=origins,
                   send=send, case=case, mode=mode, code=code(case.id) if case else "", **ctx)
 
@@ -832,6 +834,11 @@ async def kb_save(request: Request):
     missing = [label for label, ok in requirements(data) if not ok]
     with SessionLocal() as db:
         cid = int(body.get("id") or 0)
+        if action == "send" and not missing and not body.get("allow_dup"):
+            dup = same_title(db, data["title"], cid)
+            if dup is not None:  # se avisa una vez; si la persona sigue, se envía igual
+                return JSONResponse({"ok": False, "id": cid or None, "dup": {"id": dup.id, "code": code(dup.id)},
+                                     "error": _f("Ya hay un caso con este título: {0}.", code(dup.id))})
         c = db.get(KbCase, cid) if cid else None
         if c is not None:
             if c.status == "archived" or (c.author != user.username and user.role != "admin"):
@@ -910,23 +917,46 @@ async def kb_save(request: Request):
                          "url": f"/kb/{cid}" if action == "send" else f"/kb/{cid}/edit", "msg": msg})
 
 
+def _norm(title: str) -> str:
+    return " ".join(re.findall(r"\w+", (title or "").lower()))
+
+
+def same_title(db, title: str, exclude: int = 0) -> KbCase | None:
+    """Otro caso (publicado, en revisión o borrador) con el mismo título, sin contar mayúsculas ni signos."""
+    t = _norm(title)
+    if not t:
+        return None
+    for c in db.scalars(select(KbCase).where(KbCase.status != "archived", KbCase.id != exclude)):
+        if _norm(c.title) == t:
+            return c
+    return None
+
+
 @router.get("/kb/api/similar")
-def kb_similar(request: Request, q: str = "", exclude: int = 0):
+def kb_similar(request: Request, q: str = "", title: str = "", exclude: int = 0):
     user, deny = _gate(request)
     if deny:
         raise Forbidden()
-    words = [w for w in re.findall(r"[\wáéíóúñ.\-/]{4,}", q.lower()) if w not in _STOP][:8]
+    words = [w for w in re.findall(r"[\wáéíóúñ.\-/]{4,}", (title + " " + q).lower()) if w not in _STOP][:10]
+    tw = {w for w in re.findall(r"[\wáéíóúñ.\-/]{4,}", title.lower()) if w not in _STOP}
     if not words:
         return JSONResponse({"items": []})
     with SessionLocal() as db:
         scored = []
-        for c in db.scalars(select(KbCase).where(KbCase.status == "published", KbCase.id != exclude)):
+        for c in db.scalars(_visible(user, select(KbCase)).where(KbCase.status.in_(["published", "review"]), KbCase.id != exclude)):
+            if title.strip() and _norm(c.title) == _norm(title):
+                scored.append((100, c.id, c.title))  # mismo título: siempre primero
+                continue
+            ct = {w for w in re.findall(r"[\wáéíóúñ.\-/]{4,}", c.title.lower()) if w not in _STOP}
+            if tw and ct and len(tw & ct) / len(tw | ct) >= 0.6:  # título casi igual
+                scored.append((50, c.id, c.title))
+                continue
             hay = f"{c.title} {c.symptom} {c.cause}".lower()
             s = sum(1 for w in words if w in hay)
-            if s:
+            if s >= min(2, len(words)):
                 scored.append((s, c.id, c.title))
     scored.sort(reverse=True)
-    return JSONResponse({"items": [{"id": i, "code": code(i), "title": t} for s, i, t in scored[:4] if s >= min(2, len(words))]})
+    return JSONResponse({"items": [{"id": i, "code": code(i), "title": t, "same": s >= 50} for s, i, t in scored[:4]]})
 
 
 _STOP = {"para", "como", "esta", "este", "desde", "cuando", "porque", "pero", "with", "from", "that", "this", "after"}
