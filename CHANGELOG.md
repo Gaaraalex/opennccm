@@ -1,6 +1,6 @@
 # Historial de versiones
 
-## Próxima versión
+## 2.18.0
 - **Botón «Soporte profesional»** en la barra superior, a la izquierda de «Apoya OpenNCCM»: un enlace a la página de soporte de pago
   (en otra pestaña) con una animación suave que se detiene si el sistema pide reducir el movimiento. No cambia ninguna función;
   el administrador lo oculta para todos en **Ajustes › Organización**.
