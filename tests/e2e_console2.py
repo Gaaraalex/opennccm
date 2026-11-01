@@ -229,7 +229,15 @@ check("asistente activo: botón en la barra superior", 'data-ai="page"' in adm.g
 before = int((re.findall(r'class="ai-big">(\d+)<', st) or ["0"])[0])
 adm.post(B + "/users", data={"username": AIU, "role": "admin", "password": "Asistente2026x", "password2": "Asistente2026x"})
 ia = login(AIU, "Asistente2026x")
-check("asistente en la consola", 'id="ai-panel"' in adm.get(B + "/devices/1/console").text)
+cpage = adm.get(B + "/devices/1/console").text
+check("asistente en la consola", 'id="ai-panel"' in cpage)
+mt = re.search(r"data-t='([^']*)'", cpage)
+try:
+    json.loads(__import__("html").unescape(mt.group(1)) if mt else "")
+    okt = True
+except ValueError:
+    okt = False
+check("panel del asistente: sus textos llegan enteros al navegador (JSON válido)", okt)
 r = ia.post(B + "/api/ai/ask", json={"q": "¿Cómo veo las interfaces?", "device_id": 1, "kind": "console",
                                        "console": ["R1#show run", "snmp-server community public RO"]}).json()
 segs = r.get("segments", [])
