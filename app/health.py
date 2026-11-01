@@ -16,6 +16,7 @@ from sqlalchemy import select
 
 from . import eol
 from .db import ChangeRequest, ComplianceResult, Device, SessionLocal, Vulnerability, now
+from .errors import short_error
 from .i18n import N_, _, _f
 
 SEV_ORDER = {"crit": 0, "major": 1, "info": 2, "warn": 3}
@@ -75,7 +76,7 @@ def summary(scope: set[int] | None, is_admin: bool = False, server: dict | None 
     names = {d.id: d for d in devs}
     for d in errors:
         queue.append({"sev": "crit", "icon": "alert", "title": _f("El respaldo de {0} falló", d.name),
-                      "sub": (d.last_error or "").strip().splitlines()[0][:140] if d.last_error else d.host,
+                      "sub": short_error(d.last_error) if d.last_error else d.host,
                       "action": _("Reintentar"), "post": f"/devices/{d.id}/backup", "href": f"/devices/{d.id}"})
     for dev_id, sevs in sorted(fails.items(), key=lambda kv: (-kv[1].count("critical"), -len(kv[1]))):
         d = names.get(dev_id)

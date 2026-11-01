@@ -30,6 +30,7 @@ from .crypto import try_decrypt
 from .db import (AiChat, AiUsage, ChangeRequest, ComplianceResult, ConfigVersion, Device, DeviceGroup, EolEntry, Event,
                  Schedule, SessionLocal, audit, now)
 from .drivers import get_profile
+from .errors import short_error
 from .i18n import _, _f, get_lang
 
 router = APIRouter()
@@ -66,7 +67,7 @@ def f_equipos(user, estado: str = "todos", texto: str = "") -> dict:
             out.append({"id": d.id, "nombre": d.name, "ip": d.host, "plataforma": get_profile(d.device_type).label,
                         "modelo": d.model, "version": d.os_version, "grupo": d.group.name if d.group else None,
                         "estado": d.last_status, "ultimo_respaldo": _ago(d.last_backup_at),
-                        "error": (d.last_error or "")[:160] or None})
+                        "error": short_error(d.last_error) if d.last_status == "error" else None})
         return {"total": len(out), "equipos": out[:60]}
 
 
@@ -79,7 +80,8 @@ def f_equipo(user, nombre: str) -> dict:
         ev = db.scalars(select(Event).where(Event.device_id == d.id, Event.acknowledged.is_(False))
                         .order_by(Event.id.desc()).limit(8)).all()
         return {"id": d.id, "nombre": d.name, "ip": d.host, "plataforma": get_profile(d.device_type).label, "modelo": d.model,
-                "version": d.os_version, "serie": d.serial, "estado": d.last_status, "error": (d.last_error or "")[:300] or None,
+                "version": d.os_version, "serie": d.serial, "estado": d.last_status,
+                "error": short_error(d.last_error) if d.last_status == "error" else None,
                 "ultimo_respaldo": _ago(d.last_backup_at), "difiere_linea_base": d.baseline_drift,
                 "versiones": [{"id": v.id, "fecha": _ago(v.created_at), "agregadas": v.added, "quitadas": v.removed,
                                "origen": v.trigger} for v in vs],
@@ -93,7 +95,7 @@ def f_respaldos_fallidos(user, dias: int = 7) -> dict:
         fail = [d for d in ids.values() if d.last_status == "error"]
         ev = db.scalars(select(Event).where(Event.category == "Respaldo fallido", Event.created_at >= lim)
                         .order_by(Event.id.desc()).limit(80)).all()
-        return {"con_error_ahora": [{"id": d.id, "nombre": d.name, "error": (d.last_error or "")[:160]} for d in fail],
+        return {"con_error_ahora": [{"id": d.id, "nombre": d.name, "error": short_error(d.last_error)} for d in fail],
                 "fallos_en_el_periodo": [{"equipo": ids[e.device_id].name, "fecha": _ago(e.created_at), "texto": e.message[:140]}
                                          for e in ev if e.device_id in ids][:40]}
 
@@ -266,7 +268,7 @@ def _system(lang: str, page: dict) -> str:
             "de los últimos 7 días» o «Manual › Tareas programadas»). Acciones: «ir» con una url interna de OpenNCCM "
             "(/devices/ID, /devices/ID/console, /diff?a=ID&b=ID, /changes, /compliance, /events, /schedules, /search?q=…); "
             "«respaldar» con los equipos; «tarea» (accion_tarea, cron de 5 campos, nombre_tarea); «solicitud_cambio» "
-            "(equipos y comandos). Nunca digas que hiciste algo: solo lo preparas y el usuario confirma. En los «¿cómo "
+            "(equipos y comandos). En «motivo» usa el «error» corto que dan las funciones, tal cual. Nunca digas que hiciste algo: solo lo preparas y el usuario confirma. En los «¿cómo "
             "hago…?» ofrece dejarlo listo y «Ver cómo se hace» (ir a la página). Los secretos aparecen como ******. ")
     if lang == "en":
         base += "Answer in English. "
@@ -375,7 +377,7 @@ def _loop_gemini(c, system, history, q, user, used):
 
 
 # --------------------------------------------------------------------------- acciones y conversación
-def _resolve(user, raw: list) -> list[dict]:
+def _resolve(user, raw: list, listed: list[str] | None = None) -> list[dict]:
     """Las acciones de la respuesta, comprobadas: «ir» solo a páginas de OpenNCCM; las demás quedan pendientes de
     confirmar, con su resumen hecho aquí (no por la IA)."""
     out = []
@@ -389,9 +391,13 @@ def _resolve(user, raw: list) -> list[dict]:
                     out.append({"kind": "go", "label": label, "url": url})
                 continue
             devs = [names[n.lower()] for n in (a.get("equipos") or []) if isinstance(n, str) and n.lower() in names]
+            if t == "respaldar" and not devs and listed:  # sin equipos propios: los de la respuesta
+                devs = [names[n.lower()] for n in listed if n.lower() in names]
             if t == "respaldar" and devs and ROLES.get(user.role, 0) >= ROLES["operator"]:
-                out.append({"kind": "backup", "label": label, "ids": [d.id for d in devs][:20],
-                            "title": _("Respaldar ahora"), "summary": ", ".join(d.name for d in devs[:20])})
+                devs = devs[:20]
+                out.append({"kind": "backup", "label": label, "ids": [d.id for d in devs],
+                            "title": _("Respaldar 1 equipo") if len(devs) == 1 else _f("Respaldar {0} equipos", len(devs)),
+                            "summary": ", ".join(d.name for d in devs)})
             elif t == "solicitud_cambio" and devs and (a.get("comandos") or "").strip() and ROLES.get(user.role, 0) >= ROLES["operator"]:
                 cmds = str(a["comandos"]).strip()[:4000]
                 out.append({"kind": "change", "label": label, "ids": [d.id for d in devs][:50], "body": cmds,
@@ -468,10 +474,20 @@ def chat(user, q: str, page: dict) -> dict:
         ans, ti, to = loop(c, _system(get_lang(), page), history, q.strip()[:2000], user, used)
     except requests.RequestException as e:
         raise assistant.AiError(_f("No se pudo hablar con el proveedor: {0}", str(e)[:200])) from e
-    items = [{"name": str(i.get("nombre") or "")[:80], "state": i.get("estado") if i.get("estado") in ("ok", "aviso", "error") else "aviso",
-              "reason": str(i.get("motivo") or "")[:160]} for i in (ans.get("equipos") or [])[:30] if isinstance(i, dict)]
+    with SessionLocal() as db:
+        known = {d.name.lower(): d.name for d in _devs(db, user)}
+    items, seen = [], set()
+    for i in (ans.get("equipos") or [])[:30]:
+        if not isinstance(i, dict):
+            continue
+        real = known.get(str(i.get("nombre") or "").strip().lower())
+        if real is None or real in seen:  # un nombre que no está en el inventario (o no es suyo) no se muestra
+            continue
+        seen.add(real)
+        items.append({"name": real, "state": i.get("estado") if i.get("estado") in ("ok", "aviso", "error") else "aviso",
+                      "reason": str(i.get("motivo") or "")[:160]})
     reply = {"role": "assistant", "text": str(ans.get("texto") or "")[:1500], "items": items,
-             "actions": _resolve(user, ans.get("acciones") or []), "source": str(ans.get("fuente") or "")[:120],
+             "actions": _resolve(user, ans.get("acciones") or [], [x["name"] for x in items]), "source": str(ans.get("fuente") or "")[:120],
              "ms": int((time.time() - t0) * 1000)}
     msgs += [{"role": "user", "text": q.strip()[:2000]}, reply]
     _save(ch.id, msgs)

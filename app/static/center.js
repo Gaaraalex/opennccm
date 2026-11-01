@@ -308,7 +308,7 @@
       $('rec-player').scrollIntoView({behavior: 'smooth', block: 'nearest'});
     });
   }
-  function paint(h) {  // los mismos colores que la consola: prompt y comando, IP, activo, caído, deshabilitado, errores
+  function colorize(h) {  // los mismos colores que la consola: prompt y comando, IP, activo, caído, deshabilitado, errores
     return h.split('\n').map(function (l) {
       var m = l.match(/^([\w.\-\/@()\[\]&;<>]{1,60}?[#>$])(.*)$/);
       if (m && !/\s{3,}/.test(m[1])) return '<span class="k-host">' + m[1] + '</span><span class="k-path">' + m[2] + '</span>';
@@ -326,7 +326,7 @@
     ev.forEach(function (e) {
       if (e[0] > pos) return;
       if (e[1] === 'n') html += '\n<span class="k-note">' + esc(e[2]) + '</span>\n';
-      else if (e[1] === 'o') html += paint(esc(e[2]));
+      else if (e[1] === 'o') html += colorize(esc(e[2]));
     });
     $('rp-out').innerHTML = html; $('rp-out').scrollTop = $('rp-out').scrollHeight;
     Array.prototype.forEach.call(document.querySelectorAll('#rp-cmds button'), function (b) { b.classList.toggle('on', +b.dataset.t <= pos); });
@@ -343,18 +343,48 @@
 
   /* ---------- Herramientas ---------- */
   var tool = 'ping';
-  $('tl-tool').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; tool = b.dataset.t; Array.prototype.forEach.call(this.children, function (c) { c.classList.toggle('on', c === b); }); $('tl-port-w').hidden = tool !== 'tcp'; });
-  function runTool() {
-    var t = $('tl-target').value.trim(); if (!t) return;
-    $('tl-out').textContent = T.running; $('tl-sum').innerHTML = ''; $('tl-open').hidden = true;
-    post('/console/tools', {tool: tool, target: t, port: $('tl-port').value}).then(function (j) {
-      if (j.error) { $('tl-out').textContent = j.error; return; }
-      $('tl-out').innerHTML = esc(j.out).replace(/(\b\d{1,3}(?:\.\d{1,3}){3}\b)/g, '<span class="k-ip">$1</span>').replace(/(\d+(?:\.\d+)?\s?ms)/g, '<span class="k-val">$1</span>')
-        .replace(/\b(abierto|open|0% packet loss|0% perdidos)\b/gi, '<span class="k-ok">$1</span>').replace(/(\d+% (?:packet )?loss|no responde|timed out|\* \* \*|Unreachable)/gi, '<span class="k-bad">$1</span>');
-      $('tl-sum').innerHTML = j.summary.map(function (s) { return '<dt>' + esc(s[0]) + '</dt><dd>' + esc(s[1]) + '</dd>'; }).join('');
-      if (j.device) { var b = $('tl-open'); b.hidden = false; b.textContent = T.openc.replace('{0}', j.device.name); b.onclick = function () { openSession(j.device.id); show('sesiones'); }; }
-    });
+  $('tl-tool').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return; tool = b.dataset.t;
+    Array.prototype.forEach.call(this.children, function (c) { c.classList.toggle('on', c === b); });
+    $('tl-port-w').hidden = tool !== 'tcp';
+    Array.prototype.forEach.call(document.querySelectorAll('.tl-help'), function (h) { h.hidden = h.dataset.for !== tool; });
+  });
+  function toolColors(s) {
+    return esc(s).replace(/(\b\d{1,3}(?:\.\d{1,3}){3}\b)/g, '<span class="k-ip">$1</span>').replace(/(\d+(?:\.\d+)?\s?ms)/g, '<span class="k-val">$1</span>')
+      .replace(/\b(abierto|open|0% packet loss|0% perdidos)\b/gi, '<span class="k-ok">$1</span>').replace(/(\d+% (?:packet )?loss|no responde|timed out|\* \* \*|Unreachable)/gi, '<span class="k-bad">$1</span>');
   }
+  var toolRun = null;
+  function toolBusy(on) { $('tl-run').hidden = on; $('tl-stop').hidden = !on; }
+  function runTool() {  // la salida llega por partes; tras «\x1e» viene el resumen en JSON
+    var t = $('tl-target').value.trim(); if (!t || toolRun) return;
+    var run = toolRun = Date.now().toString(36) + Math.random().toString(36).slice(2, 6), out = $('tl-out'), buf = '';
+    out.textContent = T.running; $('tl-sum').innerHTML = ''; $('tl-open').hidden = true; toolBusy(true);
+    var done = function () { if (toolRun === run) { toolRun = null; toolBusy(false); } };
+    fetch('/console/tools', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({tool: tool, target: t, port: $('tl-port').value, run: run})}).then(function (r) {
+      if (!r.ok || (r.headers.get('content-type') || '').indexOf('json') >= 0) return r.json().then(function (j) { out.textContent = j.error || ('HTTP ' + r.status); done(); });
+      var rd = r.body.getReader(), dec = new TextDecoder();
+      function step() {
+        return rd.read().then(function (x) {
+          if (x.done) { done(); return; }
+          buf += dec.decode(x.value, {stream: true});
+          var cut = buf.indexOf('\x1e'), text = cut >= 0 ? buf.slice(0, cut) : buf;
+          var stick = out.scrollTop + out.clientHeight >= out.scrollHeight - 30;
+          out.innerHTML = toolColors(text); if (stick) out.scrollTop = out.scrollHeight;
+          if (cut >= 0) {
+            try {
+              var j = JSON.parse(buf.slice(cut + 1));
+              $('tl-sum').innerHTML = j.summary.map(function (s) { return '<dt>' + esc(s[0]) + '</dt><dd>' + esc(s[1]) + '</dd>'; }).join('');
+              if (j.device) { var b = $('tl-open'); b.hidden = false; b.textContent = T.openc.replace('{0}', j.device.name); b.onclick = function () { openSession(j.device.id); show('sesiones'); }; }
+            } catch (e) { /* aún no ha llegado entero */ }
+          }
+          return step();
+        });
+      }
+      return step();
+    }).catch(function (e) { out.textContent = String(e); done(); });
+  }
+  $('tl-stop').addEventListener('click', function () { if (toolRun) post('/console/tools/stop', {run: toolRun}).then(function () { toast(T.stopped); }); });
   $('tl-run').addEventListener('click', runTool);
   $('tl-target').addEventListener('keydown', function (e) { if (e.key === 'Enter') runTool(); });
 

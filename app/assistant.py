@@ -121,7 +121,7 @@ def texts() -> dict:
             "source": _("Fuente: {0}"), "crdone": _("Solicitud de cambio creada."), "close": _("Cerrar"), "send": _("Enviar"),
             "chat": _("Asistente"), "newc": _("Nueva conversación"), "viewing": _("Viendo: {0} · {1} equipos"),
             "chatph": _("Pregunta sobre tu red o sobre OpenNCCM…"), "more": _("Más acciones"), "cancel": _("Cancelar"),
-            "confirm": _("Confirmar"), "see": _("Ver"),
+            "confirm": _("Confirmar"), "see": _("Ver"), "hello": _("Pregúntame sobre tu red o sobre cómo usar OpenNCCM."),
             "chatnote": _("Solo ve lo que tú puedes ver. Prepara acciones, pero nunca las ejecuta sin que confirmes. Cada pregunta queda en Auditoría.")}
 
 

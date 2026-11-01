@@ -1,5 +1,19 @@
 # Historial de versiones
 
+## 2.17.0
+- **Operar › Consola:** al elegir un equipo se vuelve a abrir su consola, y en **Recetas** con «Todas» y «Todos los fabricantes»
+  se ven todas (en la 2.16.0 un fallo de la página dejaba las dos cosas sin funcionar).
+- **Herramientas con parámetros:** detrás de la IP o el nombre se pueden poner las opciones de siempre, de Windows o de Linux:
+  `8.8.8.8 -t` (ping continuo hasta pulsar **Detener**), `-n 10`, `-l 1400 -f`, `-i 0.2`, `--ttl 5`; traceroute `-h 30 -q 3`,
+  `-I` o `-T -p 443`; puerto TCP `host:443 -c 5`; DNS `ejemplo.com MX @1.1.1.1` o `-x 8.8.8.8`. Debajo de la casilla se ven las
+  de cada herramienta. La salida llega a medida que se produce. Solo se aceptan esas opciones (nada se pasa tal cual al
+  sistema). El instalador y `sudo opennccm update` instalan `dnsutils` (dig) para los tipos de registro DNS.
+- **Chat del asistente:** solo nombra equipos que existen en el inventario; la confirmación de una acción lista los equipos con
+  su número («Respaldar 3 equipos»); la barra superior se acomoda con el chat abierto y el chat vacío saluda con sugerencias.
+- **Errores en pocas palabras:** en el Panel («Necesita tu atención») y en el chat, los fallos de conexión y de respaldo salen
+  con un motivo corto y traducido («sin respuesta por SSH», «credencial rechazada», «cambió la clave SSH del equipo», «falta la
+  contraseña enable»…); el mensaje completo sigue en la ficha del equipo.
+
 ## 2.16.0
 - **Chat del asistente en todo el sistema:** el botón «Asistente» de la barra superior (con el logo del proveedor) abre un chat a
   la derecha en cualquier página. Consulta OpenNCCM con funciones de solo lectura (equipos, respaldos, alarmas, cambios y
