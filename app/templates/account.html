@@ -45,6 +45,8 @@
         {% for k, t in [('len', _('Al menos 10 caracteres')), ('let', _('Letras')), ('num', _('Números')), ('eq', _('Las dos coinciden'))] %}<li data-r="{{ k }}">{{ icon('x', 's no') }}{{ icon('check', 's yes') }}{{ t }}</li>{% endfor %}</ul></div>
         <p class="muted sm" style="margin-top:12px">Al cambiarla se cierran tus sesiones abiertas en otros equipos. Si la olvidas, un administrador puede cambiarla en Usuarios, o desde la consola del servidor con <code>sudo opennccm reset-password USUARIO 'CLAVE'</code>.</p></div>
     </form></section>{% endif %}
+  <section class="card c12" id="android"><div class="card-h"><h2>{{ _('App Android') }}</h2><a class="btn s" href="/account/phones">{{ icon('phone', 's') }}{{ _('Vincular teléfonos') }}</a></div>
+    <p class="muted sm" style="margin:0">{{ _('Equipos, alarmas y cambios por aprobar en el teléfono, con avisos. Vincule el teléfono con un QR o con la dirección de este servidor, su usuario y su contraseña.') }}</p></section>
   <section class="card c12" id="api"><div class="card-h"><h2>{{ _('Tokens de API') }}</h2><span class="muted sm">{{ _('Para scripts y otras herramientas: actúan con tus permisos y tus grupos') }}</span></div>
     {% if new_token %}<div class="banner info" role="status" style="margin-bottom:12px">{{ icon('check') }}<span class="grow"><b>{{ _('Copia el token ahora: no se volverá a mostrar.') }}</b><br><code class="mono" id="newtok" style="user-select:all;word-break:break-all">{{ new_token }}</code></span><button type="button" class="btn s" data-copy="#newtok">{{ _('Copiar') }}</button></div>{% endif %}
     <form method="post" action="/account/tokens" class="row" style="gap:10px;align-items:flex-end;flex-wrap:wrap">

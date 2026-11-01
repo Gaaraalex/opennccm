@@ -38,6 +38,7 @@
       {% if can_run %}<button type="button" data-dialog="mtbk-dlg">{{ icon('dl', 's') }}{{ _('Descargar .backup del equipo…') }}</button>{% endif %}<hr>{% endif %}
       {% if is_admin %}<a href="/devices/{{ device.id }}/edit" data-sheet data-title="{{ _f('Editar {0}', device.name) }}">{{ icon('edit', 's') }}Editar</a>{% endif %}
       {% if latest_run %}<a href="/diff?a={{ latest_run }}&b={{ latest_run }}">{{ icon('branch', 's') }}Comparar con otro equipo</a>{% endif %}
+      <a href="/devices/{{ device.id }}/label">{{ icon('phone', 's') }}{{ _('Etiqueta QR para la app…') }}</a>
       {% if latest_run and is_admin %}<a href="/versions/{{ latest_run }}/restore">{{ icon('server', 's') }}{{ _('Restaurar en otro equipo…') }}</a>{% endif %}
       <hr>
       {% if device.baseline_version_id %}<a href="?a={{ device.baseline_version_id }}&b={{ latest_run }}#versions">{{ icon('flag', 's') }}Ver diferencias con la línea base</a>

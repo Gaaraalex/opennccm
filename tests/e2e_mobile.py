@@ -1,6 +1,7 @@
-"""API para apps móviles (/api/mobile/…): entrar con usuario y contraseña, panel, equipos con puertos, respaldar, alarmas,
+"""API para apps móviles (/api/mobile/…): entrar con usuario y contraseña o con el QR de Mi cuenta › App Android, panel, equipos con puertos, respaldar, alarmas,
 cambios con aprobación, avisos y cerrar la sesión del teléfono; con el Cisco simulado (tests/fakedev.py)."""
 import os
+import re
 import sys
 
 import requests
@@ -74,7 +75,20 @@ check("avisos nuevos desde el último", any("caído" in i["text"] for i in n1["i
 
 s = requests.Session()
 s.post(B + "/login", data={"username": "admin", "password": "Admin12345"})
-check("el token del teléfono se ve (y se revoca) en Mi cuenta › Tokens de API", "Android · Pixel 8" in s.get(B + "/account").text)
+page = s.get(B + "/account/phones").text
+check("Mi cuenta › App Android: teléfono vinculado en la lista", "Android · Pixel 8" in page)
+page = s.post(B + "/account/phones/pair").text
+code = re.search(r'id="pair-code">([^<]+)<', page)
+check("QR de vinculación con su código", code and "data:image/svg+xml" in page)
+if code:
+    r = requests.post(B + "/api/mobile/pair", json={"code": code.group(1), "device": "Galaxy"})
+    check("vincular con el código del QR", r.ok and r.json()["token"].startswith("ncm_"), r.text)
+    r = requests.post(B + "/api/mobile/pair", json={"code": code.group(1), "device": "Otro"})
+    check("el código no vale dos veces", r.status_code == 401)
+check("los tokens de teléfonos no salen en Tokens de API", "Android · Pixel 8" not in s.get(B + "/account").text)
+lab = s.get(B + f"/devices/{dev_id}/label").text
+check("etiqueta QR del equipo", "R-Movil" in lab and "data:image/svg+xml" in lab)
+check("ya no hay ruta para descargar la APK", s.get(B + "/app/android.apk", allow_redirects=False).status_code == 404)
 
 r = requests.post(B + "/api/mobile/logout", headers=H)
 check("cerrar sesión en el teléfono revoca su token", r.ok and requests.get(B + "/api/mobile/me", headers=H).status_code == 401)

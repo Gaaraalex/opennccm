@@ -379,7 +379,9 @@ def account(request: Request):
     user = require(request)
     from .db import ApiToken
     with SessionLocal() as db:
-        tokens = db.scalars(select(ApiToken).where(ApiToken.user_id == user.id).order_by(ApiToken.id.desc())).all()
+        # los de los teléfonos se ven y se desvinculan en Mi cuenta › App Android
+        tokens = db.scalars(select(ApiToken).where(ApiToken.user_id == user.id, ApiToken.client.is_(None))
+                           .order_by(ApiToken.id.desc())).all()
     new_token = request.session.pop("new_token", None)  # se muestra una sola vez
     return render(request, "account.html", user, themes=THEMES, accents=ACCENTS, tokens=tokens, new_token=new_token,
                   base_url=str(request.base_url).rstrip("/"))
@@ -3046,7 +3048,7 @@ from . import routes_ops  # noqa: E402  (rutas de firmware, EOL, análisis y sis
 
 app.include_router(routes_ops.router)
 from . import console, security  # noqa: E402  (consola SSH web; 2 pasos, certificado, privacidad)
-from . import mobile  # noqa: E402  (API para apps móviles)
+from . import mobile  # noqa: E402  (API para apps móviles, vincular teléfonos y etiquetas QR)
 
 app.include_router(mobile.router)
 

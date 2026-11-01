@@ -1,17 +1,25 @@
 """API para apps móviles (/api/mobile/…): sesión del teléfono, panel, equipos con puertos, respaldo, versiones, alarmas,
-cambios y avisos.
+cambios y avisos; y en la web, Mi cuenta › App Android (vincular con QR) y la etiqueta QR de cada equipo.
 
-Se entra con la dirección del servidor, usuario y contraseña (locales o de Active Directory) y, si la cuenta lo tiene, el
-código de verificación en dos pasos. El teléfono recibe su propio token (un ApiToken con client="android", que aparece y se
-revoca en Mi cuenta › Tokens de API); la contraseña no se guarda en el teléfono. Todo usa los mismos roles y grupos que la
-web (require / device_scope / check_device) y deja la acción en Auditoría con «[Android]».
+El teléfono entra de dos formas, y en las dos recibe su propio token (un ApiToken con client="android", que el usuario ve
+y revoca en Mi cuenta › App Android); la contraseña no se guarda en el teléfono:
+
+* con la dirección del servidor, usuario y contraseña (locales o de Active Directory) y, si la cuenta lo tiene, el código
+  de verificación en dos pasos;
+* escaneando el QR de Mi cuenta › App Android (vale 5 minutos y una sola vez); sirve también para las cuentas de
+  Microsoft Entra, que no tienen contraseña en OpenNCCM.
+
+Todo usa los mismos roles y grupos que la web (require / device_scope / check_device) y deja la acción en Auditoría con
+«[Android]».
 """
 import hashlib
 import json
 import secrets
 import time
 from datetime import timedelta
+from pathlib import Path
 
+import segno
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
@@ -19,14 +27,33 @@ from starlette.concurrency import run_in_threadpool
 
 from . import __version__, services
 from .auth import ROLES, check_device, device_scope, require
+from .config import TLS_CA, TLS_CERT
 from .crypto import dummy_verify, verify_password
 from .db import ApiToken, ChangeRequest, ConfigVersion, Device, Event, SessionLocal, User, now
-from .drivers import PROFILE_MAP
+from .drivers import PROFILE_MAP, get_profile
 from .i18n import _
-from .web import audit, ip
+from .web import audit, flash, go, ip, render
 
 router = APIRouter()
+PAIR_TTL = 300
+_pairs: dict[str, tuple[int, float]] = {}   # código del QR -> (usuario, caducidad)
 _fails: dict[str, list[float]] = {}         # intentos fallidos por dirección
+
+
+def base_url(request: Request) -> str:
+    proto = request.headers.get("x-forwarded-proto", request.url.scheme).split(",")[0].strip()
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
+    return f"{proto}://{host}"
+
+
+def fingerprint(path) -> str:
+    """SHA-256 de un certificado PEM (la app lo compara con el que presenta el servidor)."""
+    try:
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes
+        return x509.load_pem_x509_certificate(Path(path).read_bytes()).fingerprint(hashes.SHA256()).hex()
+    except Exception:  # noqa: BLE001 - sin certificado propio (Let's Encrypt, HTTP o fuera de nginx)
+        return ""
 
 
 def _issue(user: User, device: str) -> str:
@@ -112,6 +139,27 @@ async def mobile_login(request: Request):
         info = _user_json(user)
     _fails.pop(addr, None)
     audit(info["username"], "login", "[Android] " + device, addr)
+    return {"token": token, "user": info, "server": {"version": __version__}}
+
+
+@router.post("/api/mobile/pair")
+async def mobile_pair(request: Request):
+    """Canjea el código del QR de Mi cuenta › App Android por el token del teléfono (una sola vez)."""
+    try:
+        data = await request.json()
+    except ValueError:
+        data = {}
+    code, device = str(data.get("code") or ""), str(data.get("device") or "")[:40]
+    entry = _pairs.pop(code, None)
+    if not entry or entry[1] < time.time():
+        return JSONResponse({"error": "invalid", "detail": _("El código caducó o ya se usó. Genere otro QR en Mi cuenta.")}, 401)
+    with SessionLocal() as db:
+        user = db.get(User, entry[0])
+        if user is None or not user.active:
+            return JSONResponse({"error": "invalid", "detail": _("La cuenta ya no está activa.")}, 401)
+        token = _issue(user, device)
+        info = _user_json(user)
+    audit(info["username"], "phone_paired", "[Android] " + device, ip(request))
     return {"token": token, "user": info, "server": {"version": __version__}}
 
 
@@ -338,3 +386,61 @@ def mobile_notifications(request: Request, since: int = 0):
                 items.append({"id": -cr.id, "kind": "change", "severity": "info", "title": _("Cambio por aprobar"),
                               "text": cr.title[:200], "change_id": cr.id})
         return {"last": last, "items": items}
+
+
+# --------------------------------------------------------------------------- web: Mi cuenta › App Android y etiquetas QR
+def _phones(user_id: int):
+    with SessionLocal() as db:
+        return db.scalars(select(ApiToken).where(ApiToken.user_id == user_id, ApiToken.client == "android")
+                          .order_by(ApiToken.id.desc())).all()
+
+
+@router.get("/account/phones")
+def phones_page(request: Request):
+    user = require(request)
+    return render(request, "phones.html", user, phones=_phones(user.id), qr=None, url=base_url(request), fp=fingerprint(TLS_CERT))
+
+
+@router.post("/account/phones/pair")
+def phones_pair(request: Request):
+    """QR para vincular un teléfono: dirección del servidor, código de un solo uso (5 minutos) y huellas del certificado."""
+    user = require(request)
+    for k in [k for k, v in _pairs.items() if v[1] < time.time()]:
+        _pairs.pop(k, None)
+    code = secrets.token_urlsafe(24)
+    _pairs[code] = (user.id, time.time() + PAIR_TTL)
+    fp = fingerprint(TLS_CERT)
+    payload = json.dumps({"opennccm": 1, "url": base_url(request), "code": code, "fp": fp, "ca": fingerprint(TLS_CA)},
+                         separators=(",", ":"))
+    audit(user.username, "phone_pair_qr", "", ip(request))
+    return render(request, "phones.html", user, phones=_phones(user.id), url=base_url(request), fp=fp,
+                  qr=segno.make(payload, error="m").svg_data_uri(scale=6, border=2), code=code)
+
+
+@router.post("/account/phones/{tid}/revoke")
+def phones_revoke(request: Request, tid: int):
+    user = require(request)
+    with SessionLocal() as db:
+        tok = db.get(ApiToken, tid)
+        if tok and tok.user_id == user.id and tok.client == "android":
+            db.delete(tok)
+            db.commit()
+            flash(request, _("Teléfono desvinculado: ya no puede entrar con ese token."))
+    audit(user.username, "phone_revoke", str(tid), ip(request))
+    return go("/account/phones")
+
+
+@router.get("/devices/{dev_id}/label")
+def device_label(request: Request, dev_id: int):
+    """Etiqueta QR del equipo para pegarla en él: la app la escanea y abre su ficha."""
+    user = require(request)
+    check_device(user, dev_id)
+    with SessionLocal() as db:
+        d = db.get(Device, dev_id)
+        if d is None:
+            return go("/devices")
+        payload = json.dumps({"opennccm": 1, "url": base_url(request), "device": d.id, "name": d.name, "host": d.host},
+                             separators=(",", ":"))
+        info = {"name": d.name, "host": d.host, "model": d.model or "", "platform": get_profile(d.device_type).label}
+    return render(request, "device_label.html", user, d=info, dev_id=dev_id,
+                  qr=segno.make(payload, error="m").svg_data_uri(scale=5, border=2))

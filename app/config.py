@@ -11,6 +11,7 @@ WORKERS = int(os.environ.get("NCM_WORKERS", "16"))
 NVD_API_KEY = os.environ.get("NCM_NVD_API_KEY", "")
 # autoridad certificadora propia creada por el instalador (se descarga desde el login para confiar en el sitio)
 TLS_CA = Path(os.environ.get("NCM_TLS_CA", "/etc/ssl/opennccm/ca.crt"))
+TLS_CERT = Path(os.environ.get("NCM_TLS_CERT", "/etc/ssl/certs/opennccm.crt"))  # el que sirve nginx
 # repositorio del que se descargan las actualizaciones (para avisar de versiones nuevas)
 UPDATE_REPO = os.environ.get("NCM_UPDATE_REPO", "Gaaraalex/opennccm")
 # petición de actualización desde la web: la atiende opennccm-webupdate.path (systemd, como root)
