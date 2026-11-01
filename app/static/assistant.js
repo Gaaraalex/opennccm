@@ -10,7 +10,8 @@
   function build(el, o) {
     panel = el; opts = o || {};
     T = JSON.parse(el.dataset.t || '{}');
-    el.innerHTML = '<div class="ai-h"><span class="ai-logo" aria-hidden="true">✦</span><div class="grow"><b>' + esc(T.title) + '</b><small class="ai-who"></small></div>' +
+    var lg = document.getElementById('ai-logo');
+    el.innerHTML = '<div class="ai-h">' + (lg ? lg.innerHTML : '<span class="ai-logo" aria-hidden="true">✦</span>') + '<div class="grow"><b>' + esc(T.title) + '</b><small class="ai-who"></small></div>' +
       '<span class="ai-cloud">' + esc(T.cloud) + '</span>' +
       (el.classList.contains('ai-float') ? '<button type="button" class="tbtn ai-x" aria-label="' + esc(T.close) + '">✕</button>' : '') + '</div>' +
       '<div class="ai-ctx"></div><div class="ai-msgs" role="log" aria-live="polite"></div><div class="ai-sug"></div>' +

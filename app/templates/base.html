@@ -62,7 +62,7 @@
   {% set DL = donate_links() %}{% from "_donate.html" import donate_body %}
   {% if user.role == 'admin' and DL %}<span class="dropw"><button type="button" class="donate" data-drop="don-pop" aria-haspopup="true" aria-expanded="false" aria-label="{{ _('Apoya OpenNCCM: donar') }}" title="{{ _('Apoya OpenNCCM') }}">{{ icon('heart') }}<span class="dt"><b>Apoya OpenNCCM</b><small>Libre y gratis gracias a ti</small></span><span class="dbtn">Donar</span></button>
     <div class="drop don-pop" id="don-pop" hidden>{{ donate_body(DL) }}</div></span>{% endif %}
-  {% if ai_top %}<button type="button" class="btn s ghost ai-top" data-ai="page" title="{{ ai_top.model }} · {{ ai_top.who }}">✦ {{ _('Asistente') }}</button>{% endif %}
+  {% if ai_top %}<button type="button" class="btn s ghost ai-top" data-ai="page" title="{{ ai_top.model }} · {{ ai_top.who }}">{{ ai_logo(ai_top.p, 20) }}{{ _('Asistente') }}</button>{% endif %}
   <button type="button" class="search-top" data-palette aria-label="Buscar">{{ icon('search', 's') }}<span>Buscar equipo, IP o texto…</span><kbd>Ctrl K</kbd></button>
   {% set th = user.theme or 'auto' %}
   <span class="dropw"><button type="button" class="tbtn" data-drop="theme-menu" aria-haspopup="true" aria-expanded="false" aria-label="Tema y color" title="Tema y color">{{ icon('moon' if th == 'oscuro' else 'sun' if th == 'claro' else 'eye' if th == 'contraste' else 'monitor') }}</button>
@@ -136,7 +136,7 @@
                 [_('Cambiar a tema oscuro'), 'oscuro', 'moon', 'theme'], [_('Cambiar a tema claro'), 'claro', 'sun', 'theme'],
                 [_('Ver atajos de teclado'), '', 'kbd', 'help'], [_('Cerrar sesión'), '/logout', 'logout', '']]}|tojson }};</script>
 <script src="/static/shell.js?v={{ VERSION }}-{{ SHELL_HASH }}" defer></script>
-{% if ai_top %}<link rel="stylesheet" href="/static/console.css?v={{ VERSION }}-{{ CX_HASH }}"><script type="application/json" id="ai-t">{{ ai_top.t|tojson }}</script><script src="/static/assistant.js?v={{ VERSION }}-{{ CX_HASH }}" defer></script>{% endif %}
+{% if ai_top %}<link rel="stylesheet" href="/static/console.css?v={{ VERSION }}-{{ CX_HASH }}"><script type="application/json" id="ai-t">{{ ai_top.t|tojson }}</script><template id="ai-logo">{{ ai_logo(ai_top.p, 36) }}</template><script src="/static/assistant.js?v={{ VERSION }}-{{ CX_HASH }}" defer></script>{% endif %}
 {% endif %}
 {% if update_popup %}
 <dialog class="dlg" id="upd-popup" aria-labelledby="upd-title">

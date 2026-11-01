@@ -1,4 +1,5 @@
-{# Panel del asistente IA dentro de la consola (lo arma app/static/assistant.js). #}
+{# Panel del asistente IA dentro de la consola (lo arma app/static/assistant.js; el logo va en la plantilla de abajo). #}
+<template id="ai-logo">{{ ai_logo(ai.provider, 36) }}</template>
 <aside class="ai-panel" id="ai-panel" hidden aria-label="{{ _('Asistente de red') }}"
   data-device="{{ dev.id }}" data-kind="console" data-name="{{ dev.name }}" data-os="{{ profile.label or dev.os }}"
   data-t='{{ {'title': _('Asistente de red'), 'cloud': _('nube'), 'change': _('Cambiar'), 'hello': _f('Hola. Tengo el contexto de {0}: {1}. Pregúntame qué comando usar o pídeme que explique una salida.', dev.name, (dev.model ~ ' · ' if dev.model else '') ~ dev.os),

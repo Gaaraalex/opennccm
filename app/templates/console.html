@@ -33,7 +33,7 @@
         <button type="button" class="tbtn" id="cx-theme" title="{{ _('Tema de la consola') }}" aria-label="{{ _('Tema de la consola') }}">{{ icon('moon', 's') }}<span id="cx-theme-n" class="vh"></span></button>
         <button type="button" class="tbtn" id="cx-share" title="{{ _('Compartir en solo lectura') }}" aria-label="{{ _('Compartir en solo lectura') }}">{{ icon('users', 's') }}</button>
         <button type="button" class="btn s ghost" id="cx-recon">{{ icon('refresh', 's') }}{{ _('Reconectar') }}</button>
-        {% if ai.on %}<button type="button" class="btn s ghost cx-aibtn" id="cx-ai" aria-pressed="false">✦ {{ _('Asistente') }}</button>{% endif %}
+        {% if ai.on %}<button type="button" class="btn s ghost cx-aibtn" id="cx-ai" aria-pressed="false">{{ ai_logo(ai.provider, 20) }}{{ _('Asistente') }}</button>{% endif %}
         <button type="button" class="tbtn" id="cx-full" title="{{ _('Pantalla completa') }}" aria-label="{{ _('Pantalla completa') }}">{{ icon('expand', 's') }}</button>
       </div>
     </header>

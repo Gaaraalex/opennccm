@@ -99,3 +99,4 @@
 .cx-bar{flex-wrap:nowrap}.cx-freq{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;min-width:0;flex:1}
 .cx-bar .grow{display:none}.cx-k{white-space:nowrap;flex:none}
 .cx.embed .cx-foot{gap:8px;font-size:11.5px;padding:5px 10px}
+.ai-top,.cx-aibtn{display:inline-flex;align-items:center;gap:6px}
