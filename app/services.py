@@ -489,8 +489,8 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
             praw, _, craw = (ports_raw or "").partition(chassis.MARK)
             plist, has_status = ports_mod.parse(praw, dev.device_type, running, mdl)
             rear = chassis.parse(chassis.MARK + craw if craw else None, dev.device_type)
-            dev.ports = json.dumps({"at": now().isoformat(), "status": has_status, "ports": plist, "rear": rear}) \
-                if plist or any(rear.values()) else None
+            dev.ports = json.dumps({"at": now().isoformat(), "status": has_status, "ports": plist, "rear": rear,
+                                    "raw": (ports_raw or "")[-12000:]}) if plist or any(rear.values()) else None
 
         if inventory:
             inv = parse_inventory(inventory, prof)

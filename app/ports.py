@@ -51,7 +51,7 @@ def commands(device_type: str) -> list[str]:
     if device_type in VYOS_LIKE:
         return ["show interfaces"]
     if prof.family == FASTPATH:
-        return ["show interfaces status all", "show interfaces status", "show interface status"]
+        return ["show interfaces status all", "show interfaces status", "show interface status", "show interfaces brief"]
     if prof.family == HUAWEI or device_type.startswith(("huawei", "h3c", "hp_comware")):
         return ["display interface brief"]
     return GENERIC
@@ -323,7 +323,10 @@ LAYOUTS = [
     (r"(?i)^(CCR2004-16G|CCR2216)", {"rows": 2, "grp": 4, "sfp": "pairs"}),
     (r"(?i)^(RB4011|RB2011|RB3011|RB1100)", {"rows": 1, "gaps": [5], "sfp": "row"}),
     (r"(?i)^(RB5009|CCR2004-1G|CCR1009|hEX|hAP|RB750|RB760|RB951|RB952|RB941|L009|RB450|RB850)", {"rows": 1, "sfp": "row"}),
-    # Ubiquiti (UniFi, EdgeSwitch, EdgeRouter)
+    # Ubiquiti (UniFi, EdgeSwitch, EdgeRouter). «cu»: puertos de cobre; los siguientes son SFP. «rear»: atrás sin
+    # sensores (sin ventiladores, una sola entrada de corriente): se muestra la entrada, con corriente si el equipo responde
+    (r"(?i)^ES-?18X", {"rows": 2, "grp": 8, "sfp": "pairs", "cu": 16, "rear": {"psu": ["24 V DC"], "fanless": True}}),
+    (r"(?i)^ES-?10X", {"rows": 1, "sfp": "row", "cu": 8, "rear": {"psu": ["24 V DC"], "fanless": True}}),
     (r"(?i)^(US-?8|USW-?(Lite-)?8|USW-?Flex|ES-?8|ES-?10|ER-|EdgeRouter|ER\d|USW-Ultra|USG)", {"rows": 1, "sfp": "row"}),
     (r"(?i)^(US-?16|USW-?(Lite-)?16|ES-?16)", {"rows": 2, "grp": 4, "sfp": "pairs"}),
     (r"(?i)^(US-?24|USW-?24|ES-?24|US-?48|USW-?48|ES-?48|USW-Pro)", {"rows": 2, "grp": 6, "sfp": "pairs"}),
@@ -344,6 +347,37 @@ def layout(model: str | None, ports: list[dict]) -> dict:
     cols = (cu + 1) // 2
     return {"rows": 2, "grp": 6 if cols % 6 == 0 else 4 if cols % 4 == 0 else cols, "gaps": [],
             "sfp": "bottom" if sfp <= 2 else "pairs"}
+
+
+def copper_count(model: str | None) -> int | None:
+    """Puertos de cobre del modelo: del catálogo o de su nombre («US-24-250W» -> 24)."""
+    for pat, lay in LAYOUTS:
+        if re.search(pat, (model or "").strip()) and lay.get("cu"):
+            return lay["cu"]
+    return model_ports(model)
+
+
+def rear_from_model(model: str | None, online: bool) -> dict | None:
+    """Atrás de los modelos sin sensores de fuente ni ventiladores: su entrada de corriente (con corriente si el equipo
+    respondió al último respaldo) y «sin ventiladores»."""
+    for pat, lay in LAYOUTS:
+        if re.search(pat, (model or "").strip()) and lay.get("rear"):
+            r = lay["rear"]
+            return {"psu": [{"n": n, "s": "ok" if online else "fail", "st": ""} for n in r.get("psu", [])], "fan": [],
+                    "fanless": bool(r.get("fanless"))}
+    return None
+
+
+def apply_model_kinds(ports: list[dict], model: str | None) -> None:
+    """Cuando el equipo no dice el tipo de cada puerto (configuración, tablas sin «Type»): los que pasan del número de
+    puertos de cobre del modelo son SFP (ES-18X: gi17 y gi18)."""
+    cu = copper_count(model)
+    if not cu:
+        return
+    for p in ports:
+        m = re.search(r"(\d+)$", p["n"])
+        if m and p["k"] != "sfp" and int(m.group(1)) > cu and len(ports) > cu:
+            p["k"] = "sfp"
 
 
 def model_ports(model: str | None) -> int | None:
@@ -390,11 +424,13 @@ def parse(raw: str | None, device_type: str, config: str = "", model: str | None
                     break
         if ports:
             _apply_config_off(ports, device_type, config)
+            apply_model_kinds(ports, model)
             return ports, True
     # sin tabla de estado: la configuración, en el estilo que tenga (bloques con sangría, FastPath «… exit» o «set»)
     for fn in (_from_config, _fastpath_config, _set_config):
         ports = fn(config)
         if ports:
+            apply_model_kinds(ports, model)
             return ports, False
     return [], False
 
@@ -468,7 +504,7 @@ def enrich(ports: list[dict], device_type: str, config: str, neighbors: list[dic
                 for b in body:
                     b = b.strip()
                     if b.startswith("description ") and not p.get("d"):
-                        p["d"] = b[12:]
+                        p["d"] = b[12:].strip().strip('"\'')
                     m = re.match(r"^ip address (\S+) (\S+)", b)
                     if m and not p.get("net"):
                         ln = _mask_len(m.group(2))
@@ -489,3 +525,26 @@ def _short(name: str) -> str:
     """«GigabitEthernet1/0/1» y «Gi1/0/1» son el mismo puerto."""
     m = re.match(r"^([A-Za-z]{2})[A-Za-z-]*\s*([\d/.:]+)$", name or "")
     return (m.group(1).lower() + m.group(2)) if m else (name or "").lower()
+
+
+def view(dev, config: str) -> dict | None:
+    """Puertos del último respaldo listos para mostrar (ficha web y app): estado, datos de la configuración y del mapa,
+    disposición del frente y parte de atrás (de los sensores o, si no hay, del modelo)."""
+    import json
+    from datetime import datetime
+    try:
+        pj = json.loads(dev.ports) if dev.ports else None
+    except ValueError:
+        pj = None
+    if not pj or not pj.get("ports"):
+        return None
+    try:
+        nbs = json.loads(dev.neighbors or "[]")
+    except ValueError:
+        nbs = []
+    enrich(pj["ports"], dev.device_type, config, nbs)
+    rear = pj.get("rear") or {}
+    if not rear.get("psu") and not rear.get("fan"):
+        rear = rear_from_model(dev.model, dev.last_status == "ok") or {"psu": [], "fan": []}
+    return {"ports": pj["ports"], "status": bool(pj.get("status")), "at": datetime.fromisoformat(pj["at"]),
+            "layout": layout(dev.model, pj["ports"]), "raw": pj.get("raw") or "", "rear": rear}

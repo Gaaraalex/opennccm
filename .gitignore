@@ -10,3 +10,9 @@ docs/src/_readme/
 docs/src/_estado.json
 *.log
 .DS_Store
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.p12
+*.jks
