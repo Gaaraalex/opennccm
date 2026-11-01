@@ -306,7 +306,11 @@ case $cmd in
   backup|system-backup) need_root backup; pycli system-backup "$@" ;;
   restore)
     need_root restore; [[ -n ${1:-} ]] || die "Uso: opennccm restore ARCHIVO"
-    systemctl stop $SVC; pycli restore "$(readlink -f "$1")"; systemctl start $SVC; health && ok "Restaurado." ;;
+    systemctl stop $SVC; rc=0; pycli restore "$(readlink -f "$1")" || rc=$?; systemctl start $SVC
+    # 3: base restaurada, pero la clave de este servidor no descifra sus datos (el aviso ya se mostró)
+    if [[ $rc -eq 3 ]]; then die "Restaurado, pero las configuraciones y contraseñas no se pueden leer: copie el secret.key original (vea el aviso de arriba)."; fi
+    [[ $rc -eq 0 ]] || die "No se pudo restaurar la copia."
+    health && ok "Restaurado." ;;
   reset-password|create-admin) need_root "$cmd"; pycli create-admin "$@" ;;
   reset-2fa) need_root "$cmd"; pycli reset-2fa "$@" ;;
   users|list-users) need_root users; pycli list-users ;;

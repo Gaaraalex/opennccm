@@ -463,7 +463,11 @@ desastres</b>, defina cuántas copias conservar y un servidor SFTP remoto donde 
   <li>Restaure:</li>
 </ol>
 <div class="term" data-title="Servidor Ubuntu"><span class="p">$</span> sudo opennccm restore /ruta/opennccm-AAAAMMDD-HHMMSS.tar.gz</div>
-<p>El comando detiene el servicio, restaura y lo vuelve a iniciar.</p>
+<p>El comando detiene el servicio, restaura y lo vuelve a iniciar. Si la copia incluye la clave, reemplaza la del servidor (la
+que creó el instalador queda como <code>secret.key.antes-de-restaurar-FECHA</code>). Si no la incluye y la clave del servidor no
+descifra los datos restaurados, avisa de que hay que copiar el <code>secret.key</code> original en lugar de decir «Restaurado».
+Con PostgreSQL restaura con <code>pg_restore</code>; la copia tiene que ser de la misma base de datos (SQLite o PostgreSQL) que
+el servidor.</p>
 <div class="warn"><b>La clave es imprescindible</b>Sin el <code>secret.key</code> correcto las configuraciones y contraseñas
 respaldadas no se pueden descifrar. Guárdela en un lugar seguro, separado de las copias (por ejemplo, en el gestor de
 contraseñas del equipo).</div>

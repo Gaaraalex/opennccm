@@ -1,5 +1,13 @@
 # Historial de versiones
 
+## Próxima versión
+- **Restaurar en un servidor nuevo:** `sudo opennccm restore` con una copia que incluye la clave reemplaza la que creó el
+  instalador (la anterior queda como `secret.key.antes-de-restaurar-FECHA`); antes se quedaba con la del instalador y las
+  configuraciones y contraseñas no se podían leer. Si la copia no trae la clave y la del servidor no descifra los datos
+  restaurados, el comando lo avisa y dice qué hacer en lugar de terminar con «Restaurado.».
+- **Restaurar con PostgreSQL:** `sudo opennccm restore` también funciona con PostgreSQL (`pg_restore`); una copia de otra base
+  de datos (SQLite en un servidor con PostgreSQL o al revés) se rechaza con el motivo.
+
 ## 2.17.0
 - **Operar › Consola:** al elegir un equipo se vuelve a abrir su consola, y en **Recetas** con «Todas» y «Todos los fabricantes»
   se ven todas (en la 2.16.0 un fallo de la página dejaba las dos cosas sin funcionar).

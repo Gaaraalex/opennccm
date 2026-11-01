@@ -119,30 +119,97 @@ def _copy_remote(path: Path) -> str | None:
         t.close()
 
 
+class KeyWarning(RuntimeError):
+    """La base se restauró, pero la clave de este servidor no descifra sus datos (falta el secret.key original)."""
+
+
+def _restore_key(data: bytes, stamp: str) -> str:
+    """Pone la clave de la copia. Si el servidor ya tenía otra (la que crea el instalador), la guarda aparte."""
+    if KEY_FILE.exists():
+        if KEY_FILE.read_bytes() == data:
+            return " La clave de la copia ya era la de este servidor."
+        old = KEY_FILE.with_name(f"{KEY_FILE.name}.antes-de-restaurar-{stamp}")
+        KEY_FILE.rename(old)
+        note = f" Clave restaurada (la que tenía este servidor se guardó en {old})."
+    else:
+        KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        note = " Clave restaurada."
+    KEY_FILE.write_bytes(data)
+    KEY_FILE.chmod(0o600)
+    return note
+
+
+def _key_check() -> tuple[int, int]:
+    """(datos que no se pueden descifrar, datos probados) con la clave actual: contraseñas y últimas configuraciones."""
+    from sqlalchemy import text
+
+    from . import crypto
+    crypto._key = None  # la clave pudo cambiar al restaurar
+    with engine.connect() as c:
+        tokens = [r[0] for r in c.execute(text("SELECT password_enc FROM credentials WHERE password_enc IS NOT NULL "
+                                               "ORDER BY id DESC LIMIT 20"))]
+        tokens += [r[0] for r in c.execute(text("SELECT content_enc FROM config_versions ORDER BY id DESC LIMIT 20"))]
+    bad = sum(crypto.try_decrypt(t, None) is None for t in tokens if t)
+    return bad, len([t for t in tokens if t])
+
+
+def _restore_sqlite(tar: tarfile.TarFile, stamp: str):
+    current = Path(engine.url.database)
+    engine.dispose()  # cierra conexiones abiertas antes de reemplazar el archivo
+    if current.exists():
+        current.rename(current.with_suffix(f".db.antes-de-restaurar-{stamp}"))
+    for suffix in ("-wal", "-shm"):
+        Path(str(current) + suffix).unlink(missing_ok=True)
+    with open(current, "wb") as f:
+        f.write(tar.extractfile("opennccm.db").read())
+
+
+def _restore_postgresql(tar: tarfile.TarFile):
+    """pg_restore sobre la base configurada: borra y vuelve a crear sus tablas con los datos de la copia."""
+    engine.dispose()
+    url = DATABASE_URL.replace("postgresql+psycopg2://", "postgresql://")
+    with tempfile.TemporaryDirectory() as tmp:
+        dump = Path(tmp) / "opennccm.pgdump"
+        dump.write_bytes(tar.extractfile("opennccm.pgdump").read())
+        r = subprocess.run(["pg_restore", "--clean", "--if-exists", "--no-owner", "--no-privileges",
+                            "--single-transaction", f"--dbname={url}", str(dump)],
+                           capture_output=True, text=True, timeout=3600)
+    if r.returncode != 0:
+        raise RuntimeError("pg_restore falló: " + (r.stderr.strip().splitlines() or ["sin detalle"])[-1])
+
+
 def restore_backup(archive: Path, passphrase: str | None = None) -> str:
-    """Restaura una copia (solo desde la CLI y con el servicio detenido)."""
+    """Restaura una copia (solo desde la CLI y con el servicio detenido). Si la clave del servidor no descifra
+    los datos restaurados, lanza KeyWarning con el mensaje completo (la base ya quedó restaurada)."""
     if archive.name.endswith(".enc"):
         if not passphrase:
             raise RuntimeError("Esta copia está cifrada: hace falta su contraseña")
         fileobj = io.BytesIO(decrypt_archive(archive.read_bytes(), passphrase))
     else:
         fileobj = open(archive, "rb")
+    stamp = f"{datetime.now():%Y%m%d%H%M%S}"
     with fileobj, tarfile.open(fileobj=fileobj, mode="r:gz") as tar:
         names = tar.getnames()
         manifest = json.loads(tar.extractfile("manifest.json").read())
-        if manifest["dialect"] != "sqlite" or engine.dialect.name != "sqlite":
-            raise RuntimeError("La restauración automática solo admite SQLite; use pg_restore para PostgreSQL")
-        current = Path(engine.url.database)
-        engine.dispose()  # cierra conexiones abiertas antes de reemplazar el archivo
-        if current.exists():
-            current.rename(current.with_suffix(f".db.antes-de-restaurar-{datetime.now():%Y%m%d%H%M%S}"))
-        for suffix in ("-wal", "-shm"):
-            Path(str(current) + suffix).unlink(missing_ok=True)
-        with open(current, "wb") as f:
-            f.write(tar.extractfile("opennccm.db").read())
+        names_db = {"sqlite": "SQLite", "postgresql": "PostgreSQL"}
+        if manifest["dialect"] != engine.dialect.name:
+            raise RuntimeError(f"La copia es de {names_db.get(manifest['dialect'], manifest['dialect'])} y este "
+                               f"servidor usa {names_db.get(engine.dialect.name, engine.dialect.name)}: instale "
+                               f"OpenNCCM con la misma base de datos que el servidor original")
+        if engine.dialect.name == "sqlite":
+            _restore_sqlite(tar, stamp)
+        elif engine.dialect.name == "postgresql":
+            _restore_postgresql(tar)
+        else:
+            raise RuntimeError(f"Base de datos no admitida para restaurar: {engine.dialect.name}")
         msg = f"Base restaurada desde {archive.name} (creada {manifest['created']})."
-        if "secret.key" in names and not KEY_FILE.exists():
-            KEY_FILE.write_bytes(tar.extractfile("secret.key").read())
-            KEY_FILE.chmod(0o600)
-            msg += " Clave restaurada."
-        return msg
+        if "secret.key" in names:
+            msg += _restore_key(tar.extractfile("secret.key").read(), stamp)
+    bad, total = _key_check()
+    if bad:
+        raise KeyWarning(
+            f"{msg}\nAVISO: la clave de este servidor ({KEY_FILE}) no corresponde a la copia: {bad} de {total} datos "
+            f"cifrados probados (contraseñas y configuraciones) no se pueden leer. Copie el secret.key del servidor "
+            f"original a {KEY_FILE} (propietario opennccm, permisos 600) y reinicie el servicio, o restaure una copia "
+            f"hecha con «--with-key».")
+    return msg
