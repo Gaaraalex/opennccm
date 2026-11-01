@@ -3,6 +3,7 @@ se abre en otra pestaña (en inglés con ?lang=en) y el admin lo oculta para tod
 import os
 import re
 import sys
+import time
 
 import requests
 
@@ -42,6 +43,11 @@ def button(html):
 
 
 adm, ro, en = login("admin", "Admin12345"), login("sup_ro", "Clave-sup-2026"), login("sup_en", "Clave-sup-2026")
+# otras pruebas guardan Ajustes sin esta casilla (la apagan) y el servidor guarda los ajustes 30 s: se espera a que se vea
+for _ in range(40):
+    if 'class="btn-soporte"' in adm.get(B + "/").text:
+        break
+    time.sleep(1)
 b = button(adm.get(B + "/").text)
 check("admin: el botón está en la barra superior", f'href="{URL}"' in b, b)
 check("se abre en una pestaña nueva con rel=noopener", 'target="_blank"' in b and 'rel="noopener"' in b, b)
