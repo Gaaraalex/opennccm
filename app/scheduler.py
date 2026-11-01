@@ -211,6 +211,9 @@ def start():
     from . import console
     scheduler.add_job(console.cleanup_recordings, CronTrigger(hour=3, minute=40), id="console-rec-purge",
                       replace_existing=True)  # grabaciones de la consola más viejas que el plazo (180 días)
+    from . import kb  # base de conocimiento: pendientes con más de 5 días y resumen de los lunes
+    scheduler.add_job(kb.overdue_check, CronTrigger(hour=8, minute=0), id="kb-overdue", replace_existing=True)
+    scheduler.add_job(kb.weekly_mail, CronTrigger(day_of_week="mon", hour=8, minute=5), id="kb-mail", replace_existing=True)
     # rendimiento del servidor para el panel (cada minuto) y aviso de versiones nuevas (una vez al día)
     from datetime import datetime, timedelta
 

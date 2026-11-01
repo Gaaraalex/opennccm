@@ -1,0 +1,14 @@
+{# Equipo › Base de conocimiento: cabecera (buscador, «Documentar caso») y pestañas #}
+<link rel="stylesheet" href="/static/kb.css?v={{ VERSION }}">
+<script src="/static/kb.js?v={{ VERSION }}" defer></script>
+<div class="kb-head">
+  <h1>{{ _('Base de conocimiento') }}</h1>
+  <span class="kb-vis">{{ icon('lock', 's') }}{{ visibility }}</span>
+  <span class="grow"></span>
+  <form class="kb-find" method="get" action="/kb" role="search">{{ icon('search', 's') }}<input type="search" name="q" value="{{ q or '' }}" id="kb-q" placeholder="{{ _('Buscar por síntoma, error, comando o equipo…') }}" aria-label="{{ _('Buscar en la base de conocimiento') }}"><kbd>Ctrl K</kbd></form>
+  {% if can_write %}<a class="btn pri" href="/kb/new">{{ icon('plus', 's') }}{{ _('Documentar caso') }}</a>{% endif %}
+</div>
+<nav class="tabs kb-tabs" aria-label="{{ _('Secciones de la base de conocimiento') }}">
+  {% for k, href, label, n in [('casos', '/kb', _('Casos'), none), ('pend', '/kb/pending', _('Falta documentar'), n_pend), ('rev', '/kb/review', _('En revisión'), n_rev)] + ([('acc', '/kb/access', _('Acceso y reglas'), none)] if is_admin else []) %}
+  <a href="{{ href }}"{% if tab == k %} aria-current="page" class="on"{% endif %}>{{ label }}{% if n %} <span class="cnt2 {{ 'warn' if k == 'pend' }}">{{ n }}</span>{% endif %}</a>{% endfor %}
+</nav>

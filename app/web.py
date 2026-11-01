@@ -303,6 +303,18 @@ def donate_links() -> list[dict]:
 templates.env.globals["donate_links"] = donate_links
 
 
+def support_link() -> str | None:
+    """Enlace del botón «Soporte profesional» (None si el admin lo ocultó en Ajustes). Solo es un enlace: no cambia nada."""
+    from .auth import cached_setting
+    from .config import SUPPORT_URL
+    if cached_setting("support_button", "1") != "1" or not SUPPORT_URL.startswith("https://"):
+        return None
+    return SUPPORT_URL + ("?lang=en" if i18n.get_lang() == "en" else "")
+
+
+templates.env.globals["support_link"] = support_link
+
+
 def _donate_toast(request: Request, user) -> str | None:
     """Tras actualizar a una versión nueva, el primer administrador que entra ve una vez el aviso «Apoya OpenNCCM»."""
     from . import __version__
@@ -365,7 +377,8 @@ def _nav_counts(user) -> dict:
             if scope is not None:
                 recent = recent.where(Event.device_id.in_(scope))
             sevc = {"critical": "crit", "major": "major", "warning": "minor", "minor": "minor"}
-            return {"alarms": db.scalar(stmt) or 0,
+            from . import kb
+            return {"alarms": db.scalar(stmt) or 0, "kb": kb.nav_count(user),
                     "pending": db.scalar(select(func.count(ChangeRequest.id)).where(ChangeRequest.status == "pending")) or 0,
                     # campana de la barra superior: las 5 alarmas abiertas más recientes
                     "recent": [{"sev": sevc.get(e.severity, "info"), "title": _event_title(e),

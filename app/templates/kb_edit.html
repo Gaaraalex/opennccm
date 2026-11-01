@@ -1,0 +1,43 @@
+{% extends "base.html" %}{% block title %}{{ title }}{% endblock %}
+{% block crumbs %}<span class="muted">{{ _('Equipo') }}</span>{{ icon('right', 's') }}<a href="/kb">{{ _('Base de conocimiento') }}</a>{{ icon('right', 's') }}<b>{{ title }}</b>{% endblock %}
+{% block content %}
+{% include "_kb_head.html" %}
+<div class="kb-main narrow kb-ed" id="kb-ed">
+  <section style="min-width:0">
+    <div class="row"><a class="btn s" href="{{ ('/kb/' ~ case.id) if case else '/kb' }}">← {{ _('Casos') }}</a><b style="font-size:17px">{{ title }}</b><span class="grow"></span><span class="muted sm" id="ed-state" aria-live="polite"></span></div>
+    {% if payload.data.review_comment and mode == 'edit' %}<div class="banner warn kb-banner" role="status">{{ icon('alert') }}<span class="grow"><b>{{ _('Pidieron cambios:') }}</b> {{ payload.data.review_comment }}</span></div>{% endif %}
+    {% if mode == 'propose' %}<div class="banner kb-banner" role="status">{{ icon('info') }}<span class="grow">{% if user.role == 'admin' %}{{ _('Estás editando un caso publicado: los cambios se publican como una versión nueva al pulsar «Publicar cambio».') }}{% else %}{{ _('Es un caso publicado: tus cambios van como propuesta y un admin los revisa. El caso sigue como está hasta entonces.') }}{% endif %}</span></div>{% endif %}
+    {% if origins %}<div class="card kb-linked"><span class="kb-h2" style="margin:0">{{ _('Enlazado a') }}</span>
+      {% for o in origins %}<span class="kb-k {{ o.k }}">{{ o.l }}</span><span class="sm">{{ o.t }}</span>{% endfor %}<span class="grow"></span><span class="muted sm">{{ _('Datos ya llenos') }}</span></div>{% endif %}
+    <div style="margin-top:14px"><label class="kb-h2" for="ed-title">{{ _('Título · escríbelo como lo buscaría otro') }}</label><input type="text" id="ed-title" maxlength="255" data-f="title"></div>
+    <div class="row" style="margin-top:12px;align-items:flex-start;gap:16px;flex-wrap:wrap">
+      <div class="grow" style="min-width:260px"><div class="kb-h2">{{ _('Categoría') }}</div><div class="row" style="gap:6px;flex-wrap:wrap" id="ed-cats" role="radiogroup" aria-label="{{ _('Categoría') }}">
+        {% for k, l in cats %}<button type="button" class="chip" data-cat="{{ k }}" role="radio" aria-checked="false">{{ _(l) }}</button>{% endfor %}</div></div>
+      <div style="flex:none;width:min(300px,100%)"><div class="kb-h2">{{ _('Equipos') }}</div><div class="kb-devpick" id="ed-devs"></div></div>
+    </div>
+    <div class="kb-two">
+      <div><label class="kb-h2" for="ed-symptom">{{ _('Síntoma · qué se veía') }}</label><textarea id="ed-symptom" data-f="symptom" placeholder="{{ _('El mensaje de error exacto y lo que se veía.') }}"></textarea></div>
+      <div><label class="kb-h2" for="ed-cause">{{ _('Causa · por qué pasó') }}</label><textarea id="ed-cause" data-f="cause" placeholder="{{ _('Falta: ¿qué lo provocó?') }}"></textarea><div class="kb-ai-note" data-ai-note="cause" hidden></div></div>
+    </div>
+    <div style="margin-top:12px">
+      <div class="row"><div class="kb-h2 grow" style="margin:0">{{ _('Solución · pasos') }}</div>{% if payload.rec %}<button type="button" class="btn s" id="ed-rec">{{ icon('play', 's') }}{{ _('Traer comandos de la grabación') }}</button>{% endif %}</div>
+      <div class="kb-esteps" id="ed-steps"></div>
+      <button type="button" class="chip" style="margin:8px 0 0 34px" id="ed-add">+ {{ _('Paso') }}</button>
+    </div>
+    <div class="kb-two">
+      <div><label class="kb-h2" for="ed-verify">{{ _('Cómo comprobar que quedó') }}</label><textarea id="ed-verify" data-f="verify" style="min-height:70px" placeholder="{{ _('Falta: ¿cómo sabes que se arregló?') }}"></textarea><div class="kb-ai-note" data-ai-note="verify" hidden></div></div>
+      <div><label class="kb-h2" for="ed-prevent">{{ _('Para que no vuelva a pasar · opcional') }}</label><textarea id="ed-prevent" data-f="prevent" style="min-height:70px" placeholder="{{ _('Regla de cumplimiento, tarea, aviso…') }}"></textarea></div>
+    </div>
+  </section>
+  <aside class="kb-side">
+    <div class="card"><div class="kb-h2">{{ _('Para enviarlo hace falta') }}</div><div id="ed-reqs"></div><div class="kb-bar" id="ed-bar"><div></div></div></div>
+    {% if payload.ai %}<div class="card kb-aicard" id="ed-ai"><b>{{ _('Asistente IA') }}</b>
+      <div class="sm" style="line-height:1.5;margin-top:4px;color:var(--ink-2)">{% if payload.rec_min %}{{ _f('Puede leer la grabación de consola de {0} min y proponer la causa y la comprobación; tú las revisas antes de enviar.', payload.rec_min) }}{% else %}{{ _('Puede proponer la causa y la comprobación con lo que ya escribiste; tú las revisas antes de enviar.') }}{% endif %}</div>
+      <button type="button" class="btn" style="margin-top:10px;width:100%;justify-content:center" id="ed-ai-go">{{ _('Proponer lo que falta') }}</button></div>{% endif %}
+    <div class="card sm muted" style="line-height:1.5"><div class="kb-h2">{{ _('Casos parecidos') }}</div><div id="ed-similar"></div>{{ _('¿Es el mismo problema? Mejor añade un comentario a ese caso.') }}</div>
+    <div class="sm muted" style="line-height:1.45" id="ed-hint"></div>
+    <div class="kb-send">{% if mode != 'propose' %}<button type="button" class="btn" id="ed-draft">{{ _('Guardar borrador') }}</button>{% endif %}<button type="button" class="btn pri" id="ed-send">{{ send }}</button></div>
+  </aside>
+</div>
+<script id="kb-ed-data" type="application/json">{{ payload|tojson }}</script>
+{% endblock %}

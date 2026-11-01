@@ -1,0 +1,66 @@
+{% extends "base.html" %}{% block title %}{{ code }} · {{ data.title }}{% endblock %}
+{% block crumbs %}<span class="muted">{{ _('Equipo') }}</span>{{ icon('right', 's') }}<a href="/kb">{{ _('Base de conocimiento') }}</a>{{ icon('right', 's') }}<b>{{ code }}</b>{% endblock %}
+{% block content %}
+{% include "_kb_head.html" %}
+<div class="kb-main narrow">
+  <article style="min-width:0" id="kb-case" data-id="{{ c.id }}" data-dev="{{ devs[0].id if devs else '' }}">
+    <a class="btn s" href="/kb">← {{ _('Casos') }}</a>
+    {% if shown_v and shown_v != cur_v %}<div class="banner warn kb-banner" role="status">{{ icon('clock') }}<span class="grow">{{ _f('Estás viendo la versión {0}. La actual es la {1}.', shown_v, cur_v) }}</span><a class="btn s" href="/kb/{{ c.id }}">{{ _('Ver la actual') }}</a></div>{% endif %}
+    {% if c.status == 'archived' %}<div class="banner kb-banner" role="status">{{ icon('info') }}<span class="grow">{{ _('Archivado: no aparece en la lista ni en las búsquedas.') }}</span>{% if is_admin %}<form method="post" action="/kb/{{ c.id }}/restore"><button class="btn s">{{ _('Restaurar') }}</button></form>{% endif %}</div>{% endif %}
+    {% if c.status == 'draft' and c.review_comment %}<div class="banner warn kb-banner" role="status">{{ icon('alert') }}<span class="grow"><b>{{ _f('{0} pidió cambios:', c.reviewed_by) }}</b> {{ c.review_comment }}</span></div>{% endif %}
+    {% if own_prop and own_prop.status == 'review' %}<div class="banner kb-banner" role="status">{{ icon('clock') }}<span class="grow">{{ _('Tu cambio propuesto espera a un admin.') }}</span></div>
+    {% elif own_prop and own_prop.status == 'returned' %}<div class="banner warn kb-banner" role="status">{{ icon('alert') }}<span class="grow"><b>{{ _('Tu cambio no se publicó:') }}</b> {{ own_prop.review_comment }}</span></div>{% endif %}
+    <div class="kb-meta"><span class="kb-id" style="font-size:13px">{{ code }}</span><span class="pill {{ st_cls }}">{{ st }}</span>
+      <span>{{ [cat_name, data.vendor, ('v' ~ (shown_v or cur_v)) if cur_v else '', data.os_version and _f('versión {0}', data.os_version), (c.published_at or c.updated_at)|fecha]|select|join(' · ') }}</span></div>
+    <h2 class="kb-title">{{ data.title or _('(sin título)') }}</h2>
+    <div class="kb-two">
+      <div class="card"><div class="kb-h2">{{ _('Síntoma') }}</div><div class="kb-txt">{{ data.symptom or '—' }}</div></div>
+      <div class="card"><div class="kb-h2">{{ _('Causa') }}</div><div class="kb-txt">{{ data.cause or '—' }}</div></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="row"><div class="kb-h2 grow" style="margin:0">{{ _('Solución · paso a paso') }}</div>
+        {% if can_write and data.steps|selectattr('c')|list %}<form method="post" action="/kb/{{ c.id }}/configlet"><button class="btn s">{{ icon('code', 's') }}{{ _('Convertir en configlet') }}</button></form>{% endif %}</div>
+      {% for s in data.steps %}
+      <div class="kb-step"><span class="kb-n">{{ loop.index }}</span><div class="grow" style="min-width:0">
+        <div style="font-weight:500" class="kb-txt">{{ s.t }}</div>
+        {% if s.c %}<div class="kb-code"><code>{{ s.c }}</code>{% if s.hid or '••••••' in s.c %}<span class="kb-hid">{{ _('clave oculta') }}</span>{% endif %}
+          <button type="button" class="btn s" data-copy="{{ s.c }}" data-hid="{{ 1 if '••••••' in s.c else '' }}">{{ _('Copiar') }}</button>
+          {% if devs and not s.c.startswith('sudo opennccm') and s.c.splitlines()|length == 1 %}<button type="button" class="btn s" data-run="{{ s.c }}">{{ _('Abrir en consola') }}</button>{% endif %}</div>{% endif %}
+      </div></div>{% else %}<div class="muted sm" style="margin-top:8px">{{ _('Sin pasos.') }}</div>{% endfor %}
+    </div>
+    <div class="kb-two">
+      <div class="card"><div class="kb-h2">{{ _('Cómo comprobar que quedó') }}</div><div class="kb-txt">{{ data.verify or '—' }}</div></div>
+      <div class="card"><div class="kb-h2">{{ _('Para que no vuelva a pasar') }}</div><div class="kb-txt">{{ data.prevent or '—' }}</div></div>
+    </div>
+    <div class="card" style="margin-top:12px" id="comentarios">
+      <div class="kb-h2">{{ _('Comentarios del equipo') }}</div>
+      {% for m in comments %}<div class="kb-cmt"><span class="kb-av">{{ m.username[:2]|upper }}</span><div><div class="sm"><b>{{ m.username }}</b> <span class="muted">· {{ {'admin': _('Admin'), 'operator': _('Operador'), 'viewer': _('Solo lectura')}.get(roles.get(m.username), '') }} · {{ m.created_at|fecha }}</span></div><div class="kb-txt" style="margin-top:3px">{{ m.text }}</div></div></div>{% else %}
+      <div class="muted sm">{{ _('Todavía no hay comentarios.') }}</div>{% endfor %}
+      {% if can_write and c.status != 'archived' %}<form method="post" action="/kb/{{ c.id }}/comment" class="row" style="margin-top:8px"><input name="text" class="grow" required maxlength="4000" placeholder="{{ _('Añadir un comentario o algo que te pasó distinto…') }}" aria-label="{{ _('Comentario') }}"><button class="btn">{{ _('Comentar') }}</button></form>{% endif %}
+    </div>
+  </article>
+  <aside class="kb-side">
+    <div class="card">
+      <div class="row"><button type="button" class="btn grow {{ 'ok' if mine }}" id="kb-vote" aria-pressed="{{ 'true' if mine else 'false' }}" style="justify-content:center">▲ {{ _('Me sirvió') }} · <span id="kb-vote-n">{{ votes }}</span></button>
+        {% if can_write and c.status != 'archived' %}<a class="btn" href="/kb/{{ c.id }}/edit">{{ icon('edit', 's') }}{{ edit_label }}</a>{% endif %}</div>
+      {% if is_admin and c.status != 'archived' %}<form method="post" action="/kb/{{ c.id }}/archive" style="margin-top:8px"><button class="btn s ghost" style="width:100%;justify-content:center">{{ _('Archivar (se puede restaurar)') }}</button></form>{% endif %}
+    </div>
+    <div class="card">
+      <div class="kb-h2">{{ _('Equipos afectados') }}</div>
+      <div class="row" style="gap:6px;flex-wrap:wrap">{% for d in devs %}<a class="kb-dtag" href="/devices/{{ d.id }}">{{ d.name }}</a>{% else %}<span class="muted sm">—</span>{% endfor %}</div>
+      <div class="kb-h2" style="margin-top:14px">{{ _('De dónde salió') }}</div>
+      {% for o in origins %}<a class="kb-mini" href="{{ o.url }}"><span class="kb-k {{ o.k }}">{{ o.l }}</span><span class="grow">{{ o.t }}</span><span class="m">›</span></a>{% else %}<div class="muted sm">{{ _('Documentado a mano.') }}</div>{% endfor %}
+      <div class="kb-h2" style="margin-top:14px">{{ _('Adjuntos') }}</div>
+      <div class="muted sm">{{ _('Llegan en una próxima versión.') }}</div>
+    </div>
+    <div class="card">
+      <div class="kb-h2">{{ _('Versiones') }}</div>
+      {% for v in versions %}<a class="kb-ver {{ 'on' if (shown_v or cur_v) == v.n }}" href="/kb/{{ c.id }}?v={{ v.n }}"><span class="n">v{{ v.n }}</span><span class="grow">{{ v.note }}<small>{{ v.author }} · {{ v.created_at|fecha }}</small></span></a>{% else %}
+      <div class="muted sm">{{ _('Sin publicar todavía.') }}</div>{% endfor %}
+    </div>
+    <div class="card sm muted" style="line-height:1.5"><div class="row" style="gap:6px;color:var(--ink-2);font-weight:600">{{ icon('lock', 's') }}{{ visibility }}</div>
+      {{ _('Las lecturas y ediciones quedan en Auditoría. Las contraseñas y comunidades SNMP se ocultan al guardar.') }}</div>
+  </aside>
+</div>
+<script id="kb-t" type="application/json">{{ {'copied': _('Comando copiado.'), 'copied_hid': _('Copiado. La clave no se copia: ponla tú desde Credenciales.'), 'err': _('No se pudo')}|tojson }}</script>
+{% endblock %}

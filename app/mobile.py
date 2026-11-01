@@ -263,6 +263,9 @@ def mobile_ack(request: Request, ev_id: int):
             return JSONResponse({"error": "not_found"}, 404)
         if e.device_id:
             check_device(user, e.device_id)
+        from . import kb
+        if kb.needs_case(e, user):  # una alarma crítica se cierra con su caso, desde el panel web
+            return JSONResponse({"error": "needs_case", "url": f"/kb/close/{e.id}"}, 409)
         e.acknowledged = True
         db.commit()
     act(request, user, "events_ack", str(ev_id))

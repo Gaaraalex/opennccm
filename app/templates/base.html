@@ -45,6 +45,11 @@
     <a href="/ipam" class="nav {{ 'on' if navp.startswith('/ipam') }}" title="{{ _('IP y VLAN') }}">{{ icon('grid') }}<span class="txt">{{ _('IP y VLAN') }}</span></a>
     <a href="/reports" class="nav {{ 'on' if navp.startswith('/reports') }}" title="Informes">{{ icon('file') }}<span class="txt">Informes</span></a>
   </div>
+  {% if nav_counts.kb is not none %}
+  <div class="grp"><span class="label">{{ _('Equipo') }}</span>
+    <a href="/kb" class="nav {{ 'on' if navp.startswith('/kb') }}" title="{{ _('Base de conocimiento') }}">{{ icon('book') }}<span class="txt">{{ _('Base de conocimiento') }}</span>{% if nav_counts.kb %}<span class="cnt kb-cnt">{{ nav_counts.kb }}</span><span class="dotc"></span>{% endif %}</a>
+  </div>
+  {% endif %}
   {% if user.role == 'admin' %}
   <div class="grp"><span class="label">Administrar</span>
     <a href="/users" class="nav {{ 'on' if admin_on }}" title="Administración">{{ icon('cog') }}<span class="txt">Administración</span></a>
@@ -59,6 +64,7 @@
 <header class="top" id="top">
   <button type="button" class="tbtn menu-btn" data-drawer aria-label="Abrir menú">{{ icon('menu') }}</button>
   <div class="crumbs grow">{% block crumbs %}<b>{{ self.title() }}</b>{% endblock %}</div>
+  {% set SUP = support_link() %}{% if SUP %}<a class="btn-soporte" href="{{ SUP }}" target="_blank" rel="noopener" title="{{ _('Soporte profesional') }}">{{ icon('headset') }}<span>{{ _('Soporte profesional') }}</span></a>{% endif %}
   {% set DL = donate_links() %}{% from "_donate.html" import donate_body %}
   {% if user.role == 'admin' and DL %}<span class="dropw"><button type="button" class="donate" data-drop="don-pop" aria-haspopup="true" aria-expanded="false" aria-label="{{ _('Apoya OpenNCCM: donar') }}" title="{{ _('Apoya OpenNCCM') }}">{{ icon('heart') }}<span class="dt"><b>Apoya OpenNCCM</b><small>Libre y gratis gracias a ti</small></span><span class="dbtn">Donar</span></button>
     <div class="drop don-pop" id="don-pop" hidden>{{ donate_body(DL) }}</div></span>{% endif %}

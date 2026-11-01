@@ -180,11 +180,15 @@ def main():
 
         import os
 
-        from .sysbackup import restore_backup
+        from .sysbackup import KeyWarning, restore_backup
         passphrase = None
         if args[1].endswith(".enc"):
             passphrase = os.environ.get("NCM_BACKUP_PASSPHRASE") or getpass.getpass("Contraseña de la copia: ")
-        print(restore_backup(Path(args[1]), passphrase))
+        try:
+            print(restore_backup(Path(args[1]), passphrase))
+        except KeyWarning as e:  # la base quedó restaurada, pero sus datos cifrados no se pueden leer
+            print(e)
+            sys.exit(3)
         print("Reinicie el servicio: sudo systemctl start opennccm")
     elif cmd == "backup-all":
         from . import services

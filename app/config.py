@@ -16,6 +16,8 @@ UPDATE_REPO = os.environ.get("NCM_UPDATE_REPO", "Gaaraalex/opennccm")
 # petición de actualización desde la web: la atiende opennccm-webupdate.path (systemd, como root)
 UPDATE_REQUEST = DATA_DIR / "update.request"
 UPDATE_LOG = DATA_DIR / "update.log"
+# «Soporte profesional»: botón de la barra superior (solo un enlace; el admin lo puede ocultar en Ajustes)
+SUPPORT_URL = os.environ.get("NCM_SUPPORT_URL", "https://comunidad.opennccm.com/soporte")
 # «Apoya OpenNCCM»: enlaces de donación del proyecto. Sin enlaces no se muestra nada (ni el botón ni la tarjeta).
 # Solo se abren si la persona los pulsa, en una pestaña nueva y sin enviar datos del servidor.
 DONATE_LINKS = [(key, os.environ.get(f"NCM_DONATE_{key.upper()}", default)) for key, default in (
