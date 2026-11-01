@@ -375,7 +375,7 @@ def _loop_gemini(c, system, history, q, user, used):
 
 
 # --------------------------------------------------------------------------- acciones y conversación
-def _resolve(user, raw: list) -> list[dict]:
+def _resolve(user, raw: list, listed: list[str] | None = None) -> list[dict]:
     """Las acciones de la respuesta, comprobadas: «ir» solo a páginas de OpenNCCM; las demás quedan pendientes de
     confirmar, con su resumen hecho aquí (no por la IA)."""
     out = []
@@ -389,9 +389,13 @@ def _resolve(user, raw: list) -> list[dict]:
                     out.append({"kind": "go", "label": label, "url": url})
                 continue
             devs = [names[n.lower()] for n in (a.get("equipos") or []) if isinstance(n, str) and n.lower() in names]
+            if t == "respaldar" and not devs and listed:  # sin equipos propios: los de la respuesta
+                devs = [names[n.lower()] for n in listed if n.lower() in names]
             if t == "respaldar" and devs and ROLES.get(user.role, 0) >= ROLES["operator"]:
-                out.append({"kind": "backup", "label": label, "ids": [d.id for d in devs][:20],
-                            "title": _("Respaldar ahora"), "summary": ", ".join(d.name for d in devs[:20])})
+                devs = devs[:20]
+                out.append({"kind": "backup", "label": label, "ids": [d.id for d in devs],
+                            "title": _("Respaldar 1 equipo") if len(devs) == 1 else _f("Respaldar {0} equipos", len(devs)),
+                            "summary": ", ".join(d.name for d in devs)})
             elif t == "solicitud_cambio" and devs and (a.get("comandos") or "").strip() and ROLES.get(user.role, 0) >= ROLES["operator"]:
                 cmds = str(a["comandos"]).strip()[:4000]
                 out.append({"kind": "change", "label": label, "ids": [d.id for d in devs][:50], "body": cmds,
@@ -468,10 +472,20 @@ def chat(user, q: str, page: dict) -> dict:
         ans, ti, to = loop(c, _system(get_lang(), page), history, q.strip()[:2000], user, used)
     except requests.RequestException as e:
         raise assistant.AiError(_f("No se pudo hablar con el proveedor: {0}", str(e)[:200])) from e
-    items = [{"name": str(i.get("nombre") or "")[:80], "state": i.get("estado") if i.get("estado") in ("ok", "aviso", "error") else "aviso",
-              "reason": str(i.get("motivo") or "")[:160]} for i in (ans.get("equipos") or [])[:30] if isinstance(i, dict)]
+    with SessionLocal() as db:
+        known = {d.name.lower(): d.name for d in _devs(db, user)}
+    items, seen = [], set()
+    for i in (ans.get("equipos") or [])[:30]:
+        if not isinstance(i, dict):
+            continue
+        real = known.get(str(i.get("nombre") or "").strip().lower())
+        if real is None or real in seen:  # un nombre que no está en el inventario (o no es suyo) no se muestra
+            continue
+        seen.add(real)
+        items.append({"name": real, "state": i.get("estado") if i.get("estado") in ("ok", "aviso", "error") else "aviso",
+                      "reason": str(i.get("motivo") or "")[:160]})
     reply = {"role": "assistant", "text": str(ans.get("texto") or "")[:1500], "items": items,
-             "actions": _resolve(user, ans.get("acciones") or []), "source": str(ans.get("fuente") or "")[:120],
+             "actions": _resolve(user, ans.get("acciones") or [], [x["name"] for x in items]), "source": str(ans.get("fuente") or "")[:120],
              "ms": int((time.time() - t0) * 1000)}
     msgs += [{"role": "user", "text": q.strip()[:2000]}, reply]
     _save(ch.id, msgs)

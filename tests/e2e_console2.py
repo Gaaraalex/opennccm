@@ -227,9 +227,10 @@ class FakeAI(BaseHTTPRequestHandler):
             res = json.loads(next(m for m in data["messages"] if m.get("role") == "tool")["content"])
             names = [e["nombre"] for e in res.get("equipos", [])]
             args = {"texto": f"Tienes {len(names)} equipos.", "fuente": "Equipos",
-                    "equipos": [{"nombre": n, "estado": "ok", "motivo": "respaldo al día"} for n in names[:3]],
+                    "equipos": [{"nombre": n, "estado": "ok", "motivo": "respaldo al día"} for n in names[:3]]
+                    + [{"nombre": "EQUIPO-INVENTADO", "estado": "error", "motivo": "no existe"}],
                     "acciones": [{"tipo": "ir", "etiqueta": "Ver en Dispositivos", "url": "/devices"},
-                                 {"tipo": "respaldar", "etiqueta": "Respaldar de nuevo", "equipos": names[:1]},
+                                 {"tipo": "respaldar", "etiqueta": "Respaldar de nuevo"},
                                  {"tipo": "ir", "etiqueta": "Sitio externo", "url": "https://malo.example/x"},
                                  {"tipo": "tarea", "etiqueta": "Crear la tarea", "accion_tarea": "backup", "cron": "0 2 * * *",
                                   "nombre_tarea": "Respaldo diario"}]}
@@ -297,6 +298,12 @@ kinds = [a["kind"] for a in r.get("actions", [])]
 check("chat: «ir» solo a páginas de OpenNCCM (el enlace externo se descarta)", kinds[:1] == ["go"] and "https://malo.example/x" not in json.dumps(r), r)
 check("chat: acciones que cambian algo quedan para confirmar", "backup" in kinds and all(a.get("id") for a in r["actions"] if a["kind"] != "go"), r)
 check("chat: fuente en una línea", r.get("source") == "Equipos")
+check("chat: solo equipos que existen en el inventario (los inventados no se muestran)",
+      r.get("items") and all(i["name"] != "EQUIPO-INVENTADO" for i in r["items"]), r.get("items"))
+bk0 = next((a for a in r.get("actions", []) if a["kind"] == "backup"), {})
+check("chat: la confirmación lista exactamente los equipos de la respuesta, con su número",
+      bk0.get("summary") == ", ".join(i["name"] for i in r.get("items", [])) and str(len(r.get("items", []))) in bk0.get("title", "")
+      or (len(r.get("items", [])) == 1 and bk0.get("title") == "Respaldar 1 equipo"), bk0)
 bk = next((a for a in r.get("actions", []) if a["kind"] == "backup"), None)
 if bk:
     j = ia.post(B + "/api/ai/chat/act", json={"id": bk["id"]}).json()

@@ -129,3 +129,7 @@
 .ai-top[aria-pressed="true"]{border-color:var(--brand);color:var(--brand)}
 @media (min-width:1100px){body.ai-open .main{margin-right:440px}}
 body.ai-open .search-top kbd,body.ai-open .donate .dt{display:none}
+.ai-empty{display:flex;flex-direction:column;gap:8px;margin:auto 0}.ai-empty p{margin:0 0 4px;color:var(--muted);font-size:14px}.ai-empty button{text-align:left;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);border-radius:10px;padding:10px 12px;font:13.5px var(--f-sans);cursor:pointer}.ai-empty button:hover{border-color:var(--brand)}.ai-chips[hidden]{display:none}
+body.ai-open .search-top{min-width:0;width:auto;flex:none}body.ai-open .search-top span{display:none}body.ai-open .top{flex-wrap:nowrap;min-width:0}body.ai-open .top .crumbs{min-width:0;overflow:hidden}
+@media (max-width:1099px){body.ai-open .main{margin-right:0}}
+.ai-empty button{display:block;width:100%;justify-content:flex-start}

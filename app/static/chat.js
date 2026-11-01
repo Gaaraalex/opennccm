@@ -24,7 +24,7 @@
       '<div class="ai-note">' + esc(T.chatnote) + '</div>';
     document.body.appendChild(panel);
     panel.querySelector('[data-x]').addEventListener('click', close);
-    panel.querySelector('[data-new]').addEventListener('click', function () { post('/api/ai/chat/new').then(function () { panel.querySelector('.ai-msgs').innerHTML = ''; }); });
+    panel.querySelector('[data-new]').addEventListener('click', function () { post('/api/ai/chat/new').then(function () { panel.querySelector('.ai-msgs').innerHTML = ''; empty(); }); });
     panel.querySelector('form').addEventListener('submit', function (e) { e.preventDefault(); var ta = panel.querySelector('textarea'); ask(ta.value); ta.value = ''; });
     panel.querySelector('textarea').addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); panel.querySelector('form').requestSubmit(); } });
     panel.addEventListener('click', onClick);
@@ -38,6 +38,7 @@
       panel.querySelector('.ai-chips').innerHTML = (j.suggest || []).map(function (q) { return '<button type="button" data-q="' + esc(q) + '">' + esc(q) + '</button>'; }).join('');
       var box = panel.querySelector('.ai-msgs'); box.innerHTML = '';
       (j.messages || []).forEach(function (m) { if (m.role === 'user') user(m.text); else bot(m); });
+      empty();
       if (then) then();
     });
   }
@@ -51,7 +52,14 @@
     panel.hidden = true; document.body.classList.remove('ai-open'); btn.setAttribute('aria-pressed', 'false');
     try { sessionStorage.removeItem('oc-chat'); } catch (e) { /* sin almacenamiento */ }
   }
-  function add(html, cls) { var box = panel.querySelector('.ai-msgs'), d = document.createElement('div'); d.className = 'ai-m ' + cls; d.innerHTML = html; box.appendChild(d); box.scrollTop = box.scrollHeight; return d; }
+  function empty() {  // sin conversación: saludo y las sugerencias como botones grandes
+    var box = panel.querySelector('.ai-msgs'), chips = panel.querySelector('.ai-chips');
+    var none = !box.querySelector('.ai-m');
+    chips.hidden = none;
+    if (none) box.innerHTML = '<div class="ai-empty"><p>' + esc(T.hello) + '</p>' + (info && info.suggest || []).map(function (q) { return '<button type="button" data-q="' + esc(q) + '">' + esc(q) + '</button>'; }).join('') + '</div>';
+  }
+  function add(html, cls) {
+    var e = panel.querySelector('.ai-empty'); if (e) { e.remove(); panel.querySelector('.ai-chips').hidden = false; } var box = panel.querySelector('.ai-msgs'), d = document.createElement('div'); d.className = 'ai-m ' + cls; d.innerHTML = html; box.appendChild(d); box.scrollTop = box.scrollHeight; return d; }
   function user(t) { return add(esc(t), 'user'); }
   function bot(m, el) {
     var acts = m.actions || [], main = acts.slice(0, 2), more = acts.slice(2);
