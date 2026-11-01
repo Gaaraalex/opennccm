@@ -66,7 +66,7 @@ def _favs(username: str) -> list[int]:
 
 
 @router.get("/console")
-def center(request: Request, tab: str = "sesiones", q: str = "", rec: int = 0):
+def center(request: Request, tab: str = "sesiones", q: str = "", rec: int = 0, empty: int = 0):
     user = require(request)
     if not console.console_allowed(user):
         raise Forbidden()
@@ -96,7 +96,8 @@ def center(request: Request, tab: str = "sesiones", q: str = "", rec: int = 0):
     # las seis secciones van en la misma página (las sesiones abiertas siguen vivas al cambiar de sección)
     ctx["recipes"] = all_recipes(user)
     ctx["cats"] = {k: _(v) for k, v in recipes.CATEGORIES.items()}
-    ctx["recs"] = recordings(user, q)
+    ctx["recs"] = recordings(user, q, bool(empty))
+    ctx["empty"] = bool(empty)
     if user.role == "admin":
         ctx["acc"] = {"roles": {r: console.role_mode(r) for r in ("admin", "operator", "viewer")},
                       "record": get_setting("console_record", "1") == "1",
@@ -388,7 +389,8 @@ async def recipe_used(request: Request):
 
 
 # --------------------------------------------------------------------------- grabaciones
-def recordings(user, q: str = "") -> list[dict]:
+def recordings(user, q: str = "", empty: bool = False) -> list[dict]:
+    """Sesiones grabadas; las vacías (sin comandos, ya cerradas) solo si se piden."""
     with SessionLocal() as db:
         stmt = select(ConsoleSession).order_by(ConsoleSession.id.desc()).limit(300)
         if user.role != "admin":
@@ -404,6 +406,8 @@ def recordings(user, q: str = "") -> list[dict]:
                     continue
             except OSError:
                 continue
+        if not empty and not r.commands and r.ended_at is not None:
+            continue
         dur = int(((r.ended_at or now()) - r.started_at).total_seconds())
         out.append({"id": r.id, "u": r.username, "d": r.device_name, "when": r.started_at, "dur": dur, "cmds": r.commands,
                     "danger": r.danger, "ip": r.ip, "rec": r.recorded and f.exists(), "live": r.ended_at is None})

@@ -8,6 +8,7 @@
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); };
   var post = function (url, body) { return fetch(url, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)}).then(function (r) { return r.json(); }); };
   var store = function (k, v) { try { if (v === undefined) return localStorage.getItem('oc-cc-' + k); localStorage.setItem('oc-cc-' + k, v); } catch (e) { return null; } };
+  var ic = function (n) { return '<svg class="ico s" aria-hidden="true"><use href="/static/icons.svg#i-' + n + '"/></svg>'; };
   var byId = {}; D.devs.forEach(function (d) { byId[d.id] = d; });
   function toast(t) { var el = $('cx-toast'); el.textContent = t; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(function () { el.hidden = true; }, 3200); }
 
@@ -69,8 +70,12 @@
       var w = document.createElement('div'); w.className = 'cc-panel'; w.dataset.id = id;
       var d = byId[id];
       w.innerHTML = '<div class="cc-ph"><b class="grow">' + esc(d.name) + ' <span class="cc-rec">● ' + esc(T.rec) + '</span> <span class="cc-who muted sm"></span></b>' +
-        '<button type="button" class="btn s ghost" data-share="' + id + '">' + esc(T.share) + '</button><button type="button" class="btn s ghost" data-files="' + id + '">' + esc(T.files) + '</button></div>' +
-        '<iframe src="/devices/' + id + '/console?embed=1" title="' + esc(d.name) + '"></iframe>';
+        '<button type="button" class="tbtn" data-pm="find" data-id="' + id + '" title="' + esc(T.find) + '" aria-label="' + esc(T.find) + '">' + ic('search') + '</button>' +
+        '<button type="button" class="tbtn" data-pm="theme" data-id="' + id + '" title="' + esc(T.theme) + '" aria-label="' + esc(T.theme) + '">' + ic('moon') + '</button>' +
+        '<button type="button" class="btn s ghost" data-share="' + id + '">' + esc(T.share) + '</button><button type="button" class="btn s ghost" data-files="' + id + '">' + esc(T.files) + '</button>' +
+        '<button type="button" class="tbtn" data-pm="reconnect" data-id="' + id + '" title="' + esc(T.recon) + '" aria-label="' + esc(T.recon) + '">' + ic('refresh') + '</button>' +
+        '<button type="button" class="tbtn" data-full="' + id + '" title="' + esc(T.full) + '" aria-label="' + esc(T.full) + '">' + ic('expand') + '</button></div>' +
+        '<iframe src="/devices/' + id + '/console?embed=2" title="' + esc(d.name) + '"></iframe>';
       frames[id] = w;
     }
     return frames[id];
@@ -89,7 +94,7 @@
     $('cc-empty').hidden = shown.length > 0;
     Object.keys(frames).forEach(function (id) { frames[id].hidden = shown.indexOf(+id) < 0; });
     shown.forEach(function (id) { var f = frame(id); f.classList.toggle('on', id === active); if (!f.parentNode) grid.appendChild(f); f.hidden = false; });
-    $('cc-open').textContent = T.open.replace('{0}', open.length);
+    $('cc-open').textContent = open.length === 1 ? T.open1 : T.open.replace('{0}', open.length);
   }
   $('cc-stabs').addEventListener('click', function (e) {
     var a = e.target.closest('[data-act]'), x = e.target.closest('[data-x]');
@@ -99,7 +104,9 @@
   $('cc-layout').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) { layout = +b.dataset.n; save(); paint(); } });
   $('cc-grid').addEventListener('click', function (e) {
     var p = e.target.closest('.cc-panel'); if (p && +p.dataset.id !== active) { active = +p.dataset.id; save(); paint(); }
-    var s = e.target.closest('[data-share]'), f = e.target.closest('[data-files]');
+    var s = e.target.closest('[data-share]'), f = e.target.closest('[data-files]'), pm = e.target.closest('[data-pm]'), fu = e.target.closest('[data-full]');
+    if (pm) msgTo(+pm.dataset.id, {cmd: pm.dataset.pm});
+    if (fu && frames[fu.dataset.full].requestFullscreen) frames[fu.dataset.full].requestFullscreen();
     if (s) msgTo(+s.dataset.share, {cmd: 'share'});
     if (f) files(+f.dataset.files, '/');
   });
@@ -142,7 +149,7 @@
     $('mu-list').innerHTML = D.devs.filter(function (d) { return !q || (d.name + ' ' + d.host + ' ' + d.vendor).toLowerCase().indexOf(q) >= 0; }).map(function (d) {
       return '<label class="row nowrap sm"><input type="checkbox" data-m="' + d.id + '" ' + (msel[d.id] ? 'checked' : '') + '><span class="vend">' + esc(d.vend) + '</span><span class="grow">' + esc(d.name) + '</span><small class="muted mono">' + esc(d.host) + '</small></label>';
     }).join('');
-    var n = Object.keys(msel).length; $('mu-n').textContent = T.sel.replace('{0}', n); $('mu-run').textContent = $('mu-run').textContent.replace(/\s*\(\d+\)$/, '') + ' (' + n + ')';
+    var n = Object.keys(msel).length; $('mu-n').textContent = n === 1 ? T.sel1 : T.sel.replace('{0}', n); $('mu-run').textContent = $('mu-run').textContent.replace(/\s*\(\d+\)$/, '') + ' (' + n + ')';
   }
   $('mu-groups').innerHTML = D.groups.map(function (g) { return '<button type="button" class="chip" data-g="' + g.id + '">' + esc(g.name) + '</button>'; }).join('');
   $('mu-groups').addEventListener('click', function (e) {
@@ -162,7 +169,8 @@
       if (j.change) { $('mu-res').hidden = true; $('mu-change').hidden = false; $('mu-change-t').textContent = j.msg; return; }
       if (j.error) { $('mu-groups-out').innerHTML = '<p class="k-bad">' + esc(j.error) + '</p>'; return; }
       lastMulti = {cmd: cmd, res: j};
-      $('mu-same').textContent = T.same.replace('{0}', j.same); $('mu-diff').textContent = T.diff.replace('{0}', j.diff);
+      $('mu-same').textContent = j.same === 1 ? T.same1 : T.same.replace('{0}', j.same);
+      $('mu-diff').textContent = j.diff === 1 ? T.diff1 : T.diff.replace('{0}', j.diff);
       $('mu-meta').textContent = T.meta.replace('{0}', j.answered).replace('{1}', j.total).replace('{2}', (j.ms / 1000).toFixed(1));
       var base = j.groups[0] ? j.groups[0].out.split('\n') : [];
       $('mu-groups-out').innerHTML = j.groups.map(function (g, i) {
@@ -287,7 +295,11 @@
   var ev = [], playing = false, speed = 1, pos = 0, dur = 1, timer = null;
   function openRec(id) {
     fetch('/console/rec/' + id, {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (j) {
-      ev = j.events || []; dur = ev.length ? Math.max(1, ev[ev.length - 1][0]) : 1; pos = 0;
+      ev = j.events || []; dur = ev.length ? Math.max(1, ev[ev.length - 1][0]) : 1; pos = dur;  // se abre entera; ▶ la reproduce desde el principio
+      var dz = j.danger || [];
+      $('rp-cmds').innerHTML = ev.filter(function (e) { return e[1] === 'i'; }).map(function (e) {
+        return '<li><button type="button" class="' + (dz.indexOf(e[0]) >= 0 ? 'dz' : '') + '" data-t="' + e[0] + '"><span class="mono muted">' + fmt(e[0]) + '</span> <span class="mono">' + esc(e[2]) + '</span></button></li>';
+      }).join('') || '<li class="muted sm">—</li>';
       $('rec-player').hidden = false; $('rp-t').textContent = j.u + ' · ' + j.d;
       $('rp-sub').textContent = (j.when || '').replace('T', ' ').slice(0, 16) + (j.ip ? ' · ' + j.ip : '') + ' · ' + T.played.replace('{0}', ev.filter(function (e) { return e[1] === 'i'; }).length).replace('{1}', fmt(dur));
       $('rp-export').href = '/console/rec/' + id + '/export';
@@ -298,13 +310,19 @@
   }
   function fmt(s) { s = Math.round(s); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
   function draw() {
-    var txt = '';
-    ev.forEach(function (e) { if (e[0] > pos) return; txt += e[1] === 'i' ? '' : e[1] === 'n' ? '\n' + e[2] + '\n' : e[2]; });
-    $('rp-out').textContent = txt; $('rp-out').scrollTop = $('rp-out').scrollHeight;
+    var html = '';
+    ev.forEach(function (e) {
+      if (e[0] > pos) return;
+      if (e[1] === 'n') html += '\n<span class="k-note">' + esc(e[2]) + '</span>\n';
+      else if (e[1] === 'o') html += esc(e[2]).replace(/^([\w.\-\/@()\[\]<>]{1,60}[#>$])(.*)$/gm, '<span class="k-host">$1</span><span class="k-path">$2</span>');
+    });
+    $('rp-out').innerHTML = html; $('rp-out').scrollTop = $('rp-out').scrollHeight;
+    Array.prototype.forEach.call(document.querySelectorAll('#rp-cmds button'), function (b) { b.classList.toggle('on', +b.dataset.t <= pos); });
     $('rp-pos').value = pos; $('rp-time').textContent = fmt(pos) + ' / ' + fmt(dur);
   }
   function tick() { pos = Math.min(dur, pos + 0.25 * speed); draw(); if (pos >= dur) stop(); }
   function stop() { playing = false; clearInterval(timer); $('rp-play').textContent = '▶'; }
+  $('rp-cmds').addEventListener('click', function (e) { var b = e.target.closest('[data-t]'); if (b) { stop(); pos = +b.dataset.t + 0.05; draw(); } });
   $('rp-play').addEventListener('click', function () { if (playing) { stop(); return; } if (pos >= dur) pos = 0; playing = true; this.textContent = '❚❚'; timer = setInterval(tick, 250); });
   $('rp-pos').addEventListener('input', function () { pos = +this.value; draw(); });
   $('rp-speed').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; speed = +b.dataset.s; Array.prototype.forEach.call(this.children, function (c) { c.classList.toggle('on', c === b); }); });

@@ -91,6 +91,8 @@
 .ai-think{color:var(--k-mut, var(--muted));font-style:italic}
 @media (max-width:900px){.cx .ai-panel{position:absolute;right:0;top:0;bottom:0;z-index:6;width:min(360px,100%)}.cx{position:relative}}
 .cx.watching .cx-input,.cx.watching #cx-share,.cx.watching #cx-recon,.cx.watching .cx-ro{display:none}
+/* panel de Operar › Consola: la fila de arriba es la del panel */
+.cx.bare .cx-head{display:none}
 /* dentro de un panel (Operar › Consola) o del diálogo de la página: el nombre ya está fuera */
 .cx.embed .cx-title,.cx.embed .cx-head .vend{display:none}.cx.embed .cx-head{padding:4px 8px;justify-content:flex-end}
 .cx.embed .cx-tools{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}

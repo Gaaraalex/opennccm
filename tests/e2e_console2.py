@@ -89,6 +89,12 @@ with connect(WS, additional_headers=H) as ws:
     cmd(ws, "end")
     recv_until(ws, lambda ms: re.search(r"R1#\s*$", text(ms)) is not None, 5)
     check("cambio desde la consola: línea verde con el respaldo en cola", any(x.get("k") == "ok" and "respaldo v" in x["d"] and "se puede revertir" in x["d"] for x in m), m)
+    i_note = next((i for i, x in enumerate(m) if x.get("t") == "n" and "cambio detectado" in x.get("d", "")), -1)
+    i_cmd = next((i for i, x in enumerate(m) if x.get("t") == "o" and "configure terminal" in x.get("d", "")), 99)
+    check("el aviso verde sale después del comando, nunca antes", i_cmd < i_note, [(x.get("t"), x.get("d", "")[:30]) for x in m])
+    cmd(ws, "show ip interface brief")
+    m2 = recv_until(ws, lambda ms: "administratively down" in text(ms), 5)
+    check("el equipo simulado responde como uno real (para ver los colores)", "GigabitEthernet0/2" in text(m2))
     ws.send(json.dumps({"t": "d", "d": "show running-config\n"}))  # por «d» solo pasan teclas sueltas
     m = recv_until(ws, lambda ms: "Building configuration" in text(ms), 3)
     check("v2: por el canal de teclas no pasan órdenes enteras (no se saltan las reglas)", "Building configuration" not in text(m))
@@ -115,6 +121,12 @@ check("grabación: guarda lo escrito", "show version" in ins and "configure term
 check("grabación: guarda lo visto", any("Cisco IOS Software" in e[2] for e in j["events"] if e[1] == "o"))
 exp = adm.get(B + f"/console/rec/{sid}/export").text
 check("grabación: se exporta como texto", "show version" in exp and "R1" in exp.splitlines()[0])
+with connect(WS, additional_headers=H) as ws:  # una sesión vacía: se abre y se cierra sin escribir
+    m = recv_until(ws, lambda ms: any(x.get("t") == "s" for x in ms))
+    empty_sid = next((x["sid"] for x in m if x.get("t") == "s"), 0)
+time.sleep(1)
+check("grabaciones: las sesiones vacías no se muestran por omisión", f'data-rec="{empty_sid}"' not in adm.get(B + "/console").text)
+check("grabaciones: «Mostrar sesiones vacías» las muestra", f'data-rec="{empty_sid}"' in adm.get(B + "/console?empty=1").text)
 center = adm.get(B + "/console?tab=grabaciones&q=configure").text
 check("grabaciones: la búsqueda encuentra lo escrito", f'data-rec="{sid}"' in center)
 check("grabaciones: la búsqueda filtra", f'data-rec="{sid}"' not in adm.get(B + "/console?tab=grabaciones&q=noexisteesto").text)
@@ -257,6 +269,9 @@ after = int((re.findall(r'class="ai-big">(\d+)<', st) or ["0"])[0])
 check("uso del mes: preguntas, tokens y costo estimado", after - before == 3 and "US$" in st, (before, after))
 check("auditoría: cada pregunta con proveedor y equipo", "ai_ask" in adm.get(B + "/audit").text)
 adm.post(B + "/settings", data={**BASE, "ai_form": "1", "ai_provider": "compat"})  # desactivado otra vez
+st = adm.get(B + "/settings").text
+check("asistente: sin ningún rol marcado quedan administradores y operadores",
+      'name="ai_role_admin" checked' in st and 'name="ai_role_operator" checked' in st and 'name="ai_role_viewer" checked' not in st)
 check("asistente desactivado: desaparece el botón", 'data-ai="page"' not in adm.get(B + "/").text)
 srv.shutdown()
 uid = re.search(r"<b>" + AIU + r"</b>[\s\S]*?/users/(\d+)/edit", adm.get(B + "/users").text)

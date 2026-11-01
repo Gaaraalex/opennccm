@@ -88,7 +88,9 @@
 {# ------------------------------------------------------------------ Grabaciones #}
 <section class="cc-sec" id="t-grabaciones" data-sec="grabaciones" hidden>
   <form class="row" method="get" action="/console#grabaciones"><input type="hidden" name="tab" value="grabaciones">
-    <div class="input grow"><input name="q" value="{{ q }}" placeholder="{{ _('Buscar en lo escrito y lo visto (por ejemplo «reload»)') }}" aria-label="{{ _('Buscar en las grabaciones') }}"></div><button class="btn">{{ icon('search', 's') }}{{ _('Buscar') }}</button></form>
+    <div class="input grow"><input name="q" value="{{ q }}" placeholder="{{ _('Buscar en lo escrito y lo visto (por ejemplo «reload»)') }}" aria-label="{{ _('Buscar en las grabaciones') }}"></div>
+    <label class="row nowrap sm"><input type="checkbox" name="empty" value="1" {{ 'checked' if empty }} onchange="this.form.submit()"> {{ _('Mostrar sesiones vacías') }}</label>
+    <button class="btn">{{ icon('search', 's') }}{{ _('Buscar') }}</button></form>
   <div class="cc-recs">
     <div class="card flush"><div class="tw"><table class="t" id="rec-table"><thead><tr><th>{{ _('Usuario') }}</th><th>{{ _('Equipo') }}</th><th>{{ _('Cuándo') }}</th><th>{{ _('Duración') }}</th><th>{{ _('Comandos') }}</th><th></th></tr></thead><tbody>
       {% for r in recs or [] %}<tr data-rec="{{ r.id }}" class="{{ 'cc-danger' if r.danger }}" tabindex="0"><td>{{ r.u }}</td><td>{{ r.d }}</td><td title="{{ r.when|dt }}">{{ r.when|ago }}</td>
@@ -98,7 +100,8 @@
     </tbody></table></div></div>
     <div class="card stack cc-player" id="rec-player" hidden>
       <div class="row"><div class="grow"><b id="rp-t"></b><div class="muted sm" id="rp-sub"></div></div><a class="btn s" id="rp-export" href="#">{{ icon('dl', 's') }}{{ _('Exportar') }}</a></div>
-      <div class="cx" data-theme="0" style="height:auto"><div class="cx-out mono" id="rp-out" style="height:360px"></div></div>
+      <div class="cc-play"><div class="cx" data-theme="0" style="height:auto"><div class="cx-out mono" id="rp-out" style="height:380px"></div></div>
+        <ol class="cc-cmds" id="rp-cmds" aria-label="{{ _('Comandos de la sesión') }}"></ol></div>
       <div class="row nowrap"><button type="button" class="btn s" id="rp-play" aria-label="{{ _('Reproducir') }}">▶</button>
         <div class="cc-tl grow" id="rp-tl"><input type="range" id="rp-pos" min="0" max="100" step="0.1" value="0" aria-label="{{ _('Posición') }}"><div class="cc-marks" id="rp-marks"></div></div>
         <span class="mono sm" id="rp-time">0:00</span>
@@ -157,7 +160,7 @@
 <script type="application/json" id="cc-data">{{ {'devs': devs, 'favs': favs, 'recent': recent, 'groups': groups, 'recipes': recipes or [], 'cats': cats or {}, 'rec': rec,
   'role': user.role, 'ai': ai.on, 'tab': tab,
   't': {'rec': _('REC'), 'fav': _('Favoritos'), 'recent': _('Recientes'), 'bygroup': _('POR GRUPO'), 'nogroup': _('Sin grupo'), 'share': _('Compartir'), 'files': _('Archivos'),
-        'close': _('Cerrar'), 'open': _('Sesiones abiertas: {0} · todo queda grabado en Auditoría'), 'sel': _('Equipos elegidos: {0}'), 'same': _('{0} iguales'), 'diff': _('{0} distintos'),
+        'close': _('Cerrar'), 'open': _('{0} sesiones abiertas · todo queda grabado en Auditoría'), 'open1': _('1 sesión abierta · todo queda grabado en Auditoría'), 'sel': _('{0} equipos elegidos'), 'sel1': _('1 equipo elegido'), 'same': _('{0} iguales'), 'same1': _('1 igual'), 'diff': _('{0} distintos'), 'diff1': _('1 distinto'), 'find': _('Buscar en la salida'), 'theme': _('Tema de la consola'), 'recon': _('Reconectar'), 'full': _('Pantalla completa'),
         'meta': _('respondieron {0} de {1} · {2} s'), 'equal': _('Iguales'), 'distinct': _('Distintos'), 'failed': _('No respondieron'), 'running': _('Ejecutando…'),
         'steps': _('{0} pasos'), 'uses': _('{0} usos'), 'mine': _('mía'), 'team': _('del equipo'), 'opennccm': _('de OpenNCCM'), 'none': _('No hay recetas con ese filtro.'),
         'copy': _('Copiar'), 'insert': _('Insertar'), 'warn': _('Ojo'), 'check': _('Comprobar'), 'apply': _('Aplicar como solicitud de cambio'), 'runact': _('Ejecutar en la consola activa'),

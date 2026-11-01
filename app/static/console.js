@@ -277,6 +277,8 @@
     if (e.data.cmd === 'insert') window.CXinsert(e.data.text || '');
     if (e.data.cmd === 'run' && e.data.text) e.data.text.split('\n').forEach(function (l) { if (l.trim()) run(l); });
     if (e.data.cmd === 'share') $('cx-share').click();
+    if (e.data.cmd === 'find') $('cx-find').click();
+    if (e.data.cmd === 'theme') $('cx-theme').click();
   });
   if (!C.embed) document.title = C.dev.name + ' · consola';
   connect();

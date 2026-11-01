@@ -475,7 +475,8 @@ def save_settings(form) -> None:
     set_setting("ai_provider", p)
     set_setting("ai_base_url", (form.get("ai_base_url") or "").strip())
     set_setting("ai_model", (form.get("ai_model") or "").strip())
-    set_setting("ai_roles", ",".join(r for r in ROLE_KEYS if form.get(f"ai_role_{r}") == "on"))
+    roles = [r for r in ROLE_KEYS if form.get(f"ai_role_{r}") == "on"]
+    set_setting("ai_roles", ",".join(roles or ["admin", "operator"]))  # activarlo sin nadie que pueda usarlo no sirve
     lim = (form.get("ai_daily_limit") or "50").strip()
     set_setting("ai_daily_limit", str(min(int(lim), 10000)) if lim.isdigit() else "50")
     set_setting("ai_include_backup", "1" if form.get("ai_include_backup") == "on" else "0")
