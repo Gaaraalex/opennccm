@@ -138,7 +138,7 @@ check("comando inválido -> failed", "badge b-failed" in t)
 cl = get("/configlets").text
 m = re.search(r'<b>Estado de interfaces \(IOS\)</b>[\s\S]*?/configlets/(\d+)/run', cl)
 r = post(f"/configlets/{m.group(1)}/run", {"device_ids": "1", "variables": ""})
-check("configlet exec devuelve salida", "salida simulada" in r.text)
+check("configlet exec devuelve salida", "GigabitEthernet0/0" in r.text)
 
 # corrección de cumplimiento (no ip http server)
 c = get("/compliance").text

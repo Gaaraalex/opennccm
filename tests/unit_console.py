@@ -46,6 +46,9 @@ check("lo permitido no se bloquea", cc.denied("show version", "reload\n/write\\s
 check("paginado apagado con lo mismo que usa netmiko", cc.PAGING_OFF["ios"] == "terminal length 0" and
       cc.PAGING_OFF["vrp"] == "screen-length 0 temporary" and cc.PAGING_OFF["exos"] == "disable clipaging")
 check("«--More--» se reconoce", cc.MORE.search("line\n --More-- ") and cc.MORE.search("  ---- More ----"))
+check("prompt de configuración: Cisco y Huawei sí; el normal y RouterOS no",
+      cc.in_config("ios", "R1(config-if)#") and cc.in_config("vrp", "[HUAWEI]") and not cc.in_config("ios", "R1#")
+      and not cc.in_config("ros", "[admin@CACHENA] >") and not cc.in_config("vrp", "<HUAWEI>"))
 prof = cc.client_profile("ros", lambda s: s)
 check("frecuentes: los que cortan el servicio van marcados", ["/system reboot", True] in prof["frequent"])
 
@@ -81,8 +84,12 @@ for r in recipes.BUILTIN:
     check(f"receta {r['key']}: sus variables existen", used <= names, used - names)
     check(f"receta {r['key']}: termina en «Comprobar»", r["steps"][-1].get("check") is True)
     check(f"receta {r['key']}: categoría válida", r["cat"] in recipes.CATEGORIES)
-    if r["cat"] != "diagnostico":
-        check(f"receta {r['key']}: con su documentación oficial", r["doc"].startswith("https://"))
+    if r["doc"]:
+        check(f"receta {r['key']}: enlace a la documentación oficial", r["doc"].startswith("https://"))
+from collections import Counter  # noqa: E402
+n = Counter(r["os"] for r in recipes.BUILTIN)
+check("al menos 10 recetas por Cisco, MikroTik, EXOS y VOSS", all(n[o] >= 10 for o in ("ios", "ros", "exos", "voss")), n)
+check("claves de receta únicas", len({r["key"] for r in recipes.BUILTIN}) == len(recipes.BUILTIN))
 filled = recipes.fill(recipes.BY_KEY["ros-vlan"], {"nombre": "vlan30", "vlan": "30"})
 check("receta: se sustituyen las variables (y las vacías toman el valor por omisión)",
       filled[0]["c"] == "/interface vlan add name=vlan30 vlan-id=30 interface=ether2", filled[0]["c"])

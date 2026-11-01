@@ -85,10 +85,17 @@ with connect(WS, additional_headers=H) as ws:
     m = recv_until(ws, lambda ms: any(x.get("t") == "n" for x in ms), 5)
     check("solo lectura: bloquea un cambio y lo avisa", any(x.get("t") == "n" and "solo lectura" in x["d"] for x in m), m)
     cmd(ws, "configure terminal")
-    m = recv_until(ws, lambda ms: any(x.get("t") == "n" and "cambio detectado" in x.get("d", "") for x in ms), 5)
+    m0 = recv_until(ws, lambda ms: "(config)#" in text(ms), 5)
+    check("en modo configuración todavía no se avisa del cambio", not any("cambio detectado" in x.get("d", "") for x in m0), m0)
     cmd(ws, "end")
-    recv_until(ws, lambda ms: re.search(r"R1#\s*$", text(ms)) is not None, 5)
+    m = recv_until(ws, lambda ms: any(x.get("t") == "n" and "cambio detectado" in x.get("d", "") for x in ms), 5)
     check("cambio desde la consola: línea verde con el respaldo en cola", any(x.get("k") == "ok" and "respaldo v" in x["d"] and "se puede revertir" in x["d"] for x in m), m)
+    i_note = next((i for i, x in enumerate(m) if x.get("t") == "n" and "cambio detectado" in x.get("d", "")), -1)
+    i_cmd = next((i for i, x in enumerate(m) if x.get("t") == "o" and "end" in x.get("d", "")), 99)
+    check("el aviso verde sale después del comando, nunca antes", i_cmd < i_note, [(x.get("t"), x.get("d", "")[:30]) for x in m])
+    cmd(ws, "show ip interface brief")
+    m2 = recv_until(ws, lambda ms: "administratively down" in text(ms), 5)
+    check("el equipo simulado responde como uno real (para ver los colores)", "GigabitEthernet0/2" in text(m2))
     ws.send(json.dumps({"t": "d", "d": "show running-config\n"}))  # por «d» solo pasan teclas sueltas
     m = recv_until(ws, lambda ms: "Building configuration" in text(ms), 3)
     check("v2: por el canal de teclas no pasan órdenes enteras (no se saltan las reglas)", "Building configuration" not in text(m))
@@ -115,6 +122,12 @@ check("grabación: guarda lo escrito", "show version" in ins and "configure term
 check("grabación: guarda lo visto", any("Cisco IOS Software" in e[2] for e in j["events"] if e[1] == "o"))
 exp = adm.get(B + f"/console/rec/{sid}/export").text
 check("grabación: se exporta como texto", "show version" in exp and "R1" in exp.splitlines()[0])
+with connect(WS, additional_headers=H) as ws:  # una sesión vacía: se abre y se cierra sin escribir
+    m = recv_until(ws, lambda ms: any(x.get("t") == "s" for x in ms))
+    empty_sid = next((x["sid"] for x in m if x.get("t") == "s"), 0)
+time.sleep(1)
+check("grabaciones: las sesiones vacías no se muestran por omisión", f'data-rec="{empty_sid}"' not in adm.get(B + "/console").text)
+check("grabaciones: «Mostrar sesiones vacías» las muestra", f'data-rec="{empty_sid}"' in adm.get(B + "/console?empty=1").text)
 center = adm.get(B + "/console?tab=grabaciones&q=configure").text
 check("grabaciones: la búsqueda encuentra lo escrito", f'data-rec="{sid}"' in center)
 check("grabaciones: la búsqueda filtra", f'data-rec="{sid}"' not in adm.get(B + "/console?tab=grabaciones&q=noexisteesto").text)
@@ -206,13 +219,30 @@ class FakeAI(BaseHTTPRequestHandler):
     def do_POST(self):
         data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         SEEN.append(data)
+        if data.get("tools"):  # chat de la barra superior: primero consulta, después responde con «responder»
+            if not any(m.get("role") == "tool" for m in data["messages"]):
+                return self._send({"choices": [{"message": {"content": None, "tool_calls": [
+                    {"id": "c1", "type": "function", "function": {"name": "equipos", "arguments": json.dumps({"estado": "todos"})}}]}}],
+                    "usage": {"prompt_tokens": 50, "completion_tokens": 5}})
+            res = json.loads(next(m for m in data["messages"] if m.get("role") == "tool")["content"])
+            names = [e["nombre"] for e in res.get("equipos", [])]
+            args = {"texto": f"Tienes {len(names)} equipos.", "fuente": "Equipos",
+                    "equipos": [{"nombre": n, "estado": "ok", "motivo": "respaldo al día"} for n in names[:3]],
+                    "acciones": [{"tipo": "ir", "etiqueta": "Ver en Dispositivos", "url": "/devices"},
+                                 {"tipo": "respaldar", "etiqueta": "Respaldar de nuevo", "equipos": names[:1]},
+                                 {"tipo": "ir", "etiqueta": "Sitio externo", "url": "https://malo.example/x"},
+                                 {"tipo": "tarea", "etiqueta": "Crear la tarea", "accion_tarea": "backup", "cron": "0 2 * * *",
+                                  "nombre_tarea": "Respaldo diario"}]}
+            return self._send({"choices": [{"message": {"content": None, "tool_calls": [
+                {"id": "c2", "type": "function", "function": {"name": "responder", "arguments": json.dumps(args)}}]}}],
+                "usage": {"prompt_tokens": 80, "completion_tokens": 40}})
         answer = "Para ver las interfaces:\n```\nshow ip interface brief\n```\nY para reiniciar:\n```\nreload\n```"
         self._send({"choices": [{"message": {"content": answer}}], "usage": {"prompt_tokens": 120, "completion_tokens": 30}})
 
 
 srv = HTTPServer(("127.0.0.1", 8765), FakeAI)
 threading.Thread(target=srv.serve_forever, daemon=True).start()
-check("asistente desactivado por omisión: sin botón en la barra", "data-ai=\"page\"" not in adm.get(B + "/").text)
+check("asistente desactivado por omisión: sin botón en la barra", "data-chat" not in adm.get(B + "/").text)
 AI = {**BASE, "ai_form": "1", "ai_enabled": "on", "ai_provider": "compat", "ai_base_url": "http://127.0.0.1:8765/v1",
       "ai_key": "sk-prueba", "ai_model": "", "ai_role_admin": "on", "ai_daily_limit": "3", "ai_include_backup": "on",
       "ai_include_console": "on", "ai_price_in": "3", "ai_price_out": "15"}
@@ -225,7 +255,7 @@ adm.post(B + "/settings", data=AI)
 st = adm.get(B + "/settings").text
 check("Ajustes: la clave queda guardada (cifrada, no se muestra)", "sk-prueba" not in st and "clave guardada" in st)
 check("Ajustes: vista previa con los secretos ocultos", "******" in st)
-check("asistente activo: botón en la barra superior", 'data-ai="page"' in adm.get(B + "/").text)
+check("asistente activo: botón en la barra superior", 'data-chat' in adm.get(B + "/").text)
 before = int((re.findall(r'class="ai-big">(\d+)<', st) or ["0"])[0])
 adm.post(B + "/users", data={"username": AIU, "role": "admin", "password": "Asistente2026x", "password2": "Asistente2026x"})
 ia = login(AIU, "Asistente2026x")
@@ -249,15 +279,41 @@ check("nunca salen los secretos: contraseñas y comunidad SNMP ocultas", "$1$abc
 r = ia.post(B + "/api/ai/ask", json={"q": "Explica", "kind": "diff", "a": 1, "b": 2}).json()
 check("«✦ Explicar este cambio» con las diferencias", r.get("segments") and "Diferencias" in json.dumps(SEEN[-1]), r)
 check("botón «✦ Explicar este cambio» en la comparación", "Explicar este cambio" in adm.get(B + "/diff?a=1&b=2").text)
+r = adm.post(B + "/console/tools", json={"tool": "ping", "target": "127.0.0.1"}).json()
+check("herramientas: ping devuelve su salida o explica cómo arreglarlo", r.get("out"), r)
 ia.post(B + "/api/ai/ask", json={"q": "otra"})
 r = ia.post(B + "/api/ai/ask", json={"q": "una más"})
 check("límite de preguntas por día", r.status_code == 400 and "límite" in r.json().get("error", ""), r.text)
+AI["ai_daily_limit"] = "100"
+adm.post(B + "/settings", data=AI)
 st = adm.get(B + "/settings").text
 after = int((re.findall(r'class="ai-big">(\d+)<', st) or ["0"])[0])
 check("uso del mes: preguntas, tokens y costo estimado", after - before == 3 and "US$" in st, (before, after))
 check("auditoría: cada pregunta con proveedor y equipo", "ai_ask" in adm.get(B + "/audit").text)
+# ---- chat de la barra superior: funciones de solo lectura, respuesta simple y acciones con confirmación
+r = ia.post(B + "/api/ai/chat", json={"q": "¿Qué equipos tengo?", "path": "/", "title": "Panel"}).json()
+check("chat: consulta con una función y responde con texto y equipos", "equipos" in r.get("text", "") and r.get("items"), r)
+kinds = [a["kind"] for a in r.get("actions", [])]
+check("chat: «ir» solo a páginas de OpenNCCM (el enlace externo se descarta)", kinds[:1] == ["go"] and "https://malo.example/x" not in json.dumps(r), r)
+check("chat: acciones que cambian algo quedan para confirmar", "backup" in kinds and all(a.get("id") for a in r["actions"] if a["kind"] != "go"), r)
+check("chat: fuente en una línea", r.get("source") == "Equipos")
+bk = next((a for a in r.get("actions", []) if a["kind"] == "backup"), None)
+if bk:
+    j = ia.post(B + "/api/ai/chat/act", json={"id": bk["id"]}).json()
+    check("chat: al confirmar, se hace con los permisos del usuario", j.get("ok"), j)
+    j = ia.post(B + "/api/ai/chat/act", json={"id": bk["id"]}).json()
+    check("chat: una acción no se repite", j.get("error"), j)
+g = ia.get(B + "/api/ai/chat?path=/").json()
+check("chat: la conversación se guarda y se retoma", len(g.get("messages", [])) >= 2 and g.get("suggest"), g)
+ia.post(B + "/api/ai/chat/new")
+check("chat: «+» empieza otra conversación", ia.get(B + "/api/ai/chat").json().get("messages") == [])
+check("chat: auditoría con las funciones usadas", "funciones: equipos" in adm.get(B + "/audit").text)
+check("chat: botón en la barra superior", "data-chat" in ia.get(B + "/").text and "/static/chat.js" in ia.get(B + "/").text)
 adm.post(B + "/settings", data={**BASE, "ai_form": "1", "ai_provider": "compat"})  # desactivado otra vez
-check("asistente desactivado: desaparece el botón", 'data-ai="page"' not in adm.get(B + "/").text)
+st = adm.get(B + "/settings").text
+check("asistente: sin ningún rol marcado quedan administradores y operadores",
+      'name="ai_role_admin" checked' in st and 'name="ai_role_operator" checked' in st and 'name="ai_role_viewer" checked' not in st)
+check("asistente desactivado: desaparece el botón", 'data-chat' not in adm.get(B + "/").text)
 srv.shutdown()
 uid = re.search(r"<b>" + AIU + r"</b>[\s\S]*?/users/(\d+)/edit", adm.get(B + "/users").text)
 if uid:

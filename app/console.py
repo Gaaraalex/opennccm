@@ -132,7 +132,7 @@ def _dev_info(dev: Device) -> dict:
 
 
 @router.get("/devices/{dev_id}/console")
-def console_page(request: Request, dev_id: int, embed: int = 0):
+def console_page(request: Request, dev_id: int, embed: int = 0):  # embed=2: panel de Operar › Consola (sin cabecera)
     """Consola SSH. embed=1: solo el terminal, dentro de un diálogo o de un panel de Operar › Consola."""
     user = require(request)
     check_device(user, dev_id)
@@ -146,7 +146,7 @@ def console_page(request: Request, dev_id: int, embed: int = 0):
         os_key = cc.os_of(dev.device_type)
         info = _dev_info(dev)
     from . import assistant
-    resp = render(request, "console.html", user, dev=info, compact=True, embed=bool(embed),
+    resp = render(request, "console.html", user, dev=info, compact=True, embed=bool(embed), bare=embed == 2,
                   autologin=_setting("console_autologin", "0") == "1", access=acc, can_open=ok,
                   profile=cc.client_profile(os_key, _), idle_min=idle_seconds() // 60,
                   recording=_setting("console_record", "1") == "1", ai=assistant.panel_info(user))
@@ -416,6 +416,7 @@ async def console_ws(ws: WebSocket, dev_id: int):
     paging = cc.PAGING_OFF.get(os_key) if v2 else None
     quiet = [False]       # se está apagando el paginado: no se muestra su respuesta
     backup_timer: list[threading.Timer | None] = [None]
+    pending_note: list[str | None] = [None]  # aviso de cambio: se muestra cuando el equipo vuelve a dar el prompt
 
     def show(text: str):
         if v2:
@@ -423,7 +424,8 @@ async def console_ws(ws: WebSocket, dev_id: int):
             live.emit({"t": "o", "d": text})
         else:
             bridge.send(text)
-        rec.add("o", plain(text))
+        # «\r» al principio = se reescribe la línea (el prompt tras apagar el paginado): en la grabación, línea nueva
+        rec.add("o", plain("\n" + text[1:] if text.startswith("\r") and not text.startswith("\r\n") else text))
 
     def tell(text: str, kind: str = "info"):
         msg = {"t": "n", "k": kind, "d": text}
@@ -438,8 +440,8 @@ async def console_ws(ws: WebSocket, dev_id: int):
         """Un comando cambió la configuración: aviso en verde y respaldo en cola (se agrupan los de 20 s)."""
         from . import services
         if backup_timer[0] is None:
-            tell(_f("# OpenNCCM: cambio detectado en {0} · respaldo v{1} en cola · se puede revertir", name,
-                    _next_version(dev_id)), "ok")
+            pending_note[0] = _f("# OpenNCCM: cambio detectado en {0} · respaldo v{1} en cola · se puede revertir", name,
+                                 _next_version(dev_id))
         else:
             backup_timer[0].cancel()
 
@@ -478,6 +480,14 @@ async def console_ws(ws: WebSocket, dev_id: int):
                             text = "\r" + plain(tail).rsplit("\n", 1)[-1]  # solo el prompt, en la línea del anterior
                         else:
                             text = ""
+                    if text and pending_note[0] and re.search(r"[#>$\]]\s*$", plain(tail)) and \
+                            not cc.in_config(os_key, plain(tail).rsplit("\n", 1)[-1]):
+                        cut = text.rfind("\n") + 1  # la respuesta del comando, el aviso y después el prompt
+                        if cut:
+                            show(text[:cut])
+                        tell(pending_note[0], "ok")
+                        pending_note[0] = None
+                        text = text[cut:]
                     if text:
                         show(text)
                     if autologin and cred_secret and family in (IOS, FASTPATH):
@@ -634,6 +644,27 @@ async def console_watch_ws(ws: WebSocket, token: str):
     finally:
         live.watchers.pop(ws, None)
         live.who()
+
+
+def close_orphans() -> int:
+    """Al arrancar no hay ninguna consola abierta: las que quedaron «en curso» se cierran con la hora de su último evento."""
+    n = 0
+    with SessionLocal() as db:
+        for cs in db.scalars(select(ConsoleSession).where(ConsoleSession.ended_at.is_(None))):
+            end = cs.started_at
+            try:
+                with open(REC_DIR / f"{cs.id}.jsonl", encoding="utf-8") as f:
+                    last = None
+                    for last in f:
+                        pass
+                if last:
+                    end = cs.started_at + timedelta(seconds=float(json.loads(last)[0]))
+            except (OSError, ValueError, IndexError):
+                pass
+            cs.ended_at = end
+            n += 1
+        db.commit()
+    return n
 
 
 def cleanup_recordings(days: int | None = None) -> int:

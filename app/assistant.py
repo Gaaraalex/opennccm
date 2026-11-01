@@ -37,6 +37,35 @@ PROVIDERS = {
 }
 ROLE_KEYS = ("admin", "operator", "viewer")
 
+# Cuadrito de cada proveedor (diseño «D» de Diseño UX): fondo de la marca y su dibujo en 24×24. Son dibujos aproximados,
+# no los archivos oficiales de cada marca: se reemplazan aquí cuando estén los SVG oficiales.
+LOGOS = {
+    "anthropic": ("#D97757", "", '<g stroke="#ffffff" stroke-width="2.6" stroke-linecap="round">'
+                                 '<path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4"/></g>'),
+    "openai": ("#000000", "#3a3f4b", '<g fill="none" stroke="#ffffff" stroke-width="1.8"><ellipse cx="12" cy="12" rx="9" ry="4"/>'
+                                     '<ellipse cx="12" cy="12" rx="9" ry="4" transform="rotate(60 12 12)"/>'
+                                     '<ellipse cx="12" cy="12" rx="9" ry="4" transform="rotate(120 12 12)"/></g>'),
+    "gemini": ("#ffffff", "#e3e6ec", '<defs><linearGradient id="{id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1c7cff"/>'
+                                     '<stop offset="1" stop-color="#9b5cff"/></linearGradient></defs>'
+                                     '<path d="M12 2C12.6 7.3 16.7 11.4 22 12C16.7 12.6 12.6 16.7 12 22C11.4 16.7 7.3 12.6 2 12C7.3 11.4 11.4 7.3 12 2Z" fill="url(#{id})"/>'),
+    "mistral": ("#ffffff", "#e3e6ec", "".join(f'<rect x="{x}" y="{y}" width="4" height="4" fill="{c}"/>' for x, y, c in (
+        (3, 4, "#ffd800"), (17, 4, "#ffd800"), (3, 8, "#ffaf00"), (7, 8, "#ffaf00"), (13, 8, "#ffaf00"), (17, 8, "#ffaf00"),
+        (3, 12, "#ff8205"), (10, 12, "#ff8205"), (17, 12, "#ff8205"), (3, 16, "#fa500f"), (17, 16, "#fa500f")))),
+    "compat": ("#3b4a7a", "", '<path d="M9 3v5M15 3v5M7 8h10v4a5 5 0 0 1-10 0zM12 17v4" fill="none" stroke="#ffffff" '
+                              'stroke-width="2" stroke-linecap="round"/>'),
+}
+_logo_n = [0]
+
+
+def logo(provider: str, size: int = 44) -> str:
+    """El cuadrito del proveedor: tamaño en px (44 en Ajustes, 36 en la consola, 20 en la barra superior)."""
+    bg, border, svg = LOGOS.get(provider, LOGOS["compat"])
+    _logo_n[0] += 1
+    inner = round(size * 24 / 44)
+    return (f'<span class="ai-tile" aria-hidden="true" style="width:{size}px;height:{size}px;border-radius:{round(size / 4)}px;'
+            f'background:{bg};{"box-shadow:inset 0 0 0 1px " + border if border else ""}">'
+            f'<svg width="{inner}" height="{inner}" viewBox="0 0 24 24">{svg.replace("{id}", f"aig{_logo_n[0]}")}</svg></span>')
+
 
 class AiError(RuntimeError):
     pass
@@ -79,7 +108,7 @@ def quick_on(user) -> dict | None:
     p = cached_setting("ai_provider", "anthropic")
     if user is None or cached_setting("ai_enabled", "0") != "1" or not cached_setting(f"ai_key_{p}", "") or             not cached_setting("ai_model", "") or user.role not in cached_setting("ai_roles", "admin,operator").split(","):
         return None
-    return {"t": texts(), "who": provider_name(p) if p in PROVIDERS else p, "model": cached_setting("ai_model", "")}
+    return {"t": texts(), "who": provider_name(p) if p in PROVIDERS else p, "model": cached_setting("ai_model", ""), "p": p}
 
 
 def texts() -> dict:
@@ -89,7 +118,11 @@ def texts() -> dict:
             "thinking": _("Pensando…"), "copy": _("Copiar"), "insert": _("Insertar"), "cr": _("Enviar como solicitud de cambio"),
             "copied": _("Copiado."), "risk": {"read": _("solo lectura"), "change": _("cambia la configuración"),
                                               "outage": _("corta el servicio")},
-            "source": _("Fuente: {0}"), "crdone": _("Solicitud de cambio creada."), "close": _("Cerrar"), "send": _("Enviar")}
+            "source": _("Fuente: {0}"), "crdone": _("Solicitud de cambio creada."), "close": _("Cerrar"), "send": _("Enviar"),
+            "chat": _("Asistente"), "newc": _("Nueva conversación"), "viewing": _("Viendo: {0} · {1} equipos"),
+            "chatph": _("Pregunta sobre tu red o sobre OpenNCCM…"), "more": _("Más acciones"), "cancel": _("Cancelar"),
+            "confirm": _("Confirmar"), "see": _("Ver"),
+            "chatnote": _("Solo ve lo que tú puedes ver. Prepara acciones, pero nunca las ejecuta sin que confirmes. Cada pregunta queda en Auditoría.")}
 
 
 def panel_info(user) -> dict:
@@ -475,7 +508,8 @@ def save_settings(form) -> None:
     set_setting("ai_provider", p)
     set_setting("ai_base_url", (form.get("ai_base_url") or "").strip())
     set_setting("ai_model", (form.get("ai_model") or "").strip())
-    set_setting("ai_roles", ",".join(r for r in ROLE_KEYS if form.get(f"ai_role_{r}") == "on"))
+    roles = [r for r in ROLE_KEYS if form.get(f"ai_role_{r}") == "on"]
+    set_setting("ai_roles", ",".join(roles or ["admin", "operator"]))  # activarlo sin nadie que pueda usarlo no sirve
     lim = (form.get("ai_daily_limit") or "50").strip()
     set_setting("ai_daily_limit", str(min(int(lim), 10000)) if lim.isdigit() else "50")
     set_setting("ai_include_backup", "1" if form.get("ai_include_backup") == "on" else "0")

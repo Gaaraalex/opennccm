@@ -86,8 +86,40 @@ def read(conn, device_type: str) -> str | None:
             continue
         out.append(MARK + c + "\n" + text)
         if _parse_section(c, text, device_type):  # la primera que da puertos basta
-            break
+            return "\n".join(out)
+    if get_profile(device_type).family == FASTPATH:
+        # EdgeSwitch X (ES-10X/ES-18X…, chip Realtek): no tiene «show interfaces status»; cada puerto se pide por número
+        # con «show interfaces GigabitEthernet 1-N». Se prueba de mayor a menor hasta el número de puertos del equipo.
+        for n in ESX_RANGES:
+            c = f"show interfaces GigabitEthernet 1-{n}"
+            try:
+                text = conn.send_command(c, read_timeout=40)
+            except Exception:  # noqa: BLE001
+                continue
+            if _esx(text):
+                out.append(MARK + c + "\n" + text)
+                break
     return "\n".join(out) or None
+
+
+ESX_RANGES = (52, 28, 26, 18, 10, 8, 5)
+_ESX_PORT = re.compile(r"(?m)^GigabitEthernet(\d+) is (administratively down|up|down)\b")
+_ESX_MEDIA = re.compile(r"media type is (\w+)", re.I)
+
+
+def _esx(text: str) -> list[dict]:
+    """EdgeSwitch X: «GigabitEthernet9 is down» … «media type is Fiber» por cada puerto."""
+    ports = []
+    parts = _ESX_PORT.split(text or "")
+    # split: [antes, n1, estado1, cuerpo1, n2, estado2, cuerpo2, …]
+    for i in range(1, len(parts) - 2, 3):
+        n, st, body = parts[i], parts[i + 1], parts[i + 2]
+        m = _ESX_MEDIA.search(body)
+        sfp = bool(m and m.group(1).lower().startswith("fib"))
+        s = "off" if st.startswith("admin") else st
+        ports.append({"n": f"gi{n}", "k": "sfp" if sfp else "cu", "s": s, "sp": "", "d": "", "net": "", "mod": "",
+                      "st": f"GigabitEthernet{n} is {st}"})
+    return ports
 
 
 def _sections(raw: str) -> dict[str, str]:
@@ -404,6 +436,8 @@ def _parse_section(cmd: str, text: str, device_type: str, model: str | None = No
         return pt.linux(text)
     if cmd == "ifconfig -a":
         return pt.bsd(text)
+    if cmd.startswith("show interfaces GigabitEthernet 1-"):
+        return _esx(text)
     ports = pt.from_table(text, model_ports(model))
     if get_profile(device_type).family == FASTPATH or cmd in ("show interfaces status all", "show port all"):
         # FastPath (EdgeSwitch, UniFi): los puertos del frente son 0/N; 3/N son agregados (LAG) y 4/N, VLAN

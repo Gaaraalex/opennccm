@@ -214,6 +214,28 @@ def session(client):
     t.close()
 
 
+# salidas como las de un Cisco real, para ver los colores de la consola (up/down, IP, errores, avisos)
+SHOW = {
+    "show ip interface brief": """Interface              IP-Address      OK? Method Status                Protocol
+GigabitEthernet0/0     10.0.0.1        YES NVRAM  up                    up
+GigabitEthernet0/1     10.10.0.1       YES NVRAM  up                    up
+GigabitEthernet0/2     10.20.0.1       YES NVRAM  down                  down
+GigabitEthernet0/3     unassigned      YES unset  administratively down down""",
+    "show interfaces status": """Port      Name               Status       Vlan       Duplex  Speed Type
+Gi0/0     Enlace WAN         connected    routed     a-full a-1000 10/100/1000BaseTX
+Gi0/1     LAN oficinas       connected    10         a-full a-1000 10/100/1000BaseTX
+Gi0/2     SW-BODEGA          notconnect   20           auto   auto 10/100/1000BaseTX
+Gi0/3                        disabled     1            auto   auto 10/100/1000BaseTX""",
+    "show logging": """Syslog logging: enabled (0 messages dropped, 0 flushes, 0 overruns)
+Oct 31 09:03:51: %LINK-3-UPDOWN: Interface GigabitEthernet0/2, changed state to down
+Oct 31 09:03:52: %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/2, changed state to down
+Oct 31 09:41:17: %SYS-5-CONFIG_I: Configured from console by admin on vty0 (10.0.0.50)""",
+    "show cdp neighbors": """Device ID        Local Intrfce     Holdtme    Capability  Platform  Port ID
+FW-PERIMETRO     Gig 0/0           152             R S I   FPR-1120  Eth 1/1
+SW-BODEGA        Gig 0/2           141             S I     WS-C2960  Gig 0/48""",
+}
+
+
 def handle(line, mode, ctx):
     global STARTUP
     s = line.strip()
@@ -284,6 +306,8 @@ def handle(line, mode, ctx):
         if s == "reload":
             mode[0] = "reload"
             return "Proceed with reload? [confirm]"
+        if s in SHOW:
+            return SHOW[s]
         if s.startswith("show "):
             return f"(salida simulada de '{s}')"
         if s == "exit":

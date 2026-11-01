@@ -352,5 +352,18 @@ check("modelo -> puertos de cobre", (ports.model_ports("US-24-250W"), ports.mode
 check("velocidades", [porttable.speed(x) for x in ("1000 Full", "a-1000", "1000Mbps", "1G(a)", "10GigFD", "1000FDx", "auto", "ukn")]
       == ["1 Gbps", "1 Gbps", "1 Gbps", "1 Gbps", "10 Gbps", "1 Gbps", "", ""])
 
+# EdgeSwitch X (ES-18X, chip Realtek): sin «show interfaces status»; salida real de «show interfaces GigabitEthernet 1-18»
+ESX = "\n".join(
+    f"GigabitEthernet{n} is {st}\n  Hardware is Gigabit Ethernet\n  Auto-duplex, Auto-speed, media type is {med}\n"
+    f"  flow-control is off\n  back-pressure is enabled\n     0 input errors, 0 CRC, 0 frame"
+    for n, st, med in [(1, "up", "Copper"), (2, "up", "Copper"), (9, "down", "Copper"), (16, "down", "Copper"),
+                       (17, "down", "Fiber"), (18, "up", "Fiber")])
+from app import ports  # noqa: E402
+esx = ports.parse("### puertos: show interfaces GigabitEthernet 1-18\n" + ESX, "ubiquiti_edgeswitch", "", "ES-18X")[0]
+check("EdgeSwitch X: un puerto por «GigabitEthernetN is …»", [p["n"] for p in esx] == ["gi1", "gi2", "gi9", "gi16", "gi17", "gi18"], esx)
+check("EdgeSwitch X: activos y sin enlace", [p["s"] for p in esx] == ["up", "up", "down", "down", "down", "up"])
+check("EdgeSwitch X: los de fibra son SFP", [p["k"] for p in esx] == ["cu", "cu", "cu", "cu", "sfp", "sfp"])
+check("EdgeSwitch X: «Invalid port id» no da puertos", ports._esx("Invalid port id") == [])
+
 print("TODO OK" if not fails else f"{len(fails)} FALLOS")
 sys.exit(1 if fails else 0)

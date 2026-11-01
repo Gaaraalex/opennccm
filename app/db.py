@@ -363,6 +363,16 @@ class AiUsage(Base):
     tokens_out: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class AiChat(Base):
+    """Conversación del chat del asistente (barra superior), por usuario: la última se retoma; «+» empieza otra."""
+    __tablename__ = "ai_chats"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(64), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    messages: Mapped[str] = mapped_column(Text, default="[]")  # JSON: preguntas y respuestas (con sus acciones)
+
+
 class Setting(Base):
     __tablename__ = "settings"
     key: Mapped[str] = mapped_column(String(64), primary_key=True)

@@ -18,7 +18,7 @@
 {% else %}
 {% if not embed and not watch and not autologin and dev.has_cred %}<div class="banner info" id="autologin-off" style="margin-bottom:10px">{{ icon('info') }}<span class="grow">{{ _('El equipo tiene una credencial asignada, pero la consola no la usa: pide usuario y contraseña.') }}
   {% if user.role == 'admin' %}<a href="/settings#seguridad" target="_top">{{ _('Activar «Entrar en la consola con la credencial del equipo» en Ajustes') }}</a>{% else %}{{ _('Un administrador puede activar el inicio automático en Ajustes.') }}{% endif %}</span></div>{% endif %}
-<div class="cx {{ 'embed' if embed }} {{ 'watching' if watch }}" id="cx" data-theme="0">
+<div class="cx {{ 'embed' if embed }} {{ 'bare' if bare }} {{ 'watching' if watch }}" id="cx" data-theme="0">
   <div class="cx-col">
     <header class="cx-head">
       <span class="vend">{{ dev.vend }}</span>
@@ -33,7 +33,7 @@
         <button type="button" class="tbtn" id="cx-theme" title="{{ _('Tema de la consola') }}" aria-label="{{ _('Tema de la consola') }}">{{ icon('moon', 's') }}<span id="cx-theme-n" class="vh"></span></button>
         <button type="button" class="tbtn" id="cx-share" title="{{ _('Compartir en solo lectura') }}" aria-label="{{ _('Compartir en solo lectura') }}">{{ icon('users', 's') }}</button>
         <button type="button" class="btn s ghost" id="cx-recon">{{ icon('refresh', 's') }}{{ _('Reconectar') }}</button>
-        {% if ai.on %}<button type="button" class="btn s ghost cx-aibtn" id="cx-ai" aria-pressed="false">✦ {{ _('Asistente') }}</button>{% endif %}
+        {% if ai.on %}<button type="button" class="btn s ghost cx-aibtn" id="cx-ai" aria-pressed="false">{{ ai_logo(ai.provider, 20) }}{{ _('Asistente') }}</button>{% endif %}
         <button type="button" class="tbtn" id="cx-full" title="{{ _('Pantalla completa') }}" aria-label="{{ _('Pantalla completa') }}">{{ icon('expand', 's') }}</button>
       </div>
     </header>
