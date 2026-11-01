@@ -41,6 +41,7 @@ class ApiToken(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime)
+    client: Mapped[str | None] = mapped_column(String(16))  # «android»: token de la sesión de un teléfono (API móvil)
 
 
 class User(Base):
