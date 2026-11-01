@@ -1,0 +1,9 @@
+{# Panel del asistente IA dentro de la consola (lo arma app/static/assistant.js). #}
+<aside class="ai-panel" id="ai-panel" hidden aria-label="{{ _('Asistente de red') }}"
+  data-device="{{ dev.id }}" data-kind="console" data-name="{{ dev.name }}" data-os="{{ profile.label or dev.os }}"
+  data-t='{{ {'title': _('Asistente de red'), 'cloud': _('nube'), 'change': _('Cambiar'), 'hello': _f('Hola. Tengo el contexto de {0}: {1}. Pregúntame qué comando usar o pídeme que explique una salida.', dev.name, (dev.model ~ ' · ' if dev.model else '') ~ dev.os),
+    'backup': _('respaldo'), 'console': _('salida de la consola'), 'secrets': _('secretos ocultos'), 'sugg': _('PREGUNTAS SUGERIDAS'), 'ph': _('Pregunta al asistente…'),
+    'note': _('Sugiere; nunca ejecuta. Antes de enviar se ocultan contraseñas y claves. Cada pregunta queda en Auditoría.'),
+    'thinking': _('Pensando…'), 'copy': _('Copiar'), 'insert': _('Insertar'), 'cr': _('Enviar como solicitud de cambio'), 'copied': _('Copiado.'),
+    'risk': {'read': _('solo lectura'), 'change': _('cambia la configuración'), 'outage': _('corta el servicio')}, 'source': _('Fuente: {0}'),
+    'crdone': _('Solicitud de cambio creada.'), 'close': _('Cerrar'), 'send': _('Enviar')}|tojson }}'></aside>

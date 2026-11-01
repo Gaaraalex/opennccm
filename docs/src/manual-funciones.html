@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.14.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 2.15.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -261,27 +261,101 @@ equipos que no informan de ello por SSH (por ejemplo, los routers pequeños sin 
 <figure><img src="img/05c-dispositivo-cumplimiento.png" style="max-height:120mm"><figcaption>Pestaña Cumplimiento: reglas agrupadas por política, con «Corregir N».</figcaption></figure>
 </section>
 
-<h2 id="consola">Consola SSH web</h2>
-<p><b>Para qué sirve:</b> entrar a la línea de comandos de un equipo desde el navegador, sin PuTTY ni otro programa.</p>
+<h2 id="consola">Consola del equipo</h2>
+<p><b>Para qué sirve:</b> entrar a la línea de comandos de un equipo desde el navegador, sin PuTTY ni otro programa, con la
+salida en colores, ayuda para escribir los comandos y protecciones contra los que cortan el servicio.</p>
 <ol class="steps">
-  <li>En <b>Dispositivos</b>, pase el ratón por la fila del equipo y pulse el icono de consola, o el botón
-  <b>Consola</b> en la página del equipo. La consola se abre en un <b>diálogo sobre la página</b>, con <b>Reconectar</b>,
-  <b>Pantalla completa</b> (lo agranda) y cerrar; abajo se ve si está conectada. El botón de pantalla abre la misma consola en una
-  <b>ventana aparte</b> del navegador, que puede agrandar o achicar arrastrando sus bordes (el terminal se adapta solo).
-  Ctrl+clic en el icono la abre en una pestaña nueva.</li>
-  <li>Si el administrador no activó el inicio automático, escriba el <b>usuario</b> y la <b>contraseña</b> del equipo cuando
-  se le pidan (la contraseña no se muestra al escribirla).</li>
-  <li>Use la consola como cualquier terminal. Copiar: seleccione el texto (o Ctrl+Mayús+C). Pegar: Ctrl+Mayús+V o clic derecho.
-  <b>Reconectar</b> abre una sesión nueva. Al cerrar el diálogo se cierra la sesión.</li>
+  <li>En <b>Dispositivos</b>, pulse el icono de consola de la fila del equipo, o el botón <b>Consola</b> en su página; también
+  desde <b>Operar → Consola</b>. Arriba se ve «Consola · nombre» con la IP, el modelo y el sistema.</li>
+  <li>Escriba en la <b>línea de comando</b> fija de abajo. Mientras escribe aparece en gris el resto del comando más probable
+  para ese sistema y un menú de sugerencias: <b>Tab</b> completa, <b>↑ ↓</b> eligen y, con el menú cerrado, <b>↑</b> recorre el
+  historial. <b>Frecuentes</b> ejecuta los más usados con un clic (los que reinician el equipo van en rojo).</li>
+  <li>La salida se ve como en una terminal clásica, todo seguido, con colores por significado: el prompt en lima, rutas y
+  comandos en azul, verbos en violeta, «clave=valor» en verde azulado y salmón, direcciones IP en cian, lo que está activo en
+  verde, lo caído o con errores en rojo y lo deshabilitado en ámbar. Los colores dependen del sistema (RouterOS, IOS, VRP,
+  Junos, EXOS, EdgeSwitch, Linux…).</li>
+  <li>Barra superior: buscar en la salida (resalta lo encontrado), letra más chica o más grande, copiar todo, descargar el
+  registro, tema (<b>Sala de control</b>, <b>Grafito</b> o <b>Alto contraste</b>), compartir, <b>Reconectar</b>, <b>Asistente</b>
+  y pantalla completa.</li>
 </ol>
 <table>
-  <tr><th>Ajuste (Ajustes → Seguridad y acceso)</th><th>Efecto</th></tr>
-  <tr><td>Quién puede abrir la consola</td><td>Solo administradores (por omisión), administradores y operadores (solo los
-  equipos de sus grupos) o nadie.</td></tr>
-  <tr><td>Iniciar sesión automáticamente</td><td>Entra con la credencial asignada al equipo, sin pedir usuario ni contraseña; en
-  Cisco, EdgeSwitch y similares también entra al modo privilegiado si la credencial tiene contraseña de enable. Desactivado por
-  omisión: actívelo solo si quienes pueden abrir la consola deben poder entrar a los equipos sin conocer sus contraseñas.</td></tr>
+  <tr><th>Protección</th><th>Qué hace</th></tr>
+  <tr><td>Comandos que cortan el servicio</td><td>reload, reboot, borrar la configuración (write erase, reset-configuration…):
+  antes de enviarlos aparece «Este comando puede cortar el servicio», con <b>Cancelar</b> o <b>Ejecutar de todos modos</b>.</td></tr>
+  <tr><td>Solo lectura</td><td>El interruptor del pie bloquea los comandos que cambian la configuración y lo avisa en la salida.
+  Si el rol del usuario solo permite lectura, queda fijo; el servidor lo aplica aunque el navegador no lo pida.</td></tr>
+  <tr><td>Comandos prohibidos del grupo</td><td>Lo que el administrador prohibió en el grupo del equipo no se envía.</td></tr>
+  <tr><td>Cambio detectado</td><td>Si un comando cambia la configuración, aparece en verde «# OpenNCCM: cambio detectado ·
+  respaldo vN en cola · se puede revertir» y a los 20 segundos se respalda el equipo (con origen «Consola»).</td></tr>
 </table>
+<p>El pie muestra el estado, cómo entró (con la credencial del equipo o con usuario y contraseña), el sistema, el cierre tras
+15 minutos sin escribir y que la sesión queda en Auditoría y grabada (<b>● REC</b>). En MikroTik la consola entra en modo de
+líneas (sin colores del propio equipo) y en los demás sistemas apaga el paginado al conectar; si un equipo pagina igual, la consola
+sigue sola.</p>
+<table>
+  <tr><th>Ajuste</th><th>Efecto</th></tr>
+  <tr><td>Iniciar sesión automáticamente (Ajustes → Seguridad y acceso)</td><td>Entra con la credencial asignada al equipo, sin
+  pedir usuario ni contraseña; en Cisco, EdgeSwitch y similares también entra al modo privilegiado. Desactivado por omisión.</td></tr>
+  <tr><td>Quién puede abrirla y cómo (Operar → Consola → Acceso)</td><td>Ver «Centro de consola».</td></tr>
+</table>
+
+<h2 id="centro-consola">Centro de consola (Operar → Consola)</h2>
+<table>
+  <tr><th>Sección</th><th>Qué hace</th></tr>
+  <tr><td>Sesiones</td><td>A la izquierda, el lanzador con <b>favoritos</b> (★), <b>recientes</b> y los equipos <b>por grupo</b>,
+  con buscador (<b>Ctrl K</b>). Cada equipo abre una pestaña de sesión (● REC); se ven de a <b>1</b>, <b>2</b> lado a lado o
+  <b>4</b> en cuadrícula. En cada panel: <b>Compartir</b> copia un enlace de solo lectura (quien lo abre necesita usuario en
+  OpenNCCM; el dueño ve «nombre mira») y <b>Archivos</b> abre los archivos del equipo por SFTP para bajarlos o subir uno (con la
+  credencial del equipo; queda en Auditoría).</td></tr>
+  <tr><td>Multi-equipo</td><td>Elija un grupo o equipos sueltos, escriba el comando una vez y ejecútelo en todos. Las respuestas
+  se agrupan en <b>Iguales</b> y <b>Distintos</b>, con las líneas distintas resaltadas. Solo se ejecutan consultas: si el comando
+  cambia algo, se ofrece <b>Crear solicitud de cambio</b> (con aprobación, respaldo y reversión). Con el asistente activo,
+  <b>✦ Analizar diferencias</b> explica qué tienen distinto y cómo igualarlos.</td></tr>
+  <tr><td>Recetas</td><td>Guías paso a paso («¿Qué quieres hacer?»), con filtros por categoría (Seguridad, Interfaces y VLAN,
+  Servicios, Diagnóstico) y fabricante. Cada receta tiene introducción, <b>variables</b> que se sustituyen en los comandos, pasos
+  numerados con <b>Copiar</b> e <b>Insertar</b> (en la consola activa), pasos «Ojo» en ámbar y un paso final «Comprobar». Abajo:
+  <b>Aplicar como solicitud de cambio</b> (o <b>Ejecutar en la consola activa</b> si solo consulta), <b>Usar en multi-equipo</b>
+  y <b>Duplicar y adaptar</b>; <b>+ Nueva</b> crea una propia. Las recetas de OpenNCCM enlazan la documentación oficial del
+  fabricante con la que se revisaron.</td></tr>
+  <tr><td>Grabaciones</td><td>Cada sesión: usuario, equipo, hora, duración y comandos, con marca roja si hubo un comando que
+  corta el servicio. Busca en lo escrito y en lo visto (por ejemplo «reload»). El reproductor tiene línea de tiempo con esas
+  marcas, velocidad 1×, 2× o 4× y <b>Exportar</b> (texto). Se guardan 180 días (se puede cambiar).</td></tr>
+  <tr><td>Herramientas</td><td>Ping, Traceroute, Puerto TCP y DNS desde el servidor de OpenNCCM, con la salida en colores, un
+  resumen (pérdida, tiempo, saltos…) y <b>Abrir consola</b> si el destino es un equipo de OpenNCCM.</td></tr>
+  <tr><td>Acceso (administradores)</td><td>Por rol: <b>Sin consola</b>, <b>Solo lectura</b> o <b>Lectura y escritura</b>. General:
+  grabar todas las sesiones, aplicar los comandos prohibidos, cierre por inactividad y días que se guardan las grabaciones. Por
+  grupo: <b>Acceso normal</b> o <b>Requiere aprobación</b> y su lista de comandos prohibidos (lo que empieza así, o una expresión
+  regular entre barras). Las <b>solicitudes de acceso</b> llegan con motivo y plazo; <b>Aprobar por N h</b> o <b>Rechazar</b>. La
+  pestaña muestra cuántas hay pendientes.</td></tr>
+</table>
+
+<h2 id="asistente">Asistente IA</h2>
+<p><b>Para qué sirve:</b> preguntar qué comando usar, que explique una salida o un cambio entre versiones, o cómo corregir una
+infracción de Cumplimiento. Usa el modelo de IA de la cuenta de su organización; OpenNCCM no trae IA propia. <b>Sugiere; nunca
+ejecuta nada.</b></p>
+<ol class="steps">
+  <li>En <b>Administración → Ajustes → Asistente IA</b>, actívelo y elija el proveedor: <b>Anthropic (Claude)</b>, <b>OpenAI</b>,
+  <b>Google (Gemini)</b>, <b>Mistral</b> o <b>Compatible con OpenAI</b> (OpenRouter, Groq, DeepSeek, Azure…, con la dirección del
+  servicio).</li>
+  <li>Escriba la <b>clave de API</b> (se guarda cifrada, una por proveedor), pulse <b>Cargar de la cuenta</b> para ver los
+  modelos, elija uno y pulse <b>Probar conexión</b> (muestra el tiempo de respuesta).</li>
+  <li>Revise la privacidad: lo que se pregunta y el contexto del equipo salen al proveedor. <b>Antes de enviar se ocultan siempre</b>
+  contraseñas, comunidades SNMP y claves de VPN y wifi (la vista previa muestra cómo se envía un respaldo). Puede incluir o no el
+  respaldo del equipo y las últimas 200 líneas de la consola.</li>
+  <li>Elija qué roles pueden usarlo y el límite de preguntas por usuario y día. «Uso este mes» muestra preguntas y tokens; si
+  escribe el precio por millón de tokens de su modelo, también un costo estimado (lo cobra el proveedor).</li>
+</ol>
+<table>
+  <tr><th>Dónde aparece</th><th>Qué hace</th></tr>
+  <tr><td>Consola</td><td>Panel <b>Asistente de red</b> con el proveedor y el modelo, el contexto (equipo, sistema, respaldo,
+  salida de la consola, secretos ocultos) y preguntas sugeridas. Cada comando de la respuesta lleva su riesgo (<b>solo lectura</b>,
+  <b>cambia la configuración</b>, <b>corta el servicio</b>) y los botones <b>Copiar</b>, <b>Insertar</b> y, si es un cambio,
+  <b>Enviar como solicitud de cambio</b>. Indica la fuente (el respaldo del equipo o la referencia del fabricante).</td></tr>
+  <tr><td>Barra superior</td><td>Botón <b>✦ Asistente</b> en todas las páginas.</td></tr>
+  <tr><td>Comparar configuraciones</td><td><b>✦ Explicar este cambio</b>.</td></tr>
+  <tr><td>Cumplimiento</td><td><b>✦ ¿Cómo lo corrijo?</b> en cada regla con infracciones.</td></tr>
+</table>
+<p>Cada pregunta queda en Auditoría con el usuario, el equipo y el proveedor.</p>
 <h2 id="web">Interfaz web del equipo</h2>
 <p>El icono de globo (junto al de la consola) y el botón <b>Interfaz web</b> de la página del equipo abren su página de
 administración en una ventana aparte. Por omisión se usa <code>https://IP-del-equipo/</code>; si el equipo usa otra dirección o
@@ -289,8 +363,8 @@ puerto (por ejemplo <code>http://10.0.0.1:8080</code>), escríbala en <b>Editar 
 Si el equipo no tiene web, marque <b>No</b> en esa misma pregunta y el botón deja de mostrarse. OpenNCCM no interviene en esa
 conexión: el navegador se conecta directamente al equipo.</p>
 <div class="note"><b>Seguridad</b>La consola usa la misma sesión que la página (no funciona desde otros sitios web), se cierra tras
-15 minutos sin escribir (máximo 4 horas), y cada apertura, intento fallido y cierre queda en <b>Auditoría</b>, indicando si fue con
-inicio automático. Solo funciona con equipos configurados por SSH.</div>
+15 minutos sin escribir (máximo 4 horas), y cada apertura, intento fallido, comando prohibido o peligroso, enlace compartido y
+cierre queda en <b>Auditoría</b>. Solo funciona con equipos configurados por SSH.</div>
 </section>
 
 <section class="chapter">

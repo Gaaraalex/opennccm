@@ -50,7 +50,7 @@ def send(ws, text):
 adm = login("admin", "Admin12345")
 check("botón de consola en la lista de equipos", "/devices/1/console" in adm.get(B + "/devices").text)
 page = adm.get(B + "/devices/1/console").text
-check("página de consola", "xterm.js" in page)
+check("página de consola (terminal de OpenNCCM)", "/static/console.js" in page and "cx-in" in page)
 check("la consola se muestra sin el menú (ventana propia)", 'aria-label="Menú principal"' not in page)
 lista = adm.get(B + "/devices").text
 check("la consola se abre en un diálogo, con opción de ventana aparte redimensionable",
