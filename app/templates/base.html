@@ -55,6 +55,7 @@
     <a href="/users" class="nav {{ 'on' if admin_on }}" title="Administración">{{ icon('cog') }}<span class="txt">Administración</span></a>
   </div>
   {% endif %}
+  {% set SUP_R = support_link() %}{% if SUP_R %}<a class="btn-soporte rail-soporte" href="{{ SUP_R }}" target="_blank" rel="noopener">{{ icon('headset') }}<span>{{ _('Soporte profesional') }}</span></a>{% endif %}
   <button type="button" class="collapse expand" data-mini aria-label="Desplegar menú" title="Desplegar menú">{{ icon('right', 's') }}</button>
   <a class="me" href="/account" title="Mi cuenta"><span class="av">{{ user.username[:2]|upper }}</span><div><b>{{ user.username }}</b><small>{{ role_name }} · v{{ VERSION }}</small></div></a>
   <div class="railfoot"><a href="/acerca">Privacidad y licencias</a><a href="/certificado">Certificado</a></div>

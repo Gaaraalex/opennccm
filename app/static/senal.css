@@ -550,6 +550,8 @@ dialog.dlg:not([open]){display:none}
 @media (max-width:1240px){.donate .dt small{display:none}.donate{height:36px}.search-top{min-width:0;width:36px;padding:0;justify-content:center}.search-top span,.search-top kbd{display:none}}
 @media (max-width:860px){.donate{width:36px;height:36px;padding:0;justify-content:center}.donate .dt,.donate .dbtn{display:none}}
 @media (prefers-reduced-motion:reduce){.donate{transition:none}}
+/* insignia ámbar de «Base de conocimiento» en el menú (pendientes por documentar), en todas las páginas */
+.nav .cnt.kb-cnt{background:#f5b83d;color:#0b0f17}
 /* «Soporte profesional» (estilo «Aurora» de Diseño UX): enlace a la comunidad; mismo alto que «Apoya OpenNCCM» */
 .btn-soporte{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 14px;border-radius:999px;color:#fff;font:600 13px var(--f-sans);white-space:nowrap;flex:none;text-decoration:none;
   background:linear-gradient(110deg,#2563eb,#7c3aed,#0891b2,#2563eb);background-size:300% 100%;animation:aurora 6s linear infinite;
@@ -560,7 +562,10 @@ dialog.dlg:not([open]){display:none}
 @keyframes aurora{to{background-position:300% 0}}
 @media (max-width:1240px){.btn-soporte{height:36px}}
 @media (max-width:1100px){.donate .dt{display:none}.donate{padding:0 5px 0 10px}}
-@media (max-width:600px){.btn-soporte{width:36px;padding:0;justify-content:center}.btn-soporte span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}}
+@media (max-width:600px){.top .btn-soporte{width:36px;padding:0;justify-content:center}.top .btn-soporte span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}}
+/* en el teléfono, además, con el texto completo al final del menú lateral */
+.rail-soporte{display:none}
+@media (max-width:600px){.rail .rail-soporte{display:flex;justify-content:center;margin:16px 6px 0;height:40px}}
 @media (prefers-reduced-motion:reduce){.btn-soporte{animation:none;transition:none}}
 
 /* Ajustes › Asistente IA */
