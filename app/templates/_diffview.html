@@ -24,6 +24,7 @@
   {% else %}<div class="dl"><span class="n">{{ n1 or '' }}</span><span class="{{ 'del' if n1 }}">{{ '- ' ~ t1 if n1 }}</span><span class="n">{{ n2 or '' }}</span><span class="{{ 'add' if n2 }}">{{ '+ ' ~ t2 if n2 }}</span></div>{% endif %}
   {% endfor %}
   {% endif %}
+  {% if cmp.cut %}<div class="fold">{{ _f('Se muestran las primeras {0} filas de {1}.', cmp.rows|length, cmp.cut) }} <a href="/diff?a={{ cmp.a.id }}&b={{ cmp.b.id }}&ctx={{ ctx }}&raw=1">{{ _('Descargar la comparación completa (.diff)') }}</a></div>{% endif %}
 </div>
 <script>
 /* n / p: saltar al cambio siguiente o anterior dentro de la comparación */

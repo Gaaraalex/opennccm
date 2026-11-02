@@ -10,6 +10,7 @@
 <link rel="preload" href="/static/fonts/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/style.css?v={{ VERSION }}-{{ CSS_HASH }}">
 <link rel="stylesheet" href="/static/senal.css?v={{ VERSION }}-{{ SENAL_HASH }}">
+<script>(function (h) { h.classList.add('tabs-wait'); addEventListener('load', function () { h.classList.remove('tabs-wait'); }); })(document.documentElement)  /* shell.js lo quita antes, al armar las pestañas */</script>
 </head>
 <body{% block body_attr %}{% endblock %}>
 <a class="skip" href="#contenido">Saltar al contenido</a>

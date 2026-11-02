@@ -378,6 +378,9 @@ table.t{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px;ma
 .pal mark{background:none;color:inherit;font-weight:700;text-decoration:underline;text-underline-offset:3px}
 .dlg{width:min(520px,100%);background:var(--surface);border:1px solid var(--line);border-radius:var(--r-xl);box-shadow:var(--sh-pop);padding:24px;animation:pop .18s ease both;display:flex;flex-direction:column;gap:14px;max-height:80vh;overflow:auto;color:var(--ink)}
 .dlg.wide{width:min(820px,100%)}
+/* pestañas de página: hasta que shell.js (diferido) elige la pestaña, solo se ve la primera; antes se veían todas
+   un momento, y en páginas largas (un WatchGuard con 40.000 líneas) varios segundos */
+.tabs-wait [data-tabs]~section~section{display:none}
 /* Novedades: cabecera y pie fijos, la lista de versiones con su propio scroll */
 .dlg.nov-dlg{width:min(860px,calc(100vw - 24px));max-width:none;max-height:85vh;overflow:hidden;padding:0;gap:0}
 .nov-dlg>h2{flex:none;padding:22px 24px 12px}

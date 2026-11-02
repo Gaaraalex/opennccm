@@ -244,7 +244,9 @@
     <div><button class="btn pri">Solicitar actualización…</button></div></div>
   <div class="c6"><div class="summ">{{ icon('shield') }}<div><b>Antes de actualizar</b><div class="muted sm">Se hace un respaldo automático. Si el equipo no vuelve en 10 minutos, aparece en Alarmas.{% if crit_cves %} {{ _f('Hay {0} CVE críticos en la versión instalada.', crit_cves) }}{% endif %}</div></div></div></div></div>
   </form>
-  {% elif not profile.firmware %}<p class="muted">La actualización remota de firmware no está disponible para {{ profile.label }}.</p>
+  {% elif not profile.firmware %}{% if fwu and fwu.status == 'update' %}<div class="row" style="gap:10px;align-items:baseline;margin-bottom:8px"><span class="muted sm">{{ _('Versión disponible') }}</span><b class="mono">{{ fwu.target }}</b><span class="pill info">{{ _('Disponible') }}</span></div>
+    <p class="muted">{{ _f('OpenNCCM no puede instalarla en {0}: instálela desde la interfaz web del equipo o la herramienta del fabricante, después de un respaldo.', profile.label) }}</p>
+  {% else %}<p class="muted">La actualización remota de firmware no está disponible para {{ profile.label }}.</p>{% endif %}
   {% else %}<p class="muted">{{ _f('No hay imágenes cargadas para {0}.', profile.label) }} <a href="/firmware">Carga una en Firmware</a>.</p>{% endif %}
   </section>
 </section>

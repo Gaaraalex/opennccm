@@ -9,6 +9,8 @@ SYSLOG_PORT = int(os.environ.get("NCM_SYSLOG_PORT", "514"))
 SYSLOG_ENABLED = os.environ.get("NCM_SYSLOG_ENABLED", "1") == "1"
 WORKERS = int(os.environ.get("NCM_WORKERS", "16"))
 NVD_API_KEY = os.environ.get("NCM_NVD_API_KEY", "")
+# comprobar el firmware de un equipo apenas se agrega (tras su primer respaldo); las pruebas lo apagan: no usan internet
+FW_CHECK_NEW = os.environ.get("NCM_FW_CHECK_NEW", "1") != "0"
 # autoridad certificadora propia creada por el instalador (se descarga desde el login para confiar en el sitio)
 TLS_CA = Path(os.environ.get("NCM_TLS_CA", "/etc/ssl/opennccm/ca.crt"))
 # repositorio del que se descargan las actualizaciones (para avisar de versiones nuevas)

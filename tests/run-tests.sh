@@ -5,7 +5,7 @@ set -euo pipefail
 PY=${1:-python3}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 WORK=$(mktemp -d)
-export NCM_DATA_DIR=$WORK/data NCM_KEY_FILE=$WORK/data/secret.key NCM_SYSLOG_PORT=5514
+export NCM_DATA_DIR=$WORK/data NCM_KEY_FILE=$WORK/data/secret.key NCM_SYSLOG_PORT=5514 NCM_FW_CHECK_NEW=0
 export PYTHONUNBUFFERED=1   # que el registro de la aplicación quede completo si algo falla
 # enlaces de donación de prueba (en producción los fija app/config.py)
 export NCM_DONATE_GITHUB=https://github.com/sponsors/prueba NCM_DONATE_KOFI=https://ko-fi.com/prueba NCM_DONATE_OPENCOLLECTIVE=https://opencollective.com/prueba

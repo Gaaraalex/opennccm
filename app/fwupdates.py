@@ -489,6 +489,18 @@ def _run(device_ids=None):
             _state["running"] = False
 
 
+def check_new(device_id: int):
+    """Equipo recién agregado: tras su primer respaldo (ya con la versión instalada) se comprueba solo él, para que
+    la ficha muestre la versión disponible sin esperar a la comprobación diaria. No toca la comprobación general."""
+    from .config import FW_CHECK_NEW
+    if not FW_CHECK_NEW or get_setting("fw_update_check", "1") == "0":
+        return
+    try:
+        check_all([device_id])
+    except Exception:  # noqa: BLE001
+        log.exception("Comprobación de firmware del equipo nuevo %s", device_id)
+
+
 def scheduled():
     if get_setting("fw_update_check", "1") != "0":
         start_check()

@@ -200,11 +200,55 @@ def diff_lines(a: str, b: str, a_name="anterior", b_name="actual", context=3) ->
                                      n=context))
 
 
+EXACT_DIFF_MAX = 3000  # líneas del tramo distinto hasta las que se compara sin atajos (autojunk=False)
+
+
+def _opcodes(la: list[str], lb: list[str]) -> list[tuple]:
+    """Como SequenceMatcher.get_opcodes(), pero rápido con configuraciones enormes (el XML de un WatchGuard pasa de
+    40.000 líneas, muchas repetidas): el principio y el final iguales se apartan antes de comparar, y si lo que queda
+    sigue siendo muy largo se usa autojunk (sin él, 40.000 líneas tardaban 26 s). Las configuraciones normales se
+    comparan exactamente como siempre."""
+    if max(len(la), len(lb)) <= EXACT_DIFF_MAX:
+        return difflib.SequenceMatcher(None, la, lb, autojunk=False).get_opcodes()
+    pre = 0
+    while pre < len(la) and pre < len(lb) and la[pre] == lb[pre]:
+        pre += 1
+    suf = 0
+    while suf < len(la) - pre and suf < len(lb) - pre and la[-1 - suf] == lb[-1 - suf]:
+        suf += 1
+    ma, mb = la[pre:len(la) - suf], lb[pre:len(lb) - suf]
+    out = [("equal", 0, pre, 0, pre)] if pre else []
+    if ma or mb:
+        exact = max(len(ma), len(mb)) <= EXACT_DIFF_MAX
+        for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, ma, mb, autojunk=not exact).get_opcodes():
+            if tag == "equal" and out and out[-1][0] == "equal":
+                t = out.pop()
+                out.append(("equal", t[1], pre + i2, t[3], pre + j2))
+            else:
+                out.append((tag, pre + i1, pre + i2, pre + j1, pre + j2))
+    if suf:
+        if out and out[-1][0] == "equal":
+            t = out.pop()
+            out.append(("equal", t[1], len(la), t[3], len(lb)))
+        else:
+            out.append(("equal", len(la) - suf, len(la), len(lb) - suf, len(lb)))
+    return out
+
+
+DIFF_ROWS_MAX = 2000  # filas de la comparación que se dibujan en la página; el resto, en la descarga .diff
+
+
+def cap_rows(rows: list) -> tuple[list, int]:
+    """(filas a dibujar, total si se cortó o 0). Una configuración de 40.000 líneas nueva entera dejaba la página
+    con 40.000 filas: lenta de cargar y de mover."""
+    return (rows[:DIFF_ROWS_MAX], len(rows)) if len(rows) > DIFF_ROWS_MAX else (rows, 0)
+
+
 def side_by_side(a: str, b: str, context: int = 3) -> list[tuple]:
     """Filas (tipo, nº izq, texto izq, nº der, texto der). tipo: e=igual c=cambio d=borrado a=agregado s=salto."""
     la, lb = a.splitlines(), b.splitlines()
     rows: list[tuple] = []
-    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, la, lb, autojunk=False).get_opcodes():
+    for tag, i1, i2, j1, j2 in _opcodes(la, lb):
         if tag == "equal":
             n = i2 - i1
             if n > 2 * context:
@@ -577,6 +621,9 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
             msg = (f"{dev.name}: +{added}/-{removed} líneas [{trigger}{who}]" if result == "changed"
                    else f"{dev.name}: primer respaldo [{trigger}{who}]")
             jobs.submit(gitexport.on_new_version, dev.id, msg)
+        if result == "first" and dev.os_version:  # equipo nuevo: su firmware disponible, sin esperar al día siguiente
+            from . import fwupdates
+            jobs.submit(fwupdates.check_new, dev.id)
 
     run_compliance(device_id)
     return result
