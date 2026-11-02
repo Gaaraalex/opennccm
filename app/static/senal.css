@@ -172,6 +172,7 @@ form.inline{display:inline-flex;margin:0}
 .pill{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px 0 8px;border-radius:99px;font:600 12px/1 var(--f-sans);white-space:nowrap;background:var(--surface-3);color:var(--muted)}
 .pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
 .pill.ok{background:var(--ok-soft);color:var(--ok)}.pill.warn{background:var(--warn-soft);color:var(--warn)}.pill.major{background:var(--major-soft);color:var(--major)}.pill.crit{background:var(--crit-soft);color:var(--crit)}.pill.info{background:var(--brand-soft);color:var(--brand)}
+.pill.cl-tag{height:20px;padding:0 8px;margin-right:6px;font-size:11px;vertical-align:1px}
 .pill.live::before{animation:ping 2s ease-out infinite}
 @keyframes ping{0%{box-shadow:0 0 0 0 currentColor}70%{box-shadow:0 0 0 6px transparent}100%{box-shadow:0 0 0 0 transparent}}
 .sev{display:inline-flex;align-items:center;gap:6px;font:600 12px/1 var(--f-sans);white-space:nowrap}

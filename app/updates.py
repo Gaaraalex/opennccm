@@ -17,6 +17,7 @@ import requests
 from . import __version__
 from .config import UPDATE_LOG, UPDATE_REPO, UPDATE_REQUEST
 from .db import get_setting, set_setting
+from .i18n import N_, _
 
 log = logging.getLogger("opennccm")
 WEBUPDATE_UNIT = Path("/etc/systemd/system/opennccm-webupdate.path")
@@ -92,6 +93,19 @@ def changelog_sections(limit: int = 6) -> list[tuple[str, str]]:
     return out
 
 
+# tipo de cambio al inicio de cada punto del CHANGELOG («- [nuevo] **Título:** …»): la web filtra por él
+CHANGE_TAGS = {"nuevo": ("info", N_("Nuevo")), "mejora": ("ok", N_("Mejora")), "arreglo": ("warn", N_("Arreglo")),
+               "seguridad": ("crit", N_("Seguridad"))}
+
+
+def _tag(item: str) -> str:
+    m = re.match(r"\[(\w+)\] ", item)
+    if not m or m.group(1) not in CHANGE_TAGS:
+        return item
+    cls, label = CHANGE_TAGS[m.group(1)]
+    return f'<span class="pill {cls} cl-tag">{_(label)}</span>' + item[m.end():]
+
+
 def md_lite(text: str) -> str:
     """Markdown mínimo (viñetas, negrita, código) a HTML seguro, para mostrar notas de versión."""
     from html import escape
@@ -106,7 +120,7 @@ def md_lite(text: str) -> str:
                 html.append("<ul>")
                 in_list = True
             depth = (len(line) - len(stripped)) // 2
-            html.append(f'<li style="margin-left:{depth * 18}px">{stripped[2:]}</li>')
+            html.append(f'<li style="margin-left:{depth * 18}px">{_tag(stripped[2:])}</li>')
         elif in_list and stripped and html[-1].startswith("<li"):  # continuación de la viñeta anterior
             html[-1] = html[-1][:-5] + " " + stripped + "</li>"
         else:

@@ -113,6 +113,9 @@ from app.updates import changelog_sections  # noqa: E402
 _shown = [v for v, _t in changelog_sections(6)]  # las versiones que muestra la ventana (cambian con cada versión)
 check("Sistema: ventana «Novedades de cada versión» con el historial", 'id="novedades"' in sysp
       and all(f"Versión {v}" in sysp for v in _shown) and len(_shown) == 6 and "<b>" in sysp.split('id="novedades"')[1], _shown)
+_nov = sysp.split('id="novedades"')[1]
+check("Novedades: el tipo de cambio ([nuevo], [arreglo]…) sale como etiqueta y no como texto",
+      'class="pill info cl-tag">Nuevo</span>' in _nov and 'cl-tag">Arreglo</span>' in _nov and "[nuevo]" not in _nov)
 check("Sistema: enlace a todas las versiones en GitHub", "github.com/Gaaraalex/opennccm/releases" in sysp)
 r = adm.post(B + "/system/update")
 if "/system/updating" in r.url:  # servidor con el servicio de actualización web (systemd)
