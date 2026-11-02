@@ -94,7 +94,7 @@ def changelog_sections(limit: int = 6) -> list[tuple[str, str]]:
 
 
 # tipo de cambio al inicio de cada punto del CHANGELOG («- [nuevo] **Título:** …»): la web filtra por él
-CHANGE_TAGS = {"nuevo": ("info", N_("Nuevo")), "mejora": ("ok", N_("Mejora")), "arreglo": ("warn", N_("Arreglo")),
+CHANGE_TAGS = {"nuevo": ("ok", N_("Nuevo")), "mejora": ("info", N_("Mejora")), "arreglo": ("warn", N_("Arreglo")),
                "seguridad": ("crit", N_("Seguridad"))}
 
 
