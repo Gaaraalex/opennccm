@@ -117,17 +117,22 @@
 {% if upd.web_update and not upd.running %}<dialog class="dlg" id="upd-dlg"><form method="post" action="/system/update">
   <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi info">{{ icon('spark') }}</span><div><h2>{{ _f('¿Actualizar a la versión {0}?', upd.latest) if upd.available else _('¿Reinstalar la última versión?') }}</h2><p class="muted" style="margin-top:6px">Se hará una copia previa y OpenNCCM se detendrá 1-2 minutos. Si la versión nueva no arranca, se vuelve sola a la anterior.</p></div></div>
   <div class="row end"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn pri">Actualizar ahora</button></div></form></dialog>{% endif %}
-<dialog class="dlg" id="novedades" aria-labelledby="nov-title" style="max-width:860px">
+<dialog class="dlg nov-dlg" id="novedades" aria-labelledby="nov-title">
   <h2 id="nov-title">Novedades de OpenNCCM</h2>
+  <div class="nov-body">
   {% if upd.available and upd.notes %}<h3>{{ _f('Disponible: versión {0}', upd.latest) }} <span class="pill warn">nueva</span></h3><div class="notes">{{ latest_notes|safe }}</div>{% endif %}
   {% for v, html in changelog %}<details {{ 'open' if loop.first }}><summary><b>{{ _f('Versión {0}', v) }}</b>{% if v == upd.current %} <span class="pill ok">instalada</span>{% endif %}</summary><div class="notes">{{ html|safe }}</div></details>
   {% else %}<p class="muted">No se encontró el historial de versiones en esta instalación.</p>{% endfor %}
-  <div class="row end"><a class="btn ghost" href="{{ releases_url }}" target="_blank" rel="noopener">Ver todas las versiones en GitHub</a><button type="button" class="btn" data-close>Cerrar</button></div>
+  </div>
+  <div class="row end nov-foot"><a class="btn ghost" href="{{ releases_url }}" target="_blank" rel="noopener">Ver todas las versiones en GitHub</a><button type="button" class="btn" data-close>Cerrar</button></div>
 </dialog>
 <script>
 (function () {
   const d = document.getElementById('novedades');
-  document.getElementById('ver-novedades').addEventListener('click', () => d.showModal());
+  const open = document.getElementById('ver-novedades');
+  open.addEventListener('click', () => d.showModal());
+  d.addEventListener('click', e => { if (e.target === d) d.close(); });  // clic fuera de la ventana (en el fondo)
+  d.addEventListener('close', () => open.focus());
   const c = document.getElementById('inc-key'), box = document.getElementById('key-pass');
   c.addEventListener('change', () => { box.hidden = !c.checked; box.querySelectorAll('input').forEach(i => i.required = c.checked); });
 })();
