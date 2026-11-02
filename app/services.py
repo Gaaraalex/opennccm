@@ -398,6 +398,26 @@ def _read_neighbors(conn, device_type: str) -> str | None:
     return "\n".join(out)
 
 
+def device_error(text: str) -> bool:
+    """La salida es un error del equipo y no una configuración. Se miran las primeras líneas, no solo la primera:
+    Fireware (WatchGuard) responde «^» en una línea y «% Invalid input detected at '^' marker.» en la siguiente."""
+    head = "\n".join([ln for ln in text.splitlines() if ln.strip()][:5])
+    return bool(re.search(r"(?im)^\s*(% ?Invalid|% ?Unrecognized|% ?Incomplete command|Unknown command|syntax error)",
+                          head))
+
+
+def _read_license(conn, prof) -> str | None:
+    """Licencia del equipo (Profile.license_cmd), si se puede leer; un fallo aquí no estropea el respaldo."""
+    if not prof.license_cmd:
+        return None
+    try:
+        out = clean_config(conn.send_command(prof.license_cmd, read_timeout=60), prof).strip()
+    except Exception as e:  # noqa: BLE001
+        log.warning("No se pudo leer la licencia (%s): %s", prof.license_cmd, e)
+        return None
+    return out if len(out) >= 10 and not device_error(out) else None
+
+
 def _read_ports(conn, device_type: str) -> str | None:
     """Estado de los puertos (enlace, velocidad, módulo SFP) para la ficha del equipo. Nunca hace fallar el respaldo."""
     from . import chassis, ports
@@ -423,7 +443,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
                     raise RuntimeError("El dispositivo no tiene credencial asignada")
                 cred = (dev.credential.username, decrypt(dev.credential.password_enc) if dev.credential.password_enc else "")
                 running, inventory = swos.backup(dev, cred)
-                startup = neighbors_raw = ports_raw = None
+                startup = neighbors_raw = ports_raw = license_raw = None
             else:
                 with connect(dev) as conn:
                     running = conn.send_command(dev.custom_backup_cmd or prof.backup, read_timeout=180)
@@ -432,6 +452,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
                                             if c.strip()) if prof.inventory else None
                     neighbors_raw = _read_neighbors(conn, dev.device_type)
                     ports_raw = _read_ports(conn, dev.device_type)
+                    license_raw = _read_license(conn, prof) if not dev.license_enc else None
         except Exception as e:  # noqa: BLE001
             dev.last_status, dev.last_error = "error", (str(e) or repr(e))[:2000]
             db.commit()
@@ -439,8 +460,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
             return "error"
 
         running = clean_config(running, prof)
-        if len(running.strip()) < 10 or re.search(r"(?i)^\s*(% ?Invalid|Unknown command|syntax error)",
-                                                    running):
+        if len(running.strip()) < 10 or device_error(running):
             dev.last_status, dev.last_error = "error", "Salida de configuración vacía o inválida"
             db.commit()
             add_event("major", "Respaldo fallido", f"{dev.name}: salida inválida:\n{running[:300]}", dev.id)
@@ -503,6 +523,10 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
             dev.ports = json.dumps({"at": now().isoformat(), "status": has_status, "ports": plist, "rear": rear,
                                     "raw": (ports_raw or "")[-12000:]}) if plist or any(rear.values()) else None
 
+        new_license = bool(license_raw) and not dev.license_enc
+        if new_license:
+            dev.license_enc, dev.license_at = encrypt(license_raw), now()
+
         if inventory:
             inv = parse_inventory(inventory, prof)
             dev.os_version = inv["os_version"] or dev.os_version
@@ -522,6 +546,10 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
 
         dev.last_status, dev.last_error, dev.last_backup_at = "ok", None, now()
         db.commit()
+        if new_license:
+            add_event("info", f"{prof.license_label} guardada",
+                      f"{dev.name}: se guardó su {prof.license_label.lower()} (una sola vez; se descarga desde la ficha).",
+                      dev.id)
         if new_drift:
             add_event("warning", "Desviación de línea base",
                       f"{dev.name}: la configuración actual ya no coincide con la línea base.", dev.id)

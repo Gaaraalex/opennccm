@@ -1088,6 +1088,21 @@ def device_backup(request: Request, dev_id: int):
     return go(f"/devices/{dev_id}")
 
 
+@app.get("/devices/{dev_id}/license")
+def device_license(request: Request, dev_id: int):
+    """Licencia guardada en el primer respaldo (feature key de WatchGuard), como archivo de texto."""
+    user = require(request)
+    check_device(user, dev_id)
+    with SessionLocal() as db:
+        dev = db.get(Device, dev_id)
+        if dev is None or not dev.license_enc:
+            return go(f"/devices/{dev_id}")
+        text, name, at = decrypt(dev.license_enc), dev.name, dev.license_at
+    log_action(request, user, "license_download", name)
+    return PlainTextResponse(text + "\n", headers={
+        "Content-Disposition": f'attachment; filename="{name}_licencia_{at:%Y%m%d}.txt"'})
+
+
 @app.post("/devices/{dev_id}/mikrotik-backup")
 async def device_mikrotik_backup(request: Request, dev_id: int):
     """Descarga el .backup de un MikroTik, hecho en el momento (no se guarda en OpenNCCM)."""
