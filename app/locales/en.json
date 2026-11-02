@@ -1619,7 +1619,6 @@
 "Los cambios a los equipos necesitan el visto bueno de un administrador antes de ejecutarse.": "Changes to devices need an administrator's approval before they run.",
 "Los cambios en un caso publicado se guardan al enviarlos.": "Changes to a published case are saved when you submit them.",
 "Los cambios se aplican en el próximo respaldo.": "Changes apply on the next backup.",
-"Los clientes del soporte de pago y el foro nunca la ven: no tienen usuario en este panel.": "Paid-support and forum customers never see it: they have no user in this panel.",
 "Los equipos que ya están en OpenNCCM salen siempre. El tipo se reconoce por lo que anuncia el vecino (plataforma, modelo) o por el nombre de sus puertos.": "Devices already in OpenNCCM are always shown. The type is recognized from what the neighbor announces (platform, model) or from its port names.",
 "Los equipos quedarán sin grupo; no se borran.": "Devices will be left without a group; they are not deleted.",
 "Los operadores crean solicitudes; un administrador las aprueba antes de ejecutarlas. Recomendado para PCI DSS.": "Operators create requests; an administrator approves them before they run. Recommended for PCI DSS.",
