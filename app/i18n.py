@@ -54,6 +54,15 @@ def _(text: str) -> str:
     return catalog(lang).get(_norm(text), text)
 
 
+def _c(ctx: str, text: str) -> str:
+    """Traduce un texto que en español significa dos cosas: «Equipo» (dispositivo) y «Equipo» (personas). En el catálogo va
+    como «contexto|texto»; en español se muestra el texto tal cual."""
+    lang = _lang.get()
+    if lang == DEFAULT or not text:
+        return text
+    return catalog(lang).get(f"{ctx}|{_norm(text)}", _(text))
+
+
 def N_(text: str) -> str:
     """Marca un texto como traducible sin traducirlo aún (constantes: se traducen al mostrarlas con _())."""
     return text
@@ -249,6 +258,7 @@ def preprocess(src: str) -> str:
 
 _MSG_TPL = re.compile(r'\b_[hf]?\(\s*(?:"((?:[^"\\]|\\.)*)"|\'((?:[^\'\\]|\\.)*)\')')
 _MSG_PY = re.compile(r'\b(?:_|_f|_h|N_)\(\s*(?:"((?:[^"\\]|\\.)*)"|\'((?:[^\'\\]|\\.)*)\')')
+_MSG_CTX = re.compile(r"""\b_c\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]""")  # _c('contexto', 'texto')
 
 
 def _unlit(m: re.Match) -> str:
@@ -269,6 +279,9 @@ def extract() -> dict[str, str]:
             continue
         for m in _MSG_PY.finditer(f.read_text(encoding="utf-8")):
             found.setdefault(_norm(_unlit(m)), f.name)
+    for f in sorted((base / "templates").glob("*.html")):
+        for m in _MSG_CTX.finditer(f.read_text(encoding="utf-8")):
+            found.setdefault(f"{m.group(1)}|{_norm(m.group(2))}", f.name)
     found.pop("", None)
     return found
 
@@ -281,7 +294,7 @@ class I18nLoader(FileSystemLoader):
 
 def install(env) -> None:
     env.loader = I18nLoader(env.loader.searchpath)
-    env.globals.update(_=_, _h=_h, _f=_f, LANGS=LANGS, get_lang=get_lang)
+    env.globals.update(_=_, _c=_c, _h=_h, _f=_f, LANGS=LANGS, get_lang=get_lang)
     env.filters["jsq"] = jsq
     env.filters["tr_pairs"] = tr_pairs
 

@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}{{ code }} · {{ data.title }}{% endblock %}
-{% block crumbs %}<span class="muted">{{ _('Equipo') }}</span>{{ icon('right', 's') }}<a href="/kb">{{ _('Base de conocimiento') }}</a>{{ icon('right', 's') }}<b>{{ code }}</b>{% endblock %}
+{% block crumbs %}<span class="muted">{{ _c('personas', 'Equipo') }}</span>{{ icon('right', 's') }}<a href="/kb">{{ _('Base de conocimiento') }}</a>{{ icon('right', 's') }}<b>{{ code }}</b>{% endblock %}
 {% block content %}
 {% include "_kb_head.html" %}
 <div class="kb-main narrow">

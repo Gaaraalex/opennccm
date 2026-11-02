@@ -34,9 +34,9 @@ def login(u, p):
 
 
 with SessionLocal() as db:
-    for name, role in (("kb_op", "operator"), ("kb_ro", "viewer")):
+    for name, role, lang in (("kb_op", "operator", None), ("kb_ro", "viewer", None), ("kb_en", "operator", "en")):
         if not db.scalar(select(User).where(User.username == name)):
-            db.add(User(username=name, password_hash=hash_password("Clave-kb-2026"), role=role))
+            db.add(User(username=name, password_hash=hash_password("Clave-kb-2026"), role=role, lang=lang))
     db.commit()
     dev = db.scalars(select(Device).order_by(Device.id)).first()
     dev_id, dev_name = dev.id, dev.name
@@ -51,6 +51,9 @@ check("admin: la página abre con sus pestañas", r.status_code == 200 and "Falt
 check("el menú tiene la sección «Equipo» con la base de conocimiento", 'href="/kb"' in r.text)
 r = op.get(B + "/kb")
 check("operador: la ve, sin «Acceso y reglas»", r.status_code == 200 and "Acceso y reglas" not in r.text and "Documentar caso" in r.text)
+r = login("kb_en", "Clave-kb-2026").get(B + "/kb")
+check("en inglés el grupo del menú es «Team» (no «Device»)", '<span class="label">Team</span>' in r.text and "Knowledge base" in r.text
+      and '<span class="muted">Team</span>' in r.text)
 r = ro.get(B + "/kb")
 check("solo lectura: apagado por omisión, ve el aviso sin el menú", "Pedir acceso a un admin" in r.text and 'href="/kb"' not in r.text)
 check("solo lectura: tampoco por la API del editor", ro.post(B + "/kb/save", json={"title": "x"}).status_code == 403)

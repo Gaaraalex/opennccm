@@ -46,7 +46,7 @@
     <a href="/reports" class="nav {{ 'on' if navp.startswith('/reports') }}" title="Informes">{{ icon('file') }}<span class="txt">Informes</span></a>
   </div>
   {% if nav_counts.kb is not none %}
-  <div class="grp"><span class="label">{{ _('Equipo') }}</span>
+  <div class="grp"><span class="label">{{ _c('personas', 'Equipo') }}</span>
     <a href="/kb" class="nav {{ 'on' if navp.startswith('/kb') }}" title="{{ _('Base de conocimiento') }}">{{ icon('book') }}<span class="txt">{{ _('Base de conocimiento') }}</span>{% if nav_counts.kb %}<span class="cnt kb-cnt">{{ nav_counts.kb }}</span><span class="dotc"></span>{% endif %}</a>
   </div>
   {% endif %}
