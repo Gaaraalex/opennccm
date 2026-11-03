@@ -174,6 +174,8 @@ check("imagen guardada con su tamaño, SHA-256 y su clave cifrada", len(imgs) ==
 check("órdenes: backup image, export image y delete backup", [c.split()[0] + " " + c.split()[1] for c in SENT] ==
       ["backup image", "export image", "delete backup"], SENT)
 check("no queda la imagen en el Firebox", FB.images == {})
+check("el paso 4 muestra el archivo con su punto y el tamaño con coma", re.search(r"\.fxi · \d+,\d MB$", st["steps"][3]["d"]),
+      st["steps"][3]["d"])
 alltext = "\n".join(st["log"] + [s["d"] for s in st["steps"]]) + st["error"]
 check("ni la clave ni la contraseña del FTP en el registro", KEY not in alltext and "********" in alltext
       and not re.search(r"ftp://onccm-\w+:(?!\*)", alltext), alltext)

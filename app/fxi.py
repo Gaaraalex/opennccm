@@ -494,7 +494,7 @@ def _run(device_id: int, trigger: str, username: str | None, test: bool, over: d
         if not got:
             raise RuntimeError("El Firebox no envió la imagen al receptor.")
         mb = got["size"] / 1048576
-        _step(device_id, 3, "ok", f"{fname} · {mb:.1f} MB".replace(".", ","))
+        _step(device_id, 3, "ok", f"{fname} · " + f"{mb:.1f} MB".replace(".", ","))
         _log(device_id, f"recibido {mb:.1f} MB · sha256 {got['sha256'][:4]}…{got['sha256'][-4:]}")
         # 5) cerrar y guardar
         _step(device_id, 4, "run")
