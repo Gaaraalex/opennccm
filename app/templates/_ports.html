@@ -75,6 +75,7 @@
   .pled .rl{display:flex;flex-direction:column;align-items:flex-end;gap:7px;padding-top:19px}
   .pled .led{display:block;width:12px;height:12px;border-radius:99px;background:var(--p-down);box-shadow:inset 0 0 0 1px var(--p-down-e)}
   .pled .led.on{background:var(--p-up);box-shadow:0 0 6px var(--p-up)}
+  .pled .led.on.y{background:#f5b83d;box-shadow:0 0 6px #f5b83d}
   .pled .pl{display:flex;flex-direction:column;align-items:center;gap:7px;border:0;background:none;padding:19px 4px 0;border-radius:6px;cursor:pointer}
   .pled .pl:focus-visible,.pled .pl[aria-pressed="true"]{outline:2px solid var(--p-sel);outline-offset:1px}
   .pled .pl.off .led{opacity:.45}.pled .num{font:600 10px/12px var(--f-mono);color:var(--muted)}
@@ -162,12 +163,12 @@
 
   function leds(box) {  // frente de luces (T40): Failover · 1000 y 10/100 por puerto · Status/Mode · Attn/encendido
     const D = L.leds, ports = D.order === 'desc' ? [...P].reverse() : P, pwr = (R.psu || []).some(x => x.s === 'ok');
-    const led = on => `<span class="led${on ? ' on' : ''}"></span>`;
+    const led = (on, c) => `<span class="led${on ? ' on' : ''}${c ? ' ' + c : ''}"></span>`;  // c: «y» = amarilla (1000)
     let h = (D.left || []).map(t => `<div class="col"><span class="lab">${esc(t)}</span>${led(false)}</div>`).join('');
     h += `<div class="rl">${(D.port_rows || []).map(t => `<span class="lab">${esc(t)}</span>`).join('')}</div>`;
     h += ports.map(p => { const on = p.n === sel, up = HAS && p.s === 'up', g = /G/.test(p.sp || '') || parseFloat(p.sp) >= 1000;
       return `<button type="button" class="pl${p.s === 'off' ? ' off' : ''}" data-p="${esc(p.n)}" aria-pressed="${on}" title="${esc(tip(p))}" aria-label="${esc(tip(p))}">` +
-        (D.port_rows || []).map((_, i) => led(up && (i === 0) === g)).join('') + `<span class="num">${esc((p.n.match(/(\d+)$/) || [, p.n])[1])}</span></button>`; }).join('');
+        (D.port_rows || []).map((_, i) => led(up && (i === 0) === g, (D.row_colors || [])[i])).join('') + `<span class="num">${esc((p.n.match(/(\d+)$/) || [, p.n])[1])}</span></button>`; }).join('');
     h += (D.right || []).map(([a, b]) => `<div class="col"><span class="lab">${esc(a)}</span>${led(false)}${led(b === 'power' && pwr)}` +
       `<span class="lab">${b === 'power' ? '<svg width="12" height="12" viewBox="0 0 12 12" aria-label="' + esc(T.power) + '"><path d="M6 1v4.5M3.2 3a4 4 0 1 0 5.6 0" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>' : esc(b)}</span></div>`).join('');
     box.innerHTML = `<div class="pled">${h}</div>`; box.style.width = ''; box.style.height = '';

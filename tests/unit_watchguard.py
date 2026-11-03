@@ -182,6 +182,66 @@ r = ports.rear_from_model("T40", True)
 check("T40: atrás con la entrada de 54 V DC", r and r["psu"][0]["n"] == "54 V DC" and r["psu"][0]["s"] == "ok", r)
 check("otro Firebox sigue con el diseño genérico", not ports.layout("T80", pl).get("ports_rear"))
 
+# 5b) enlace y velocidad: «show status-report» › «Physical Interfaces Link Status» (salida real de un T40 con 12.8.1)
+REPORT = """Status of PoE ports
+-------------------
+eth4   off    n/a
+
+Signing Public Key:
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA
+Physical Interfaces Link Status
+------------
+Settings for eth0:
+\tSupported link modes:   10baseT/Half 10baseT/Full
+\tSpeed: 10Mb/s
+\tDuplex: Half
+\tAuto-negotiation: on
+\tLink detected: no
+
+eth0 NIC statistics:
+     interrupts [CPU 0]: 0
+Settings for eth1:
+\tSpeed: 1000Mb/s
+\tDuplex: Half
+\tLink detected: no
+Settings for eth2:
+\tSpeed: 1000Mb/s
+\tDuplex: Full
+\tLink detected: yes
+Settings for eth3:
+\tSpeed: 100Mb/s
+\tDuplex: Full
+\tLink detected: yes
+Settings for eth4:
+\tSpeed: Unknown!
+\tDuplex: Half
+\tLink detected: no
+
+Bridges
+------------
+"""
+
+
+class Rep:
+    def send_command(self, cmd, **kw):
+        return REPORT if cmd == "show status-report" else "% Invalid input"
+
+
+raw = ports.read(Rep(), "watchguard_fireware")
+check("lee «show status-report» y guarda solo los puertos (sin claves públicas ni estadísticas)",
+      raw and "Settings for eth2:" in raw and "Public Key" not in raw and "MIIB" not in raw and "interrupts" not in raw, raw)
+links = ports.fireware_links(raw)
+check("enlace y velocidad por puerto", links["eth2"]["up"] and links["eth2"]["sp"] == "1 Gbps" and links["eth3"]["sp"] == "100 Mbps"
+      and not links["eth1"]["up"] and links["eth1"]["sp"] == "", links)
+LINK_XML = PORTS_XML.replace("</interface-list>", """<interface><name>RED_LOCAL</name><if-item-list><item><physical-if>
+      <if-num>3</if-num><if-dev-name>eth3</if-dev-name><enabled>1</enabled></physical-if></item></if-item-list></interface></interface-list>""")
+pl, has = ports.parse(raw, "watchguard_fireware", LINK_XML, "T40")
+by = {p["n"]: p for p in pl}
+check("unido al XML: con estado de enlace, nombres y redes", has and by["eth1"]["s"] == "down" and by["eth1"]["d"] == "WAN · Internet"
+      and by["eth3"]["s"] == "up" and by["eth3"]["sp"] == "100 Mbps" and by["eth0"]["net"] == "VLAN 10, 112", pl)
+check("el puerto apagado en la configuración sigue apagado aunque informe enlace", by["eth4"]["s"] == "off")
+check("WatchGuard cuenta como equipo con estado de enlace", ports.has_status("watchguard_fireware"))
+
 # 6) las 10 reglas de cumplimiento sobre el XML
 flt, _desc, rules = PACKS["WatchGuard Fireware · Seguridad básica"]
 check("paquete WatchGuard: 10 reglas, solo para Fireware", len(rules) == 10 and re.search(flt, "watchguard_fireware")
