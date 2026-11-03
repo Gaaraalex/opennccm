@@ -95,21 +95,37 @@ class Receiver:
     def start(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(("0.0.0.0", self.port))
+        for i in range(25):  # el receptor anterior puede tardar un momento en soltar el puerto
+            try:
+                s.bind(("0.0.0.0", self.port))
+                break
+            except OSError:
+                if i == 24:
+                    s.close()
+                    raise
+                time.sleep(0.2)
         s.listen(4)
         s.settimeout(1)
         self._srv = s
         self._deadline = time.monotonic() + self.timeout
-        threading.Thread(target=self._accept, daemon=True, name="fxi-ftp").start()
+        self._thread = threading.Thread(target=self._accept, daemon=True, name="fxi-ftp")
+        self._thread.start()
 
     def close(self):
         self._closed = True
         self.done.set()
         if self._srv:
+            try:  # en Linux cerrar no despierta al hilo que espera en accept(): el puerto quedaba tomado un momento
+                self._srv.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
             try:
                 self._srv.close()
             except OSError:
                 pass
+        t = getattr(self, "_thread", None)
+        if t is not None and t is not threading.current_thread():
+            t.join(2)
 
     def wait(self, timeout: float | None = None) -> dict | None:
         self.done.wait(timeout)
