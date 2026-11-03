@@ -40,7 +40,7 @@
 {% set c = fxi %}
 <div class="banner info fxi-note" role="note">{{ icon('info') }}<div class="grow"><b>{{ _('WatchGuard tiene dos tipos de respaldo.') }}</b>
   <div class="fxi-cols"><div><b>{{ _('Configuración (XML)') }}</b><p>{{ _('Políticas, red, VPN y usuarios. Se compara versión a versión y sirve para pasar la configuración a otro Firebox con Policy Manager. No trae certificados, claves ni la feature key.') }}</p></div>
-    <div><b>{{ _('Imagen completa (.fxi)') }}</b><p>{{ _('Copia cifrada de ESTE Firebox, con certificados, claves y feature key. Sirve para recuperar el mismo equipo tras un fallo o una actualización que salió mal; no sirve para otro equipo.') }}</p></div></div></div></div>
+    <div><b>{{ _('Imagen completa (.fxi)') }}</b><p>{{ _('Copia cifrada de ESTE Firebox, con certificados, claves y feature key; no incluye Fireware OS (desde la 12.2.1). Sirve para recuperar el mismo equipo tras un fallo o una actualización que salió mal; no sirve para otro equipo.') }}</p></div></div></div></div>
 
 <div class="fxi-two">
   <section class="card">

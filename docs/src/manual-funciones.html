@@ -1270,7 +1270,8 @@ equipos sin perfil propio (SonicWall, Riverbed, Infoblox…) use <b>Genérico SS
 <table>
   <tr><th></th><th>Configuración (XML)</th><th>Imagen completa (.fxi)</th></tr>
   <tr><td>Qué guarda</td><td>Políticas, interfaces, VLAN, NAT, VPN, alias, usuarios y ajustes</td><td>Todo lo anterior, más los
-  certificados con sus claves privadas, la feature key, las contraseñas y la información propia de ese Firebox</td></tr>
+  certificados con sus claves privadas, la feature key, las contraseñas y la información propia de ese Firebox (no el sistema operativo: desde Fireware 12.2.1 la imagen
+  no lo incluye, y por eso pesa alrededor de 1 MB)</td></tr>
   <tr><td>Qué no guarda</td><td>La feature key (OpenNCCM la guarda aparte), los certificados con sus claves, las contraseñas
   propias del equipo y el Fireware OS</td><td>—</td></tr>
   <tr><td>Cuándo</td><td>En cada respaldo; no cambia nada en el Firebox</td><td>Semanal, diaria o solo a mano (a las 03:00)</td></tr>

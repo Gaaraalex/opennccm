@@ -750,7 +750,7 @@
 "Contraseñas, comunidades SNMP, claves de VPN y de wifi. Siempre activado.": "Passwords, SNMP communities, VPN and Wi-Fi keys. Always on.",
 "Convertir en configlet": "Convert to configlet",
 "Cookies": "Cookies",
-"Copia cifrada de ESTE Firebox, con certificados, claves y feature key. Sirve para recuperar el mismo equipo tras un fallo o una actualización que salió mal; no sirve para otro equipo.": "Encrypted copy of THIS Firebox, with certificates, keys and feature key. Use it to recover the same device after a failure or an upgrade that went wrong; it doesn't work for another device.",
+"Copia cifrada de ESTE Firebox, con certificados, claves y feature key; no incluye Fireware OS (desde la 12.2.1). Sirve para recuperar el mismo equipo tras un fallo o una actualización que salió mal; no sirve para otro equipo.": "Encrypted copy of THIS Firebox, with certificates, keys and feature key; it doesn't include Fireware OS (since 12.2.1). Use it to recover the same device after a failure or an upgrade that went wrong; it doesn't work for another device.",
 "Copia consistente de la base de datos (configuraciones, historial, usuarios, políticas). Las configuraciones y contraseñas van cifradas: para restaurar en otro servidor necesita también": "Consistent copy of the database (configurations, history, users, policies). Configurations and passwords are encrypted: to restore on another server you also need",
 "Copia consistente de la base de datos. Se guarda en el servidor y puedes descargarla.": "Consistent copy of the database. It is stored on the server and you can download it.",
 "Copia creada: {0}": "Backup created: {0}",
