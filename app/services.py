@@ -467,11 +467,42 @@ def _read_license(conn, prof) -> str | None:
     return out if len(out) >= 10 and not device_error(out) else None
 
 
+_LICENSE_TRIED: dict[int, float] = {}  # último intento sin éxito de completar la licencia, por equipo
+LICENSE_RETRY = 24 * 3600
+
+
 def _license_missing(dev, prof) -> bool:
-    """Falta leer la licencia: no hay ninguna guardada, o la guardada no trae el detalle (Profile.license_mark)."""
+    """Falta leer la licencia: no hay ninguna guardada, o la guardada no está completa (Profile.license_mark). Si ya se
+    intentó completarla y no se pudo (p. ej. la Web UI de Fireware no deja entrar), se reintenta una vez al día."""
     if not dev.license_enc:
         return True
-    return bool(prof.license_mark) and not re.search(prof.license_mark, try_decrypt(dev.license_enc) or "")
+    if not prof.license_mark or re.search(prof.license_mark, try_decrypt(dev.license_enc) or ""):
+        return False
+    return time.time() - _LICENSE_TRIED.get(dev.id, 0) >= LICENSE_RETRY
+
+
+def _fireware_license(dev, detail: str | None) -> tuple[str | None, str | None]:
+    """WatchGuard: la feature key como se pega para restaurarla, con la firma de la Web UI (app.fireware_web), y el
+    aviso si no se pudo. Sin firma devuelve el detalle de la CLI, para no perder lo que sí se leyó, y se reintenta al
+    día siguiente."""
+    from . import fireware_web
+    detail = detail or (try_decrypt(dev.license_enc) if dev.license_enc else None)
+    if not detail or not fireware_web.parse_detail(detail):
+        return detail, None
+    try:
+        if dev.credential is None:
+            raise fireware_web.FirewareWebError("el equipo no tiene credencial")
+        pw = decrypt(dev.credential.password_enc) if dev.credential.password_enc else ""
+        text = fireware_web.build(detail, fireware_web.read_summary(dev, dev.credential.username, pw))
+        if text is None:
+            raise fireware_web.FirewareWebError("la feature key activa no coincide con la de la CLI")
+        _LICENSE_TRIED.pop(dev.id, None)
+        return text, None
+    except Exception as e:  # noqa: BLE001 - la firma es un extra: el respaldo sigue
+        _LICENSE_TRIED[dev.id] = time.time()
+        log.warning("Feature key de %s sin firma: %s", dev.name, e)
+        return detail, (f"{dev.name}: no se pudo leer la firma en la Web UI ({fireware_web.base_url(dev)}): {str(e).rstrip('.')}. "
+                        "Se guardó el detalle de la CLI; se reintenta en el próximo respaldo pasado un día.")
 
 
 def _read_ports(conn, device_type: str) -> str | None:
@@ -493,6 +524,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
             return "missing"
         prof = get_profile(dev.device_type)
         try:
+            license_warn = None
             if prof.key in HTTP_ONLY:  # SwitchOS: por HTTP, sin SSH
                 from . import swos
                 if dev.credential is None:
@@ -508,7 +540,10 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
                                             if c.strip()) if prof.inventory else None
                     neighbors_raw = _read_neighbors(conn, dev.device_type)
                     ports_raw = _read_ports(conn, dev.device_type)
-                    license_raw = _read_license(conn, prof) if _license_missing(dev, prof) else None
+                    want_license = _license_missing(dev, prof)
+                    license_raw = _read_license(conn, prof) if want_license else None
+                if want_license and prof.key == "watchguard_fireware":  # la firma, por la Web UI (ya sin SSH)
+                    license_raw, license_warn = _fireware_license(dev, license_raw)
         except Exception as e:  # noqa: BLE001
             dev.last_status, dev.last_error = "error", (str(e) or repr(e))[:2000]
             db.commit()
@@ -579,7 +614,8 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
             dev.ports = json.dumps({"at": now().isoformat(), "status": has_status, "ports": plist, "rear": rear,
                                     "raw": (ports_raw or "")[-12000:]}) if plist or any(rear.values()) else None
 
-        new_license = bool(license_raw)  # solo se lee si falta (_license_missing)
+        # solo se lee si falta (_license_missing); la misma que ya estaba guardada no se vuelve a guardar
+        new_license = bool(license_raw) and license_raw != (try_decrypt(dev.license_enc) if dev.license_enc else None)
         if new_license:
             dev.license_enc, dev.license_at = encrypt(license_raw), now()
 
@@ -606,6 +642,8 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
             add_event("info", f"{prof.license_label} guardada",
                       f"{dev.name}: se guardó su {prof.license_label.lower()} (una sola vez; se descarga desde la ficha).",
                       dev.id)
+        if license_warn:
+            add_event("warning", f"{prof.license_label} sin firma", license_warn, dev.id)
         if new_drift:
             add_event("warning", "Desviación de línea base",
                       f"{dev.name}: la configuración actual ya no coincide con la línea base.", dev.id)

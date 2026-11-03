@@ -1260,10 +1260,13 @@ además el tipo de reversión y si admite actualización de firmware.</p>
 </ul>
 <p>La configuración se obtiene mostrando el resultado del comando dentro de la misma sesión SSH: no se crean archivos en el equipo ni se
 necesita FTP/TFTP. WatchGuard Fireware se respalda con <code>export config to console</code> (la configuración completa en
-XML) y, una sola vez, guarda el detalle de su <b>feature key</b> (<code>show feature-key</code> y <code>show feature-key ID</code>:
-modelo, vencimiento y cada función con su fecha), que se descarga desde la ficha del equipo. La firma de la feature key no sale
-por la CLI: viene dentro de la imagen .fxi, o se vuelve a descargar del portal de WatchGuard. Un
-usuario de solo lectura (Device Monitor) basta. Si un comando no sirve para su versión, defina un <b>comando de respaldo personalizado</b> en el dispositivo. Para
+XML) y, una sola vez, guarda su <b>feature key</b> tal como se pega para restaurarla (<i>Serial Number</i>, <i>License ID</i>,
+<i>Name</i>, <i>Model</i>, <i>Version</i>, una línea <i>Feature</i> por función, <i>Expiration</i> y <i>Signature</i>), que se
+descarga desde la ficha del equipo. El detalle sale de la CLI (<code>show feature-key</code> y <code>show feature-key ID</code>); la
+firma no sale por la CLI, así que OpenNCCM entra un momento a la Web UI del Firebox (System › Feature Key, puerto 8080 o el de la
+«Interfaz web» del equipo) con la misma credencial, la lee y cierra la sesión. Si no puede entrar, guarda el detalle sin firma, la
+ficha dice «sin firma: aún no sirve para restaurar», sale un aviso con el motivo y lo reintenta al día siguiente. Un
+usuario de solo lectura (Device Monitor) basta para las dos cosas. Si un comando no sirve para su versión, defina un <b>comando de respaldo personalizado</b> en el dispositivo. Para
 equipos sin perfil propio (SonicWall, Riverbed, Infoblox…) use <b>Genérico SSH</b> con un comando personalizado.</p>
 <h3>WatchGuard: configuración (XML) e imagen completa (.fxi)</h3>
 <p>La ficha de un Firebox tiene la pestaña <b>Respaldos</b> con los dos tipos de respaldo de WatchGuard:</p>

@@ -3720,5 +3720,7 @@
 "✔ La actualización terminó.": "✔ The update finished.",
 "✔ OpenNCCM se actualizó a la versión {0}.": "✔ OpenNCCM was updated to version {0}.",
 "✔ OpenNCCM {0} ya es la versión más reciente.": "✔ OpenNCCM {0} is already the latest version.",
-"✖ La actualización no se completó (código {0}) y OpenNCCM sigue en la versión {1}. Revise el registro de abajo, o actualice desde la consola del servidor con {2}.": "✖ The update did not complete (code {0}) and OpenNCCM is still on version {1}. Check the log below, or update from the server console with {2}."
+"✖ La actualización no se completó (código {0}) y OpenNCCM sigue en la versión {1}. Revise el registro de abajo, o actualice desde la consola del servidor con {2}.": "✖ The update did not complete (code {0}) and OpenNCCM is still on version {1}. Check the log below, or update from the server console with {2}.",
+"Falta la firma (Signature), que se lee en la interfaz web del equipo con la misma credencial. Se reintenta en el próximo respaldo.": "The signature is missing. It is read from the device's web interface with the same credential and retried on the next backup.",
+"sin firma: aún no sirve para restaurar": "no signature: can't be used to restore yet"
 }

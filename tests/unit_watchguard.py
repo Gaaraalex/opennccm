@@ -61,6 +61,19 @@ class Fake:
 
 
 services.connect = lambda dev: Fake()
+# la Web UI tampoco sale a la red: sin firma (como un Firebox que no deja entrar), salvo que la prueba la ponga
+from app import fireware_web  # noqa: E402
+WEB = {"sig": None, "calls": 0}
+
+
+def _summary(dev, user, password):
+    WEB["calls"] += 1
+    if not WEB["sig"]:
+        raise fireware_web.FirewareWebError("sin acceso a la Web UI (prueba)")
+    return {"serial": "D02807134F41D", "model": "T40", "signature": WEB["sig"]}
+
+
+fireware_web.read_summary = _summary
 init_db()
 p = get_profile("watchguard_fireware")
 check("perfil: «export config to console» y feature key una vez", p.backup == "export config to console"
@@ -72,7 +85,7 @@ with SessionLocal() as db:
     c = Credential(name="wg", username="read", password_enc=encrypt("x"))
     db.add(c)
     db.flush()
-    dev = Device(name="fw-prueba", host="10.0.0.254", port=4118, device_type="watchguard_fireware", credential_id=c.id)
+    dev = Device(name="fw-prueba", host="192.0.2.10", port=4118, device_type="watchguard_fireware", credential_id=c.id)
     db.add(dev)
     db.commit()
     dev_id = dev.id
@@ -140,6 +153,7 @@ from app.crypto import encrypt  # noqa: E402
 with SessionLocal() as db:
     db.get(Device, dev_id).license_enc = encrypt(SUMMARY)
     db.commit()
+services._LICENSE_TRIED.clear()  # como si ya hubiera pasado el día de espera
 SENT.clear()
 services.backup_device(dev_id, "scheduled", None)
 fk = decrypt(device().license_enc)
@@ -148,6 +162,32 @@ check("resumen guardado antes: se cambia por el detalle", "Feature-Key id:" in f
 SENT.clear()
 services.backup_device(dev_id, "scheduled", None)
 check("y después ya no se vuelve a pedir", not any(c.startswith("show feature-key") for c in SENT), SENT)
+
+# 4c) sin firma: la ficha lo dice, hay un aviso y no se reintenta hasta el día siguiente (ni se llama a la Web UI)
+from app.db import Event  # noqa: E402
+with SessionLocal() as db:
+    warned = db.scalar(select(Event).where(Event.category == "Feature key sin firma", Event.device_id == dev_id))
+check("sin firma: aviso con el motivo", warned is not None and "sin acceso a la Web UI" in warned.message)
+check("sin firma: no queda marcada como completa", services._license_missing(device(), p) is False
+      and not __import__("re").search(p.license_mark, fk))
+calls = WEB["calls"]
+services.backup_device(dev_id, "scheduled", None)
+check("sin firma: no se reintenta antes de un día", WEB["calls"] == calls)
+
+# 4d) con la firma de la Web UI: el texto que se pega para restaurarla, igual al del Firebox
+SIG = "302e0215038419db-48d78b97a8c40107-821b0e916f5dfd21-5a02150213902382-3425a307b388cb82-5fce561e0ee859ca"
+WEB["sig"] = SIG
+services._LICENSE_TRIED.clear()
+services.backup_device(dev_id, "scheduled", None)
+fk = decrypt(device().license_enc)
+check("con firma: formato de la Web UI", fk.splitlines()[:5] == ["Serial Number: D02807134F41D", "License ID: D02807134F41D",
+      "Name: 11-03-2026_08:48", "Model: T40", "Version: 2"] and fk.endswith("Signature: " + SIG), fk[:200])
+check("con firma: una línea «Feature:» por función, en orden", [ln for ln in fk.splitlines() if ln.startswith("Feature:")]
+      == ["Feature: " + f for f in fireware_web.parse_detail(FEATURE)[0]["features"]])
+calls = WEB["calls"]
+SENT.clear()
+services.backup_device(dev_id, "scheduled", None)
+check("con firma: ya no se vuelve a pedir", WEB["calls"] == calls and not any(c.startswith("show feature-key") for c in SENT))
 
 # 5) puertos desde el XML: interfaces físicas, su nombre, si están habilitadas, su red y las VLAN que pasan por ellas
 import re  # noqa: E402

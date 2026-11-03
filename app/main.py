@@ -1056,8 +1056,12 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
     from . import fwupdates as _fwu
     from .routes_ops import FW_SOURCES as _FW_SOURCES
     from .console import console_allowed
+    prof_l = get_profile(dev.device_type)
+    # la licencia guardada no está completa (WatchGuard: sin la firma de la Web UI no se puede restaurar)
+    license_partial = bool(dev.license_enc and prof_l.license_mark and not re.search(
+        prof_l.license_mark, try_decrypt(dev.license_enc, "") or ""))
     return render(request, "device.html", user, key_error=key_error, can_console=console_allowed(user, dev.id), device=dev,
-                  ports=pinfo,
+                  ports=pinfo, license_partial=license_partial,
                   versions=versions, comp=comp, vulns=vulns, comp_groups=comp_groups,
                   comp_fails=sum(g["fails"] for g in comp_groups),
                   vuln_high=sum(1 for v in vulns if (v.severity or "").upper() in ("CRITICAL", "HIGH")),
