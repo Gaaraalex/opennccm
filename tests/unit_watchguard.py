@@ -26,7 +26,13 @@ def check(name, cond, extra=""):
 
 XML = '<?xml version="1.0"?>\n<profile>\n<product-grade>2</product-grade>\n<system-parameters>\n</system-parameters>\n</profile>\n'
 SYSINFO = "system name: fw-prueba\nmodel: T40\nserial number: D02807134F41D\nsoftware version: 12.8.1.B663143\n"
-FEATURE = "Serial Number: D02807134F41D\nLicense ID: D02807134F41D\nName: fw-prueba\nModel: T40\nFeature: AUTH_DEVICE#1\n"
+# salidas reales de un T40 con Fireware 12.8.1: «show feature-key» solo lista los ID; con el ID trae el detalle
+SUMMARY = ("Automatic feature key synchronization: Enabled\n--\n--Notification setting\n--\n"
+           "Send SNMP Trap            : Disabled\nRepeat count              : 10\n--\n-- Total 1 Feature-Key(s)\n--\n"
+           "Feature-Key ID      Feature-Key Name              Expiration Date\n"
+           "D02807134F41D       11-03-2026_08:48              never\n")
+FEATURE = ("--\n-- Feature-Key <D02807134F41D>\n--\nFeature-Key id: D02807134F41D\nFeature-Key name: 11-03-2026_08:48\n"
+           "expiration date: never\nmodel: T40\nfeatures:\n( 1): ACCESS_PORTAL@Apr-29-2024\n( 2): AUTH_DEVICE#1\n")
 INVALID = "^\n% Invalid input detected at '^' marker."
 SENT = []
 STATE = {"backup": XML, "feature": FEATURE}
@@ -45,10 +51,12 @@ class Fake:
             return STATE["backup"]
         if cmd == "show sysinfo":
             return SYSINFO
-        if cmd == "show feature-key":
+        if cmd.startswith("show feature-key"):
             if STATE["feature"] is None:
                 raise TimeoutError("sin respuesta")
-            return STATE["feature"]
+            if STATE["feature"] == INVALID:
+                return INVALID
+            return SUMMARY if cmd == "show feature-key" else STATE["feature"] if cmd.endswith(" D02807134F41D") else INVALID
         return INVALID
 
 
@@ -94,13 +102,16 @@ check("primer respaldo: guarda la configuración XML",
       r == "first" and len(versions()) == 1 and versions()[0].startswith("<?xml"), (r, versions()))
 check("inventario desde «show sysinfo»: modelo, serie y versión",
       (d.model, d.serial, d.os_version) == ("T40", "D02807134F41D", "12.8.1.B663143"), (d.model, d.serial, d.os_version))
-check("pide la feature key en el primer respaldo", "show feature-key" in SENT, SENT)
-check("feature key guardada cifrada, con su fecha", d.license_at is not None and decrypt(d.license_enc).startswith("Serial Number")
-      and "AUTH_DEVICE" not in (d.license_enc or ""))
+check("pide la lista y el detalle de cada feature key", "show feature-key" in SENT
+      and "show feature-key D02807134F41D" in SENT, SENT)
+fk = decrypt(d.license_enc) if d.license_enc else ""
+check("guarda el detalle (funciones y vencimientos), no el resumen, cifrado y con su fecha", d.license_at is not None
+      and "Feature-Key id: D02807134F41D" in fk and "AUTH_DEVICE#1" in fk and "Notification setting" not in fk
+      and "AUTH_DEVICE" not in (d.license_enc or ""), fk)
 
 # 3) los respaldos siguientes ya no la piden ni la cambian
 first_at = d.license_at
-STATE["feature"] = "Serial Number: OTRA\nFeature: CAMBIADA#1\n"
+STATE["feature"] = "Feature-Key id: D02807134F41D\nfeatures:\n( 1): CAMBIADA#1\n"
 SENT.clear()
 r = services.backup_device(dev_id, "scheduled", None)
 d = device()
@@ -123,6 +134,20 @@ check("un error del equipo no se guarda como feature key", device().license_enc 
 STATE["feature"] = FEATURE
 services.backup_device(dev_id, "scheduled", None)
 check("en el respaldo siguiente que la consigue, se guarda", device().license_enc is not None)
+
+# 4b) la guardada por la 2.20.0 era solo el resumen: se vuelve a leer una vez, con el detalle
+from app.crypto import encrypt  # noqa: E402
+with SessionLocal() as db:
+    db.get(Device, dev_id).license_enc = encrypt(SUMMARY)
+    db.commit()
+SENT.clear()
+services.backup_device(dev_id, "scheduled", None)
+fk = decrypt(device().license_enc)
+check("resumen guardado antes: se cambia por el detalle", "Feature-Key id:" in fk and "Notification setting" not in fk
+      and "show feature-key D02807134F41D" in SENT, (fk[:80], SENT))
+SENT.clear()
+services.backup_device(dev_id, "scheduled", None)
+check("y después ya no se vuelve a pedir", not any(c.startswith("show feature-key") for c in SENT), SENT)
 
 # 5) puertos desde el XML: interfaces físicas, su nombre, si están habilitadas, su red y las VLAN que pasan por ellas
 import re  # noqa: E402

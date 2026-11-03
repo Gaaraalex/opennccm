@@ -1034,7 +1034,7 @@
 "Ejecutar {0}": "Run {0}",
 "Ejecutar «{0}»": "Run “{0}”",
 "Ejecutar: {0}": "Run: {0}",
-"El Firebox cifra la imagen con esta clave (8 a 32 caracteres, sin espacios).": "The Firebox encrypts the image with this key (8 to 32 characters, no spaces).",
+"El Firebox cifra la imagen con esta clave (8 a 15 caracteres, sin espacios).": "The Firebox encrypts the image with this key (8 to 15 characters, no spaces).",
 "El Firebox llega a OpenNCCM por otra dirección": "The Firebox reaches OpenNCCM through another address",
 "El Firebox no pudo enviar la imagen a OpenNCCM": "The Firebox couldn't send the image to OpenNCCM",
 "El Firebox respondió:": "The Firebox replied:",

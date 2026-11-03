@@ -43,6 +43,10 @@ class Profile:
     # licencia del equipo (WatchGuard: feature key): se lee y se guarda UNA vez, en el primer respaldo que la consigue
     license_cmd: str | None = None
     license_label: str = "Licencia"
+    # si el comando solo trae un resumen: expresión que saca de él los ID y se pide «license_cmd ID» por cada uno.
+    # Una licencia guardada sin el detalle (versiones anteriores) se vuelve a leer una vez.
+    license_ids: str | None = None
+    license_mark: str | None = None
 
     @property
     def inventory_label(self) -> str:
@@ -435,10 +439,13 @@ PROFILES += [
             family=MERGE, note=VERIFY),
     # Fireware CLI: «show sysinfo» trae modelo, serie y versión («12.10.3.B704297» → NVD usa «12.10.3»). Fireware no
     # tiene «show running-config»: «export config to console» saca la configuración en XML (probado en un T40 con
-    # Fireware 12.8.1 y un usuario Device Monitor, de solo lectura). La feature key se guarda una vez.
+    # Fireware 12.8.1 y un usuario Device Monitor, de solo lectura). La feature key se guarda una vez: «show feature-key»
+    # solo lista los ID; «show feature-key ID» trae modelo, vencimiento y cada función. La firma no sale por la CLI
+    # (solo en la Web UI y dentro de la imagen .fxi).
     Profile("watchguard_fireware", "WatchGuard Fireware", "WatchGuard", "export config to console", None,
             inventory="show sysinfo", family=MERGE, save=False, license_cmd="show feature-key",
-            license_label="Feature key",
+            license_label="Feature key", license_ids=r"(?m)^(?!Feature-Key ID)([A-Za-z0-9][\w.-]{5,})\s+\S+\s+\S+\s*$",
+            license_mark=r"(?im)^\s*Feature-Key id:",
             cpe="cpe:2.3:o:watchguard:fireware", cpe_version=r"^v?(\d+\.\d+(?:\.\d+)?)",
             version_re=[r"(?i)(?:software|fireware|os|system)[ _-]*version\s*[:=]?\s*v?(\d+\.\d+[\w.]*)",
                         r"(?i)Fireware(?: OS)?\s+v?(\d+\.\d+[\w.]*)"],

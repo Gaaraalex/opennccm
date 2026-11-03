@@ -1258,7 +1258,9 @@ además el tipo de reversión y si admite actualización de firmware.</p>
 </ul>
 <p>La configuración se obtiene mostrando el resultado del comando dentro de la misma sesión SSH: no se crean archivos en el equipo ni se
 necesita FTP/TFTP. WatchGuard Fireware se respalda con <code>export config to console</code> (la configuración completa en
-XML) y, una sola vez, guarda su <b>feature key</b> (<code>show feature-key</code>), que se descarga desde la ficha del equipo; un
+XML) y, una sola vez, guarda el detalle de su <b>feature key</b> (<code>show feature-key</code> y <code>show feature-key ID</code>:
+modelo, vencimiento y cada función con su fecha), que se descarga desde la ficha del equipo. La firma de la feature key no sale
+por la CLI: viene dentro de la imagen .fxi, o se vuelve a descargar del portal de WatchGuard. Un
 usuario de solo lectura (Device Monitor) basta. Si un comando no sirve para su versión, defina un <b>comando de respaldo personalizado</b> en el dispositivo. Para
 equipos sin perfil propio (SonicWall, Riverbed, Infoblox…) use <b>Genérico SSH</b> con un comando personalizado.</p>
 <h3>WatchGuard: configuración (XML) e imagen completa (.fxi)</h3>
@@ -1281,7 +1283,7 @@ un solo uso, y se cierra al recibir el archivo o a los 5 minutos. Si el servidor
 los cierra al terminar (si el servicio se detuviera, la regla se quita sola a los 6 minutos). Si hay otro cortafuegos entre el
 Firebox y OpenNCCM, permita esos puertos desde el Firebox hacia el servidor. En el Firebox se ejecuta <code>backup image</code>,
 <code>export image … to ftp://…</code> y <code>delete backup</code> (no queda una copia en el equipo).</p>
-<p>Al configurarla se elige la credencial de administrador, la <b>clave de cifrado</b> de la imagen (8 a 32 caracteres; sin ella
+<p>Al configurarla se elige la credencial de administrador, la <b>clave de cifrado</b> de la imagen (8 a 15 caracteres, el máximo que admite Fireware; sin ella
 no se puede restaurar), la dirección por la que el Firebox llega a OpenNCCM (se detecta sola) y cuántas imágenes guardar.
 <b>Probar conexión</b> pide al Firebox que suba su configuración al receptor, sin crear ninguna imagen. Si una imagen falla dos
 veces seguidas, se abre la alarma «Imagen .fxi sin crear»; el respaldo XML no se ve afectado. Cada archivo se descarga en su

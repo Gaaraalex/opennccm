@@ -45,13 +45,13 @@ TIMEOUT = 300            # el receptor se cierra a los 5 minutos aunque no llegu
 MAX_BYTES = 2 * 1024 ** 3  # una imagen con el sistema operativo pasa de los 100 MB; 2 GB es el tope
 KEEP = 8
 FREQS = {"weekly": N_("Semanal"), "daily": N_("Diario"), "manual": N_("Solo manual")}
-KEY_RE = re.compile(r"^[A-Za-z0-9._+=,#%-]{8,32}$")  # sin espacios ni comillas: va como argumento de la CLI
+KEY_RE = re.compile(r"^[A-Za-z0-9._+=,#%-]{8,15}$")  # sin espacios ni comillas: va como argumento de la CLI; Fireware admite de 8 a 15
 HIDDEN = "********"
 FAILS_ALARM = 2
 
 
 def new_key() -> str:
-    return secrets.token_urlsafe(18)[:24].replace("-", "x").replace("_", "y")
+    return secrets.token_urlsafe(12)[:15].replace("-", "x").replace("_", "y")
 
 
 def valid_key(k: str) -> bool:
@@ -417,6 +417,9 @@ def _run(device_id: int, trigger: str, username: str | None, test: bool, over: d
     try:
         if cred is None or (not key and not test):  # la prueba no crea imagen: no necesita la clave
             raise RuntimeError("Falta configurar la imagen .fxi (credencial de administrador y clave de cifrado).")
+        if key and not valid_key(key):  # claves de la 2.20.0, de hasta 32: el Firebox solo acepta de 8 a 15
+            raise RuntimeError("La clave de cifrado guardada no sirve: Fireware solo admite de 8 a 15 caracteres. "
+                               "Cámbiela en «Cambiar» (o pulse «Generar») y vuelva a intentarlo.")
         if not addr:
             raise RuntimeError("No se pudo saber por qué dirección llega el Firebox a OpenNCCM: escríbala en la configuración.")
         # 1) receptor
@@ -648,7 +651,7 @@ async def save_config(request: Request, dev_id: int):
     key = (f.get("key") or "").strip()
     errors = []
     if key and not valid_key(key):
-        errors.append("La clave de cifrado debe tener de 8 a 32 caracteres, sin espacios.")
+        errors.append("La clave de cifrado debe tener de 8 a 15 caracteres, sin espacios.")
     pasv = parse_pasv(f.get("pasv") or "")
     port = int(f.get("port")) if (f.get("port") or "").isdigit() else 0
     if not pasv:

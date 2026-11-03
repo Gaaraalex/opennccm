@@ -456,10 +456,22 @@ def _read_license(conn, prof) -> str | None:
         return None
     try:
         out = clean_config(conn.send_command(prof.license_cmd, read_timeout=60), prof).strip()
+        if prof.license_ids and len(out) >= 10 and not device_error(out):  # el resumen solo trae los ID: el detalle
+            ids = list(dict.fromkeys(re.findall(prof.license_ids, out)))[:5]
+            parts = [clean_config(conn.send_command(f"{prof.license_cmd} {i}", read_timeout=60), prof).strip()
+                     for i in ids]
+            out = "\n\n".join(p for p in parts if len(p) >= 10 and not device_error(p))
     except Exception as e:  # noqa: BLE001
         log.warning("No se pudo leer la licencia (%s): %s", prof.license_cmd, e)
         return None
     return out if len(out) >= 10 and not device_error(out) else None
+
+
+def _license_missing(dev, prof) -> bool:
+    """Falta leer la licencia: no hay ninguna guardada, o la guardada no trae el detalle (Profile.license_mark)."""
+    if not dev.license_enc:
+        return True
+    return bool(prof.license_mark) and not re.search(prof.license_mark, try_decrypt(dev.license_enc) or "")
 
 
 def _read_ports(conn, device_type: str) -> str | None:
@@ -496,7 +508,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
                                             if c.strip()) if prof.inventory else None
                     neighbors_raw = _read_neighbors(conn, dev.device_type)
                     ports_raw = _read_ports(conn, dev.device_type)
-                    license_raw = _read_license(conn, prof) if not dev.license_enc else None
+                    license_raw = _read_license(conn, prof) if _license_missing(dev, prof) else None
         except Exception as e:  # noqa: BLE001
             dev.last_status, dev.last_error = "error", (str(e) or repr(e))[:2000]
             db.commit()
@@ -567,7 +579,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
             dev.ports = json.dumps({"at": now().isoformat(), "status": has_status, "ports": plist, "rear": rear,
                                     "raw": (ports_raw or "")[-12000:]}) if plist or any(rear.values()) else None
 
-        new_license = bool(license_raw) and not dev.license_enc
+        new_license = bool(license_raw)  # solo se lee si falta (_license_missing)
         if new_license:
             dev.license_enc, dev.license_at = encrypt(license_raw), now()
 
