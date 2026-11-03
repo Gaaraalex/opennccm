@@ -120,8 +120,19 @@ class Device(Base):
     # licencia del equipo (Profile.license_cmd, p. ej. la feature key de WatchGuard), cifrada; se lee una sola vez
     license_enc: Mapped[str | None] = mapped_column(Text)
     license_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # imagen completa .fxi de WatchGuard (app/fxi.py): credencial de administrador, clave de cifrado, frecuencia, cuántas
+    # guardar y el receptor FTP temporal (dirección por la que llega el Firebox, puerto de control y pasivos)
+    fxi_cred_id: Mapped[int | None] = mapped_column(ForeignKey("credentials.id", ondelete="SET NULL"))
+    fxi_key_enc: Mapped[str | None] = mapped_column(Text)
+    fxi_freq: Mapped[str | None] = mapped_column(String(16))
+    fxi_keep: Mapped[int | None] = mapped_column(Integer)
+    fxi_addr: Mapped[str | None] = mapped_column(String(64))
+    fxi_port: Mapped[int | None] = mapped_column(Integer)
+    fxi_pasv: Mapped[str | None] = mapped_column(String(16))
+    fxi_fails: Mapped[int] = mapped_column(Integer, default=0)
+    fxi_last_at: Mapped[datetime | None] = mapped_column(DateTime)
 
-    credential = relationship("Credential")
+    credential = relationship("Credential", foreign_keys=[credential_id])
     group = relationship("DeviceGroup")
     versions = relationship("ConfigVersion", back_populates="device", cascade="all, delete-orphan",
                             passive_deletes=True)
@@ -142,6 +153,20 @@ class ConfigVersion(Base):
     label: Mapped[str | None] = mapped_column(String(128))  # p.ej. "baseline"
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now, index=True)
     device = relationship("Device", back_populates="versions")
+
+
+class FxiImage(Base):
+    """Imagen .fxi de un Firebox (app/fxi.py): el archivo está en DATA_DIR/fxi/<equipo>/; su clave, cifrada aquí."""
+    __tablename__ = "fxi_images"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    device_id: Mapped[int] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"), index=True)
+    filename: Mapped[str] = mapped_column(String(128))
+    size: Mapped[int] = mapped_column(Integer, default=0)
+    sha256: Mapped[str] = mapped_column(String(64))
+    trigger: Mapped[str] = mapped_column(String(16), default="manual")  # manual | scheduled
+    username: Mapped[str | None] = mapped_column(String(64))
+    key_enc: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now, index=True)
 
 
 class Policy(Base):

@@ -637,12 +637,36 @@ ExecStartPre=/bin/rm -f $DATA_DIR/update.request
 ExecStart=/bin/sh -c '/usr/local/bin/opennccm update --yes > $DATA_DIR/update.log 2>&1; echo "FIN=\$\$?" >> $DATA_DIR/update.log'
 TimeoutStartSec=1800
 EOF
+  # Imagen .fxi de WatchGuard: la aplicación pide abrir o cerrar en ufw los puertos de su receptor FTP temporal con
+  # fxi-firewall.request; esto lo ejecuta como root «opennccm fxi-firewall» (solo IP y puertos numéricos validados).
+  cat > /etc/systemd/system/opennccm-fxi-firewall.path <<EOF
+[Unit]
+Description=OpenNCCM - vigila los pedidos de abrir o cerrar el receptor FTP de imágenes .fxi
+
+[Path]
+PathExists=$DATA_DIR/fxi-firewall.request
+Unit=opennccm-fxi-firewall.service
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  cat > /etc/systemd/system/opennccm-fxi-firewall.service <<EOF
+[Unit]
+Description=OpenNCCM - abrir o cerrar en ufw el receptor FTP temporal de imágenes .fxi
+
+[Service]
+Type=oneshot
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/usr/local/bin/opennccm fxi-firewall
+TimeoutStartSec=60
+EOF
   ln -sf $APP_DIR/scripts/opennccm.sh /usr/local/bin/opennccm
   ln -sf $APP_DIR/scripts/opennccm.sh /usr/local/bin/opennccm-cli   # compatibilidad con 1.x
   chmod 755 $APP_DIR/scripts/opennccm.sh
   run systemctl daemon-reload
   run systemctl enable opennccm
   run systemctl enable --now opennccm-webupdate.path
+  run systemctl enable --now opennccm-fxi-firewall.path
 }
 
 setup_polkit() {

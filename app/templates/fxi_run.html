@@ -1,0 +1,81 @@
+{% extends "base.html" %}{% block title %}{{ _f('Imagen .fxi · {0}', device.name) }}{% endblock %}
+{% block crumbs %}<a href="/devices">{{ _('Dispositivos') }}</a>{{ icon('right', 's') }}<a href="/devices/{{ device.id }}#backups">{{ device.name }}</a>{{ icon('right', 's') }}<b>{{ _('Imagen .fxi') }}</b>{% endblock %}
+{% block content %}
+<style>
+  .fxr{display:grid;grid-template-columns:1.05fr .95fr;gap:16px;margin-top:16px}
+  @media (max-width:900px){.fxr{grid-template-columns:1fr}}
+  .fxr .bar{height:6px;border-radius:99px;background:var(--surface-3);margin:12px 0 6px}.fxr .bar i{display:block;height:100%;border-radius:99px;background:var(--brand);transition:width .3s}
+  .fxr .bar.ok i{background:var(--ok)}.fxr .bar.err i{background:var(--crit)}
+  .fxr .step{display:flex;gap:12px;padding:11px 0;border-top:1px solid var(--line)}
+  .fxr .dot{flex:none;width:22px;height:22px;border-radius:99px;display:inline-flex;align-items:center;justify-content:center;font:700 11px var(--f-sans);background:var(--surface-3);color:var(--muted)}
+  .fxr .dot.ok{background:var(--ok-soft);color:var(--ok)}.fxr .dot.run{background:var(--brand-soft);color:var(--brand)}.fxr .dot.err{background:var(--crit-soft);color:var(--crit)}
+  .fxr .st-t{font:600 13.5px var(--f-sans);color:var(--ink)}.fxr .st-t.wait{color:var(--muted)}
+  .fxr .st-d{font:500 12px var(--f-mono);color:var(--muted);margin-top:2px;word-break:break-all}
+  .fxr .log{font:500 12px/1.7 var(--f-mono);color:var(--ink-2);background:var(--p-face,var(--surface-2));border:1px solid var(--line);border-radius:12px;padding:12px 14px;white-space:pre-wrap;word-break:break-all;min-height:120px}
+  .fxr .lbl{font:600 10.5px var(--f-sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .fxr .chk{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.5}
+</style>
+<div class="ph"><div><h1 style="margin:0">{{ device.name }}</h1><p class="muted" style="margin:4px 0 0">WatchGuard {{ device.model or '' }}{% if device.os_version %} · Fireware {{ device.os_version }}{% endif %} · {{ device.host }}</p></div></div>
+{% if not st %}
+  <div class="card" style="margin-top:16px"><p class="muted" style="margin:0">{{ _('No hay ninguna imagen en curso para este equipo.') }} <a href="/devices/{{ device.id }}#backups">{{ _('Volver a Respaldos') }}</a></p></div>
+{% elif st.status == 'error' and not st.test %}
+<div class="fxr">
+  <section class="card" style="border-color:var(--crit)">
+    <div class="row" style="gap:12px;align-items:flex-start"><span class="dot err" aria-hidden="true">✕</span><div><h2 style="margin:0">{{ _('El Firebox no pudo enviar la imagen a OpenNCCM') }}</h2>
+      <p class="muted sm" style="margin:4px 0 0;line-height:1.5">{% set okn = st.steps|selectattr('k', 'equalto', 'ok')|list|length %}{% if okn %}{{ _f('Pasos 1 a {0} bien.', okn) }} {% endif %}{% if st.device_msg %}{{ _('El Firebox respondió:') }} <span class="mono" style="color:var(--crit)">{{ st.device_msg[:400] }}</span>{% else %}<span class="mono" style="color:var(--crit)">{{ st.error }}</span>{% endif %}. {{ _('El receptor ya se cerró.') }}</p></div></div>
+    <div class="lbl" style="margin-top:16px">{{ _('Qué revisar') }}</div>
+    <div class="stack" style="gap:10px;margin-top:8px">
+      <div class="chk"><span class="dot">1</span><span><b>{{ _('Otro cortafuegos en el camino.') }}</b> {{ _f('Permita TCP {0} y {1} desde {2} hacia {3}.', c.port, c.pasv, device.host, addr or '—') }}</span></div>
+      <div class="chk"><span class="dot">2</span><span><b>{{ _('El Firebox llega a OpenNCCM por otra dirección') }}</b> {{ _('(NAT o VPN). Cámbiela en el receptor FTP.') }}</span></div>
+      <div class="chk"><span class="dot">3</span><span><b>{{ _('Una política del Firebox bloquea su propio FTP saliente.') }}</b> {{ _('Revise que el Firebox pueda abrir FTP hacia la red de gestión.') }}</span></div>
+      <div class="chk"><span class="dot">4</span><span><b>{{ _('La credencial no es de administrador.') }}</b> {{ _('Una cuenta Device Monitor (solo lectura) no puede crear la imagen.') }}</span></div>
+    </div>
+    <div class="row" style="gap:8px;margin-top:16px;flex-wrap:wrap">{% if user.role == 'admin' %}<form method="post" action="/devices/{{ device.id }}/fxi/run" class="inline"><button class="btn pri">{{ _('Reintentar') }}</button></form>
+      <a class="btn" href="/devices/{{ device.id }}?fxi=cfg#backups">{{ _('Cambiar la dirección') }}</a>{% endif %}<a class="btn" href="{{ doc }}" target="_blank" rel="noopener">{{ _('Ver en la documentación') }}</a></div>
+  </section>
+  <div class="stack" style="gap:12px">
+    <div class="card" style="border-color:var(--ok)"><div class="chk"><span class="dot ok" aria-hidden="true">✓</span><span><b>{{ _('El respaldo XML no se ve afectado.') }}</b> {{ _('La configuración sigue guardándose en cada respaldo; solo falta la imagen completa.') }}</span></div></div>
+    <div class="card sm" style="line-height:1.5"><b>{{ _('Aviso y alarma.') }}</b> {{ _f('Si falla 2 veces seguidas, se abre la alarma «Imagen .fxi sin crear» en {0}, de severidad Aviso, y llega a quien recibe los avisos.', device.name) }}</div>
+    <div class="lbl">{{ _('Registro') }}</div><div class="log">{{ st.log|join('\n') }}</div>
+  </div>
+</div>
+{% else %}
+<div class="fxr" id="fxr" data-status="{{ st.status }}">
+  <section class="card">
+    <div class="row" style="gap:8px"><h2 style="margin:0">{{ _('Probando la conexión') if st.test else _('Creando la imagen .fxi') }}</h2><span class="pill {{ 'ok' if st.status == 'ok' else 'crit' if st.status == 'error' else 'info' }}" id="fxr-pill">{{ _('Lista') if st.status == 'ok' else _('Falló') if st.status == 'error' else _('En curso') }}</span><span class="grow"></span></div>
+    {% set n = st.steps|length %}{% set done = st.steps|selectattr('k', 'equalto', 'ok')|list|length %}
+    <div class="bar {{ 'ok' if st.status == 'ok' else 'err' if st.status == 'error' }}"><i id="fxr-bar" style="width:{{ (100 * done / n)|round|int if n else 0 }}%"></i></div>
+    <div id="fxr-steps">{% for s in st.steps %}<div class="step"><span class="dot {{ s.k }}">{{ '✓' if s.k == 'ok' else '✕' if s.k == 'err' else loop.index }}</span><div style="min-width:0"><div class="st-t {{ 'wait' if s.k == 'wait' }}">{{ _(s.t) }}</div><div class="st-d">{{ s.d }}</div></div></div>{% endfor %}</div>
+    <div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap" id="fxr-done" {{ 'hidden' if st.status != 'ok' }}>
+      <a class="btn" href="/devices/{{ device.id }}#backups">{{ icon('check', 's') }}{{ _('Volver a Respaldos') }}</a>
+      {% if st.image_id and user.role == 'admin' %}<a class="btn" href="/devices/{{ device.id }}/fxi/{{ st.image_id }}/download">{{ icon('dl', 's') }}{{ _('Descargar .fxi') }}</a>
+      {% if last_xml %}<button type="button" class="btn" id="fxr-both" data-xml="/versions/{{ last_xml }}?raw=1" data-fxi="/devices/{{ device.id }}/fxi/{{ st.image_id }}/download">{{ icon('dl', 's') }}{{ _('Descargar .xml y .fxi') }}</button>{% endif %}{% endif %}</div>
+  </section>
+  <div class="stack" style="gap:12px">
+    <div class="lbl">{{ _('Registro') }}</div><div class="log" id="fxr-log">{{ st.log|join('\n') }}</div>
+    <div class="card sm" style="line-height:1.55"><b>{{ _('Mientras tanto el Firebox sigue funcionando.') }}</b> {{ _('Crear la imagen no corta el tráfico ni cierra sesiones VPN; tarda de 30 s a unos minutos según el modelo. Queda en Auditoría con quién la pidió.') }}</div>
+  </div>
+</div>
+<script>
+(function () {
+  const box = document.getElementById('fxr'); if (!box) return;
+  const both = document.getElementById('fxr-both');
+  if (both) both.addEventListener('click', () => [both.dataset.xml, both.dataset.fxi].forEach((u, i) => setTimeout(() => { const a = document.createElement('a'); a.href = u; a.download = ''; document.body.appendChild(a); a.click(); a.remove(); }, i * 700)));
+  if (box.dataset.status !== 'running') return;
+  const T = {{ {'steps': {'Abrir el receptor FTP temporal': _('Abrir el receptor FTP temporal'), 'Entrar al Firebox por SSH': _('Entrar al Firebox por SSH'), 'Pedir la imagen': _('Pedir la imagen'), 'Recibir el archivo': _('Recibir el archivo'), 'Cerrar el receptor y comprobar': _('Cerrar el receptor y comprobar')}}|tojson }};
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c]);
+  const tick = async () => {
+    const s = await fetch('/devices/{{ device.id }}/fxi/status').then(r => r.json()).catch(() => null);
+    if (!s || !s.steps) return setTimeout(tick, 2000);
+    if (s.status !== 'running') { location.reload(); return; }
+    const done = s.steps.filter(x => x.k === 'ok').length;
+    document.getElementById('fxr-bar').style.width = Math.round(100 * done / s.steps.length) + '%';
+    document.getElementById('fxr-steps').innerHTML = s.steps.map((x, i) => `<div class="step"><span class="dot ${x.k}">${x.k === 'ok' ? '✓' : x.k === 'err' ? '✕' : i + 1}</span><div style="min-width:0"><div class="st-t ${x.k === 'wait' ? 'wait' : ''}">${esc(T.steps[x.t] || x.t)}</div><div class="st-d">${esc(x.d)}</div></div></div>`).join('');
+    document.getElementById('fxr-log').textContent = (s.log || []).join('\n');
+    setTimeout(tick, 1000);
+  };
+  setTimeout(tick, 800);
+})();
+</script>
+{% endif %}
+{% endblock %}

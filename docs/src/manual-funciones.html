@@ -1259,6 +1259,33 @@ necesita FTP/TFTP. WatchGuard Fireware se respalda con <code>export config to co
 XML) y, una sola vez, guarda su <b>feature key</b> (<code>show feature-key</code>), que se descarga desde la ficha del equipo; un
 usuario de solo lectura (Device Monitor) basta. Si un comando no sirve para su versión, defina un <b>comando de respaldo personalizado</b> en el dispositivo. Para
 equipos sin perfil propio (SonicWall, Riverbed, Infoblox…) use <b>Genérico SSH</b> con un comando personalizado.</p>
+<h3>WatchGuard: configuración (XML) e imagen completa (.fxi)</h3>
+<p>La ficha de un Firebox tiene la pestaña <b>Respaldos</b> con los dos tipos de respaldo de WatchGuard:</p>
+<table>
+  <tr><th></th><th>Configuración (XML)</th><th>Imagen completa (.fxi)</th></tr>
+  <tr><td>Qué guarda</td><td>Políticas, interfaces, VLAN, NAT, VPN, alias, usuarios y ajustes</td><td>Todo lo anterior, más los
+  certificados con sus claves privadas, la feature key, las contraseñas y la información propia de ese Firebox</td></tr>
+  <tr><td>Qué no guarda</td><td>La feature key (OpenNCCM la guarda aparte), los certificados con sus claves, las contraseñas
+  propias del equipo y el Fireware OS</td><td>—</td></tr>
+  <tr><td>Cuándo</td><td>En cada respaldo; no cambia nada en el Firebox</td><td>Semanal, diaria o solo a mano (a las 03:00)</td></tr>
+  <tr><td>Credencial</td><td>Solo lectura (Device Monitor) basta</td><td>De administrador (Device Administrator)</td></tr>
+  <tr><td>Úsela para</td><td>Ver qué cambió, auditar el cumplimiento y llevar la configuración a <b>otro</b> Firebox (de
+  reemplazo o de otro modelo) con Policy Manager</td><td>Recuperar <b>el mismo</b> Firebox tras un fallo, un restablecimiento de
+  fábrica o una actualización que salió mal. No sirve para otro equipo: WatchGuard la considera única de cada Firebox</td></tr>
+</table>
+<p>Fireware solo entrega la imagen subiéndola por FTP. Para eso OpenNCCM abre un <b>receptor FTP temporal</b> (puerto 2121 y
+pasivos 50000–50010, configurables) solo mientras dura el respaldo: acepta únicamente la IP del Firebox, con usuario y contraseña de
+un solo uso, y se cierra al recibir el archivo o a los 5 minutos. Si el servidor usa ufw, abre esos puertos solo para el Firebox y
+los cierra al terminar (si el servicio se detuviera, la regla se quita sola a los 6 minutos). Si hay otro cortafuegos entre el
+Firebox y OpenNCCM, permita esos puertos desde el Firebox hacia el servidor. En el Firebox se ejecuta <code>backup image</code>,
+<code>export image … to ftp://…</code> y <code>delete backup</code> (no queda una copia en el equipo).</p>
+<p>Al configurarla se elige la credencial de administrador, la <b>clave de cifrado</b> de la imagen (8 a 32 caracteres; sin ella
+no se puede restaurar), la dirección por la que el Firebox llega a OpenNCCM (se detecta sola) y cuántas imágenes guardar.
+<b>Probar conexión</b> pide al Firebox que suba su configuración al receptor, sin crear ninguna imagen. Si una imagen falla dos
+veces seguidas, se abre la alarma «Imagen .fxi sin crear»; el respaldo XML no se ve afectado. Cada archivo se descarga en su
+formato (<code>EQUIPO_v48.xml</code>, <code>EQUIPO_img-12.fxi</code>), nunca en .zip; la clave no va dentro de ninguno y se ve,
+solo para administradores, en <b>Cómo restaurar</b> (queda en Auditoría quién la vio). Para restaurar la imagen: Fireware Web UI ›
+Sistema › Backup and Restore Image, importar el .fxi y escribir su clave.</p>
 <p><b>pfSense y OPNsense</b> tienen perfil propio: OpenNCCM atraviesa el menú de consola (opción «8) Shell») y respalda el archivo
 <code>config.xml</code> completo, el mismo que exporta la web. Use el usuario <code>admin</code>/<code>root</code> (el archivo solo lo lee
 root); el inventario trae versión, modelo y número de serie. Los cambios se siguen haciendo desde la web del cortafuegos.

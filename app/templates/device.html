@@ -53,6 +53,7 @@
 
 <nav class="tabs" data-tabs aria-label="Secciones del equipo">
   <a href="#resumen">Resumen</a>
+  {% if fxi %}<a href="#backups">{{ _('Respaldos') }}{% if fxi.state and fxi.state.status == 'error' %} <span class="cnt2 crit">!</span>{% endif %}</a>{% endif %}
   {% if ports %}<a href="#ports">{{ _('Puertos') }} <span class="cnt2">{{ ports.ports|length }}</span></a>{% endif %}
   <a href="#versions">Versiones{% if total_v %} <span class="cnt2">{{ total_v }}</span>{% endif %}</a>
   <a href="#compliance">Cumplimiento{% if comp_fails %} <span class="cnt2 crit">{{ comp_fails }}</span>{% endif %}</a>
@@ -98,6 +99,10 @@
     </div>
   </div>
 </section>
+
+{% if fxi %}
+<section id="backups" class="stack" aria-label="{{ _('Respaldos') }}">{% include "_fxi.html" %}</section>
+{% endif %}
 
 {% if ports %}
 <section id="ports" aria-label="{{ _('Puertos') }}">
