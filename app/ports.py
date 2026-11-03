@@ -35,7 +35,7 @@ COMMANDS = {
     "fortinet": ["get system interface physical"], "paloalto_panos": ["show interface all"],
     "checkpoint_gaia": ["show interfaces all"], "nokia_sros": ["show port"],
     "pfsense": ["ifconfig -a"], "opnsense": ["ifconfig -a"],
-    "watchguard_fireware": [],  # Fireware no tiene una tabla de puertos por CLI: se leen del XML de la configuración
+    "watchguard_fireware": [],  # se leen con read_fireware(): «show status-report» (enlace y velocidad) + el XML
     "ubiquiti_unifiswitch": ["show interfaces status all", "show port all"],
     "broadcom_icos": ["show interfaces status all", "show port all"],
     "netgear_prosafe": ["show interfaces status all", "show interfaces status"],
@@ -59,11 +59,61 @@ def commands(device_type: str) -> list[str]:
 
 
 def has_status(device_type: str) -> bool:
-    return device_type == "mikrotik_routeros" or bool(commands(device_type))
+    return device_type in ("mikrotik_routeros", "watchguard_fireware") or bool(commands(device_type))
+
+
+FIREWARE_CMD = "show status-report"
+FIREWARE_SECTION = "Physical Interfaces Link Status"
+
+
+def read_fireware(conn) -> str | None:
+    """WatchGuard Fireware: «show status-report» (solo lectura; unas 1.500 líneas) trae, en «Physical Interfaces Link
+    Status», el enlace y la velocidad de cada puerto («Settings for eth2: … Speed: 1000Mb/s … Link detected: yes»,
+    comprobado en un T40 con 12.8.1). Solo se guarda esa sección: el resto trae procesos, claves públicas y DHCP."""
+    try:
+        text = conn.send_command(FIREWARE_CMD, read_timeout=120)
+    except Exception:  # noqa: BLE001
+        return None
+    i = text.find(FIREWARE_SECTION)
+    if i < 0:
+        return None
+    # de esa sección, solo las líneas de cada puerto (las estadísticas por CPU de cada tarjeta no hacen falta)
+    keep = [ln.strip() for ln in text[i:].splitlines()
+            if re.match(r"\s*(Settings for eth\d+:|Speed:|Duplex:|Link detected:)", ln)]
+    return MARK + FIREWARE_CMD + "\n" + FIREWARE_SECTION + "\n" + "\n".join(keep) if keep else None
+
+
+def fireware_links(raw: str) -> dict[str, dict]:
+    """{«eth2»: {"up": True, "sp": "1 Gbps", "st": "Link detected: yes · 1000Mb/s Full"}} de la sección guardada."""
+    out, cur = {}, None
+    for ln in (raw or "").splitlines():
+        m = re.match(r"\s*Settings for (eth\d+):", ln)
+        if m:
+            cur = out.setdefault(m.group(1), {"up": False, "sp": "", "dup": ""})
+            continue
+        if cur is None:
+            continue
+        m = re.match(r"\s*Speed:\s*(\d+)\s*Mb/s", ln)
+        if m:
+            n = int(m.group(1))
+            cur["sp"] = f"{n // 1000 if n % 1000 == 0 else n / 1000} Gbps" if n >= 1000 else f"{n} Mbps"
+        m = re.match(r"\s*Duplex:\s*(\w+)", ln)
+        if m:
+            cur["dup"] = m.group(1)
+        m = re.match(r"\s*Link detected:\s*(yes|no)", ln)
+        if m:
+            cur["up"] = m.group(1) == "yes"
+    for v in out.values():
+        v["st"] = f"Link detected: {'yes' if v['up'] else 'no'}" + (f" · {v['sp']} {v['dup']}" if v["up"] and v["sp"] else "")
+        if not v["up"]:
+            v["sp"] = ""  # sin enlace la velocidad que informa es la última negociada, no la actual
+    return out
 
 
 def read(conn, device_type: str) -> str | None:
     """Lee la tabla de puertos en la conexión del respaldo. Nunca hace fallar el respaldo: devuelve None si no puede."""
+    if device_type == "watchguard_fireware":
+        return read_fireware(conn)
     if device_type == "mikrotik_routeros":
         try:
             out = conn.send_command("/interface ethernet print terse without-paging", read_timeout=30)
@@ -410,7 +460,7 @@ LAYOUTS = [
     (r"(?i)^(Firebox\s*)?T40$", {"rows": 1, "sfp": "row", "ports_rear": True,
                                        "names": {"eth0": "0/WAN", "eth1": "1/LAN", "eth2": "2", "eth3": "3", "eth4": "4-PoE"},
                                        "before": ["console", "usb:USB 1", "usb:USB 2"], "after": ["reset", "switch", "dc:54 V DC"],
-                                       "leds": {"left": ["Failover"], "port_rows": ["1000", "10/100"], "order": "desc",
+                                       "leds": {"left": ["Failover"], "port_rows": ["1000", "10/100"], "row_colors": ["y", ""], "order": "desc",
                                                 "right": [["Status", "Mode"], ["Attn", "power"]]},
                                        "rear": {"psu": ["54 V DC"]}}),
     # firewalls de escritorio: una fila
@@ -499,6 +549,13 @@ def _parse_section(cmd: str, text: str, device_type: str, model: str | None = No
 def parse(raw: str | None, device_type: str, config: str = "", model: str | None = None) -> tuple[list[dict], bool]:
     """(puertos, hay_estado_de_enlace). Sin salida de estado se usa la configuración (apagado / habilitado)."""
     ports: list[dict] = []
+    if device_type == "watchguard_fireware":  # nombres, redes y apagados del XML; enlace y velocidad del informe
+        ports, links = _fireware_config(config), fireware_links(raw or "")
+        for p in ports:
+            ln = links.get(p["n"])
+            if ln and p["s"] != "off":
+                p["s"], p["sp"], p["st"] = ("up" if ln["up"] else "down"), ln["sp"], ln["st"]
+        return ports, bool(links) and bool(ports)
     if raw:
         if device_type == "mikrotik_routeros":
             ports = _mikrotik(raw)
