@@ -94,17 +94,34 @@ DANGER_WHY = {
 DANGER_WHY_DEFAULT = N_("reinicia el equipo o borra su configuración: corta el servicio mientras tanto")
 
 
-def is_danger(os_key: str, cmd: str) -> bool:
-    return bool(re.search(_DANGER.get(os_key, _DANGER["generic"]), cmd.strip(), re.I))
+def _norm(cmd: str) -> str:
+    return " ".join(cmd.split())
 
 
-def is_change(os_key: str, cmd: str) -> bool:
-    """¿El comando cambia algo en el equipo? Lo dudoso cuenta como cambio (así lo bloquea el modo solo lectura)."""
+def _known(device_type: str | None, kind: str) -> frozenset[str] | set[str]:
+    """Comandos del catálogo de ese tipo de equipo (app.cmdref) de ese tipo: r consulta, x corta el servicio."""
+    if not device_type:
+        return set()
+    from . import cmdref
+    if kind == "r":
+        return cmdref.reads(device_type)
+    return {c for c, _d, k in cmdref.entries(device_type) if k == kind}
+
+
+def is_danger(os_key: str, cmd: str, device_type: str | None = None) -> bool:
+    return bool(re.search(_DANGER.get(os_key, _DANGER["generic"]), cmd.strip(), re.I)) or _norm(cmd) in _known(device_type, "x")
+
+
+def is_change(os_key: str, cmd: str, device_type: str | None = None) -> bool:
+    """¿El comando cambia algo en el equipo? Lo dudoso cuenta como cambio (así lo bloquea el modo solo lectura). Los
+    comandos de consulta del catálogo del tipo de equipo (app.cmdref) son consultas aunque la familia no los reconozca."""
     c = cmd.strip()
     if not c:
         return False
-    if is_danger(os_key, c):
+    if is_danger(os_key, c, device_type):
         return True
+    if _norm(c) in _known(device_type, "r"):
+        return False
     if os_key == "ros":
         if c.startswith(":"):  # scripts (:put, :foreach…): pueden hacer de todo
             return not re.match(r":(put|local|global)\b", c)
@@ -112,15 +129,15 @@ def is_change(os_key: str, cmd: str) -> bool:
     return not re.match(_QUERY.get(os_key, _QUERY["generic"]), c, re.I)
 
 
-def is_query(os_key: str, cmd: str) -> bool:
-    return bool(cmd.strip()) and not is_change(os_key, cmd)
+def is_query(os_key: str, cmd: str, device_type: str | None = None) -> bool:
+    return bool(cmd.strip()) and not is_change(os_key, cmd, device_type)
 
 
-def risk(os_key: str, cmd: str) -> str:
+def risk(os_key: str, cmd: str, device_type: str | None = None) -> str:
     """read | change | outage: lo que se muestra junto a cada comando del asistente y de las recetas."""
-    if is_danger(os_key, cmd):
+    if is_danger(os_key, cmd, device_type):
         return "outage"
-    return "change" if is_change(os_key, cmd) else "read"
+    return "change" if is_change(os_key, cmd, device_type) else "read"
 
 
 def denied(cmd: str, patterns: str) -> str | None:
@@ -251,8 +268,17 @@ FREQUENT = {
 }
 
 
-def client_profile(os_key: str, tr) -> dict:
-    """Lo que necesita la consola en el navegador (autocompletado, frecuentes y qué se considera cambio)."""
-    return {"os": os_key, "label": OS_LABEL.get(os_key, ""),
-            "suggest": [[c, tr(d)] for c, d in SUGGEST.get(os_key, SUGGEST["generic"])],
-            "frequent": [[c, is_danger(os_key, c)] for c in FREQUENT.get(os_key, FREQUENT["generic"])]}
+def client_profile(os_key: str, tr, dev=None) -> dict:
+    """Lo que necesita la consola en el navegador: autocompletado y frecuentes. Con el equipo (dev), los de su tipo,
+    modelo y versión de firmware (app.cmdref); el historial de comandos se guarda por tipo de equipo («key»)."""
+    if dev is None:
+        return {"os": os_key, "key": os_key, "label": OS_LABEL.get(os_key, ""),
+                "suggest": [[c, tr(d)] for c, d in SUGGEST.get(os_key, SUGGEST["generic"])],
+                "frequent": [[c, is_danger(os_key, c)] for c in FREQUENT.get(os_key, FREQUENT["generic"])]}
+    from . import cmdref
+    from .drivers import get_profile
+    t = dev.device_type or "generic"
+    label = " ".join(x for x in (get_profile(t).label, dev.model or "", dev.os_version or "") if x)
+    return {"os": os_key, "key": t, "label": label,
+            "suggest": [[c, tr(d)] for c, d, _k in cmdref.entries(t, dev.model or "", dev.os_version or "")],
+            "frequent": [[c, k == "x"] for c, _d, k in cmdref.frequent(t, dev.model or "", dev.os_version or "")]}

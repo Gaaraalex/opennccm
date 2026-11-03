@@ -259,12 +259,12 @@ async def multi(request: Request):
             ok, _acc = console._open_allowed(user, d)
             if not ok:
                 return JSONResponse({"error": _f("Sin consola en {0}.", d.name)}, 403)
-            devs.append((d.id, cc.os_of(d.device_type)))
-    if any(cc.is_change(o, cmd) for _i, o in devs):
+            devs.append((d.id, cc.os_of(d.device_type), d.device_type))
+    if any(cc.is_change(o, cmd, t) for _i, o, t in devs):
         return JSONResponse({"change": True, "msg": _("Este comando cambia la configuración. En multi-equipo no se ejecuta directo: se crea una solicitud de cambio para aprobar, con respaldo y reversión.")})
     from . import services
     t0 = time.time()
-    futs = [services.pool.submit(_run_one, i, cmd) for i, _o in devs]
+    futs = [services.pool.submit(_run_one, i, cmd) for i, _o, _t in devs]
     res = [f.result() for f in as_completed(futs)]
     groups: dict[str, dict] = {}
     failed = []
@@ -442,8 +442,8 @@ def rec_events(request: Request, sid: int):
     r, ev = _rec(user, sid)
     with SessionLocal() as db:
         d = db.get(Device, r.device_id) if r.device_id else None
-        os_key = cc.os_of(d.device_type) if d else "generic"
-    danger = [e[0] for e in ev if e[1] == "i" and cc.is_danger(os_key, e[2])]
+        os_key, dev_type = (cc.os_of(d.device_type), d.device_type) if d else ("generic", None)
+    danger = [e[0] for e in ev if e[1] == "i" and cc.is_danger(os_key, e[2], dev_type)]
     return JSONResponse({"events": ev, "danger": danger, "u": r.username, "d": r.device_name, "ip": r.ip,
                          "when": r.started_at.isoformat() if r.started_at else ""})
 

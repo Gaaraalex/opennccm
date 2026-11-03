@@ -20,7 +20,7 @@ from sqlalchemy import delete, select
 from .config import NVD_API_KEY, WORKERS
 from .crypto import decrypt, encrypt, try_decrypt
 from .db import (ChangeRequest, ComplianceResult, ConfigVersion, Device, Event, Policy, SessionLocal,
-                 Vulnerability, get_setting, now)
+                 Vulnerability, audit, get_setting, now)
 from .drivers import FASTPATH, IOS, clean_config, compare_text, get_profile, parse_inventory, telnet_supported
 from .drivers import HTTP_ONLY as _HTTP_ONLY
 from .rollback import fastpath_style, rollback_plan
@@ -450,6 +450,15 @@ def device_error(text: str) -> bool:
                           head))
 
 
+def replaced_serial(old: str | None, new: str | None) -> bool:
+    """¿Es otro aparato? Las dos series se leyeron y no coinciden (sin contar mayúsculas ni espacios)."""
+    def norm(s):
+        s = re.sub(r"\s+", "", s or "").upper()
+        return s if len(s) >= 4 and re.search(r"[A-Z0-9]", s) else ""
+    a, b = norm(old), norm(new)
+    return bool(a and b and a != b)
+
+
 def _read_license(conn, prof) -> str | None:
     """Licencia del equipo (Profile.license_cmd), si se puede leer; un fallo aquí no estropea el respaldo."""
     if not prof.license_cmd:
@@ -470,16 +479,23 @@ def _read_license(conn, prof) -> str | None:
 _LICENSE_TRIED: dict[int, tuple[float, float, str]] = {}  # último intento sin éxito, por equipo: (cuándo, espera, motivo)
 LICENSE_RETRY = 24 * 3600  # la Web UI rechazó el ingreso: no insistir con la contraseña más de una vez al día
 LICENSE_RETRY_NET = 3600  # no se llegó a la Web UI (no se envió la contraseña): se reintenta antes
+_LICENSE_CHECKED: dict[int, float] = {}  # última relectura de una licencia completa que vence pronto, por equipo
 
 
 def _license_missing(dev, prof) -> bool:
     """Falta leer la licencia: no hay ninguna guardada, o la guardada no está completa (Profile.license_mark). Si ya se
     intentó completarla y no se pudo, se reintenta pasada la espera: un día si la Web UI de Fireware rechazó el ingreso,
-    una hora si no respondió."""
+    una hora si no respondió. Una completa se vuelve a leer una vez al día si algo vence en 60 días o ya venció, para
+    ver la renovación (app.licenses)."""
     if not dev.license_enc:
         return True
-    if not prof.license_mark or re.search(prof.license_mark, try_decrypt(dev.license_enc) or ""):
-        return False
+    saved = try_decrypt(dev.license_enc) or ""
+    if not prof.license_mark or re.search(prof.license_mark, saved):
+        from . import licenses
+        if not licenses.due_soon(saved) or time.time() - _LICENSE_CHECKED.get(dev.id, 0) < LICENSE_RETRY:
+            return False
+        _LICENSE_CHECKED[dev.id] = time.time()
+        return True
     tried, wait, _why = _LICENSE_TRIED.get(dev.id, (0, 0, ""))
     return time.time() - tried >= wait
 
@@ -552,7 +568,13 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
                     want_license = _license_missing(dev, prof)
                     license_raw = _read_license(conn, prof) if want_license else None
                 if want_license and prof.key == "watchguard_fireware":  # la firma, por la Web UI (ya sin SSH)
-                    license_raw, license_warn = _fireware_license(dev, license_raw)
+                    from . import fireware_web
+                    saved = try_decrypt(dev.license_enc) if dev.license_enc else None
+                    if license_raw and saved and re.search(prof.license_mark, saved) \
+                            and fireware_web.same_key(license_raw, saved):
+                        license_raw = None  # sigue la misma, ya firmada: no hace falta entrar a la Web UI
+                    else:
+                        license_raw, license_warn = _fireware_license(dev, license_raw)
         except Exception as e:  # noqa: BLE001
             dev.last_status, dev.last_error = "error", (str(e) or repr(e))[:2000]
             db.commit()
@@ -588,12 +610,16 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
                       f"{dev.name}: la versión anterior se cifró con otra clave (secret.key); se guarda la actual completa.",
                       dev.id)
         changed = prev is None or (prev.sha256 != sha and not same_config(prev_text, running, prof))
+        # otro aparato con la misma dirección (RMA o cambio de equipo): el número de serie ya no es el guardado
+        old_serial = dev.serial
+        new_serial = parse_inventory(inventory, prof)["serial"] if inventory else None
+        replaced = replaced_serial(old_serial, new_serial)
         result = "unchanged"
         if changed:
             added, removed = diff_stats(prev_text, running) if prev else (len(running.splitlines()), 0)
             db.add(ConfigVersion(device_id=dev.id, kind="running", content_enc=encrypt(running), sha256=sha,
                                  size=len(running), added=added, removed=removed, trigger=trigger,
-                                 username=username))
+                                 username=username, label=f"equipo nuevo · serie {new_serial}"[:128] if replaced else None))
             result = "changed" if prev else "first"
 
         if startup is not None:
@@ -647,6 +673,14 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
 
         dev.last_status, dev.last_error, dev.last_backup_at = "ok", None, now()
         db.commit()
+        if replaced:
+            add_event("warning", "Equipo reemplazado",
+                      f"{dev.name} ({dev.host}): cambió el número de serie {old_serial} → {new_serial}. Es otro aparato "
+                      "con la misma dirección (RMA o cambio de equipo). "
+                      + ("Su configuración se guardó como una versión nueva, marcada «equipo nuevo»: la diferencia con "
+                         "la anterior es entre dos aparatos distintos. " if result == "changed" else "")
+                      + "Revise que tenga la configuración que corresponde.", dev.id)
+            audit(username or "sistema", "device_replaced", f"{dev.name}: serie {old_serial} → {new_serial}")
         if new_license:
             add_event("info", f"{prof.license_label} guardada",
                       f"{dev.name}: se guardó su {prof.license_label.lower()} (una sola vez; se descarga desde la ficha).",
@@ -670,8 +704,11 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
                      dev.name, trigger, added, removed, dev.auto_rollback, bool(in_maintenance))
             sev = "info" if trigger == "push" else "warning"
             add_event(sev, "Cambio de configuración",
-                      f"{dev.name} ({dev.host}) cambió [{trigger}]. +{added}/-{removed} líneas\n\n{diff}", dev.id)
-            if dev.auto_rollback and trigger in ("syslog", "scheduled") and not in_maintenance:
+                      f"{dev.name} ({dev.host}) cambió [{trigger}]. +{added}/-{removed} líneas"
+                      + (" (contra la configuración del equipo anterior: se reemplazó el aparato)" if replaced else "")
+                      + f"\n\n{diff}", dev.id)
+            # equipo reemplazado: no se le aplica sola la configuración del aparato anterior; lo decide el operador
+            if dev.auto_rollback and trigger in ("syslog", "scheduled") and not in_maintenance and not replaced:
                 # se ejecuta en otro hilo: este todavía tiene el lock del dispositivo
                 jobs.submit(_auto_rollback, dev.id, dev.name, dev.device_type, dev.host, running, prev_text)
         if result in ("changed", "first"):  # copia en Git (si está activada en Ajustes)
@@ -685,6 +722,11 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
             jobs.submit(fwupdates.check_new, dev.id)
 
     run_compliance(device_id)
+    try:  # servicios de la licencia por vencer (app.licenses); un fallo aquí no estropea el respaldo
+        from . import licenses
+        licenses.check(device_id)
+    except Exception as e:  # noqa: BLE001
+        log.warning("Vencimiento de licencia de %s: %s", device_id, e)
     return result
 
 

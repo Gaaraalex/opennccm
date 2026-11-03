@@ -18,7 +18,7 @@ TITLES = {
     "inventory": N_("Inventario"), "changes": N_("Cambios de configuración"), "compliance": N_("Cumplimiento"),
     "vulns": N_("Vulnerabilidades"), "audit": N_("Auditoría de usuarios"), "changes_requests": N_("Solicitudes de cambio"),
     "conflicts": N_("Conflictos startup ≠ running"), "baseline": N_("Fuera de línea base"),
-    "eol": N_("Fin de vida (EOL/EOS)"),
+    "eol": N_("Fin de vida (EOL/EOS)"), "licenses": N_("Licencias por vencer"),
 }
 
 
@@ -32,6 +32,7 @@ HEADERS = [
     N_("CVE"), N_("CVSS"), N_("enlace"), N_("acción"), N_("detalle"), N_("id"),
     N_("título"), N_("solicitante"), N_("revisor"), N_("ejecutada"), N_("versión baseline"), N_("desvío"),
     N_("fin de venta"), N_("fin de parches"), N_("fin de soporte"), N_("reemplazo"),
+    N_("servicio"), N_("vence"), N_("días"),
 ]
 
 
@@ -88,6 +89,9 @@ def build(kind: str, scope: set[int] | None = None, days: int = 30) -> tuple[lis
                   e.end_of_sw_maintenance.date() if e and e.end_of_sw_maintenance else "",
                   e.end_of_support.date() if e and e.end_of_support else "", e.replacement if e else "")
                  for d, e, st in rows])
+    if kind == "licenses":  # lo que vence en los próximos 90 días y lo ya vencido (app.licenses)
+        from . import licenses
+        return ["equipo", "modelo", "servicio", "vence", "días"], licenses.report(scope)
     raise KeyError(kind)
 
 

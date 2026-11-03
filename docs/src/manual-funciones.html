@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.21.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 2.22.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -279,7 +279,15 @@ salida en colores, ayuda para escribir los comandos y protecciones contra los qu
   desde <b>Operar → Consola</b>. Arriba se ve «Consola · nombre» con la IP, el modelo y el sistema.</li>
   <li>Escriba en la <b>línea de comando</b> fija de abajo. Mientras escribe aparece en gris el resto del comando más probable
   para ese sistema y un menú de sugerencias: <b>Tab</b> completa, <b>↑ ↓</b> eligen y, con el menú cerrado, <b>↑</b> recorre el
-  historial. <b>Frecuentes</b> ejecuta los más usados con un clic (los que reinician el equipo van en rojo).</li>
+  historial. <b>Frecuentes</b> ejecuta los más usados con un clic (los que reinician el equipo van en rojo).
+  Las sugerencias y los frecuentes son <b>los de ese equipo</b>: los de su tipo (cada uno de los que admite OpenNCCM tiene
+  los suyos, empezando por los que el propio OpenNCCM usa para respaldarlo e inventariarlo), ajustados a su <b>modelo</b> y su
+  <b>versión de firmware</b>. Por ejemplo, un WatchGuard sugiere <code>show interface</code>, <code>show ip route</code> o
+  <code>show feature-key</code> (de la referencia de la CLI de Fireware) y, desde la 12.4, <code>show sd-wan</code>; un
+  MikroTik con RouterOS 7 sugiere <code>/routing bgp session print</code> y con RouterOS 6, <code>/routing bgp peer print</code>;
+  los comandos de PoE, Wi-Fi o stack solo aparecen en los modelos que los tienen. El historial se guarda por tipo de equipo,
+  así que no se mezclan comandos de otro fabricante. Las consultas de esa lista se pueden usar en modo solo lectura aunque
+  no empiecen por <code>show</code> (por ejemplo <code>porterrshow</code> en Brocade o <code>pfctl -sr</code> en pfSense).</li>
   <li>La salida se ve como en una terminal clásica, todo seguido, con colores por significado: el prompt en lima, rutas y
   comandos en azul, verbos en violeta, «clave=valor» en verde azulado y salmón, direcciones IP en cian, lo que está activo en
   verde, lo caído o con errores en rojo y lo deshabilitado en ámbar. Los colores dependen del sistema (RouterOS, IOS, VRP,
@@ -370,7 +378,11 @@ ejecuta nada.</b></p>
   <tr><td>Consola</td><td>Panel <b>Asistente de red</b> con el proveedor y el modelo, el contexto (equipo, sistema, respaldo,
   salida de la consola, secretos ocultos) y preguntas sugeridas. Cada comando de la respuesta lleva su riesgo (<b>solo lectura</b>,
   <b>cambia la configuración</b>, <b>corta el servicio</b>) y los botones <b>Copiar</b>, <b>Insertar</b> y, si es un cambio,
-  <b>Enviar como solicitud de cambio</b>. Indica la fuente (el respaldo del equipo o la referencia del fabricante).</td></tr>
+  <b>Enviar como solicitud de cambio</b>. Indica la fuente (el respaldo del equipo o la referencia del fabricante). El
+  asistente sabe con qué equipo trabaja: recibe su plataforma, su modelo, su versión de firmware y la lista de comandos de
+  ese equipo, y se le pide responder solo con comandos de esa plataforma y esa versión, sin mezclar los de otro
+  fabricante. Las preguntas sugeridas también dependen del equipo (por ejemplo, las de túneles VPN y políticas en los
+  cortafuegos).</td></tr>
   <tr><td>Barra superior</td><td>Botón <b>Asistente</b> (con el logo del proveedor) en todas las páginas: abre el chat a la
   derecha, sin salir de la página (ver abajo).</td></tr>
   <tr><td>Comparar configuraciones</td><td><b>✦ Explicar este cambio</b>.</td></tr>
@@ -416,6 +428,11 @@ cierre queda en <b>Auditoría</b>. Solo funciona con equipos configurados por SS
   <li>Si el perfil lo admite, respalda también la configuración de arranque y compara ambas (conflicto startup/running).</li>
   <li>Actualiza el inventario (modelo, serie, versión), compara con la línea base y ejecuta la auditoría de cumplimiento.</li>
 </ol>
+<p><b>Equipo reemplazado.</b> Si el número de serie que lee el respaldo no es el que estaba guardado, es otro aparato con la
+misma dirección (un RMA o un cambio de equipo). OpenNCCM avisa «Equipo reemplazado» con las dos series, lo deja en la
+Auditoría y toma la serie nueva. Si la configuración cambió, la versión nueva queda etiquetada «equipo nuevo · serie …» y el
+aviso de cambio aclara que la diferencia es contra el aparato anterior. Al equipo nuevo no se le aplica sola la
+<b>reversión automática</b>: revise usted si hay que restaurarle la configuración del anterior.</p>
 <p>Cada versión registra su <b>origen</b>: <code>manual</code> (botón), <code>scheduled</code> (tarea), <code>syslog</code>
 (detectado en tiempo real) o <code>push</code> (aplicado por OpenNCCM).</p>
 <h2>Ver una versión</h2>
@@ -1018,6 +1035,8 @@ HP/Aruba, Dell, Ruckus, Allied, MikroTik, EdgeSwitch, UniFi Switch y EXOS, si ti
   <tr><td>Conflictos startup ≠ running</td><td>Equipos con cambios sin guardar</td></tr>
   <tr><td>Fuera de línea base</td><td>Equipos con línea base y si se desviaron</td></tr>
   <tr><td>Fin de vida (EOL/EOS)</td><td>Fechas y estado de cada equipo</td></tr>
+  <tr><td>Licencias por vencer</td><td>Servicios de la licencia de cada equipo (hoy, la feature key de WatchGuard) que vencen en los
+  próximos 90 días o ya vencieron, lo más urgente primero</td></tr>
   <tr><td>Vulnerabilidades</td><td>CVE por equipo</td></tr>
   <tr><td>Solicitudes de cambio</td><td>Quién pidió, quién aprobó y el resultado</td></tr>
   <tr><td>Auditoría de usuarios</td><td>Inicios de sesión y acciones (solo administradores)</td></tr>
@@ -1281,7 +1300,12 @@ firma no sale por la CLI, así que OpenNCCM entra un momento a la Web UI del Fir
 «Interfaz web» del equipo) con la misma credencial, la lee y cierra la sesión. Si no puede entrar, guarda el detalle sin firma, la
 ficha dice «sin firma: aún no sirve para restaurar», sale un aviso con el motivo (una sola vez por motivo) y lo reintenta:
 pasada una hora si la Web UI no respondió (puerto cerrado o equipo sin responder; aún no se había enviado la contraseña) y al
-día siguiente si la Web UI rechazó el ingreso, para no insistir con la contraseña. Un
+día siguiente si la Web UI rechazó el ingreso, para no insistir con la contraseña. La ficha muestra, en <b>Servicios</b>, cuándo
+vence cada suscripción de la feature key (antivirus, IPS, LiveSecurity…), agrupadas por fecha, en ámbar si faltan 60 días o
+menos y en rojo si ya vencieron. OpenNCCM avisa (evento y alerta) a los 60, 30 y 7 días y al vencer, una sola vez por fecha;
+lo revisa a diario y después de cada respaldo. Mientras algo venza en 60 días o ya haya vencido, relee la feature key por la
+CLI una vez al día: si es la misma, no entra a la Web UI; si se renovó, lee la firma de la nueva y la guarda. El informe
+<b>Licencias por vencer</b> lista lo de todos los equipos. Un
 usuario de solo lectura (Device Monitor) basta para las dos cosas. Si un comando no sirve para su versión, defina un <b>comando de respaldo personalizado</b> en el dispositivo. Para
 equipos sin perfil propio (SonicWall, Riverbed, Infoblox…) use <b>Genérico SSH</b> con un comando personalizado.</p>
 <h3>WatchGuard: configuración (XML) e imagen completa (.fxi)</h3>

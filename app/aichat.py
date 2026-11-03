@@ -24,6 +24,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 
 from . import assistant
+from . import cmdref as _cmdref
 from .auth import ROLES, Forbidden, check_device, device_scope, require
 from .config import BASE_DIR
 from .crypto import try_decrypt
@@ -85,7 +86,9 @@ def f_equipo(user, nombre: str) -> dict:
                 "ultimo_respaldo": _ago(d.last_backup_at), "difiere_linea_base": d.baseline_drift,
                 "versiones": [{"id": v.id, "fecha": _ago(v.created_at), "agregadas": v.added, "quitadas": v.removed,
                                "origen": v.trigger} for v in vs],
-                "alarmas": [{"severidad": e.severity, "tipo": e.category, "texto": e.message[:160]} for e in ev]}
+                "alarmas": [{"severidad": e.severity, "tipo": e.category, "texto": e.message[:160]} for e in ev],
+                # para recomendar comandos de ese equipo (su plataforma, modelo y versión) y no de otro fabricante
+                "comandos_de_referencia": _cmdref.reference(d.device_type, d.model or "", d.os_version or "", 25).splitlines()}
 
 
 def f_respaldos_fallidos(user, dias: int = 7) -> dict:

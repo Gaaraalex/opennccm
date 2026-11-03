@@ -206,10 +206,90 @@ check("con firma: formato de la Web UI", fk.splitlines()[:5] == ["Serial Number:
       "Name: 11-03-2026_08:48", "Model: T40", "Version: 2"] and fk.endswith("Signature: " + SIG), fk[:200])
 check("con firma: una línea «Feature:» por función, en orden", [ln for ln in fk.splitlines() if ln.startswith("Feature:")]
       == ["Feature: " + f for f in fireware_web.parse_detail(FEATURE)[0]["features"]])
-calls = WEB["calls"]
+calls, signed = WEB["calls"], device().license_enc
+SENT.clear()
+services._LICENSE_CHECKED.pop(dev_id, None)
+services.backup_device(dev_id, "scheduled", None)
+# sus servicios vencieron (abril de 2024): se relee la CLI una vez al día por si se renovó, pero es la misma clave
+check("con firma y servicios vencidos: relee la CLI, y como es la misma clave no entra a la Web UI ni la cambia",
+      WEB["calls"] == calls and "show feature-key D02807134F41D" in SENT and device().license_enc == signed, SENT)
 SENT.clear()
 services.backup_device(dev_id, "scheduled", None)
-check("con firma: ya no se vuelve a pedir", WEB["calls"] == calls and not any(c.startswith("show feature-key") for c in SENT))
+check("con firma: ese día ya no se vuelve a pedir", WEB["calls"] == calls and not any(c.startswith("show feature-key") for c in SENT))
+
+# 4e) renovación: la CLI trae otra clave (fechas nuevas) → se vuelve a leer su firma y se guarda la nueva
+from datetime import timedelta  # noqa: E402
+
+from app import licenses  # noqa: E402
+from app.db import Event, get_setting, now  # noqa: E402
+
+def lic_events(since=0):
+    with SessionLocal() as db:
+        return db.scalars(select(Event).where(Event.device_id == dev_id, Event.category.like("Feature key: servicios%"),
+                                              Event.id > since).order_by(Event.id)).all()
+
+
+old = lic_events()
+check("la clave vieja (abril de 2024) ya había avisado una vez que venció", len(old) == 1
+      and "venció el 29-04-2024" in old[0].message, [e.message for e in old])
+base_id = old[-1].id if old else 0
+soon = (now() + timedelta(days=20)).strftime("%b-%d-%Y")
+far = (now() + timedelta(days=200)).strftime("%b-%d-%Y")
+FEATURE = FEATURE.replace("ACCESS_PORTAL@Apr-29-2024", f"ACCESS_PORTAL@{soon}\n( 3): LIVESECURITY@{soon}\n( 4): AV@{far}")
+STATE["feature"] = FEATURE
+services._LICENSE_CHECKED.pop(dev_id, None)
+calls = WEB["calls"]
+services.backup_device(dev_id, "scheduled", None)
+fk = decrypt(device().license_enc)
+check("renovada: entra otra vez a la Web UI y guarda la clave nueva con firma",
+      WEB["calls"] == calls + 1 and f"Feature: LIVESECURITY@{soon}" in fk and fk.endswith("Signature: " + SIG), fk[-300:])
+
+
+ev = lic_events(base_id)
+check("vence en 20 días: un aviso (30 días) con los servicios de esa fecha; lo de 200 días todavía no",
+      len(ev) == 1 and ev[0].severity == "warning" and "ACCESS_PORTAL, LIVESECURITY" in ev[0].message
+      and "en 20 días" in ev[0].message and "AV" not in ev[0].message.split("vence:")[1], [e.message for e in ev])
+licenses.check(dev_id)
+check("el mismo aviso no se repite (queda guardado en Ajustes)", len(lic_events(base_id)) == 1 and get_setting(f"license_warned_{dev_id}"))
+licenses.check(dev_id, (now() + timedelta(days=15)).date())
+ev = lic_events(base_id)
+check("a 5 días: el aviso de 7 días, más grave", len(ev) == 2 and ev[1].severity == "major" and "en 5 días" in ev[1].message,
+      [e.message for e in ev])
+licenses.check(dev_id, (now() + timedelta(days=21)).date())
+ev = lic_events(base_id)
+check("al vencer: aviso de servicios vencidos", len(ev) == 3 and ev[2].category == "Feature key: servicios vencidos", ev[-1].message)
+rows = licenses.report(None, today=now().date())
+check("informe: lo que vence en 90 días, lo más urgente primero, sin lo de 200 días",
+      [r[2] for r in rows] == ["ACCESS_PORTAL", "LIVESECURITY"] and rows[0][4] == 20, rows)
+g = licenses.groups(fk)
+check("ficha: servicios agrupados por fecha", [x["names"] for x in g] == [["ACCESS_PORTAL", "LIVESECURITY"], ["AV"]] and g[0]["days"] == 20, g)
+check("un aviso por fecha: 60, 30, 7 y vencido", [licenses.step(d) for d in (90, 61, 60, 31, 30, 8, 7, 1, 0, -5)]
+      == [None, None, 60, 60, 30, 30, 7, 7, 0, 0])
+
+# 4f) equipo reemplazado: el inventario trae otra serie (RMA): aviso, auditoría y la versión nueva marcada
+from app.db import AuditLog  # noqa: E402
+
+SYSINFO = SYSINFO.replace("D02807134F41D", "D0280NUEVO999")
+STATE["backup"] = XML.replace("<product-grade>2</product-grade>", "<product-grade>3</product-grade>")
+r = services.backup_device(dev_id, "scheduled", None)
+with SessionLocal() as db:
+    rep = db.scalars(select(Event).where(Event.device_id == dev_id, Event.category == "Equipo reemplazado")).all()
+    chg = db.scalars(select(Event).where(Event.device_id == dev_id, Event.category == "Cambio de configuración")
+                     .order_by(Event.id.desc())).first()
+    last = db.scalars(select(ConfigVersion).where(ConfigVersion.device_id == dev_id).order_by(ConfigVersion.id.desc())).first()
+    aud = db.scalars(select(AuditLog).where(AuditLog.action == "device_replaced")).all()
+check("otra serie: aviso «Equipo reemplazado» con las dos series", r == "changed" and len(rep) == 1
+      and "D02807134F41D → D0280NUEVO999" in rep[0].message, [e.message for e in rep])
+check("la versión nueva queda marcada «equipo nuevo» y el cambio dice que es contra el aparato anterior",
+      last.label == "equipo nuevo · serie D0280NUEVO999" and "equipo anterior" in chg.message, (last.label, chg.message[:120]))
+check("queda en Auditoría y la ficha toma la serie nueva", len(aud) == 1 and device().serial == "D0280NUEVO999")
+services.backup_device(dev_id, "scheduled", None)
+with SessionLocal() as db:
+    n = len(db.scalars(select(Event).where(Event.device_id == dev_id, Event.category == "Equipo reemplazado")).all())
+check("el respaldo siguiente (misma serie) no lo repite", n == 1)
+check("series que no se pudieron leer o iguales con otra letra no cuentan", not services.replaced_serial(None, "ABC123")
+      and not services.replaced_serial("abc123", "ABC123 ") and not services.replaced_serial("ABC123", "") and
+      services.replaced_serial("ABC123", "XYZ789"))
 
 # 5) puertos desde el XML: interfaces físicas, su nombre, si están habilitadas, su red y las VLAN que pasan por ellas
 import re  # noqa: E402

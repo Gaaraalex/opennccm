@@ -171,6 +171,13 @@ def parse_detail(text: str) -> list[dict]:
     return [k for k in keys if k["features"]]
 
 
+def same_key(detail: str, saved: str) -> bool:
+    """La feature key guardada (texto restaurable) sigue siendo una de las que muestra la CLI: mismas funciones, en el
+    mismo orden. Si no, se renovó o se cambió y hay que volver a leer su firma."""
+    feats = [ln[len("Feature: "):].strip() for ln in saved.splitlines() if ln.startswith("Feature: ")]
+    return bool(feats) and any(k["features"] == feats for k in parse_detail(detail))
+
+
 def build(detail: str, summary: dict) -> str | None:
     """El texto restaurable de la feature key activa (la que firma la Web UI), o None si no se puede armar."""
     keys = parse_detail(detail)

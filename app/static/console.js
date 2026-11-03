@@ -159,13 +159,15 @@
   function watchers(who) { var w = $('cx-watch'); w.hidden = !who.length; w.textContent = T.watching.replace('{0}', who.join(', ')); }
 
   /* ---------- línea de comando ---------- */
-  var hist = []; try { hist = JSON.parse(store('h-' + OS) || '[]'); } catch (e) { hist = []; }
+  // historial por tipo de equipo (antes, por familia: en «generic» se mezclaban fabricantes distintos)
+  var HK = 'h-' + (P.key || OS), hist = [];
+  try { hist = JSON.parse(store(HK) || (OS !== 'generic' && store('h-' + OS)) || '[]'); } catch (e) { hist = []; }
   var hpos = -1, sel = 0, items = [];
   function run(cmd, force) {
     if (sid === null && ws && ws.readyState === 1) {  // usuario y contraseña del equipo antes de conectar
       send({t: 'c', d: cmd}); inp.value = ''; inp.type = 'text'; hideSug(); return;
     }
-    if (cmd.trim() && hist[hist.length - 1] !== cmd) { hist.push(cmd); hist = hist.slice(-200); store('h-' + OS, JSON.stringify(hist)); }
+    if (cmd.trim() && hist[hist.length - 1] !== cmd) { hist.push(cmd); hist = hist.slice(-200); store(HK, JSON.stringify(hist)); }
     hpos = -1;
     send({t: 'c', d: cmd, force: !!force, ro: $('cx-ro').checked});
     inp.value = ''; hideSug(); showGhost();
