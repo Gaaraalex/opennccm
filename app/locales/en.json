@@ -1444,6 +1444,7 @@
 "Habilitar el acceso web solo por HTTPS (VOSS / Fabric Engine)": "Enable web access over HTTPS only (VOSS / Fabric Engine)",
 "Hardening sucursales": "Branch hardening",
 "Hay": "There are",
+"Hay cambios sin guardar en la imagen .fxi. ¿Cerrar sin guardarlos?": "There are unsaved changes to the .fxi image. Close without saving them?",
 "Hay trabajo pendiente": "There is work to do",
 "Hay una clave en el archivo opennccm.env del servidor: esa es la que se usa.": "There is a key in the server's opennccm.env file: that is the one used.",
 "Hay una fuente o un ventilador que no funciona": "A power supply or fan is not working",
