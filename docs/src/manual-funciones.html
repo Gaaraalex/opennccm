@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.20.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 2.21.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -262,8 +262,10 @@ equipos que no informan de ello por SSH (por ejemplo, los routers pequeños sin 
 <p>En los equipos que tienen los puertos detrás, como el WatchGuard Firebox T40, la ficha se abre por <b>Atrás</b> y muestra el
 equipo como es: consola serie, los dos USB, los puertos con su rótulo (0/WAN, 1/LAN, 2, 3, 4-PoE), Reset, el interruptor y la
 entrada de corriente. <b>Frente</b> muestra sus luces (Failover, las de cada puerto, Status, Mode, Attn y encendido); pulsar las
-luces de un puerto lo elige. En WatchGuard los puertos salen de la configuración (nombre de la interfaz, si está habilitada y su
-IP o las VLAN que pasan por él), sin estado de enlace.</p>
+luces de un puerto lo elige. En WatchGuard el nombre de la interfaz, si está habilitada y su IP o las VLAN que pasan por el
+puerto salen de la configuración; el enlace y la velocidad, de <code>show status-report</code> (sección «Physical Interfaces Link
+Status», un comando de solo lectura). Atrás, el puerto con enlace sale en verde; delante se enciende la luz de su velocidad: la de
+1000 en amarillo y la de 10/100 en verde, como en el equipo.</p>
 <figure><img src="img/05c-dispositivo-cumplimiento.png" style="max-height:120mm"><figcaption>Pestaña Cumplimiento: reglas agrupadas por política, con «Corregir N».</figcaption></figure>
 </section>
 
