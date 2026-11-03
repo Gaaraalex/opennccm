@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block title %}{{ _('Base de conocimiento') }}{% endblock %}
-{% block crumbs %}<span class="muted">{{ _('Equipo') }}</span>{{ icon('right', 's') }}<b>{{ _('Base de conocimiento') }}</b>{% endblock %}
+{% block crumbs %}<span class="muted">{{ _c('personas', 'Equipo') }}</span>{{ icon('right', 's') }}<b>{{ _('Base de conocimiento') }}</b>{% endblock %}
 {% block content %}
 {% include "_kb_head.html" %}
 
@@ -115,7 +115,6 @@
 <form method="post" action="/kb/access" class="kb-acc">
   <div class="card">
     <div style="font:700 15px var(--f-sans)">{{ _('Quién puede verla') }}</div>
-    <div class="muted sm" style="margin-top:3px">{{ _('Los clientes del soporte de pago y el foro nunca la ven: no tienen usuario en este panel.') }}</div>
     {% for key, label, role, desc, on, lock in [('', _('Administradores'), 'admin', _('Siempre la ven. No se puede quitar.'), true, true),
                                                 ('kb_operators', _('Operadores'), 'operator', _('Leen, documentan y comentan.'), ops, false),
                                                 ('kb_viewers', _('Solo lectura'), 'viewer', _('Apagado: los casos tienen comandos y datos internos de la red.') if not viewers else _('Leen los casos publicados. No ven el editor.'), viewers, false)] %}

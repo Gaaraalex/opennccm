@@ -40,6 +40,9 @@ class Profile:
     version_re: list[str] = field(default_factory=list)
     model_re: list[str] = field(default_factory=list)
     serial_re: list[str] = field(default_factory=list)
+    # licencia del equipo (WatchGuard: feature key): se lee y se guarda UNA vez, en el primer respaldo que la consigue
+    license_cmd: str | None = None
+    license_label: str = "Licencia"
 
     @property
     def inventory_label(self) -> str:
@@ -430,9 +433,12 @@ PROFILES += [
             inventory="get system", family=MERGE),
     Profile("hillstone_stoneos", "Hillstone StoneOS", "Hillstone", "show configuration", None,
             family=MERGE, note=VERIFY),
-    # Fireware CLI: «show sysinfo» trae modelo, serie y versión («12.10.3.B704297» → NVD usa «12.10.3»)
-    Profile("watchguard_fireware", "WatchGuard Fireware", "WatchGuard", "show running-config", None,
-            inventory="show sysinfo", family=MERGE, save=False, note=VERIFY,
+    # Fireware CLI: «show sysinfo» trae modelo, serie y versión («12.10.3.B704297» → NVD usa «12.10.3»). Fireware no
+    # tiene «show running-config»: «export config to console» saca la configuración en XML (probado en un T40 con
+    # Fireware 12.8.1 y un usuario Device Monitor, de solo lectura). La feature key se guarda una vez.
+    Profile("watchguard_fireware", "WatchGuard Fireware", "WatchGuard", "export config to console", None,
+            inventory="show sysinfo", family=MERGE, save=False, license_cmd="show feature-key",
+            license_label="Feature key",
             cpe="cpe:2.3:o:watchguard:fireware", cpe_version=r"^v?(\d+\.\d+(?:\.\d+)?)",
             version_re=[r"(?i)(?:software|fireware|os|system)[ _-]*version\s*[:=]?\s*v?(\d+\.\d+[\w.]*)",
                         r"(?i)Fireware(?: OS)?\s+v?(\d+\.\d+[\w.]*)"],

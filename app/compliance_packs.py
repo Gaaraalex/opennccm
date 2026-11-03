@@ -1,5 +1,5 @@
 """Paquetes de cumplimiento listos para usar: PCI DSS 4.0, HIPAA, SOX, buenas prácticas Cisco IOS y seguridad
-básica de Extreme VOSS, switches Ubiquiti, MikroTik RouterOS, Juniper Junos y FortiGate.
+básica de Extreme VOSS, switches Ubiquiti, MikroTik RouterOS, Juniper Junos, FortiGate y WatchGuard Fireware.
 
 Las reglas comprueban la configuración de equipos con sintaxis tipo IOS (Cisco, Arista, Dell, Ruckus…)
 y Junos. Son controles técnicos de referencia: el cumplimiento normativo completo requiere además
@@ -204,6 +204,32 @@ PACKS = {
         ("Cuenta «admin» por defecto renombrada", "must_not_contain", r'^config system admin\n\s+edit "admin"$', "minor",
          None),
     ]),
+    # WatchGuard Fireware: reglas sobre el XML de «export config to console» (probadas con un T40 y Fireware 12.8.1). Sin
+    # corrección automática: OpenNCCM no aplica cambios en Fireware; se corrige desde la Web UI o Policy Manager.
+    "WatchGuard Fireware · Seguridad básica": (r"^watchguard_fireware", "Controles de seguridad de referencia para "
+                                               "Firebox: acceso de administración, cuentas, SNMP, hora, registros y "
+                                               "protecciones", [
+        ("Web UI no accesible desde Internet", "must_not_contain",
+         r"<name>WatchGuard Web UI\.\d+\.from</name>(?:(?!</alias>)[\s\S])*?<alias-name>Any-External</alias-name>",
+         "critical", None),
+        ("Administración (WSM y CLI) no accesible desde Internet", "must_not_contain",
+         r"<name>WatchGuard\.\d+\.from</name>(?:(?!</alias>)[\s\S])*?<alias-name>Any-External</alias-name>",
+         "critical", None),
+        ("Bloqueo de cuentas de administración tras intentos fallidos", "must_contain",
+         r"<mgmt-acct-lockout>\s*<enabled>1</enabled>", "major", None),
+        ("Cierre de sesión de administración inactiva ≤ 15 min", "must_not_contain",
+         r"<mgmt-user-idle-timeout>(0|90[1-9]|9[1-9]\d|[1-9]\d{3,})</mgmt-user-idle-timeout>", "major", None),
+        ("Sin comunidades SNMP por defecto", "must_not_contain", r"<snmp-comm-string>(public|private)</snmp-comm-string>",
+         "critical", None),
+        ("SNMP v3 (cifrado) en lugar de v1/v2c", "must_not_contain", r"<snmp-version>[12]</snmp-version>", "minor", None),
+        ("Sincronización horaria NTP activa", "must_contain", r"<ntp-enabled>1</ntp-enabled>", "major", None),
+        ("Envío de logs a un servidor (syslog o WatchGuard Log Server)", "must_contain",
+         r"<remote-logging>\s*<enabled>1</enabled>|<common-logging>\s*<enabled>1</enabled>", "major", None),
+        ("Bloqueo de paquetes falsificados (spoofing)", "must_contain", r"<block-spoof-enabled>1</block-spoof-enabled>",
+         "major", None),
+        ("Aviso antes del inicio de sesión", "must_contain", r"<logon-banner>(?:(?!</logon-banner>)[\s\S])*?<enable>1</enable>",
+         "minor", None),
+    ]),
     # Ubuntu Server / Debian: reglas sobre el respaldo («### archivo» + contenido). Sin corrección automática: en un
     # servidor estos cambios se hacen a mano (un error en SSH o en el cortafuegos puede dejarlo sin acceso).
     "Ubuntu / Debian · Seguridad básica": (r"^ubuntu_server", "Controles de seguridad de referencia para servidores "
@@ -242,7 +268,8 @@ PACKS = {
 # (si después se borran, no vuelven a aparecer).
 ADDED_LATER = {"Extreme VOSS · Seguridad básica": "2.2.1", "Ubiquiti EdgeSwitch/UniFi · Seguridad básica": "2.2.1",
                "MikroTik RouterOS · Seguridad básica": "2.3.0", "Juniper Junos · Seguridad básica": "2.3.0",
-               "FortiGate · Seguridad básica": "2.3.0", "Ubuntu / Debian · Seguridad básica": "2.7.0"}
+               "FortiGate · Seguridad básica": "2.3.0", "Ubuntu / Debian · Seguridad básica": "2.7.0",
+               "WatchGuard Fireware · Seguridad básica": "2.19.0"}
 
 
 def _seeded() -> set:

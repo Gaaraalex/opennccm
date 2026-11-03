@@ -35,6 +35,7 @@ COMMANDS = {
     "fortinet": ["get system interface physical"], "paloalto_panos": ["show interface all"],
     "checkpoint_gaia": ["show interfaces all"], "nokia_sros": ["show port"],
     "pfsense": ["ifconfig -a"], "opnsense": ["ifconfig -a"],
+    "watchguard_fireware": [],  # Fireware no tiene una tabla de puertos por CLI: se leen del XML de la configuración
     "ubiquiti_unifiswitch": ["show interfaces status all", "show port all"],
     "broadcom_icos": ["show interfaces status all", "show port all"],
     "netgear_prosafe": ["show interfaces status all", "show interfaces status"],
@@ -330,6 +331,48 @@ def _set_config(config: str) -> list[dict]:
     return list(seen.values())
 
 
+def _fireware_config(config: str) -> list[dict]:
+    """WatchGuard Fireware: la configuración es XML («export config to console»). Cada interfaz física es un
+    <physical-if> (if-num, if-dev-name, enabled, ip, netmask) dentro de una <interface> con su nombre; las VLAN dicen
+    en su <member-list> por qué puerto pasan. Sin estado de enlace: la CLI no lo da en una tabla."""
+    if "<interface-list>" not in (config or ""):
+        return []
+    import xml.etree.ElementTree as ET
+    try:
+        root = ET.fromstring(config[config.index("<profile"):] if "<profile" in config else config)
+    except (ET.ParseError, ValueError):
+        return []
+    il = root.find("interface-list")
+    if il is None:
+        return []
+    vlans: dict[str, list[str]] = {}
+    for itf in il.findall("interface"):
+        for v in itf.iter("vlan-if"):
+            vid = (v.findtext("vlan-id") or "").strip()
+            for m in v.iter("member"):
+                dev = (m.findtext("if-dev-name") or "").strip()
+                if dev and vid:
+                    vlans.setdefault(dev, []).append(vid)
+    ports = []
+    for itf in il.findall("interface"):
+        name, desc = (itf.findtext("name") or "").strip(), (itf.findtext("description") or "").strip()
+        for ph in itf.iter("physical-if"):
+            dev = (ph.findtext("if-dev-name") or "").strip() or f"eth{(ph.findtext('if-num') or '').strip()}"
+            if not re.match(r"^eth\d+$", dev):
+                continue
+            ip, mask = (ph.findtext("ip") or "").strip(), (ph.findtext("netmask") or "").strip()
+            ln = _mask_len(mask) if mask else None
+            net = f"{ip}/{ln}" if ip and ip != "0.0.0.0" and ln is not None else ""
+            if not net and vlans.get(dev):
+                net = "VLAN " + ", ".join(sorted(set(vlans[dev]), key=lambda x: int(x) if x.isdigit() else 0))
+            on = (ph.findtext("enabled") or "1").strip() == "1"
+            ports.append({"n": dev, "k": "cu", "s": "on" if on else "off", "sp": "", "d": " · ".join(x for x in (name, desc) if x),
+                          "net": net, "mod": "", "st": "",
+                          "xml": [f"<name>{name}</name>", f"<if-dev-name>{dev}</if-dev-name>", f"<enabled>{1 if on else 0}</enabled>"]
+                          + ([f"<ip>{ip}</ip>"] if ip and ip != "0.0.0.0" else [])})
+    return sorted(ports, key=lambda p: int(p["n"][3:]))
+
+
 def _ios_blocks(config: str) -> list[tuple[str, list[str]]]:
     out, cur = [], None
     for line in (config or "").splitlines():
@@ -362,6 +405,14 @@ LAYOUTS = [
     (r"(?i)^(US-?8|USW-?(Lite-)?8|USW-?Flex|ES-?8|ES-?10|ER-|EdgeRouter|ER\d|USW-Ultra|USG)", {"rows": 1, "sfp": "row"}),
     (r"(?i)^(US-?16|USW-?(Lite-)?16|ES-?16)", {"rows": 2, "grp": 4, "sfp": "pairs"}),
     (r"(?i)^(US-?24|USW-?24|ES-?24|US-?48|USW-?48|ES-?48|USW-Pro)", {"rows": 2, "grp": 6, "sfp": "pairs"}),
+    # WatchGuard Firebox T40 (guía de hardware del fabricante): los 5 puertos van ATRÁS, entre la consola serie y los 2 USB
+    # (izquierda) y Reset, interruptor y entrada de 54 V DC (derecha); el frente solo tiene luces, con los puertos de 4 a 0
+    (r"(?i)^(Firebox\s*)?T40$", {"rows": 1, "sfp": "row", "ports_rear": True,
+                                       "names": {"eth0": "0/WAN", "eth1": "1/LAN", "eth2": "2", "eth3": "3", "eth4": "4-PoE"},
+                                       "before": ["console", "usb:USB 1", "usb:USB 2"], "after": ["reset", "switch", "dc:54 V DC"],
+                                       "leds": {"left": ["Failover"], "port_rows": ["1000", "10/100"], "order": "desc",
+                                                "right": [["Status", "Mode"], ["Attn", "power"]]},
+                                       "rear": {"psu": ["54 V DC"]}}),
     # firewalls de escritorio: una fila
     (r"(?i)^(FortiGate|FG-?\d|FGT|PA-?2\d\d|PA-?4\d\d|PA-?1[45]\d\d|SG-\d|Netgate|XG\s?\d|Firebox)", {"rows": 1, "sfp": "row"}),
 ]
@@ -461,7 +512,7 @@ def parse(raw: str | None, device_type: str, config: str = "", model: str | None
             apply_model_kinds(ports, model)
             return ports, True
     # sin tabla de estado: la configuración, en el estilo que tenga (bloques con sangría, FastPath «… exit» o «set»)
-    for fn in (_from_config, _fastpath_config, _set_config):
+    for fn in (_fireware_config, _from_config, _fastpath_config, _set_config):
         ports = fn(config)
         if ports:
             apply_model_kinds(ports, model)
@@ -524,6 +575,8 @@ def enrich(ports: list[dict], device_type: str, config: str, neighbors: list[dic
             elif not p.get("net") and n in bridge:
                 br, pvid = bridge[n]
                 p["net"], p["nk"] = br + (f" · VLAN {pvid}" if pvid and pvid != "1" else ""), "bridge"
+        elif device_type == "watchguard_fireware":
+            cfg = p.get("xml") or []
         elif device_type.startswith("juniper"):
             cfg = [l for l in lines if l.startswith(f"set interfaces {n} ")][:4]
             if not p.get("d"):

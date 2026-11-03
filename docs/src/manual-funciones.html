@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.18.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 2.19.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -259,6 +259,11 @@ Cisco <code>show environment all</code>, Juniper <code>show chassis environment<
 <code>display fan</code>, HPE <code>show system fans/power-supply</code>, Aruba AOS-CX y Arista <code>show environment …</code>,
 FastPath <code>show environment</code>, Extreme <code>show fans/power</code> y FortiGate <code>execute sensor list</code>. Los
 equipos que no informan de ello por SSH (por ejemplo, los routers pequeños sin ventiladores) lo indican en la vista Atrás.</p>
+<p>En los equipos que tienen los puertos detrás, como el WatchGuard Firebox T40, la ficha se abre por <b>Atrás</b> y muestra el
+equipo como es: consola serie, los dos USB, los puertos con su rótulo (0/WAN, 1/LAN, 2, 3, 4-PoE), Reset, el interruptor y la
+entrada de corriente. <b>Frente</b> muestra sus luces (Failover, las de cada puerto, Status, Mode, Attn y encendido); pulsar las
+luces de un puerto lo elige. En WatchGuard los puertos salen de la configuración (nombre de la interfaz, si está habilitada y su
+IP o las VLAN que pasan por él), sin estado de enlace.</p>
 <figure><img src="img/05c-dispositivo-cumplimiento.png" style="max-height:120mm"><figcaption>Pestaña Cumplimiento: reglas agrupadas por política, con «Corregir N».</figcaption></figure>
 </section>
 
@@ -681,6 +686,7 @@ corregir las infracciones.</p>
   <tr><td>Juniper Junos · Seguridad básica</td><td>13</td><td>Sin Telnet, FTP ni J-Web HTTP; root sin SSH; bloqueo por intentos; sesión inactiva; RADIUS/TACACS+; SNMP; syslog; NTP; banner</td></tr>
   <tr><td>Ubuntu / Debian · Seguridad básica</td><td>8</td><td>SSH sin root con contraseña ni contraseñas vacías; solo root con UID 0; sudo sin contraseña solo para comandos concretos; cortafuegos activo; actualizaciones automáticas de seguridad; NTP; sin Telnet, rsh ni TFTP</td></tr>
   <tr><td>FortiGate · Seguridad básica</td><td>11</td><td>Sin Telnet ni HTTP en interfaces; sesión ≤ 15 min; hosts de confianza; política de contraseñas; cifrado fuerte; SNMP; syslog/FortiAnalyzer; NTP</td></tr>
+  <tr><td>WatchGuard Fireware · Seguridad básica</td><td>10</td><td>Web UI y administración (WSM y CLI) no abiertas a Internet; bloqueo de cuentas; sesión inactiva ≤ 15 min; SNMP sin comunidades por defecto y v3; NTP; envío de logs; bloqueo de paquetes falsificados; aviso antes del inicio de sesión. Sin corrección automática: se corrige en la Web UI o en Policy Manager</td></tr>
   <tr><td>Hardening básico (Cisco, Huawei, Juniper, FortiGate)</td><td>3 – 9</td><td>Controles esenciales por fabricante</td></tr>
 </table>
 <p class="small">Las reglas son controles técnicos de referencia. El cumplimiento normativo completo requiere además procesos y evidencias
@@ -1249,7 +1255,9 @@ además el tipo de reversión y si admite actualización de firmware.</p>
   <li><span class="badge b-warn">por verificar</span>: comando tomado de la documentación del fabricante, aún sin probar en un equipo real.</li>
 </ul>
 <p>La configuración se obtiene mostrando el resultado del comando dentro de la misma sesión SSH: no se crean archivos en el equipo ni se
-necesita FTP/TFTP. Si un comando no sirve para su versión, defina un <b>comando de respaldo personalizado</b> en el dispositivo. Para
+necesita FTP/TFTP. WatchGuard Fireware se respalda con <code>export config to console</code> (la configuración completa en
+XML) y, una sola vez, guarda su <b>feature key</b> (<code>show feature-key</code>), que se descarga desde la ficha del equipo; un
+usuario de solo lectura (Device Monitor) basta. Si un comando no sirve para su versión, defina un <b>comando de respaldo personalizado</b> en el dispositivo. Para
 equipos sin perfil propio (SonicWall, Riverbed, Infoblox…) use <b>Genérico SSH</b> con un comando personalizado.</p>
 <p><b>pfSense y OPNsense</b> tienen perfil propio: OpenNCCM atraviesa el menú de consola (opción «8) Shell») y respalda el archivo
 <code>config.xml</code> completo, el mismo que exporta la web. Use el usuario <code>admin</code>/<code>root</code> (el archivo solo lo lee

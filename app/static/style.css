@@ -411,6 +411,7 @@ p.label{font:600 11px/16px var(--font-sans);letter-spacing:.07em;text-transform:
 
 /* ===== Panel «Señal» ===== */
 .display{font-size:34px;line-height:1.12;font-weight:800;letter-spacing:-.02em;margin:0}
+@media (max-width:600px){.dash-ph>.grow{flex-basis:100%}}  /* Panel en el teléfono: el saludo arriba y los botones debajo */
 .hello{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:0 0 18px}
 .health{display:grid;grid-template-columns:auto minmax(0,1fr);gap:28px;align-items:center;padding:26px 30px;margin-bottom:16px;border-radius:var(--radius-xl);
   background:radial-gradient(600px 300px at 0% 0%,color-mix(in srgb,var(--brand) 30%,transparent),transparent 70%),var(--rail);color:var(--rail-ink);

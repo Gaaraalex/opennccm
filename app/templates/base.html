@@ -10,6 +10,7 @@
 <link rel="preload" href="/static/fonts/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/style.css?v={{ VERSION }}-{{ CSS_HASH }}">
 <link rel="stylesheet" href="/static/senal.css?v={{ VERSION }}-{{ SENAL_HASH }}">
+<script>(function (h) { h.classList.add('tabs-wait'); addEventListener('load', function () { h.classList.remove('tabs-wait'); }); })(document.documentElement)  /* shell.js lo quita antes, al armar las pestañas */</script>
 </head>
 <body{% block body_attr %}{% endblock %}>
 <a class="skip" href="#contenido">Saltar al contenido</a>
@@ -46,7 +47,7 @@
     <a href="/reports" class="nav {{ 'on' if navp.startswith('/reports') }}" title="Informes">{{ icon('file') }}<span class="txt">Informes</span></a>
   </div>
   {% if nav_counts.kb is not none %}
-  <div class="grp"><span class="label">{{ _('Equipo') }}</span>
+  <div class="grp"><span class="label">{{ _c('personas', 'Equipo') }}</span>
     <a href="/kb" class="nav {{ 'on' if navp.startswith('/kb') }}" title="{{ _('Base de conocimiento') }}">{{ icon('book') }}<span class="txt">{{ _('Base de conocimiento') }}</span>{% if nav_counts.kb %}<span class="cnt kb-cnt">{{ nav_counts.kb }}</span><span class="dotc"></span>{% endif %}</a>
   </div>
   {% endif %}
@@ -55,6 +56,7 @@
     <a href="/users" class="nav {{ 'on' if admin_on }}" title="Administración">{{ icon('cog') }}<span class="txt">Administración</span></a>
   </div>
   {% endif %}
+  {% set SUP_R = support_link() %}{% if SUP_R %}<a class="btn-soporte rail-soporte" href="{{ SUP_R }}" target="_blank" rel="noopener">{{ icon('headset') }}<span>{{ _('Soporte profesional') }}</span></a>{% endif %}
   <button type="button" class="collapse expand" data-mini aria-label="Desplegar menú" title="Desplegar menú">{{ icon('right', 's') }}</button>
   <a class="me" href="/account" title="Mi cuenta"><span class="av">{{ user.username[:2]|upper }}</span><div><b>{{ user.username }}</b><small>{{ role_name }} · v{{ VERSION }}</small></div></a>
   <div class="railfoot"><a href="/acerca">Privacidad y licencias</a><a href="/certificado">Certificado</a></div>

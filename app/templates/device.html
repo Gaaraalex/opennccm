@@ -82,6 +82,7 @@
         <dt>Reversión automática</dt><dd>{{ _('Sí') if device.auto_rollback else _('No') }}</dd>
         <dt>Línea base</dt><dd>{% if device.baseline_version_id %}<a href="/versions/{{ device.baseline_version_id }}" data-sheet data-wide>{{ _f('versión {0}', base_n or device.baseline_version_id) }}</a> {% if device.baseline_drift %}<span class="pill major">difiere</span>{% else %}<span class="pill ok">coincide</span>{% endif %}{% else %}—{% endif %}</dd>
         <dt>Ciclo de vida</dt><dd>{% if eol_bad %}<span class="pill crit">{{ _(eol_labels[eol_status]) }}</span>{% elif eol_entry and eol_entry.end_of_support %}{{ _f('Soporte hasta {0}', eol_entry.end_of_support.year) }}{% else %}{{ _(eol_labels[eol_status]) }}{% endif %}</dd>
+        {% if profile.license_cmd %}<dt>{{ profile.license_label }}</dt><dd>{% if device.license_at %}<span title="{{ device.license_at|dt }}">{{ _f('guardada {0}', device.license_at|ago) }}</span> · <a href="/devices/{{ device.id }}/license">{{ _('Descargar') }}</a>{% else %}<span class="muted">{{ _('se guarda en el próximo respaldo') }}</span>{% endif %}</dd>{% endif %}
         {% if device.custom_backup_cmd %}<dt>Comando de respaldo</dt><dd class="mono">{{ device.custom_backup_cmd }}</dd>{% endif %}</dl>
       {% if device.notes %}<p class="sm muted" style="margin-top:12px">{{ device.notes }}</p>{% endif %}
       {% if inventory %}<details style="margin-top:14px"><summary class="sm b" style="cursor:pointer">{{ _f('Salida de inventario ({0})', profile.inventory_label) }}</summary><pre class="cv" style="padding:10px 12px;margin-top:8px;white-space:pre-wrap">{{ inventory }}</pre></details>{% endif %}
@@ -243,7 +244,9 @@
     <div><button class="btn pri">Solicitar actualización…</button></div></div>
   <div class="c6"><div class="summ">{{ icon('shield') }}<div><b>Antes de actualizar</b><div class="muted sm">Se hace un respaldo automático. Si el equipo no vuelve en 10 minutos, aparece en Alarmas.{% if crit_cves %} {{ _f('Hay {0} CVE críticos en la versión instalada.', crit_cves) }}{% endif %}</div></div></div></div></div>
   </form>
-  {% elif not profile.firmware %}<p class="muted">La actualización remota de firmware no está disponible para {{ profile.label }}.</p>
+  {% elif not profile.firmware %}{% if fwu and fwu.status == 'update' %}<div class="row" style="gap:10px;align-items:baseline;margin-bottom:8px"><span class="muted sm">{{ _('Versión disponible') }}</span><b class="mono">{{ fwu.target }}</b><span class="pill info">{{ _('Disponible') }}</span></div>
+    <p class="muted">{{ _f('OpenNCCM no puede instalarla en {0}: instálela desde la interfaz web del equipo o la herramienta del fabricante, después de un respaldo.', profile.label) }}</p>
+  {% else %}<p class="muted">La actualización remota de firmware no está disponible para {{ profile.label }}.</p>{% endif %}
   {% else %}<p class="muted">{{ _f('No hay imágenes cargadas para {0}.', profile.label) }} <a href="/firmware">Carga una en Firmware</a>.</p>{% endif %}
   </section>
 </section>

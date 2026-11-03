@@ -1023,8 +1023,8 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
                 key_error = True
                 ta, tb = ta or "", tb or ""
             add_n, del_n = services.diff_stats(ta, tb)
-            cmp = {"a": va, "b": vb, "rows": services.side_by_side(ta, tb, ctx if ctx < 9999 else 100000),
-                   "summary": services.diff_summary(ta, tb), "n": add_n + del_n}
+            rows, cut = services.cap_rows(services.side_by_side(ta, tb, ctx if ctx < 9999 else 100000))
+            cmp = {"a": va, "b": vb, "rows": rows, "cut": cut, "summary": services.diff_summary(ta, tb), "n": add_n + del_n}
         drift_n = 0
         if dev.baseline_drift and dev.baseline_version_id and versions:
             base_v = db.get(ConfigVersion, dev.baseline_version_id)
@@ -1086,6 +1086,21 @@ def device_backup(request: Request, dev_id: int):
             "busy": _("El equipo está ocupado con otra tarea")}
     flash(request, msgs.get(res, res), "error" if res in ("error", "busy") else "ok")
     return go(f"/devices/{dev_id}")
+
+
+@app.get("/devices/{dev_id}/license")
+def device_license(request: Request, dev_id: int):
+    """Licencia guardada en el primer respaldo (feature key de WatchGuard), como archivo de texto."""
+    user = require(request)
+    check_device(user, dev_id)
+    with SessionLocal() as db:
+        dev = db.get(Device, dev_id)
+        if dev is None or not dev.license_enc:
+            return go(f"/devices/{dev_id}")
+        text, name, at = decrypt(dev.license_enc), dev.name, dev.license_at
+    log_action(request, user, "license_download", name)
+    return PlainTextResponse(text + "\n", headers={
+        "Content-Disposition": f'attachment; filename="{name}_licencia_{at:%Y%m%d}.txt"'})
 
 
 @app.post("/devices/{dev_id}/mikrotik-backup")
@@ -1281,7 +1296,8 @@ def diff_view(request: Request, a: int = 0, b: int = 0, ctx: int = 3, view: str 
         vn.setdefault(va.id, va.id)
         vn.setdefault(vb.id, vb.id)
     added, removed = services.diff_stats(ta, tb)
-    cmp = {"a": va, "b": vb, "rows": rows, "summary": services.diff_summary(ta, tb), "n": added + removed}
+    rows, cut = services.cap_rows(rows)
+    cmp = {"a": va, "b": vb, "rows": rows, "cut": cut, "summary": services.diff_summary(ta, tb), "n": added + removed}
     return render(request, "diff.html", user, va=va, vb=vb, cmp=cmp, ctx=ctx, view=view, devs=devs, vers=vers, vn=vn,
                   mode="u" if view == "unified" else "sbs", vers_js={str(k): [x["id"] for x in v] for k, v in vers.items()})
 

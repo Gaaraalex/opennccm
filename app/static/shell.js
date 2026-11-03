@@ -485,6 +485,7 @@
   $$('[data-palette]').forEach(function (b) { b.addEventListener('click', palette); });
 
   /* ---------- pestañas de página enlazables (#resumen, #versions…); sin JavaScript se ven todas ---------- */
+  setTimeout(function () { document.documentElement.classList.remove('tabs-wait'); });  // ya con los «hidden» puestos
   $$('[data-tabs]').forEach(function (nav) {
     var links = $$('a[href^="#"]', nav);
     var panels = links.map(function (a) { return document.getElementById(a.getAttribute('href').slice(1)); }).filter(Boolean);

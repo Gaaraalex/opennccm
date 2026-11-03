@@ -384,7 +384,7 @@ def analytics_page(request: Request, days: int = 30):
 
 TRIGGER_ORDER = ["manual", "scheduled", "syslog", "push"]
 TRIGGER_LABELS = {"manual": N_("Manual"), "scheduled": N_("Programado"), "syslog": N_("Detectado por syslog"),
-                  "push": N_("Aplicado por OpenNCCM")}
+                  "push": N_("Aplicado por OpenNCCM"), "console": N_("Consola")}
 EOL_ORDER = ["vigente", "proximo", "fin_venta", "fin_mantenimiento", "sin_soporte", "desconocido"]
 EOL_CLASS = {"vigente": "st-ok", "proximo": "st-warn", "fin_venta": "st-warn", "fin_mantenimiento": "st-major",
              "sin_soporte": "st-crit", "desconocido": "st-none"}

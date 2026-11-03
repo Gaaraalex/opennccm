@@ -172,6 +172,7 @@ form.inline{display:inline-flex;margin:0}
 .pill{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px 0 8px;border-radius:99px;font:600 12px/1 var(--f-sans);white-space:nowrap;background:var(--surface-3);color:var(--muted)}
 .pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
 .pill.ok{background:var(--ok-soft);color:var(--ok)}.pill.warn{background:var(--warn-soft);color:var(--warn)}.pill.major{background:var(--major-soft);color:var(--major)}.pill.crit{background:var(--crit-soft);color:var(--crit)}.pill.info{background:var(--brand-soft);color:var(--brand)}
+.pill.cl-tag{height:20px;padding:0 8px;margin-right:6px;font-size:11px;vertical-align:1px}
 .pill.live::before{animation:ping 2s ease-out infinite}
 @keyframes ping{0%{box-shadow:0 0 0 0 currentColor}70%{box-shadow:0 0 0 6px transparent}100%{box-shadow:0 0 0 0 transparent}}
 .sev{display:inline-flex;align-items:center;gap:6px;font:600 12px/1 var(--f-sans);white-space:nowrap}
@@ -377,6 +378,15 @@ table.t{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px;ma
 .pal mark{background:none;color:inherit;font-weight:700;text-decoration:underline;text-underline-offset:3px}
 .dlg{width:min(520px,100%);background:var(--surface);border:1px solid var(--line);border-radius:var(--r-xl);box-shadow:var(--sh-pop);padding:24px;animation:pop .18s ease both;display:flex;flex-direction:column;gap:14px;max-height:80vh;overflow:auto;color:var(--ink)}
 .dlg.wide{width:min(820px,100%)}
+/* pestañas de página: hasta que shell.js (diferido) elige la pestaña, solo se ve la primera; antes se veían todas
+   un momento, y en páginas largas (un WatchGuard con 40.000 líneas) varios segundos */
+.tabs-wait [data-tabs]~section~section{display:none}
+/* Novedades: cabecera y pie fijos, la lista de versiones con su propio scroll */
+.dlg.nov-dlg{width:min(860px,calc(100vw - 24px));max-width:none;max-height:85vh;overflow:hidden;padding:0;gap:0}
+.nov-dlg>h2{flex:none;padding:22px 24px 12px}
+.nov-dlg .nov-body{flex:1 1 auto;min-height:0;overflow:auto;padding:0 24px 12px}
+.nov-dlg .nov-foot{flex:none;flex-wrap:wrap;gap:8px;padding:14px 24px;border-top:1px solid var(--line)}
+@media (max-width:600px){.nov-dlg>h2{padding:18px 16px 10px}.nov-dlg .nov-body{padding:0 16px 10px}.nov-dlg .nov-foot{padding:12px 16px}}
 .dlg.full{width:min(1200px,100%);max-height:90vh}
 dialog.dlg{margin:auto;position:fixed}
 dialog.dlg::backdrop{background:var(--scrim)}
@@ -550,6 +560,8 @@ dialog.dlg:not([open]){display:none}
 @media (max-width:1240px){.donate .dt small{display:none}.donate{height:36px}.search-top{min-width:0;width:36px;padding:0;justify-content:center}.search-top span,.search-top kbd{display:none}}
 @media (max-width:860px){.donate{width:36px;height:36px;padding:0;justify-content:center}.donate .dt,.donate .dbtn{display:none}}
 @media (prefers-reduced-motion:reduce){.donate{transition:none}}
+/* insignia ámbar de «Base de conocimiento» en el menú (pendientes por documentar), en todas las páginas */
+.nav .cnt.kb-cnt{background:#f5b83d;color:#0b0f17}
 /* «Soporte profesional» (estilo «Aurora» de Diseño UX): enlace a la comunidad; mismo alto que «Apoya OpenNCCM» */
 .btn-soporte{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 14px;border-radius:999px;color:#fff;font:600 13px var(--f-sans);white-space:nowrap;flex:none;text-decoration:none;
   background:linear-gradient(110deg,#2563eb,#7c3aed,#0891b2,#2563eb);background-size:300% 100%;animation:aurora 6s linear infinite;
@@ -560,7 +572,10 @@ dialog.dlg:not([open]){display:none}
 @keyframes aurora{to{background-position:300% 0}}
 @media (max-width:1240px){.btn-soporte{height:36px}}
 @media (max-width:1100px){.donate .dt{display:none}.donate{padding:0 5px 0 10px}}
-@media (max-width:600px){.btn-soporte{width:36px;padding:0;justify-content:center}.btn-soporte span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}}
+@media (max-width:600px){.top .btn-soporte{width:36px;padding:0;justify-content:center}.top .btn-soporte span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}}
+/* en el teléfono, además, con el texto completo al final del menú lateral */
+.rail-soporte{display:none}
+@media (max-width:600px){.rail .rail-soporte{display:flex;justify-content:center;margin:16px 6px 0;height:40px}}
 @media (prefers-reduced-motion:reduce){.btn-soporte{animation:none;transition:none}}
 
 /* Ajustes › Asistente IA */

@@ -117,6 +117,9 @@ class Device(Base):
     neighbors: Mapped[str | None] = mapped_column(Text)  # JSON: vecinos LLDP/CDP del último respaldo (mapa de la red)
     # JSON {"at", "status", "ports"}: puertos físicos y su estado leídos en el último respaldo (app/ports.py)
     ports: Mapped[str | None] = mapped_column(Text)
+    # licencia del equipo (Profile.license_cmd, p. ej. la feature key de WatchGuard), cifrada; se lee una sola vez
+    license_enc: Mapped[str | None] = mapped_column(Text)
+    license_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     credential = relationship("Credential")
     group = relationship("DeviceGroup")

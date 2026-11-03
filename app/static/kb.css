@@ -1,5 +1,4 @@
 /* Equipo › Base de conocimiento (app/kb.py): casos, falta documentar, revisión, acceso y reglas, ficha y editor. */
-.kb-cnt{background:var(--warn)!important;color:var(--on-brand,#0b0f17)!important}
 .kb-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .kb-head h1{margin:0}
 .kb-vis{display:inline-flex;align-items:center;gap:5px;font:600 11.5px var(--f-sans);color:var(--ink-2);background:var(--surface-3);border-radius:99px;padding:3px 9px}

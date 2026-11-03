@@ -54,6 +54,8 @@ check("se abre en una pestaña nueva con rel=noopener", 'target="_blank"' in b a
 html = adm.get(B + "/").text
 check("va a la izquierda de «Apoya OpenNCCM»", html.find('class="btn-soporte"') < html.find('class="donate"'))
 check("dice «Soporte profesional», con el auricular", "Soporte profesional</span>" in html and "#i-headset" in button(html) + html[html.find('class="btn-soporte"'):html.find('class="btn-soporte"') + 400])
+check("y en el menú lateral, con el texto completo (se ve en el teléfono)", 'class="btn-soporte rail-soporte"' in html
+      and html.count(f'href="{URL}"') == 2)
 check("solo lectura: también lo ve", f'href="{URL}"' in button(ro.get(B + "/").text))
 b = button(en.get(B + "/").text)
 check("en inglés: ?lang=en y «Professional support»", f'href="{URL}?lang=en"' in b and "Professional support" in en.get(B + "/").text, b)
@@ -79,7 +81,7 @@ for name, body in re.findall(r'<select[^>]*name="(\w+)"[^>]*>(.*?)</select>', pa
 for name, body in re.findall(r'<textarea[^>]*name="(\w+)"[^>]*>(.*?)</textarea>', page, re.S):
     form[name] = body
 adm.post(B + "/settings", data=form)
-check("con la casilla apagada, nadie lo ve", 'class="btn-soporte"' not in ro.get(B + "/").text and 'class="btn-soporte"' not in adm.get(B + "/").text)
+check("con la casilla apagada, nadie lo ve (ni en la barra ni en el menú)", "btn-soporte" not in ro.get(B + "/").text and "btn-soporte" not in adm.get(B + "/").text)
 check("y la casilla queda apagada", re.search(r'name="support_button" checked', adm.get(B + "/settings").text) is None)
 with SessionLocal() as db:
     for r in db.scalars(select(Setting)):
