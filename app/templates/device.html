@@ -78,7 +78,7 @@
       <dl class="kv"><dt>Host</dt><dd class="mono">{{ device.host }}:{{ device.port }} ({{ device.protocol }})</dd><dt>Fabricante</dt><dd>{{ profile.label }}</dd>
         <dt>Modelo</dt><dd>{{ device.model or '—' }}</dd><dt>Nº de serie</dt><dd class="mono">{{ device.serial or '—' }}</dd>
         <dt>Firmware</dt><dd class="mono">{{ device.os_version or '—' }}</dd><dt>Grupo</dt><dd>{% if device.group %}<a href="/devices?group={{ device.group.id }}">{{ device.group.name }}</a>{% else %}—{% endif %}</dd>
-        <dt>Ubicación</dt><dd>{{ device.location or '—' }}</dd><dt>Credencial</dt><dd>{{ device.credential.name if device.credential else '—' }}</dd>
+        <dt>Ubicación</dt><dd>{{ device.location or '—' }}</dd><dt>Credencial</dt><dd>{{ device.credential.name if device.credential else '—' }}{% if device.credential and can_view_creds(user) %} · <a href="/devices/{{ device.id }}/credential/view" data-sheet data-title="{{ _f('Credencial «{0}»', device.credential.name) }}">{{ _('Ver') }}</a>{% endif %}</dd>
         <dt>Último respaldo</dt><dd title="{{ device.last_backup_at|dt }}">{{ device.last_backup_at|ago if device.last_backup_at else '—' }}</dd>
         <dt>Reversión automática</dt><dd>{{ _('Sí') if device.auto_rollback else _('No') }}</dd>
         <dt>Línea base</dt><dd>{% if device.baseline_version_id %}<a href="/versions/{{ device.baseline_version_id }}" data-sheet data-wide>{{ _f('versión {0}', base_n or device.baseline_version_id) }}</a> {% if device.baseline_drift %}<span class="pill major">difiere</span>{% else %}<span class="pill ok">coincide</span>{% endif %}{% else %}—{% endif %}</dd>

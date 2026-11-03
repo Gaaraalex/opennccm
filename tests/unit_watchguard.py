@@ -174,6 +174,28 @@ calls = WEB["calls"]
 services.backup_device(dev_id, "scheduled", None)
 check("sin firma: no se reintenta antes de un día", WEB["calls"] == calls)
 
+
+# 4c2) la Web UI no responde (no se envió la contraseña): se reintenta pasada una hora y el aviso no se repite
+def _down(dev, user, password):
+    WEB["calls"] += 1
+    raise fireware_web.FirewareWebUnreachable("No se pudo conectar con la Web UI en https://192.0.2.10:8080: timed out")
+
+
+fireware_web.read_summary = _down
+services._LICENSE_TRIED.clear()
+services.backup_device(dev_id, "scheduled", None)
+tried, wait, why = services._LICENSE_TRIED[dev_id]
+check("Web UI que no responde: se reintenta pasada una hora, no un día", wait == services.LICENSE_RETRY_NET)
+calls = WEB["calls"]
+services._LICENSE_TRIED[dev_id] = (tried - services.LICENSE_RETRY_NET - 1, wait, why)
+services.backup_device(dev_id, "scheduled", None)
+with SessionLocal() as db:
+    downs = db.scalars(select(Event).where(Event.category == "Feature key sin firma", Event.device_id == dev_id,
+                                           Event.message.contains("No se pudo conectar"))).all()
+check("pasada la hora se reintenta, y el mismo motivo no repite el aviso", WEB["calls"] == calls + 1 and len(downs) == 1,
+      (WEB["calls"] - calls, len(downs)))
+fireware_web.read_summary = _summary
+
 # 4d) con la firma de la Web UI: el texto que se pega para restaurarla, igual al del Firebox
 SIG = "302e0215038419db-48d78b97a8c40107-821b0e916f5dfd21-5a02150213902382-3425a307b388cb82-5fce561e0ee859ca"
 WEB["sig"] = SIG

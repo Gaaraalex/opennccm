@@ -136,7 +136,21 @@ check("Web UI: la «Interfaz web» del equipo si tiene puerto propio",
       BASE_URL(SimpleNamespace(host="10.1.1.1", web_url="https://fw.local:9443/")) == "https://fw.local:9443")
 check("Web UI: si no, https://IP:8080", BASE_URL(SimpleNamespace(host="10.1.1.1", web_url=None)) == "https://10.1.1.1:8080"
       and BASE_URL(SimpleNamespace(host="10.1.1.1", web_url="https://10.1.1.1/")) == "https://10.1.1.1:8080")
+check("campos con los atributos en otro orden, comillas simples o en un textarea",
+      fw._input("<input value='abc' readonly type=\"text\" id='signature'/>", "signature") == "abc"
+      and fw._input('<INPUT name="serial" VALUE="D028">', "serial") == "D028"
+      and fw._input('<textarea id="signature" readonly>30-2e</textarea>', "signature") == "30-2e"
+      and fw._input('<input id="signature_x" value="no">', "signature") == "")
 srv.shutdown()
+
+fw.RETRY_PAUSE = 0
+fw.base_url = lambda dev: "http://127.0.0.1:9"  # puerto cerrado: como un Firebox con la Web UI bloqueada
+LOG.clear()
+try:
+    fw.read_summary(dev, "read", "cl&ve<1>")
+    check("Web UI que no responde: error", False)
+except fw.FirewareWebUnreachable as e:
+    check("Web UI que no responde: se distingue (no se llegó a enviar la contraseña)", "No se pudo conectar" in str(e), str(e))
 
 print("\nRESULTADO:", "TODO OK" if not fails else f"{len(fails)} FALLOS")
 sys.exit(1 if fails else 0)

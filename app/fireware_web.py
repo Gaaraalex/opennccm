@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import html
 import re
+import time
 import warnings
 import xml.etree.ElementTree as ET
 from urllib.parse import urlsplit
@@ -29,6 +30,8 @@ from urllib.parse import urlsplit
 import requests
 
 TIMEOUT = 20
+CONNECT_TIMEOUT = 8  # con el puerto cerrado, que no demore el respaldo
+RETRY_PAUSE = 2
 PORT = 8080  # puerto de fábrica de la Web UI de Fireware
 DOMAIN = "Firebox-DB"
 VERSION = "2"  # formato de las feature keys de Fireware; la Web UI no lo muestra y la CLI tampoco
@@ -36,6 +39,10 @@ VERSION = "2"  # formato de las feature keys de Fireware; la Web UI no lo muestr
 
 class FirewareWebError(Exception):
     pass
+
+
+class FirewareWebUnreachable(FirewareWebError):
+    """No se llegó a la Web UI (puerto cerrado, equipo sin responder): no se envió ninguna contraseña."""
 
 
 def base_url(dev) -> str:
@@ -47,7 +54,14 @@ def base_url(dev) -> str:
 
 
 def _input(page: str, name: str) -> str:
-    m = re.search(r'<input[^>]*\bid="%s"[^>]*\bvalue="([^"]*)"' % re.escape(name), page)
+    """Valor del campo con ese id (o name), sin importar el orden de los atributos ni las comillas."""
+    key = re.escape(name)
+    for tag in re.findall(r"<input\b[^>]*>", page, re.I):
+        if re.search(r"""\b(?:id|name)\s*=\s*["']%s["']""" % key, tag, re.I):
+            m = re.search(r"""\bvalue\s*=\s*(?:"([^"]*)"|'([^']*)')""", tag, re.I)
+            if m:
+                return html.unescape(m.group(1) if m.group(1) is not None else m.group(2)).strip()
+    m = re.search(r"""<textarea\b[^>]*\b(?:id|name)\s*=\s*["']%s["'][^>]*>([^<]*)</textarea>""" % key, page, re.I)
     return html.unescape(m.group(1)).strip() if m else ""
 
 
@@ -79,6 +93,18 @@ def _xmlrpc_values(text: str) -> dict:
     return out
 
 
+def _first_get(s: requests.Session, base: str) -> requests.Response:
+    """La página de ingreso, con un reintento si la red falla (todavía no se envió ninguna contraseña)."""
+    for attempt in (1, 2):
+        try:
+            return s.get(f"{base}/login", timeout=(CONNECT_TIMEOUT, TIMEOUT))
+        except requests.RequestException as e:
+            if attempt == 2:
+                raise FirewareWebUnreachable(f"No se pudo conectar con la Web UI en {base}: "
+                                             f"{str(e).splitlines()[0][:200]}") from e
+            time.sleep(RETRY_PAUSE)
+
+
 def read_summary(dev, user: str, password: str) -> dict:
     """Modelo, serie y firma de System › Feature Key. Siempre cierra la sesión que abre."""
     base = base_url(dev)
@@ -88,7 +114,7 @@ def read_summary(dev, user: str, password: str) -> dict:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")  # certificado autofirmado de fábrica
         try:
-            r = s.get(f"{base}/login", timeout=TIMEOUT)
+            r = _first_get(s, base)
             cp = _input(r.text, "cp_csrf_token")
             r = s.post(f"{base}/agent/login", data=_xmlrpc_login(user, password, DOMAIN), timeout=TIMEOUT,
                        headers={"Content-Type": "text/xml"})

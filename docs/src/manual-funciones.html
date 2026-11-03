@@ -1033,9 +1033,22 @@ HP/Aruba, Dell, Ruckus, Allied, MikroTik, EdgeSwitch, UniFi Switch y EXOS, si ti
 <p><b>Credenciales:</b> perfiles de usuario, contraseña y contraseña privilegiada (<i>enable</i>) para conectarse a los equipos. Si el
 equipo entra en modo usuario («&gt;») y la credencial no tiene <i>enable</i>, OpenNCCM prueba la contraseña de ingreso; si no sirve,
 el error indica en qué credencial escribirla. Se guardan
-cifradas con AES-256-GCM y nunca se muestran. Están en <b>Administración → Credenciales</b>: la tabla indica cuántos equipos usa
+cifradas con AES-256-GCM y, salvo que Ajustes lo permita (ver abajo), nunca se muestran. Están en <b>Administración → Credenciales</b>: la tabla indica cuántos equipos usa
 cada una y su estado (funciona, falla en N equipos o sin usar). <b>Crear credencial</b> y <b>Actualizar</b> abren un panel lateral;
 al actualizar, deje en blanco lo que no quiera cambiar.</p>
+<p><b>Ver una credencial:</b> en <b>Ajustes → Seguridad y acceso → Quién puede ver las credenciales de los equipos</b> un
+administrador elige <b>Nadie</b> (lo de fábrica), <b>Solo administradores</b> o <b>Administradores y operadores</b>. Quien tenga permiso
+ve <b>Ver</b> junto a la credencial en la ficha del equipo (y los administradores también en esta lista). Para verla:</p>
+<ul>
+  <li>Su cuenta debe tener activa la <b>verificación en dos pasos</b> (MFA). Si no la tiene, se le avisa de que primero debe
+  activarla en <b>Mi cuenta</b> y no la ve hasta hacerlo.</li>
+  <li>Cada vez que pulsa <b>Ver</b> confirma con su usuario y su contraseña de OpenNCCM (las cuentas de Active Directory, con la del
+  directorio; las de Microsoft, que no tienen contraseña en OpenNCCM, con el código de su app de verificación).</li>
+  <li>Se muestran el usuario, la contraseña y el <i>enable</i>, con botón <b>Copiar</b>, y se ocultan a los 60 segundos.</li>
+  <li>Cada vista y cada intento fallido quedan en <b>Auditoría</b>. Los intentos fallidos cuentan para el bloqueo de la cuenta igual
+  que en el inicio de sesión; al bloquearse, se cierran sus sesiones. Un operador solo ve las de los equipos de sus grupos, y los
+  lectores nunca. Con un token de API no se pueden ver.</li>
+</ul>
 <p><b>Grupos</b> (pestaña <b>Administración → Grupos</b>): agrupan equipos (sede, rol, cliente) para filtrar, programar tareas,
 aplicar políticas y restringir usuarios. La tabla muestra cuántos equipos tiene cada uno, con <b>Ver equipos</b>; se crean con el
 campo del pie. Se llega aquí también con el botón <b>Grupos</b> de la página Dispositivos, y un grupo se puede crear al editar un equipo. Para asignar
@@ -1199,6 +1212,7 @@ salir de la página sin guardar, el navegador lo advierte.</p>
   <tr><td>Exigir verificación en dos pasos a los administradores</td><td>Un administrador sin ella solo puede entrar a «Mi cuenta» hasta activarla.</td></tr>
   <tr><td>Idioma predeterminado</td><td>Español o inglés para quien no eligió idioma y cuyo navegador no pide uno disponible.</td></tr>
   <tr><td>Consola SSH web</td><td>Quién puede abrirla y si entra con la credencial del equipo (ver capítulo 4).</td></tr>
+  <tr><td>Quién puede ver las credenciales de los equipos</td><td>Nadie (por omisión), solo administradores, o administradores y operadores. Además hace falta la verificación en dos pasos y confirmar con usuario y contraseña cada vez (ver capítulo 22).</td></tr>
 </table>
 <h2 id="sso">Inicio de sesión con Active Directory y Microsoft Entra ID</h2>
 <p>En <b>Ajustes → Inicio de sesión</b> se puede permitir que las personas entren con su cuenta de la organización. Las cuentas
@@ -1265,7 +1279,9 @@ XML) y, una sola vez, guarda su <b>feature key</b> tal como se pega para restaur
 descarga desde la ficha del equipo. El detalle sale de la CLI (<code>show feature-key</code> y <code>show feature-key ID</code>); la
 firma no sale por la CLI, así que OpenNCCM entra un momento a la Web UI del Firebox (System › Feature Key, puerto 8080 o el de la
 «Interfaz web» del equipo) con la misma credencial, la lee y cierra la sesión. Si no puede entrar, guarda el detalle sin firma, la
-ficha dice «sin firma: aún no sirve para restaurar», sale un aviso con el motivo y lo reintenta al día siguiente. Un
+ficha dice «sin firma: aún no sirve para restaurar», sale un aviso con el motivo (una sola vez por motivo) y lo reintenta:
+pasada una hora si la Web UI no respondió (puerto cerrado o equipo sin responder; aún no se había enviado la contraseña) y al
+día siguiente si la Web UI rechazó el ingreso, para no insistir con la contraseña. Un
 usuario de solo lectura (Device Monitor) basta para las dos cosas. Si un comando no sirve para su versión, defina un <b>comando de respaldo personalizado</b> en el dispositivo. Para
 equipos sin perfil propio (SonicWall, Riverbed, Infoblox…) use <b>Genérico SSH</b> con un comando personalizado.</p>
 <h3>WatchGuard: configuración (XML) e imagen completa (.fxi)</h3>

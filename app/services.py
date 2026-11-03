@@ -467,24 +467,27 @@ def _read_license(conn, prof) -> str | None:
     return out if len(out) >= 10 and not device_error(out) else None
 
 
-_LICENSE_TRIED: dict[int, float] = {}  # último intento sin éxito de completar la licencia, por equipo
-LICENSE_RETRY = 24 * 3600
+_LICENSE_TRIED: dict[int, tuple[float, float, str]] = {}  # último intento sin éxito, por equipo: (cuándo, espera, motivo)
+LICENSE_RETRY = 24 * 3600  # la Web UI rechazó el ingreso: no insistir con la contraseña más de una vez al día
+LICENSE_RETRY_NET = 3600  # no se llegó a la Web UI (no se envió la contraseña): se reintenta antes
 
 
 def _license_missing(dev, prof) -> bool:
     """Falta leer la licencia: no hay ninguna guardada, o la guardada no está completa (Profile.license_mark). Si ya se
-    intentó completarla y no se pudo (p. ej. la Web UI de Fireware no deja entrar), se reintenta una vez al día."""
+    intentó completarla y no se pudo, se reintenta pasada la espera: un día si la Web UI de Fireware rechazó el ingreso,
+    una hora si no respondió."""
     if not dev.license_enc:
         return True
     if not prof.license_mark or re.search(prof.license_mark, try_decrypt(dev.license_enc) or ""):
         return False
-    return time.time() - _LICENSE_TRIED.get(dev.id, 0) >= LICENSE_RETRY
+    tried, wait, _why = _LICENSE_TRIED.get(dev.id, (0, 0, ""))
+    return time.time() - tried >= wait
 
 
 def _fireware_license(dev, detail: str | None) -> tuple[str | None, str | None]:
     """WatchGuard: la feature key como se pega para restaurarla, con la firma de la Web UI (app.fireware_web), y el
-    aviso si no se pudo. Sin firma devuelve el detalle de la CLI, para no perder lo que sí se leyó, y se reintenta al
-    día siguiente."""
+    aviso si no se pudo (solo la primera vez que falla por ese motivo, para no repetirlo en cada reintento). Sin firma
+    devuelve el detalle de la CLI, para no perder lo que sí se leyó, y se reintenta más tarde."""
     from . import fireware_web
     detail = detail or (try_decrypt(dev.license_enc) if dev.license_enc else None)
     if not detail or not fireware_web.parse_detail(detail):
@@ -499,10 +502,16 @@ def _fireware_license(dev, detail: str | None) -> tuple[str | None, str | None]:
         _LICENSE_TRIED.pop(dev.id, None)
         return text, None
     except Exception as e:  # noqa: BLE001 - la firma es un extra: el respaldo sigue
-        _LICENSE_TRIED[dev.id] = time.time()
+        net = isinstance(e, fireware_web.FirewareWebUnreachable)
+        why = str(e).rstrip(".")
+        repeated = _LICENSE_TRIED.get(dev.id, (0, 0, ""))[2] == why
+        _LICENSE_TRIED[dev.id] = (time.time(), LICENSE_RETRY_NET if net else LICENSE_RETRY, why)
         log.warning("Feature key de %s sin firma: %s", dev.name, e)
-        return detail, (f"{dev.name}: no se pudo leer la firma en la Web UI ({fireware_web.base_url(dev)}): {str(e).rstrip('.')}. "
-                        "Se guardó el detalle de la CLI; se reintenta en el próximo respaldo pasado un día.")
+        if repeated:
+            return detail, None
+        return detail, (f"{dev.name}: no se pudo leer la firma en la Web UI ({fireware_web.base_url(dev)}): {why}. "
+                        "Se guardó el detalle de la CLI; se reintenta en el próximo respaldo pasada "
+                        + ("una hora." if net else "un día."))
 
 
 def _read_ports(conn, device_type: str) -> str | None:

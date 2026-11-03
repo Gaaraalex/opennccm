@@ -2801,7 +2801,7 @@ SETTING_KEYS = ["smtp_host", "smtp_port", "smtp_security", "smtp_user", "smtp_fr
                 "webhook_url", "telegram_token", "telegram_chat_id", "alert_min_severity", "require_approval",
                 "allow_self_approval", "notify_compliance", "retention_versions", "cisco_api_client_id",
                 "dr_keep", "dr_remote_host", "dr_remote_port", "dr_remote_user", "dr_remote_path",
-                "session_idle_minutes", "remember_days", "require_2fa_admins", "console_access", "console_autologin", "update_check",
+                "session_idle_minutes", "remember_days", "require_2fa_admins", "console_access", "console_autologin", "cred_view", "update_check",
                 "topology_enabled", "topology_types", "git_enabled", "git_url", "git_branch", "git_user", "git_mask", "org_name", "org_contact", "org_address", "default_lang", "support_button",
                 "ldap_enabled", "ldap_url", "ldap_starttls", "ldap_verify_tls", "ldap_bind_dn", "ldap_base_dn",
                 "ldap_user_filter", "ldap_group_admin", "ldap_group_operator", "ldap_group_viewer", "ldap_default_role",
@@ -2811,7 +2811,7 @@ CHECKBOX_KEYS = ("require_approval", "allow_self_approval", "notify_compliance",
                  "console_autologin", "update_check", "ldap_enabled", "ldap_starttls", "ldap_verify_tls", "oidc_enabled",
                  "topology_enabled", "git_enabled", "git_mask", "support_button")
 # valores por defecto cuando el ajuste nunca se guardó
-SETTING_DEFAULTS = {"allow_self_approval": "1", "session_idle_minutes": "30", "remember_days": "14", "require_2fa_admins": "0",
+SETTING_DEFAULTS = {"allow_self_approval": "1", "cred_view": "off", "session_idle_minutes": "30", "remember_days": "14", "require_2fa_admins": "0",
                     "console_access": "admin", "console_autologin": "0", "update_check": "1", "topology_enabled": "1", "git_mask": "1", "support_button": "1", "git_branch": "main",
                     "ldap_verify_tls": "1", "ldap_user_filter": "(&(objectClass=user)(sAMAccountName={username}))"}
 SECRET_FORM_KEYS = ["git_token", "smtp_password", "cisco_api_secret", "dr_remote_password", "ldap_bind_password", "oidc_client_secret",
@@ -2897,6 +2897,9 @@ async def settings_save(request: Request):
             set_setting(k, str(min(max(int(v), 5), 720)) if v.isdigit() else "30")
         elif k == "default_lang":
             set_setting(k, form.get(k) if form.get(k) in LANGS else "es")
+        elif k == "cred_view":  # quién puede ver credenciales (app.credview); sin el campo no se toca
+            if k in form:
+                set_setting(k, form.get(k) if form.get(k) in ("off", "admin", "operator") else "off")
         elif k == "console_access":  # ahora se decide en Operar › Consola › Acceso; se acepta por compatibilidad
             if k in form:
                 set_setting(k, form.get(k) if form.get(k) in ("off", "admin", "operator") else "admin")
@@ -3113,6 +3116,9 @@ app.include_router(kb.router)
 from . import fxi  # noqa: E402  (imagen .fxi de WatchGuard)
 
 app.include_router(fxi.router)
+from . import credview  # noqa: E402  (ver credenciales con MFA y contraseña)
+
+app.include_router(credview.router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)
