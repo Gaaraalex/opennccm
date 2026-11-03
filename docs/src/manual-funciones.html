@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.20.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 2.21.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -265,7 +265,9 @@ entrada de corriente. <b>Frente</b> muestra sus luces (Failover, las de cada pue
 luces de un puerto lo elige. En WatchGuard el nombre de la interfaz, si está habilitada y su IP o las VLAN que pasan por el
 puerto salen de la configuración; el enlace y la velocidad, de <code>show status-report</code> (sección «Physical Interfaces Link
 Status», un comando de solo lectura). Atrás, el puerto con enlace sale en verde; delante se enciende la luz de su velocidad: la de
-1000 en amarillo y la de 10/100 en verde, como en el equipo.</p>
+1000 en amarillo y la de 10/100 en verde, como en el equipo. <b>Mode</b> se ve verde si alguna interfaz externa tiene enlace
+y parpadea si ninguna lo tiene; <b>Status</b> queda apagada, porque en el Firebox solo se enciende 30 segundos cuando alguien
+entra por la Web UI o la CLI.</p>
 <figure><img src="img/05c-dispositivo-cumplimiento.png" style="max-height:120mm"><figcaption>Pestaña Cumplimiento: reglas agrupadas por política, con «Corregir N».</figcaption></figure>
 </section>
 
@@ -1258,7 +1260,9 @@ además el tipo de reversión y si admite actualización de firmware.</p>
 </ul>
 <p>La configuración se obtiene mostrando el resultado del comando dentro de la misma sesión SSH: no se crean archivos en el equipo ni se
 necesita FTP/TFTP. WatchGuard Fireware se respalda con <code>export config to console</code> (la configuración completa en
-XML) y, una sola vez, guarda su <b>feature key</b> (<code>show feature-key</code>), que se descarga desde la ficha del equipo; un
+XML) y, una sola vez, guarda el detalle de su <b>feature key</b> (<code>show feature-key</code> y <code>show feature-key ID</code>:
+modelo, vencimiento y cada función con su fecha), que se descarga desde la ficha del equipo. La firma de la feature key no sale
+por la CLI: viene dentro de la imagen .fxi, o se vuelve a descargar del portal de WatchGuard. Un
 usuario de solo lectura (Device Monitor) basta. Si un comando no sirve para su versión, defina un <b>comando de respaldo personalizado</b> en el dispositivo. Para
 equipos sin perfil propio (SonicWall, Riverbed, Infoblox…) use <b>Genérico SSH</b> con un comando personalizado.</p>
 <h3>WatchGuard: configuración (XML) e imagen completa (.fxi)</h3>
@@ -1266,7 +1270,8 @@ equipos sin perfil propio (SonicWall, Riverbed, Infoblox…) use <b>Genérico SS
 <table>
   <tr><th></th><th>Configuración (XML)</th><th>Imagen completa (.fxi)</th></tr>
   <tr><td>Qué guarda</td><td>Políticas, interfaces, VLAN, NAT, VPN, alias, usuarios y ajustes</td><td>Todo lo anterior, más los
-  certificados con sus claves privadas, la feature key, las contraseñas y la información propia de ese Firebox</td></tr>
+  certificados con sus claves privadas, la feature key, las contraseñas y la información propia de ese Firebox (no el sistema operativo: desde Fireware 12.2.1 la imagen
+  no lo incluye, y por eso pesa alrededor de 1 MB)</td></tr>
   <tr><td>Qué no guarda</td><td>La feature key (OpenNCCM la guarda aparte), los certificados con sus claves, las contraseñas
   propias del equipo y el Fireware OS</td><td>—</td></tr>
   <tr><td>Cuándo</td><td>En cada respaldo; no cambia nada en el Firebox</td><td>Semanal, diaria o solo a mano (a las 03:00)</td></tr>
@@ -1281,7 +1286,7 @@ un solo uso, y se cierra al recibir el archivo o a los 5 minutos. Si el servidor
 los cierra al terminar (si el servicio se detuviera, la regla se quita sola a los 6 minutos). Si hay otro cortafuegos entre el
 Firebox y OpenNCCM, permita esos puertos desde el Firebox hacia el servidor. En el Firebox se ejecuta <code>backup image</code>,
 <code>export image … to ftp://…</code> y <code>delete backup</code> (no queda una copia en el equipo).</p>
-<p>Al configurarla se elige la credencial de administrador, la <b>clave de cifrado</b> de la imagen (8 a 32 caracteres; sin ella
+<p>Al configurarla se elige la credencial de administrador, la <b>clave de cifrado</b> de la imagen (8 a 15 caracteres, el máximo que admite Fireware; sin ella
 no se puede restaurar), la dirección por la que el Firebox llega a OpenNCCM (se detecta sola) y cuántas imágenes guardar.
 <b>Probar conexión</b> pide al Firebox que suba su configuración al receptor, sin crear ninguna imagen. Si una imagen falla dos
 veces seguidas, se abre la alarma «Imagen .fxi sin crear»; el respaldo XML no se ve afectado. Cada archivo se descarga en su

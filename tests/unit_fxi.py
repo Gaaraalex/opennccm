@@ -100,7 +100,7 @@ check("contraseña y usuario de un solo uso", fxi.Receiver("1.1.1.1", Path(D)).p
 
 # 3) el respaldo completo con un Firebox simulado
 init_db()
-KEY = "Clave-Imagen-2026x"
+KEY = "Clave-Img-2026x"  # 15: el máximo que admite Fireware
 SENT = []
 
 
@@ -118,6 +118,8 @@ class FakeFirebox:
             return "Backup image saved\nWG#"
         m = re.match(r"^export (image (\S+) (\S+)|config) to (ftp://\S+)$", cmd)
         if m:
+            if m.group(3) and not 8 <= len(m.group(3)) <= 15:  # como Fireware 12.8 (T40)
+                return "%Error: the length of password should be between 8 and 15.\nWG#"
             if self.mode == "noftp":
                 return "% Error: Failed to connect to ftp server (timeout)\nWG#"
             u = urlparse(m.group(4))
@@ -172,6 +174,8 @@ check("imagen guardada con su tamaño, SHA-256 y su clave cifrada", len(imgs) ==
 check("órdenes: backup image, export image y delete backup", [c.split()[0] + " " + c.split()[1] for c in SENT] ==
       ["backup image", "export image", "delete backup"], SENT)
 check("no queda la imagen en el Firebox", FB.images == {})
+check("el paso 4 muestra el archivo con su punto y el tamaño con coma", re.search(r"\.fxi · \d+,\d MB$", st["steps"][3]["d"]),
+      st["steps"][3]["d"])
 alltext = "\n".join(st["log"] + [s["d"] for s in st["steps"]]) + st["error"]
 check("ni la clave ni la contraseña del FTP en el registro", KEY not in alltext and "********" in alltext
       and not re.search(r"ftp://onccm-\w+:(?!\*)", alltext), alltext)
@@ -212,8 +216,15 @@ check("probar conexión: el Firebox llega al receptor sin crear imagen", st["sta
       SENT and SENT[0].startswith("export config to ftp://") and not any(c.startswith("backup image") for c in SENT), SENT)
 
 # 7) clave y dirección
-check("clave generada válida (8 a 32, sin espacios)", all(fxi.valid_key(fxi.new_key()) for _ in range(20)))
-check("claves no válidas", not fxi.valid_key("corta") and not fxi.valid_key("con espacio 123") and not fxi.valid_key("x" * 33))
+with SessionLocal() as db:  # una clave larga guardada con la 2.20.0: falla antes de tocar el Firebox y lo explica
+    db.get(Device, dev_id).fxi_key_enc = encrypt("x" * 24)
+    db.commit()
+SENT.clear()
+st = run()
+check("clave guardada de más de 15: error claro sin enviar órdenes", st["status"] == "error" and "8 a 15" in st["error"]
+      and SENT == [], (st["error"], SENT))
+check("clave generada válida (8 a 15, sin espacios)", all(fxi.valid_key(fxi.new_key()) for _ in range(20)))
+check("claves no válidas", not fxi.valid_key("corta") and not fxi.valid_key("con espacio 123") and not fxi.valid_key("x" * 16))
 check("puertos pasivos", fxi.parse_pasv("50000-50010") == (50000, 50010) and fxi.parse_pasv("50010-50000") is None
       and fxi.parse_pasv("80-90") is None)
 check("dirección local hacia el equipo", fxi.local_addr("127.0.0.1") == "127.0.0.1")
