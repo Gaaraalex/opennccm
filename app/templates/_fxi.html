@@ -23,13 +23,15 @@
   @media (max-width:760px){.fxi-dlg .grid{grid-template-columns:1fr}}
   .fxi-dlg .rx{display:grid;grid-template-columns:1.2fr .6fr .9fr;gap:12px;margin-top:10px}
   @media (max-width:760px){.fxi-dlg .rx{grid-template-columns:1fr}}
+  .fxi-note .fxi-cols{display:grid;grid-template-columns:1fr 1fr;gap:6px 28px;margin-top:8px}
+  .fxi-note .fxi-cols p{margin:2px 0 0;line-height:1.5}
+  @media (max-width:760px){.fxi-note .fxi-cols{grid-template-columns:1fr}}
   .fxi-key{font:600 15px var(--f-mono);letter-spacing:.04em;padding:10px 12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line);word-break:break-all}
 </style>
 {% set c = fxi %}
-<div class="banner info" role="note">{{ icon('info') }}<span class="grow" style="line-height:1.55">
-  <b>{{ _('WatchGuard tiene dos tipos de respaldo.') }}</b><br>
-  {{ _('La configuración (XML) se guarda en cada respaldo y no cambia nada en el Firebox: trae políticas, interfaces, VLAN, NAT, VPN, alias, usuarios y ajustes. No trae la feature key (OpenNCCM la guarda aparte), los certificados con sus claves privadas, las contraseñas propias del equipo ni el Fireware OS. Úsela para ver qué cambió, auditar el cumplimiento y llevar la configuración a otro Firebox (de reemplazo o de otro modelo) con Policy Manager.') }}<br>
-  {{ _('La imagen completa (.fxi) es una copia cifrada de ESTE Firebox: configuración, certificados con sus claves, feature key, contraseñas e información propia del equipo. Pide credencial de administrador y una clave para restaurarla. Úsela para recuperar el mismo Firebox tras un fallo, un restablecimiento de fábrica o una actualización que salió mal; no sirve para pasar a otro equipo: WatchGuard la considera única de cada Firebox.') }}</span></div>
+<div class="banner info fxi-note" role="note">{{ icon('info') }}<div class="grow"><b>{{ _('WatchGuard tiene dos tipos de respaldo.') }}</b>
+  <div class="fxi-cols"><div><b>{{ _('Configuración (XML)') }}</b><p>{{ _('Políticas, red, VPN y usuarios. Se compara versión a versión y sirve para pasar la configuración a otro Firebox con Policy Manager. No trae certificados, claves ni la feature key.') }}</p></div>
+    <div><b>{{ _('Imagen completa (.fxi)') }}</b><p>{{ _('Copia cifrada de ESTE Firebox, con certificados, claves y feature key. Sirve para recuperar el mismo equipo tras un fallo o una actualización que salió mal; no sirve para otro equipo.') }}</p></div></div></div></div>
 
 <div class="fxi-two">
   <section class="card">
@@ -85,7 +87,7 @@
     <ol style="margin:0;padding-left:20px"><li>{{ _('En Fireware Web UI, abra Sistema › Backup and Restore Image e importe el archivo .fxi.') }}</li>
       <li>{{ _('Escriba la clave de cifrado de esa imagen (abajo) y pulse Restaurar. El Firebox se reinicia.') }}</li></ol>
     <p class="muted sm" style="margin:0">{{ _('Solo para este mismo Firebox. Para otro equipo, use la configuración (XML).') }}</p>
-    <div><div class="l muted sm" style="font-weight:600">{{ _('Clave de cifrado') }}</div><div class="row" style="gap:8px;margin-top:6px"><div class="fxi-key grow" id="fxi-key">••••••••••••</div><button type="button" class="btn s" id="fxi-key-show">{{ _('Mostrar la clave') }}</button></div>
+    <div><div class="l muted sm" style="font-weight:600">{{ _('Clave de cifrado') }}</div><div class="row" style="gap:8px;margin-top:6px"><div class="fxi-key grow" id="fxi-key" aria-live="polite">••••••••••••</div><button type="button" class="btn s" id="fxi-key-show" aria-pressed="false">{{ _('Mostrar la clave') }}</button><button type="button" class="btn s" id="fxi-key-copy">{{ _('Copiar') }}</button></div>
       <p class="muted sm" style="margin:6px 0 0">{{ _('Queda en Auditoría quién la vio. La clave nunca va dentro de ningún archivo descargado.') }}</p></div></div>
   <div class="row end"><a class="btn ghost" href="{{ c.doc }}" target="_blank" rel="noopener">{{ _('Ver en la documentación') }}</a><button type="button" class="btn" data-close>{{ _('Cerrar') }}</button></div>
 </dialog>
@@ -97,7 +99,8 @@
   <div class="grid">
     <div class="field"><label for="fxi-cred">1 · {{ _('Credencial de administrador') }}</label><div class="input"><select id="fxi-cred" name="cred_id" required><option value="">{{ _('Elija una credencial…') }}</option>{% for i, n, u in c.creds %}<option value="{{ i }}" {{ 'selected' if i == c.cred_id }}>{{ n }} · {{ u }}</option>{% endfor %}</select></div>
       <span class="help">{{ _('Una cuenta Device Administrator del Firebox. Se guarda cifrada y solo se usa para crear la imagen; la credencial de siempre sigue haciendo el respaldo XML.') }}</span></div>
-    <div class="field"><label for="fxi-keyin">2 · {{ _('Clave de cifrado de la imagen') }}</label><div class="row" style="gap:6px"><div class="input grow"><input id="fxi-keyin" name="key" type="password" autocomplete="new-password" minlength="8" maxlength="32" pattern="[A-Za-z0-9._+=,#%\-]{8,32}" placeholder="{{ _('(sin cambiar)') if c.on else '' }}"></div><button type="button" class="btn s" id="fxi-gen">{{ _('Generar') }}</button></div>
+    <div class="field"><label for="fxi-keyin">2 · {{ _('Clave de cifrado de la imagen') }}</label><div class="row" style="gap:6px"><div class="input grow"><input id="fxi-keyin" name="key" type="password" autocomplete="new-password" minlength="8" maxlength="32" pattern="[A-Za-z0-9._+=,#%\-]{8,32}" placeholder="{{ _('(sin cambiar)') if c.on else '' }}"><button type="button" class="btn s ghost" id="fxi-eye" aria-pressed="false" aria-label="{{ _('Mostrar u ocultar la clave') }}" title="{{ _('Mostrar u ocultar la clave') }}" style="margin-right:4px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+      <div class="row" style="gap:6px;margin-top:6px"><button type="button" class="btn s" id="fxi-gen">{{ _('Generar') }}</button><button type="button" class="btn s" id="fxi-gen-copy" hidden>{{ _('Copiar') }}</button></div>
       <span class="help">{{ _('El Firebox cifra la imagen con esta clave (8 a 32 caracteres, sin espacios).') }} <b style="color:var(--warn)">{{ _('Sin ella no se puede restaurar:') }}</b> {{ _('OpenNCCM la guarda cifrada junto a cada imagen.') }}</span></div>
     <div class="card full" style="background:var(--surface-2)">
       <div class="row" style="gap:8px"><b>3 · {{ _('Receptor FTP temporal en OpenNCCM') }}</b><span class="pill ok">{{ _('Automático') }}</span></div>
@@ -115,8 +118,8 @@
     <div class="field"><label for="fxi-keep">{{ _('Guardar') }}</label><div class="input"><select id="fxi-keep" name="keep">{% for n in (3, 5, 8, 10, 15, 20, 30) %}<option value="{{ n }}" {{ 'selected' if n == c.keep }}>{{ _f('Las {0} últimas imágenes', n) }}</option>{% endfor %}</select></div>
       <span class="help">{% if c.avg_mb %}{{ _f('Unos {0} MB por imagen en este equipo.', '%.0f'|format(c.avg_mb)) }}{% else %}{{ _('El tamaño depende del modelo; las más viejas se borran solas.') }}{% endif %}</span></div>
   </div>
-  <div class="row" style="gap:8px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:14px"><span class="muted sm grow" id="fxi-test-msg" aria-live="polite">{{ _('La prueba abre el receptor un momento y le pide al Firebox que suba su configuración: no crea ninguna imagen.') }}</span>
-    <button type="button" class="btn" id="fxi-test" {{ 'disabled' if not c.on }} title="{{ _('Guarde la configuración primero') if not c.on }}">{{ _('Probar conexión') }}</button>
+  <div class="row" style="gap:8px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:14px"><span class="muted sm" id="fxi-test-msg" aria-live="polite" style="flex:1 1 100%">{{ _('La prueba abre el receptor un momento y le pide al Firebox que suba su configuración: no crea ninguna imagen.') }}</span>
+    <button type="button" class="btn" id="fxi-test" style="margin-left:auto" {{ 'disabled' if not c.cred_id }}>{{ _('Probar conexión') }}</button>
     {% if c.on %}<button class="btn" name="go" value="save">{{ _('Guardar') }}</button>{% endif %}
     <button class="btn pri" name="go" value="run">{{ _('Guardar y crear la primera imagen') if not c.on else _('Guardar y crear una imagen') }}</button></div>
   </form>
@@ -124,7 +127,10 @@
 {% endif %}
 <script>
 (function () {
-  const T = {{ {'ok': _('Bien: el Firebox entra por SSH y llega al receptor FTP. El permiso de administrador se comprueba al crear la primera imagen.'), 'fail': _('No se pudo:'), 'run': _('Probando…'), 'err': _('No se pudo')}|tojson }};
+  const T = {{ {'ok': _('Bien: el Firebox entra por SSH y llega al receptor FTP. El permiso de administrador se comprueba al crear la primera imagen.'), 'fail': _('No se pudo:'), 'run': _('Probando…'), 'err': _('No se pudo'),
+    'show': _('Mostrar la clave'), 'hide': _('Ocultar'), 'copy': _('Copiar'), 'copied': _('Copiada'),
+    'need': _('Elija la credencial de administrador para probar.'),
+    'intro': _('La prueba abre el receptor un momento y le pide al Firebox que suba su configuración: no crea ninguna imagen.')}|tojson }};
   const cfg = document.getElementById('fxi-cfg'), how = document.getElementById('fxi-how');
   document.querySelectorAll('[data-fxi-cfg]').forEach(b => b.addEventListener('click', () => cfg && cfg.showModal()));
   if (cfg && new URLSearchParams(location.search).get('fxi') === 'cfg') cfg.showModal();
@@ -138,35 +144,52 @@
   if (both && both.dataset.xml) both.addEventListener('click', () => {
     [both.dataset.xml, both.dataset.fxi].forEach((u, i) => setTimeout(() => { const a = document.createElement('a'); a.href = u; a.download = ''; document.body.appendChild(a); a.click(); a.remove(); }, i * 700));
   });
-  // cómo restaurar
-  let img = null;
+  // cómo restaurar: la clave no está en la página; se pide al servidor al mostrarla o copiarla (queda en Auditoría) y se
+  // borra de la página al ocultarla, al cerrar el diálogo o a los 60 s
+  let img = null, hideT = 0;
+  const kbox = document.getElementById('fxi-key'), show = document.getElementById('fxi-key-show'), copy = document.getElementById('fxi-key-copy');
+  const DOTS = '••••••••••••';
+  const hide = () => { clearTimeout(hideT); if (kbox) kbox.textContent = DOTS; if (show) { show.textContent = T.show; show.setAttribute('aria-pressed', 'false'); } };
+  const fetchKey = async () => { const r = await fetch(`/devices/{{ device.id }}/fxi/${img}/key`, {method: 'POST'}); return (await r.json().catch(() => ({}))).key || ''; };
   document.querySelectorAll('[data-fxi-how]').forEach(b => b.addEventListener('click', () => {
     const k = b.dataset.fxiHow === 'xml' ? 'xml' : 'fxi'; img = k === 'fxi' ? b.dataset.fxiHow : null;
     how.querySelectorAll('[data-how]').forEach(x => { x.hidden = x.dataset.how !== k; });
-    const key = document.getElementById('fxi-key'); if (key) key.textContent = '••••••••••••';
-    how.showModal();
+    hide(); how.showModal();
   }));
-  const show = document.getElementById('fxi-key-show');
+  if (how) how.addEventListener('close', hide);
   if (show) show.addEventListener('click', async () => {
-    const r = await fetch(`/devices/{{ device.id }}/fxi/${img}/key`, {method: 'POST'});
-    const j = await r.json().catch(() => ({}));
-    document.getElementById('fxi-key').textContent = j.key || T.err;
+    if (show.getAttribute('aria-pressed') === 'true') return hide();
+    const k = await fetchKey(); if (!k) { kbox.textContent = T.err; return; }
+    kbox.textContent = k; show.textContent = T.hide; show.setAttribute('aria-pressed', 'true');
+    clearTimeout(hideT); hideT = setTimeout(hide, 60000);
+  });
+  if (copy) copy.addEventListener('click', async () => {
+    const shown = show.getAttribute('aria-pressed') === 'true', k = shown ? kbox.textContent : await fetchKey();
+    if (k) { await navigator.clipboard.writeText(k).catch(() => {}); copy.textContent = T.copied; setTimeout(() => { copy.textContent = T.copy; }, 1500); }
   });
   if (!cfg) return;
-  // clave: generar (se muestra para copiarla) y frecuencia
+  // clave en el diálogo: oculta siempre; el ojo la muestra u oculta; «Generar» la crea oculta y ofrece «Copiar»
+  const kin = document.getElementById('fxi-keyin'), eye = document.getElementById('fxi-eye'), gcopy = document.getElementById('fxi-gen-copy');
+  eye.addEventListener('click', () => { const on = kin.type === 'password'; kin.type = on ? 'text' : 'password'; eye.setAttribute('aria-pressed', String(on)); });
   document.getElementById('fxi-gen').addEventListener('click', () => {
     const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789', r = crypto.getRandomValues(new Uint32Array(24));
-    const inp = document.getElementById('fxi-keyin'); inp.value = Array.from(r, x => abc[x % abc.length]).join(''); inp.type = 'text'; inp.select();
+    kin.value = Array.from(r, x => abc[x % abc.length]).join(''); kin.type = 'password'; eye.setAttribute('aria-pressed', 'false'); gcopy.hidden = false;
   });
+  gcopy.addEventListener('click', async () => { await navigator.clipboard.writeText(kin.value).catch(() => {}); gcopy.textContent = T.copied; setTimeout(() => { gcopy.textContent = T.copy; }, 1500); });
+  cfg.addEventListener('close', () => { kin.type = 'password'; eye.setAttribute('aria-pressed', 'false'); });
   cfg.querySelectorAll('[data-freq]').forEach(b => b.addEventListener('click', () => {
     cfg.querySelectorAll('[data-freq]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
     cfg.querySelector(`input[name=freq][value="${b.dataset.freq}"]`).checked = true;
   }));
-  // probar conexión: abre el receptor y le pide al Firebox que suba su configuración
-  const tb = document.getElementById('fxi-test'), msg = document.getElementById('fxi-test-msg');
+  // probar conexión con lo que hay en el formulario (sin guardar): abre el receptor y le pide al Firebox que suba su
+  // configuración. Sin credencial elegida dice qué falta.
+  const tb = document.getElementById('fxi-test'), msg = document.getElementById('fxi-test-msg'), cred = document.getElementById('fxi-cred');
+  const need = () => { tb.disabled = !cred.value; if (!cred.value) msg.textContent = T.need; else if (msg.textContent === T.need) msg.textContent = T.intro; };
+  cred.addEventListener('change', need); need();
   tb.addEventListener('click', async () => {
     tb.disabled = true; msg.textContent = T.run;
-    await fetch('/devices/{{ device.id }}/fxi/test', {method: 'POST'});
+    const fd = new FormData(); ['cred_id', 'addr', 'port', 'pasv'].forEach(n => fd.append(n, cfg.querySelector(`[name=${n}]`).value));
+    await fetch('/devices/{{ device.id }}/fxi/test', {method: 'POST', body: fd});
     for (let i = 0; i < 120; i++) {
       await new Promise(r => setTimeout(r, 1000));
       const s = await fetch('/devices/{{ device.id }}/fxi/status').then(r => r.json()).catch(() => ({}));

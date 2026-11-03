@@ -326,7 +326,9 @@ def cfg(dev: Device) -> dict:
             "on": bool(dev.fxi_cred_id and dev.fxi_key_enc)}
 
 
-def start(device_id: int, trigger: str = "manual", username: str | None = None, test: bool = False) -> bool:
+def start(device_id: int, trigger: str = "manual", username: str | None = None, test: bool = False,
+          over: dict | None = None) -> bool:
+    """over (solo la prueba): credencial, dirección y puertos del formulario, todavía sin guardar."""
     from .services import jobs
     with _lock:
         st = _state.get(device_id)
@@ -335,7 +337,7 @@ def start(device_id: int, trigger: str = "manual", username: str | None = None, 
         _state[device_id] = {"status": "running", "test": test, "trigger": trigger, "started": time.time(), "ended": None,
                              "steps": [{"t": t, "d": "", "k": "wait"} for t in STEPS[:3 if test else 5]],
                              "log": [], "error": "", "device_msg": "", "image_id": None, "recv": 0, "file": ""}
-    jobs.submit(_run, device_id, trigger, username, test)
+    jobs.submit(_run, device_id, trigger, username, test, over or {})
     return True
 
 
@@ -380,14 +382,14 @@ FAIL_RE = re.compile(r"(?i)(% ?Invalid|% ?Error|\berror\b|fail(ed|ure)?|denied|n
                      r"insufficient|cannot|unable|timed? ?out)")
 
 
-def _run(device_id: int, trigger: str, username: str | None, test: bool):
+def _run(device_id: int, trigger: str, username: str | None, test: bool, over: dict | None = None):
     from .crypto import decrypt
     from .services import add_event, connect, device_lock
     rx, conn, fname, key = None, None, "", ""
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
-        c = cfg(dev)
-        cred = db.get(Credential, dev.fxi_cred_id) if dev.fxi_cred_id else None
+        c = {**cfg(dev), **{k: v for k, v in (over or {}).items() if v}}
+        cred = db.get(Credential, c["cred_id"]) if c["cred_id"] else None
         key = decrypt(dev.fxi_key_enc) if dev.fxi_key_enc else ""
         name, host = dev.name, dev.host
         target = SimpleNamespace(name=dev.name, device_type=dev.device_type, protocol=dev.protocol, host=dev.host,
@@ -397,7 +399,7 @@ def _run(device_id: int, trigger: str, username: str | None, test: bool):
     lock = device_lock(device_id)
     fw = ""
     try:
-        if cred is None or not key:
+        if cred is None or (not key and not test):  # la prueba no crea imagen: no necesita la clave
             raise RuntimeError("Falta configurar la imagen .fxi (credencial de administrador y clave de cifrado).")
         if not addr:
             raise RuntimeError("No se pudo saber por qué dirección llega el Firebox a OpenNCCM: escríbala en la configuración.")
@@ -668,12 +670,17 @@ async def save_config(request: Request, dev_id: int):
 
 
 @router.post("/devices/{dev_id}/fxi/test")
-def test_conn(request: Request, dev_id: int):
+async def test_conn(request: Request, dev_id: int):
     from .web import log_action
     user, dev = _dev(request, dev_id, "admin")
     if dev is None:
         return JSONResponse({"error": "no"}, 404)
-    ok = start(dev_id, "test", user.username, test=True)
+    f = await request.form()
+    over = {"cred_id": int(f.get("cred_id")) if (f.get("cred_id") or "").isdigit() else None,
+            "addr": (f.get("addr") or "").strip() if re.match(r"^\d{1,3}(\.\d{1,3}){3}$", (f.get("addr") or "").strip()) else "",
+            "port": int(f.get("port")) if (f.get("port") or "").isdigit() and 1024 < int(f.get("port")) <= 65535 else None,
+            "pasv": (f.get("pasv") or "") if parse_pasv(f.get("pasv") or "") else ""}
+    ok = start(dev_id, "test", user.username, test=True, over=over)
     log_action(request, user, "fxi_test", dev.name)
     return JSONResponse({"started": ok})
 
