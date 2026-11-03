@@ -365,8 +365,9 @@ ejecuta nada.</b></p>
   <li>En <b>Administración → Ajustes → Asistente IA</b>, actívelo y elija el proveedor: <b>Anthropic (Claude)</b>, <b>OpenAI</b>,
   <b>Google (Gemini)</b>, <b>Mistral</b> o <b>Compatible con OpenAI</b> (OpenRouter, Groq, DeepSeek, Azure…, con la dirección del
   servicio).</li>
-  <li>Escriba la <b>clave de API</b> (se guarda cifrada, una por proveedor), pulse <b>Cargar de la cuenta</b> para ver los
-  modelos, elija uno y pulse <b>Probar conexión</b> (muestra el tiempo de respuesta).</li>
+  <li>Escriba la <b>clave de API</b> (se guarda cifrada, una por proveedor), pulse <b>Cargar de la cuenta</b> y elija el
+  <b>modelo</b> en el desplegable con los modelos de su cuenta; pulse <b>Probar conexión</b> (muestra el tiempo de respuesta).
+  Ese es el modelo de fábrica: cada usuario puede elegir otro de la misma lista en el chat o en el panel de la consola.</li>
   <li>Revise la privacidad: lo que se pregunta y el contexto del equipo salen al proveedor. <b>Antes de enviar se ocultan siempre</b>
   contraseñas, comunidades SNMP y claves de VPN y wifi (la vista previa muestra cómo se envía un respaldo). Puede incluir o no el
   respaldo del equipo y las últimas 200 líneas de la consola.</li>
@@ -376,7 +377,10 @@ ejecuta nada.</b></p>
 <table>
   <tr><th>Dónde aparece</th><th>Qué hace</th></tr>
   <tr><td>Consola</td><td>Panel <b>Asistente de red</b> con el proveedor y el modelo, el contexto (equipo, sistema, respaldo,
-  salida de la consola, secretos ocultos) y preguntas sugeridas. Cada comando de la respuesta lleva su riesgo (<b>solo lectura</b>,
+  salida de la consola, secretos ocultos) y preguntas sugeridas. La pregunta se escribe al fondo del panel; encima hay una fila
+  con <b>✦ Preguntas sugeridas</b> (se pliegan solas al preguntar y se vuelven a abrir ahí), el desplegable del <b>modelo</b> y
+  <b>ⓘ</b>, que oculta o muestra la parte de arriba (proveedor, contexto y aviso) para dejar más espacio a las respuestas; el
+  navegador lo recuerda. En <b>Operar → Consola</b> cada sesión tiene su botón <b>✦ Asistente</b>. Cada comando de la respuesta lleva su riesgo (<b>solo lectura</b>,
   <b>cambia la configuración</b>, <b>corta el servicio</b>) y los botones <b>Copiar</b>, <b>Insertar</b> y, si es un cambio,
   <b>Enviar como solicitud de cambio</b>. Indica la fuente (el respaldo del equipo o la referencia del fabricante). El
   asistente sabe con qué equipo trabaja: recibe su plataforma, su modelo, su versión de firmware y la lista de comandos de
@@ -389,19 +393,29 @@ ejecuta nada.</b></p>
   <tr><td>Cumplimiento</td><td><b>✦ ¿Cómo lo corrijo?</b> en cada regla con infracciones.</td></tr>
 </table>
 <p>Cada pregunta queda en Auditoría con el usuario, el equipo y el proveedor.</p>
+<p><b>Solo temas de red:</b> el asistente ayuda con redes y seguridad de redes, con los equipos que OpenNCCM admite y administra
+y con el uso de OpenNCCM. A una pregunta ajena (por ejemplo, una receta de cocina) responde en una frase que solo ayuda con la
+red y con OpenNCCM.</p>
 <h3>Chat del asistente en todo el sistema</h3>
 <p>El botón <b>Asistente</b> de la barra superior abre un chat a la derecha en cualquier página. Arriba muestra el proveedor y el
-modelo, <b>+</b> (conversación nueva) y la línea «Viendo: página · N equipos · secretos ocultos». La conversación se guarda para
+modelo (con varios modelos en la cuenta, un desplegable para cambiarlo), <b>+</b> (conversación nueva) y la línea «Viendo:
+página · N equipos · secretos ocultos». La conversación se guarda para
 retomarla. Debajo del campo de texto hay preguntas sugeridas según la página.</p>
 <ul>
   <li><b>Datos de la red:</b> consulta OpenNCCM con funciones de solo lectura (equipos, respaldos, alarmas, cambios y versiones,
-  cumplimiento, ciclo de vida, búsqueda en configuraciones), siempre con el rol y los grupos del usuario y con los secretos
-  ocultos.</li>
+  cumplimiento, ciclo de vida, vulnerabilidades, Base de conocimiento, configlets, tareas programadas, tipos de equipo
+  admitidos y búsqueda en configuraciones), siempre con el rol y los grupos del usuario y con los secretos ocultos.</li>
+  <li><b>Lo que puede preparar:</b> respaldos, tareas programadas, solicitudes de cambio (por ejemplo, para corregir una
+  vulnerabilidad o una infracción con comandos de esa plataforma y versión), <b>configlets y scripts</b> (los crea el
+  administrador; quedan para revisarlos antes de ejecutarlos) y <b>casos de la Base de conocimiento</b> (quedan como borrador
+  para revisarlos y enviarlos).</li>
+  <li><b>Migraciones:</b> desde otro sistema (RANCID, Oxidized, una planilla…) traduce los tipos de equipo a los de OpenNCCM y
+  arma el CSV para <b>Equipos → Importar</b>.</li>
   <li><b>Cómo usar OpenNCCM:</b> busca en este manual («¿Cómo programo un respaldo diario?»).</li>
   <li><b>Respuestas simples:</b> una o dos frases, los equipos en una línea cada uno (punto de color, nombre y motivo), como mucho
   2 botones y el resto en <b>Más acciones</b>, y la fuente en gris.</li>
   <li><b>Acciones:</b> los botones llevan a la página que corresponde o preparan una acción. Si cambia algo (respaldar, crear una
-  tarea, crear una solicitud de cambio), aparece una tarjeta con <b>Cancelar</b> y <b>Confirmar</b>; se hace solo al confirmar y
+  tarea, una solicitud de cambio, un configlet o un borrador de caso), aparece una tarjeta con <b>Cancelar</b> y <b>Confirmar</b>; se hace solo al confirmar y
   con los permisos del usuario. Las solicitudes de cambio pasan por aprobación como siempre.</li>
 </ul>
 <p>Cada pregunta queda en Auditoría con las funciones que usó y el proveedor.</p>
