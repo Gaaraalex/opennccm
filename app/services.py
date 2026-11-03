@@ -121,7 +121,7 @@ EVENT_CATEGORIES = [
     N_("Desviación de línea base"), N_("Infracción de cumplimiento"), N_("Informe programado no enviado"),
     N_("Respaldo fallido"), N_("Respaldo programado"), N_("Reversión automática"), N_("Reversión automática fallida"),
     N_("Solicitud de cambio ejecutada"), N_("Solicitud de cambio pendiente"), N_("Syslog de cambio"),
-    N_("Vulnerabilidad de firmware"),
+    N_("Vulnerabilidad de firmware"), N_("Imagen .fxi sin crear"),
 ]
 
 

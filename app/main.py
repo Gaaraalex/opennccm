@@ -1007,7 +1007,7 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
             tl.append({"id": v.id, "n": total_v - i, "kind": v.kind, "src": trig.get(v.trigger, v.trigger),
                        "who": v.username or v.trigger, "when": v.created_at, "label": v.label,
                        "base": v.id == dev.baseline_version_id, "inc": bool(prev and prev.size and v.size < prev.size * 0.5),
-                       "added": v.added, "removed": v.removed, "first": i == total_v - 1})
+                       "added": v.added, "removed": v.removed, "first": i == total_v - 1, "size": v.size})
         vnum = {t["id"]: t["n"] for t in tl}
         ids = [v.id for v in versions]
         va_id = a if a in ids else (ids[1] if len(ids) > 1 else (ids[0] if ids else 0))
@@ -1072,7 +1072,8 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
                   cve_state=services.cve_scan_state(dev.id),
                   fwu=_fwu.for_device(dev.id), fw_state=_fwu.state(), fw_dl=_fwu.download_state(dev.id), fw_sources=_FW_SOURCES,
                   fw_have=_fwu.in_library(dev.device_type, (_fwu.for_device(dev.id) or {}).get("target")),
-                  latest_run=next((t["id"] for t in tl if t["kind"] == "running"), None))
+                  latest_run=next((t["id"] for t in tl if t["kind"] == "running"), None),
+                  fxi=fxi.context(dev, tl) if dev.device_type == "watchguard_fireware" else None)
 
 
 @app.post("/devices/{dev_id}/backup")
@@ -1190,8 +1191,14 @@ def version_view(request: Request, ver_id: int, raw: int = 0):
         is_baseline = v.device.baseline_version_id == v.id
         if raw:
             log_action(request, user, "config_download", f"{v.device.name} v{v.id}")
-            ext = "rsc" if v.device.device_type == "mikrotik_routeros" else "txt"
+            ext = {"mikrotik_routeros": "rsc", "watchguard_fireware": "xml"}.get(v.device.device_type, "txt")
             fname = f"{v.device.name}_{v.kind}_{v.created_at:%Y%m%d-%H%M}.{ext}"
+            if ext == "xml":  # WatchGuard: el XML tal como lo da el Firebox (lo abre Policy Manager), «EQUIPO_v48.xml»
+                n = db.scalar(select(func.count(ConfigVersion.id)).where(ConfigVersion.device_id == v.device_id,
+                                                                         ConfigVersion.id <= v.id))
+                fname = f"{v.device.name}_v{n}.xml"
+                return Response(text, media_type="application/xml",
+                                headers={"Content-Disposition": f'attachment; filename="{fname}"'})
             return PlainTextResponse(text, headers={"Content-Disposition": f'attachment; filename="{fname}"'})
         prev = db.scalars(select(ConfigVersion).where(ConfigVersion.device_id == v.device_id,
                                                       ConfigVersion.kind == v.kind, ConfigVersion.id < v.id)
@@ -3099,6 +3106,9 @@ app.include_router(aichat.router)
 from . import kb  # noqa: E402  (Equipo › Base de conocimiento)
 
 app.include_router(kb.router)
+from . import fxi  # noqa: E402  (imagen .fxi de WatchGuard)
+
+app.include_router(fxi.router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)

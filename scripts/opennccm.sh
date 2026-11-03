@@ -263,6 +263,9 @@ cmd_uninstall() {
   local a; read -r -p "Escriba DESINSTALAR para confirmar: " a
   [[ $a == DESINSTALAR ]] || { echo "Cancelado."; return 1; }
   systemctl disable --now $SVC 2>/dev/null || true
+  cmd_fxi_firewall close 2>/dev/null || true   # sin reglas del receptor .fxi en ufw
+  systemctl disable --now opennccm-fxi-firewall.path 2>/dev/null || true
+  rm -f /etc/systemd/system/opennccm-fxi-firewall.path /etc/systemd/system/opennccm-fxi-firewall.service
   rm -f /etc/systemd/system/opennccm.service /usr/local/bin/opennccm-cli
   rm -f /etc/nginx/sites-enabled/opennccm /etc/nginx/sites-available/opennccm
   systemctl reload nginx 2>/dev/null || true
@@ -272,6 +275,38 @@ cmd_uninstall() {
   else echo "Datos conservados en $DATA_DIR y $ETC_DIR"; fi
   rm -f /usr/local/bin/opennccm
   ok "OpenNCCM desinstalado."
+}
+
+# Imagen .fxi de WatchGuard: la aplicación (sin privilegios) pide abrir o cerrar en ufw los puertos de su receptor FTP
+# temporal con $DATA_DIR/fxi-firewall.request; la unidad opennccm-fxi-firewall.path lo detecta y ejecuta esto como root.
+# Solo admite una IP, un puerto y un rango numéricos, y las reglas llevan el comentario «OpenNCCM fxi»: al cerrar se
+# quitan todas las que lo tengan. Una regla abierta se quita sola a los 6 minutos aunque el servicio muera.
+cmd_fxi_firewall() {
+  local req=$DATA_DIR/fxi-firewall.request state=$DATA_DIR/fxi-firewall.state action ip port pasv n
+  if [[ ${1:-} == close ]]; then action=close
+  else
+    [[ -f $req ]] || return 0
+    action=$(sed -n 's/^action=\(open\|close\)$/\1/p' "$req"); ip=$(sed -n 's/^ip=\([0-9a-fA-F.:]*\)$/\1/p' "$req")
+    port=$(sed -n 's/^port=\([0-9]\{2,5\}\)$/\1/p' "$req"); pasv=$(sed -n 's/^pasv=\([0-9]\{4,5\}:[0-9]\{4,5\}\)$/\1/p' "$req")
+    rm -f "$req"
+  fi
+  if ! command -v ufw >/dev/null || ! ufw status | grep -q "Status: active"; then
+    echo no-ufw > "$state"; chown $SVC_USER: "$state" 2>/dev/null || true; return 0
+  fi
+  # quitar las reglas anteriores del receptor (de la última a la primera, para no correr los números)
+  for n in $(ufw status numbered | sed -n 's/^\[ *\([0-9]\+\)\].*# OpenNCCM fxi.*/\1/p' | sort -rn); do
+    ufw --force delete "$n" >/dev/null
+  done
+  if [[ $action == open && -n $ip && -n $port && -n $pasv ]]; then
+    ufw allow proto tcp from "$ip" to any port "$port" comment 'OpenNCCM fxi' >/dev/null
+    ufw allow proto tcp from "$ip" to any port "$pasv" comment 'OpenNCCM fxi' >/dev/null
+    systemd-run --quiet --on-active=360 --unit="opennccm-fxi-close-$(date +%s)" /usr/local/bin/opennccm fxi-firewall close \
+      >/dev/null 2>&1 || true
+    echo open > "$state"
+  else
+    echo closed > "$state"
+  fi
+  chown $SVC_USER: "$state" 2>/dev/null || true
 }
 
 usage() {
@@ -315,6 +350,7 @@ case $cmd in
   reset-2fa) need_root "$cmd"; pycli reset-2fa "$@" ;;
   users|list-users) need_root users; pycli list-users ;;
   backup-all|seed) need_root "$cmd"; pycli "$cmd" "$@" ;;
+  fxi-firewall) need_root "$cmd"; cmd_fxi_firewall "$@" ;;
   logs) journalctl -u $SVC --no-pager -n 200 "$@" ;;
   start|stop|restart) need_root "$cmd"; systemctl "$cmd" $SVC; [[ $cmd == stop ]] || { health && ok "OpenNCCM responde."; } ;;
   uninstall) cmd_uninstall "$@" ;;

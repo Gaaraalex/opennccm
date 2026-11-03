@@ -229,4 +229,6 @@ def start():
     from . import fwupdates
     scheduler.add_job(fwupdates.scheduled, IntervalTrigger(hours=24), id="fw-update-check", replace_existing=True,
                       next_run_time=datetime.now() + timedelta(minutes=20))
+    from . import fxi
+    scheduler.add_job(fxi.scheduled, CronTrigger(hour=3, minute=0), id="fxi", replace_existing=True)  # imágenes .fxi
     start_syslog()
