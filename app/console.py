@@ -148,7 +148,7 @@ def console_page(request: Request, dev_id: int, embed: int = 0):  # embed=2: pan
     from . import assistant
     resp = render(request, "console.html", user, dev=info, compact=True, embed=bool(embed), bare=embed == 2,
                   autologin=_setting("console_autologin", "0") == "1", access=acc, can_open=ok,
-                  profile=cc.client_profile(os_key, _), idle_min=idle_seconds() // 60,
+                  profile=cc.client_profile(os_key, _, dev), idle_min=idle_seconds() // 60,
                   recording=_setting("console_record", "1") == "1", ai=assistant.panel_info(user))
     if embed:  # solo esta página puede mostrarse dentro de otra, y únicamente de OpenNCCM mismo
         from .main import CSP
@@ -327,7 +327,7 @@ async def console_ws(ws: WebSocket, dev_id: int):
         name, host, port, protocol = dev.name, dev.host, dev.port, dev.protocol
         cred = dev.credential
         family = get_profile(dev.device_type).family
-        os_key = cc.os_of(dev.device_type)
+        os_key, dev_type = cc.os_of(dev.device_type), dev.device_type
         cred_user = cred.username if cred else None
         cred_pass = decrypt(cred.password_enc) if cred and cred.password_enc else None
         cred_secret = decrypt(cred.secret_enc) if cred and cred.secret_enc else None
@@ -518,7 +518,7 @@ async def console_ws(ws: WebSocket, dev_id: int):
         """Una línea de la consola nueva: reglas, aviso de peligro, grabación y envío al equipo."""
         c = cmd.strip()
         ro = ro or acc["mode"] == "ro"
-        if c and ro and cc.is_change(os_key, c):
+        if c and ro and cc.is_change(os_key, c, dev_type):
             rec.add("i", c)
             tell(_("Bloqueado: la consola está en modo solo lectura. Este comando cambia la configuración."), "warn")
             chan.send("\n")
@@ -530,18 +530,18 @@ async def console_ws(ws: WebSocket, dev_id: int):
             audit(user.username, "console_denied", f"{name}: {c}", addr)
             chan.send("\n")
             return
-        if c and cc.is_danger(os_key, c) and not force:
+        if c and cc.is_danger(os_key, c, dev_type) and not force:
             asyncio.run_coroutine_threadsafe(_safe_send(ws, json.dumps(
                 {"t": "g", "cmd": c, "why": _(cc.DANGER_WHY.get(os_key, cc.DANGER_WHY_DEFAULT))})), loop)
             return
         if c:
             stats["cmds"] += 1
             rec.add("i", c)
-            if cc.is_danger(os_key, c):
+            if cc.is_danger(os_key, c, dev_type):
                 stats["danger"] = True
                 audit(user.username, "console_danger", f"{name}: {c}", addr)
         chan.send(cmd + "\n")
-        if c and cc.is_change(os_key, c) and not cc.is_danger(os_key, c):
+        if c and cc.is_change(os_key, c, dev_type) and not cc.is_danger(os_key, c, dev_type):
             changed()
 
     threading.Thread(target=_pump, daemon=True, name=f"console-{dev_id}").start()
@@ -619,7 +619,7 @@ def console_watch_page(request: Request, token: str):
             return go("/console")
         info, os_key = _dev_info(dev), cc.os_of(dev.device_type)
     return render(request, "console.html", user, dev=info, compact=True, embed=False, autologin=True,
-                  access={"mode": "ro"}, can_open=True, profile=cc.client_profile(os_key, _), idle_min=idle_seconds() // 60,
+                  access={"mode": "ro"}, can_open=True, profile=cc.client_profile(os_key, _, dev), idle_min=idle_seconds() // 60,
                   recording=False, ai={"on": False}, watch={"token": token, "owner": live.owner})
 
 

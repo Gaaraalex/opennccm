@@ -9,12 +9,13 @@
   'changes_requests': (_('Quién pidió, quién aprobó y cuándo se ejecutó'), 'check'),
   'conflicts': (_('Equipos con cambios sin guardar en la memoria de arranque'), 'save'),
   'baseline': (_('Equipos cuya configuración difiere de su línea base'), 'flag'),
-  'eol': (_('Fechas de fin de venta y de soporte de cada equipo'), 'clock')} %}
+  'eol': (_('Fechas de fin de venta y de soporte de cada equipo'), 'clock'),
+  'licenses': (_('Servicios de la licencia (antivirus, IPS, soporte…) que vencen en 90 días o ya vencieron'), 'cal')} %}
 <div class="ph"><div class="grow"><h1>Informes</h1><div class="sub">Se ven en pantalla y se descargan en CSV. También se pueden enviar por correo, ahora o con una tarea programada.</div></div>
   {% if user.role == 'admin' %}<a class="btn" href="/schedules/new?action=report_email" data-sheet data-title="Nueva tarea">{{ icon('cal', 's') }}Programar envío</a>
   <form class="inline" method="post" action="/reports/email"><button class="btn pri">{{ icon('mail', 's') }}Enviar por correo ahora</button></form>{% endif %}</div>
 <div class="bento">
-{% for k in ['inventory', 'changes', 'compliance', 'vulns', 'audit', 'changes_requests', 'conflicts', 'baseline', 'eol'] %}{% if k in titles and (k != 'audit' or user.role == 'admin') %}{% set q = '?days=90' if k == 'audit' else '' %}
+{% for k in ['inventory', 'changes', 'compliance', 'vulns', 'audit', 'changes_requests', 'conflicts', 'baseline', 'eol', 'licenses'] %}{% if k in titles and (k != 'audit' or user.role == 'admin') %}{% set q = '?days=90' if k == 'audit' else '' %}
   <section class="card c4" style="display:flex;flex-direction:column;gap:12px"><span class="qi info">{{ icon(INFO[k][1]) }}</span>
     <div><b style="font-size:15px">{{ _(titles[k]) }}</b><div class="muted sm">{{ INFO[k][0] }}</div></div>
     <div class="row" style="margin-top:auto"><a class="btn s pri" href="/reports/view/{{ k }}{{ q }}">{{ icon('eye', 's') }}Ver</a><a class="btn s" href="/reports/{{ k }}.csv{{ q }}">{{ icon('dl', 's') }}CSV</a></div></section>

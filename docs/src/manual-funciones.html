@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.21.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 2.22.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -279,7 +279,15 @@ salida en colores, ayuda para escribir los comandos y protecciones contra los qu
   desde <b>Operar → Consola</b>. Arriba se ve «Consola · nombre» con la IP, el modelo y el sistema.</li>
   <li>Escriba en la <b>línea de comando</b> fija de abajo. Mientras escribe aparece en gris el resto del comando más probable
   para ese sistema y un menú de sugerencias: <b>Tab</b> completa, <b>↑ ↓</b> eligen y, con el menú cerrado, <b>↑</b> recorre el
-  historial. <b>Frecuentes</b> ejecuta los más usados con un clic (los que reinician el equipo van en rojo).</li>
+  historial. <b>Frecuentes</b> ejecuta los más usados con un clic (los que reinician el equipo van en rojo).
+  Las sugerencias y los frecuentes son <b>los de ese equipo</b>: los de su tipo (cada uno de los que admite OpenNCCM tiene
+  los suyos, empezando por los que el propio OpenNCCM usa para respaldarlo e inventariarlo), ajustados a su <b>modelo</b> y su
+  <b>versión de firmware</b>. Por ejemplo, un WatchGuard sugiere <code>show interface</code>, <code>show ip route</code> o
+  <code>show feature-key</code> (de la referencia de la CLI de Fireware) y, desde la 12.4, <code>show sd-wan</code>; un
+  MikroTik con RouterOS 7 sugiere <code>/routing bgp session print</code> y con RouterOS 6, <code>/routing bgp peer print</code>;
+  los comandos de PoE, Wi-Fi o stack solo aparecen en los modelos que los tienen. El historial se guarda por tipo de equipo,
+  así que no se mezclan comandos de otro fabricante. Las consultas de esa lista se pueden usar en modo solo lectura aunque
+  no empiecen por <code>show</code> (por ejemplo <code>porterrshow</code> en Brocade o <code>pfctl -sr</code> en pfSense).</li>
   <li>La salida se ve como en una terminal clásica, todo seguido, con colores por significado: el prompt en lima, rutas y
   comandos en azul, verbos en violeta, «clave=valor» en verde azulado y salmón, direcciones IP en cian, lo que está activo en
   verde, lo caído o con errores en rojo y lo deshabilitado en ámbar. Los colores dependen del sistema (RouterOS, IOS, VRP,
@@ -370,7 +378,11 @@ ejecuta nada.</b></p>
   <tr><td>Consola</td><td>Panel <b>Asistente de red</b> con el proveedor y el modelo, el contexto (equipo, sistema, respaldo,
   salida de la consola, secretos ocultos) y preguntas sugeridas. Cada comando de la respuesta lleva su riesgo (<b>solo lectura</b>,
   <b>cambia la configuración</b>, <b>corta el servicio</b>) y los botones <b>Copiar</b>, <b>Insertar</b> y, si es un cambio,
-  <b>Enviar como solicitud de cambio</b>. Indica la fuente (el respaldo del equipo o la referencia del fabricante).</td></tr>
+  <b>Enviar como solicitud de cambio</b>. Indica la fuente (el respaldo del equipo o la referencia del fabricante). El
+  asistente sabe con qué equipo trabaja: recibe su plataforma, su modelo, su versión de firmware y la lista de comandos de
+  ese equipo, y se le pide responder solo con comandos de esa plataforma y esa versión, sin mezclar los de otro
+  fabricante. Las preguntas sugeridas también dependen del equipo (por ejemplo, las de túneles VPN y políticas en los
+  cortafuegos).</td></tr>
   <tr><td>Barra superior</td><td>Botón <b>Asistente</b> (con el logo del proveedor) en todas las páginas: abre el chat a la
   derecha, sin salir de la página (ver abajo).</td></tr>
   <tr><td>Comparar configuraciones</td><td><b>✦ Explicar este cambio</b>.</td></tr>
@@ -416,6 +428,11 @@ cierre queda en <b>Auditoría</b>. Solo funciona con equipos configurados por SS
   <li>Si el perfil lo admite, respalda también la configuración de arranque y compara ambas (conflicto startup/running).</li>
   <li>Actualiza el inventario (modelo, serie, versión), compara con la línea base y ejecuta la auditoría de cumplimiento.</li>
 </ol>
+<p><b>Equipo reemplazado.</b> Si el número de serie que lee el respaldo no es el que estaba guardado, es otro aparato con la
+misma dirección (un RMA o un cambio de equipo). OpenNCCM avisa «Equipo reemplazado» con las dos series, lo deja en la
+Auditoría y toma la serie nueva. Si la configuración cambió, la versión nueva queda etiquetada «equipo nuevo · serie …» y el
+aviso de cambio aclara que la diferencia es contra el aparato anterior. Al equipo nuevo no se le aplica sola la
+<b>reversión automática</b>: revise usted si hay que restaurarle la configuración del anterior.</p>
 <p>Cada versión registra su <b>origen</b>: <code>manual</code> (botón), <code>scheduled</code> (tarea), <code>syslog</code>
 (detectado en tiempo real) o <code>push</code> (aplicado por OpenNCCM).</p>
 <h2>Ver una versión</h2>
@@ -1018,6 +1035,8 @@ HP/Aruba, Dell, Ruckus, Allied, MikroTik, EdgeSwitch, UniFi Switch y EXOS, si ti
   <tr><td>Conflictos startup ≠ running</td><td>Equipos con cambios sin guardar</td></tr>
   <tr><td>Fuera de línea base</td><td>Equipos con línea base y si se desviaron</td></tr>
   <tr><td>Fin de vida (EOL/EOS)</td><td>Fechas y estado de cada equipo</td></tr>
+  <tr><td>Licencias por vencer</td><td>Servicios de la licencia de cada equipo (hoy, la feature key de WatchGuard) que vencen en los
+  próximos 90 días o ya vencieron, lo más urgente primero</td></tr>
   <tr><td>Vulnerabilidades</td><td>CVE por equipo</td></tr>
   <tr><td>Solicitudes de cambio</td><td>Quién pidió, quién aprobó y el resultado</td></tr>
   <tr><td>Auditoría de usuarios</td><td>Inicios de sesión y acciones (solo administradores)</td></tr>
@@ -1033,9 +1052,22 @@ HP/Aruba, Dell, Ruckus, Allied, MikroTik, EdgeSwitch, UniFi Switch y EXOS, si ti
 <p><b>Credenciales:</b> perfiles de usuario, contraseña y contraseña privilegiada (<i>enable</i>) para conectarse a los equipos. Si el
 equipo entra en modo usuario («&gt;») y la credencial no tiene <i>enable</i>, OpenNCCM prueba la contraseña de ingreso; si no sirve,
 el error indica en qué credencial escribirla. Se guardan
-cifradas con AES-256-GCM y nunca se muestran. Están en <b>Administración → Credenciales</b>: la tabla indica cuántos equipos usa
+cifradas con AES-256-GCM y, salvo que Ajustes lo permita (ver abajo), nunca se muestran. Están en <b>Administración → Credenciales</b>: la tabla indica cuántos equipos usa
 cada una y su estado (funciona, falla en N equipos o sin usar). <b>Crear credencial</b> y <b>Actualizar</b> abren un panel lateral;
 al actualizar, deje en blanco lo que no quiera cambiar.</p>
+<p><b>Ver una credencial:</b> en <b>Ajustes → Seguridad y acceso → Quién puede ver las credenciales de los equipos</b> un
+administrador elige <b>Nadie</b> (lo de fábrica), <b>Solo administradores</b> o <b>Administradores y operadores</b>. Quien tenga permiso
+ve <b>Ver</b> junto a la credencial en la ficha del equipo (y los administradores también en esta lista). Para verla:</p>
+<ul>
+  <li>Su cuenta debe tener activa la <b>verificación en dos pasos</b> (MFA). Si no la tiene, se le avisa de que primero debe
+  activarla en <b>Mi cuenta</b> y no la ve hasta hacerlo.</li>
+  <li>Cada vez que pulsa <b>Ver</b> confirma con su usuario y su contraseña de OpenNCCM (las cuentas de Active Directory, con la del
+  directorio; las de Microsoft, que no tienen contraseña en OpenNCCM, con el código de su app de verificación).</li>
+  <li>Se muestran el usuario, la contraseña y el <i>enable</i>, con botón <b>Copiar</b>, y se ocultan a los 60 segundos.</li>
+  <li>Cada vista y cada intento fallido quedan en <b>Auditoría</b>. Los intentos fallidos cuentan para el bloqueo de la cuenta igual
+  que en el inicio de sesión; al bloquearse, se cierran sus sesiones. Un operador solo ve las de los equipos de sus grupos, y los
+  lectores nunca. Con un token de API no se pueden ver.</li>
+</ul>
 <p><b>Grupos</b> (pestaña <b>Administración → Grupos</b>): agrupan equipos (sede, rol, cliente) para filtrar, programar tareas,
 aplicar políticas y restringir usuarios. La tabla muestra cuántos equipos tiene cada uno, con <b>Ver equipos</b>; se crean con el
 campo del pie. Se llega aquí también con el botón <b>Grupos</b> de la página Dispositivos, y un grupo se puede crear al editar un equipo. Para asignar
@@ -1199,6 +1231,7 @@ salir de la página sin guardar, el navegador lo advierte.</p>
   <tr><td>Exigir verificación en dos pasos a los administradores</td><td>Un administrador sin ella solo puede entrar a «Mi cuenta» hasta activarla.</td></tr>
   <tr><td>Idioma predeterminado</td><td>Español o inglés para quien no eligió idioma y cuyo navegador no pide uno disponible.</td></tr>
   <tr><td>Consola SSH web</td><td>Quién puede abrirla y si entra con la credencial del equipo (ver capítulo 4).</td></tr>
+  <tr><td>Quién puede ver las credenciales de los equipos</td><td>Nadie (por omisión), solo administradores, o administradores y operadores. Además hace falta la verificación en dos pasos y confirmar con usuario y contraseña cada vez (ver capítulo 22).</td></tr>
 </table>
 <h2 id="sso">Inicio de sesión con Active Directory y Microsoft Entra ID</h2>
 <p>En <b>Ajustes → Inicio de sesión</b> se puede permitir que las personas entren con su cuenta de la organización. Las cuentas
@@ -1260,10 +1293,20 @@ además el tipo de reversión y si admite actualización de firmware.</p>
 </ul>
 <p>La configuración se obtiene mostrando el resultado del comando dentro de la misma sesión SSH: no se crean archivos en el equipo ni se
 necesita FTP/TFTP. WatchGuard Fireware se respalda con <code>export config to console</code> (la configuración completa en
-XML) y, una sola vez, guarda el detalle de su <b>feature key</b> (<code>show feature-key</code> y <code>show feature-key ID</code>:
-modelo, vencimiento y cada función con su fecha), que se descarga desde la ficha del equipo. La firma de la feature key no sale
-por la CLI: viene dentro de la imagen .fxi, o se vuelve a descargar del portal de WatchGuard. Un
-usuario de solo lectura (Device Monitor) basta. Si un comando no sirve para su versión, defina un <b>comando de respaldo personalizado</b> en el dispositivo. Para
+XML) y, una sola vez, guarda su <b>feature key</b> tal como se pega para restaurarla (<i>Serial Number</i>, <i>License ID</i>,
+<i>Name</i>, <i>Model</i>, <i>Version</i>, una línea <i>Feature</i> por función, <i>Expiration</i> y <i>Signature</i>), que se
+descarga desde la ficha del equipo. El detalle sale de la CLI (<code>show feature-key</code> y <code>show feature-key ID</code>); la
+firma no sale por la CLI, así que OpenNCCM entra un momento a la Web UI del Firebox (System › Feature Key, puerto 8080 o el de la
+«Interfaz web» del equipo) con la misma credencial, la lee y cierra la sesión. Si no puede entrar, guarda el detalle sin firma, la
+ficha dice «sin firma: aún no sirve para restaurar», sale un aviso con el motivo (una sola vez por motivo) y lo reintenta:
+pasada una hora si la Web UI no respondió (puerto cerrado o equipo sin responder; aún no se había enviado la contraseña) y al
+día siguiente si la Web UI rechazó el ingreso, para no insistir con la contraseña. La ficha muestra, en <b>Servicios</b>, cuándo
+vence cada suscripción de la feature key (antivirus, IPS, LiveSecurity…), agrupadas por fecha, en ámbar si faltan 60 días o
+menos y en rojo si ya vencieron. OpenNCCM avisa (evento y alerta) a los 60, 30 y 7 días y al vencer, una sola vez por fecha;
+lo revisa a diario y después de cada respaldo. Mientras algo venza en 60 días o ya haya vencido, relee la feature key por la
+CLI una vez al día: si es la misma, no entra a la Web UI; si se renovó, lee la firma de la nueva y la guarda. El informe
+<b>Licencias por vencer</b> lista lo de todos los equipos. Un
+usuario de solo lectura (Device Monitor) basta para las dos cosas. Si un comando no sirve para su versión, defina un <b>comando de respaldo personalizado</b> en el dispositivo. Para
 equipos sin perfil propio (SonicWall, Riverbed, Infoblox…) use <b>Genérico SSH</b> con un comando personalizado.</p>
 <h3>WatchGuard: configuración (XML) e imagen completa (.fxi)</h3>
 <p>La ficha de un Firebox tiene la pestaña <b>Respaldos</b> con los dos tipos de respaldo de WatchGuard:</p>

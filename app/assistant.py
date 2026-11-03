@@ -273,15 +273,20 @@ def _system(lang: str) -> str:
                 "precisely for the device and operating system given. Put every command in its own ``` code block, one "
                 "command per line, with the exact syntax of that OS. Never claim you ran anything: the operator decides. "
                 "Say clearly when a command changes the configuration or can cut service. Secrets appear as ******; "
-                "never ask for them. If you are not sure about a command for this OS version, say so.")
+                "never ask for them. Use only commands of the platform, model and firmware version given (the "
+                "reference list shows that device's own commands); never mix in another vendor's syntax. If a command "
+                "changed between versions, give the one for this version; if you are not sure it exists there, say so.")
     return ("Eres el asistente de red de OpenNCCM, un gestor de configuraciones de red. Responde en español, breve y "
             "preciso, para el equipo y el sistema que se indican. Pon cada comando en su propio bloque ``` de código, un "
             "comando por línea, con la sintaxis exacta de ese sistema. Nunca digas que ejecutaste algo: decide el "
             "operador. Avisa claramente cuando un comando cambia la configuración o puede cortar el servicio. Los "
-            "secretos aparecen como ******; no los pidas. Si no estás seguro de un comando para esa versión, dilo.")
+            "secretos aparecen como ******; no los pidas. Usa solo comandos de la plataforma, el modelo y la versión "
+            "de firmware indicados (la lista de referencia trae los comandos propios de ese equipo); nunca mezcles la "
+            "sintaxis de otro fabricante. Si un comando cambió entre versiones, da el de esta versión; si no estás "
+            "seguro de que exista en ella, dilo.")
 
 
-def _segments(text: str, os_key: str) -> list[dict]:
+def _segments(text: str, os_key: str, device_type: str | None = None) -> list[dict]:
     """La respuesta en trozos: texto y bloques de comandos con su riesgo."""
     segs, pos = [], 0
     for m in re.finditer(r"```[\w+-]*\n?(.*?)```", text, re.S):
@@ -289,7 +294,7 @@ def _segments(text: str, os_key: str) -> list[dict]:
             segs.append({"k": "text", "t": text[pos:m.start()].strip()})
         block = m.group(1).strip("\n")
         lines = [x for x in block.splitlines() if x.strip()]
-        risks = [cc.risk(os_key, x) for x in lines] or ["read"]
+        risks = [cc.risk(os_key, x, device_type) for x in lines] or ["read"]
         r = "outage" if "outage" in risks else "change" if "change" in risks else "read"
         segs.append({"k": "cmd", "t": block, "risk": r})
         pos = m.end()
@@ -324,7 +329,7 @@ def ask(user, question: str, device_id: int | None = None, console: list[str] | 
         raise AiError(_("El asistente no está disponible para su usuario."))
     if c["limit"] and _today_count(user.username) >= c["limit"]:
         raise AiError(_f("Llegó al límite de {0} preguntas por día.", c["limit"]))
-    os_key, ctx, source, dev_name = "generic", [], "", ""
+    os_key, ctx, source, dev_name, dev_type = "generic", [], "", "", None
     if device_id:
         check_device(user, device_id)
         with SessionLocal() as db:
@@ -332,8 +337,12 @@ def ask(user, question: str, device_id: int | None = None, console: list[str] | 
             if d is None:
                 raise Forbidden()
             prof = get_profile(d.device_type)
-            os_key, dev_name = cc.os_of(d.device_type), d.name
-            ctx.append(f"Equipo: {d.name} · {prof.label} {d.os_version or ''} · modelo {d.model or '?'}")
+            os_key, dev_name, dev_type = cc.os_of(d.device_type), d.name, d.device_type
+            from . import cmdref
+            ctx.append(f"Equipo: {d.name} · plataforma {prof.label} ({prof.vendor}) · versión de firmware "
+                       f"{d.os_version or 'desconocida'} · modelo {d.model or 'desconocido'}")
+            ctx.append("Comandos de referencia de este equipo (su plataforma, modelo y versión):\n"
+                       + cmdref.reference(d.device_type, d.model or "", d.os_version or ""))
             if c["backup"]:
                 v = db.scalar(select(ConfigVersion).where(ConfigVersion.device_id == d.id)
                               .order_by(ConfigVersion.id.desc()).limit(1))
@@ -353,7 +362,7 @@ def ask(user, question: str, device_id: int | None = None, console: list[str] | 
         db.add(AiUsage(username=user.username, provider=c["provider"], model=c["model"], tokens_in=ti, tokens_out=to))
         db.commit()
     audit(user.username, "ai_ask", f"{provider_name(c['provider'])} · {c['model']} · {dev_name or '-'} · {question[:300]}")
-    return {"segments": _segments(text, os_key), "source": source, "ms": int((time.time() - t0) * 1000),
+    return {"segments": _segments(text, os_key, dev_type), "source": source, "ms": int((time.time() - t0) * 1000),
             "model": c["model"], "who": provider_name(c["provider"])}
 
 
@@ -361,12 +370,16 @@ def suggestions(dev: Device | None) -> list[str]:
     if dev is None:
         return [_("¿Qué equipos respaldaron con error hoy?"), _("¿Cómo armo una regla de cumplimiento para exigir SSH?")]
     os_key = cc.os_of(dev.device_type)
-    base = [_("¿Por qué un puerto sube y baja?"), _("¿Cómo veo los errores de un puerto?"),
+    label = " ".join(x for x in (get_profile(dev.device_type).label, dev.model or "") if x)
+    base = [_f("¿Qué comandos de {0} uso para revisar un puerto?", label), _("¿Cómo veo los errores de un puerto?"),
             _("Explica la última salida de la consola")]
     if os_key == "ros":
         return [_("¿Cómo bloqueo una IP en el firewall?"), _("¿Cómo limito Winbox y SSH a la red de gestión?")] + base
     if os_key in ("ios", "nxos", "eos", "fastpath"):
         return [_("¿Cómo dejo solo SSH en las líneas vty?"), _("¿Cómo creo una VLAN y la asigno a un puerto?")] + base
+    from . import topology
+    if topology.DTYPE_ROLE.get(dev.device_type) == "firewall":
+        return [_("¿Cómo veo el estado de los túneles VPN?"), _("¿Cómo veo qué política deja pasar o bloquea una conexión?")] + base
     return base
 
 

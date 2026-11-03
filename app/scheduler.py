@@ -231,4 +231,6 @@ def start():
                       next_run_time=datetime.now() + timedelta(minutes=20))
     from . import fxi
     scheduler.add_job(fxi.scheduled, CronTrigger(hour=3, minute=0), id="fxi", replace_existing=True)  # imágenes .fxi
+    from . import licenses  # servicios de la licencia por vencer (feature key de WatchGuard)
+    scheduler.add_job(licenses.scheduled, CronTrigger(hour=8, minute=10), id="license-expiry", replace_existing=True)
     start_syslog()

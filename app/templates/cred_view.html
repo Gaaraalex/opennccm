@@ -1,0 +1,71 @@
+{% extends "base.html" %}{% block title %}{{ _f('Credencial «{0}»', cred.name) }}{% endblock %}
+{% block content %}
+<h1>{{ _f('Credencial «{0}»', cred.name) }}</h1>
+<p class="muted sm" data-sheet-sub>{{ target }}</p>
+<div id="cv-box" class="stack">
+{% if need_mfa %}
+  <div class="banner warn" role="alert">{{ icon('shield') }}<div><b>{{ _('Primero debes activar la verificación en dos pasos (MFA) en tu cuenta.') }}</b><br>
+    <span class="sm">{{ _('Para ver las credenciales de los equipos, tu cuenta debe pedir un código de tu app de verificación al iniciar sesión. Hasta que la actives no podrás verlas.') }}</span></div></div>
+  <div class="row"><span class="grow"></span><a class="btn pri" href="/account/2fa/setup">{{ icon('shield', 's') }}{{ _('Activar verificación en dos pasos') }}</a></div>
+{% elif shown %}
+  <div class="banner info" role="status">{{ icon('eye') }}<div class="sm">{{ _('Se ocultará en 60 segundos. Quedó registrado en la auditoría.') }}</div></div>
+  <dl class="kv">
+    <dt>{{ _('Usuario') }}</dt><dd><code class="mono" id="cv-u" style="user-select:all">{{ shown.username }}</code> <button type="button" class="btn s" data-cv-copy="#cv-u">{{ _('Copiar') }}</button></dd>
+    <dt>{{ _('Contraseña') }}</dt><dd>{% if shown.password %}<code class="mono" id="cv-p" style="user-select:all;word-break:break-all">{{ shown.password }}</code> <button type="button" class="btn s" data-cv-copy="#cv-p">{{ _('Copiar') }}</button>{% else %}<span class="muted">{{ _('sin contraseña') }}</span>{% endif %}</dd>
+    {% if shown.secret %}<dt>{{ _('Enable / secret') }}</dt><dd><code class="mono" id="cv-s" style="user-select:all;word-break:break-all">{{ shown.secret }}</code> <button type="button" class="btn s" data-cv-copy="#cv-s">{{ _('Copiar') }}</button></dd>{% endif %}
+  </dl>
+{% else %}
+  <p class="muted sm">{{ _('Para verla, confirma que eres tú con tu usuario y contraseña de OpenNCCM.') if (user.auth_source or 'local') != 'oidc' else _('Tu cuenta entra con Microsoft y no tiene contraseña en OpenNCCM: confirma que eres tú con tu usuario y el código de tu app de verificación.') }}</p>
+  {% if error %}<div class="banner crit" role="alert">{{ icon('alert') }}<div>{{ error }}</div></div>{% endif %}
+  <form method="post" action="{{ url }}" class="stack" autocomplete="off" data-cv>
+    <div class="field"><label for="cv-user">{{ _('Usuario') }}</label><div class="input mono"><input id="cv-user" name="username" required autocomplete="off" autocapitalize="off" spellcheck="false"></div></div>
+    {% if (user.auth_source or 'local') != 'oidc' %}<div class="field"><label for="cv-pass">{{ _('Contraseña') }}</label><div class="input"><input id="cv-pass" name="password" type="password" required autocomplete="current-password"></div></div>
+    {% else %}<div class="field"><label for="cv-pass">{{ _('Código de verificación') }}</label><div class="input mono"><input id="cv-pass" name="password" required inputmode="numeric" pattern="[0-9 ]{6,7}" maxlength="7" autocomplete="one-time-code"></div></div>{% endif %}
+    <div class="row"><span class="grow"></span><a class="btn ghost" href="/devices" data-cancel>{{ _('Cancelar') }}</a><button class="btn pri">{{ icon('eye', 's') }}{{ _('Ver') }}</button></div>
+  </form>
+{% endif %}
+</div>
+<script>
+(function () {
+  if (window.ocCredView) return;
+  window.ocCredView = 1;
+  function hideLater(box) {
+    if (!box || !box.querySelector('[data-cv-copy]')) return;
+    setTimeout(function () {
+      if (!document.body.contains(box)) return;
+      box.innerHTML = '<p class="muted">' + {{ _('Se ocultó. Pulsa «Ver» otra vez si la necesitas.')|tojson }} + '</p>';
+    }, 60000);
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-cv-copy]');
+    if (!b) return;
+    var el = document.querySelector(b.dataset.cvCopy);
+    if (el && navigator.clipboard) navigator.clipboard.writeText(el.textContent).then(function () {
+      if (window.ocToast) window.ocToast({{ _('Copiado')|tojson }});
+    });
+  });
+  document.addEventListener('submit', function (e) {  // dentro del panel: el resultado reemplaza al formulario
+    var f = e.target;
+    if (!f.matches || !f.matches('form[data-cv]')) return;
+    var box = f.closest('#cv-box');
+    if (!box || !f.closest('.sheet')) return;
+    e.preventDefault();
+    var btn = f.querySelector('button.pri');
+    if (btn) btn.disabled = true;
+    fetch(f.action, {method: 'POST', body: new FormData(f), credentials: 'same-origin', cache: 'no-store'}).then(function (r) {
+      if (r.redirected) { location.href = r.url; return null; }
+      return r.text();
+    }).then(function (html) {
+      if (html == null) return;
+      var nb = new DOMParser().parseFromString(html, 'text/html').getElementById('cv-box');
+      if (!nb) { location.reload(); return; }
+      box.innerHTML = nb.innerHTML;
+      var first = box.querySelector('input:not([type=hidden])');
+      if (first) first.focus();
+      hideLater(box);
+    }).catch(function () { if (btn) btn.disabled = false; });
+  });
+  hideLater(document.getElementById('cv-box'));
+})();
+</script>
+{% endblock %}
