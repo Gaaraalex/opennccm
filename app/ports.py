@@ -416,8 +416,9 @@ def _fireware_config(config: str) -> list[dict]:
             if not net and vlans.get(dev):
                 net = "VLAN " + ", ".join(sorted(set(vlans[dev]), key=lambda x: int(x) if x.isdigit() else 0))
             on = (ph.findtext("enabled") or "1").strip() == "1"
+            ext = (ph.findtext("if-property") or "").strip() == "2"  # 1 Trusted · 2 External · 3 Disabled (T40, 12.8.1)
             ports.append({"n": dev, "k": "cu", "s": "on" if on else "off", "sp": "", "d": " · ".join(x for x in (name, desc) if x),
-                          "net": net, "mod": "", "st": "",
+                          "net": net, "mod": "", "st": "", **({"ext": True} if ext else {}),
                           "xml": [f"<name>{name}</name>", f"<if-dev-name>{dev}</if-dev-name>", f"<enabled>{1 if on else 0}</enabled>"]
                           + ([f"<ip>{ip}</ip>"] if ip and ip != "0.0.0.0" else [])})
     return sorted(ports, key=lambda p: int(p["n"][3:]))

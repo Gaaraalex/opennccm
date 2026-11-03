@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.20.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 2.21.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -265,7 +265,9 @@ entrada de corriente. <b>Frente</b> muestra sus luces (Failover, las de cada pue
 luces de un puerto lo elige. En WatchGuard el nombre de la interfaz, si está habilitada y su IP o las VLAN que pasan por el
 puerto salen de la configuración; el enlace y la velocidad, de <code>show status-report</code> (sección «Physical Interfaces Link
 Status», un comando de solo lectura). Atrás, el puerto con enlace sale en verde; delante se enciende la luz de su velocidad: la de
-1000 en amarillo y la de 10/100 en verde, como en el equipo.</p>
+1000 en amarillo y la de 10/100 en verde, como en el equipo. <b>Mode</b> se ve verde si alguna interfaz externa tiene enlace
+y parpadea si ninguna lo tiene; <b>Status</b> queda apagada, porque en el Firebox solo se enciende 30 segundos cuando alguien
+entra por la Web UI o la CLI.</p>
 <figure><img src="img/05c-dispositivo-cumplimiento.png" style="max-height:120mm"><figcaption>Pestaña Cumplimiento: reglas agrupadas por política, con «Corregir N».</figcaption></figure>
 </section>
 

@@ -176,7 +176,7 @@ PORTS_XML = """<?xml version="1.0"?>
   <interface-list>
     <interface><name>Any</name><property>4</property></interface>
     <interface><name>WAN</name><description>Internet</description><if-item-list><item><physical-if>
-      <if-num>1</if-num><if-dev-name>eth1</if-dev-name><enabled>1</enabled><ip>198.51.100.2</ip><netmask>255.255.255.252</netmask>
+      <if-num>1</if-num><if-dev-name>eth1</if-dev-name><enabled>1</enabled><if-property>2</if-property><ip>198.51.100.2</ip><netmask>255.255.255.252</netmask>
     </physical-if></item></if-item-list></interface>
     <interface><name>Disabled</name><if-item-list><item><physical-if>
       <if-num>4</if-num><if-dev-name>eth4</if-dev-name><enabled>0</enabled><ip>0.0.0.0</ip><netmask>0.0.0.0</netmask>
@@ -198,6 +198,8 @@ check("puertos del XML: eth0, eth1 y eth4 en orden, sin estado de enlace", [p["n
 check("WAN con su IP y su nombre", by["eth1"]["net"] == "198.51.100.2/30" and by["eth1"]["d"] == "WAN · Internet" and
       by["eth1"]["s"] == "on", by["eth1"])
 check("puerto deshabilitado: apagado", by["eth4"]["s"] == "off")
+check("la interfaz External queda marcada (luz Mode del T40); las demás no", by["eth1"].get("ext") is True
+      and "ext" not in by["eth0"] and "ext" not in by["eth4"], pl)
 check("puerto con VLAN: las VLAN que pasan por él", by["eth0"]["net"] == "VLAN 10, 112", by["eth0"]["net"])
 check("Fireware no recibe comandos de puertos que no tiene", ports.commands("watchguard_fireware") == [])
 lay = ports.layout("T40", pl)
