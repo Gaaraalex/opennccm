@@ -50,7 +50,7 @@ check("reiniciar CORE-01: quedan aislados DIST-NORTE, ACC-S-P2 y ACC-S-P3", red 
 check("…y se cortan los enlaces a la sucursal (R-SUC-ESTE y R-SUC-OESTE)", amber == ["R-SUC-ESTE", "R-SUC-OESTE"], amber)
 check("…los que tienen dos uplinks siguen por otro camino", {"CORE-02", "DIST-CENTRO", "DIST-SUR"} <= set(r["kept"]), r["kept"])
 check("…impacto alto con la frase de la solicitud", r["level"] == "high" and r["sentence"] ==
-      "Si reinicias CORE-01 quedan aislados 3 equipos y se cortan 2 enlaces a routers o sucursales", r["sentence"])
+      "Si reinicias CORE-01 quedan aislados 3 equipos y otros 2 de otras ubicaciones pierden la conexión", r["sentence"])
 check("…de quién cuelga cada uno («detrás de DIST-NORTE»)",
       {x["name"]: x["via"] for x in r["isolated"]}["ACC-S-P2"] == "DIST-NORTE", r["isolated"])
 check("…se dice lo que no se sabe: el equipo que no informa vecinos y la hora de los datos",

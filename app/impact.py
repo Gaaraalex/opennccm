@@ -4,8 +4,7 @@ Se calcula con el mapa de la red (vecinos LLDP/CDP que se leen en cada respaldo)
 se reinician (o los enlaces de los puertos que se apagan) y se mira qué queda separado del resto de la red.
 
 * Rojo: queda aislado (sin camino alternativo).
-* Ámbar: entre lo aislado, los routers y firewalls, o los equipos de otro sitio (otra «Ubicación»): enlaces a
-  sucursales u otras redes que se cortan.
+* Ámbar: entre lo aislado, los equipos de otra «Ubicación» (sucursales): pierden la conexión con esta.
 * Verde: vecinos directos que siguen funcionando por otro camino.
 
 Lo que no se sabe se dice: los equipos que no informan vecinos no se pueden evaluar, y los datos tienen la hora del
@@ -61,7 +60,7 @@ class Graph:
         for d in devs:
             if d.neighbors is None:
                 continue
-            for n in topology.network_view(json.loads(d.neighbors))[0]:
+            for n in topology.network_view(topology.lldp_only(json.loads(d.neighbors)))[0]:  # RoMON no dice el puerto
                 t = by_name.get(topology.norm_name(n.get("remote_name"))) or by_ip.get((n.get("remote_ip") or "").lower())
                 if t is not None and t.id == d.id:
                     continue
@@ -212,7 +211,7 @@ def analyze(g: Graph, removed_ids: list[int], cut_ports: dict[int, list[str]] | 
         par = g.parent(removed or {a for a, _b in cut}, n, iso)
         row = {"id": n, "name": label(n), "dev": nd["dev"], "role": nd.get("role", "unknown"),
                "via": label(par) if par else "", "direct": par in removed or any(par == a for a, _b in cut)}
-        branch = nd.get("role") in ("router", "firewall") or (nd["loc"] and locs and nd["loc"] not in locs)
+        branch = bool(nd["loc"] and locs and nd["loc"] not in locs)  # de otra ubicación: pierde la conexión con esta
         (amber if branch else red).append(row)
     neigh = set()
     for r in removed:
@@ -241,16 +240,18 @@ def analyze(g: Graph, removed_ids: list[int], cut_ports: dict[int, list[str]] | 
     if level == "nodata":
         sentence = _f("OpenNCCM no conoce los vecinos de {0}: no se puede calcular qué depende de él.", who or "—")
     elif level == "none":
-        sentence = what + ", " + (_f("nada queda aislado: {0} vecinos siguen por otro camino.", len(kept)) if kept
-                                  else _("nada queda aislado."))
+        sentence = what + ", " + (_f("nada queda aislado: {0} vecinos siguen por otro camino.", len(kept)) if len(kept) > 1
+                                  else _("nada queda aislado: 1 vecino sigue por otro camino.") if kept else _("nada queda aislado."))
     else:
-        parts = []
-        if n_iso:
-            parts.append(_f("quedan aislados {0} equipos", n_iso) if n_iso != 1 else _("queda aislado 1 equipo"))
-        if n_br:
-            parts.append(_f("se cortan {0} enlaces a routers o sucursales", n_br) if n_br != 1
-                         else _("se corta 1 enlace a un router o sucursal"))
-        sentence = what + " " + (" " + _("y") + " ").join(parts)
+        iso_t = _f("quedan aislados {0} equipos", n_iso) if n_iso != 1 else _("queda aislado 1 equipo")
+        if n_iso and n_br:
+            sentence = what + " " + iso_t + " " + (_f("y otros {0} de otras ubicaciones pierden la conexión", n_br) if n_br != 1
+                                                    else _("y otro de otra ubicación pierde la conexión"))
+        elif n_iso:
+            sentence = what + " " + iso_t
+        else:
+            sentence = what + ", " + (_f("{0} equipos de otras ubicaciones pierden la conexión", n_br) if n_br != 1
+                                      else _("1 equipo de otra ubicación pierde la conexión"))
     short = {"high": _("Impacto alto"), "medium": _("Impacto medio"), "none": _("Sin impacto"),
              "nodata": _("Impacto desconocido")}[level]
     return {"level": level, "label": short, "sentence": sentence, "isolated": red, "branches": amber, "kept": kept,
@@ -392,7 +393,7 @@ def for_change(cr, user=None) -> dict | None:
             steps = len(pl["waves"])
             res["sentence"] = (_f("Se reinician en {0} pasos, en el orden sugerido", steps) if steps != 1
                                else _("Se reinician todos juntos: ninguno deja sin servicio a otro")) + (
-                ". " + _f("El paso que más corta: {0} (aísla {1} y corta {2})", worst["name"], worst["iso"], worst["br"])
+                ". " + _f("El paso que más corta: {0} ({1} sin servicio)", worst["name"], worst["iso"] + worst["br"])
                 if worst["iso"] + worst["br"] else "")
         return res
     if REBOOT.search(cr.body or ""):

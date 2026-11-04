@@ -11,7 +11,7 @@
   :root[data-theme="oscuro"] .topo-wrap,:root[data-theme="oscuro"] .topo-chips{--v-edge:transparent}
   @media (prefers-color-scheme:dark){:root[data-theme="auto"] .topo-wrap,:root[data-theme="auto"] .topo-chips{--v-edge:transparent}}
   .topo-edge{stroke:var(--line-strong);stroke-width:1.6}.topo-edge.hl{stroke:var(--brand);stroke-width:2.4}
-  .topo-edge.air{stroke-dasharray:7 5}.topo-e.vdim{opacity:.2}
+  .topo-edge.air{stroke-dasharray:7 5}.topo-edge.romon{stroke-dasharray:2 5;stroke-linecap:round}.topo-e.vdim{opacity:.2}
   .topo-hit{stroke:transparent;stroke-width:12}
   .topo-port{pointer-events:none;display:none}.topo-port.show{display:inline}
   .topo-port rect{fill:var(--surface);stroke:var(--line);stroke-width:1}.topo-port text{font:500 11px var(--f-mono);fill:var(--ink-2)}
@@ -82,7 +82,8 @@
     <span><i style="border-color:var(--ok);background:var(--ok-soft)"></i>{{ _('Respaldo correcto') }}</span>
     <span><i style="border-color:var(--crit);background:var(--crit-soft)"></i>{{ _('Último respaldo con error') }}</span>
     <span><i style="border-color:var(--brand);border-style:dashed"></i>{{ _('Vecino que no está en OpenNCCM') }}</span>
-    <span><svg width="26" height="8" aria-hidden="true" style="margin-right:6px;vertical-align:1px"><line x1="0" y1="4" x2="26" y2="4" stroke="currentColor" stroke-width="1.6" stroke-dasharray="7 5"/></svg>{{ _('Enlace inalámbrico') }}</span></div>
+    <span><svg width="26" height="8" aria-hidden="true" style="margin-right:6px;vertical-align:1px"><line x1="0" y1="4" x2="26" y2="4" stroke="currentColor" stroke-width="1.6" stroke-dasharray="7 5"/></svg>{{ _('Enlace inalámbrico') }}</span>
+    {% if links|selectattr('romon')|list %}<span><svg width="26" height="8" aria-hidden="true" style="margin-right:6px;vertical-align:1px"><line x1="0" y1="4" x2="26" y2="4" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2 5" stroke-linecap="round"/></svg>{{ _('Por RoMON (sin puerto)') }}</span>{% endif %}</div>
   <aside class="topo-side" id="tside" aria-label="{{ _('Detalle del equipo') }}" inert><div class="topo-side-in" id="tside-in"></div></aside></div>
 <details style="margin-top:14px"><summary class="sm">{{ _f('Lista de enlaces ({0})', links|length) }}</summary>
   <div class="tw"><table class="t"><thead><tr><th>{{ _('Equipo') }}</th><th>{{ _('Puerto') }}</th><th>{{ _('Vecino') }}</th><th>{{ _('Puerto') }}</th></tr></thead><tbody data-pager>
@@ -171,7 +172,7 @@
     view.textContent = ''; edgeEls.length = 0;
     const edgeLayer = mk('g', {}, view), labLayer = mk('g', {}, view);
     LINKS.forEach(e => {
-      const g = mk('g', {class: 'topo-e'}, edgeLayer), hit = mk('line', {class: 'topo-hit'}, g), line = mk('line', {class: 'topo-edge' + (e.air ? ' air' : '')}, g);
+      const g = mk('g', {class: 'topo-e'}, edgeLayer), hit = mk('line', {class: 'topo-hit'}, g), line = mk('line', {class: 'topo-edge' + (e.air ? ' air' : '') + (e.romon ? ' romon' : '')}, g);
       const ta = plabel(labLayer, e.pa), tb = plabel(labLayer, e.pb);
       const t = mk('title', {}, g); t.textContent = (byId[e.a].label + ' ' + (e.pa || '') + ' ↔ ' + byId[e.b].label + ' ' + (e.pb || '')).trim();
       const x = {e, g, hit, line, ta, tb, on: false, hover: false, own: ''};

@@ -12,6 +12,9 @@
   .nd-pg h4{margin:0 0 6px;font:700 11px var(--f-sans)}.nd-pg .r{display:flex;gap:6px;font-size:8.5px;padding:4px 0;border-bottom:1px solid #dde2ec}
   .nd-pg .r b{width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nd-pg .r span{color:#55607a}
   .nd-pg .m{font-size:8px;color:#8890a2;margin-top:6px}
+  .nd-thumb{flex:none;width:40px;height:40px;border-radius:8px;border:1px solid var(--line);background:var(--surface-2);display:grid;place-items:center;overflow:hidden;color:var(--muted)}
+  .nd-thumb img,.nd-pv-logo img{width:100%;height:100%;object-fit:contain}
+  .nd-pv-logo{width:44px;height:44px;border-radius:9px;overflow:hidden}.nd-pv-logo:empty{width:34px;height:34px;background:#2347e8}
   .nd-doc{display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--line);flex-wrap:wrap}
 </style>
 <div class="ph"><div class="grow"><h1>{{ _('Documento de la red') }}</h1><div class="sub">{{ _('Lo que OpenNCCM ya sabe de la red, en un PDF o un Word listo para entregar a un cliente, a una auditoría o a otro técnico.') }}</div></div></div>
@@ -20,9 +23,9 @@
     <div><div class="lbl">{{ _('Alcance') }}</div>
       <div class="seg" role="radiogroup" aria-label="{{ _('Alcance') }}">
         {% for k, l in [('site', _('Sitio')), ('group', _('Grupo')), ('all', _('Toda la red'))] %}<label class="segl"><input type="radio" name="scope" value="{{ k }}" class="vh" {{ 'checked' if k == 'all' }}><span>{{ l }}</span></label>{% endfor %}</div>
-      <div class="input" style="margin-top:8px" data-for="site" hidden><select name="site" aria-label="{{ _('Sitio') }}">{% for s, n in sites %}<option value="{{ s }}">{{ s }} · {{ _f('{0} equipos', n) }}</option>{% else %}<option value="">{{ _('No hay ubicaciones cargadas en los equipos') }}</option>{% endfor %}</select></div>
-      <div class="input" style="margin-top:8px" data-for="group" hidden><select name="group" aria-label="{{ _('Grupo') }}">{% for gid, name, n in groups %}<option value="{{ gid }}">{{ name }} · {{ _f('{0} equipos', n) }}</option>{% else %}<option value="0">{{ _('No hay grupos') }}</option>{% endfor %}</select></div>
-      <div class="muted sm" data-for="all" style="margin-top:6px">{{ _f('{0} equipos', total) }}</div>
+      <div class="input" style="margin-top:8px" data-for="site" hidden><select name="site" aria-label="{{ _('Sitio') }}">{% for s, n in sites %}<option value="{{ s }}">{{ s }} · {{ _f('{0} equipos', n) if n != 1 else _('1 equipo') }}</option>{% else %}<option value="">{{ _('No hay ubicaciones cargadas en los equipos') }}</option>{% endfor %}</select></div>
+      <div class="input" style="margin-top:8px" data-for="group" hidden><select name="group" aria-label="{{ _('Grupo') }}">{% for gid, name, n in groups %}<option value="{{ gid }}">{{ name }} · {{ _f('{0} equipos', n) if n != 1 else _('1 equipo') }}</option>{% else %}<option value="0">{{ _('No hay grupos') }}</option>{% endfor %}</select></div>
+      <div class="muted sm" data-for="all" style="margin-top:6px">{{ _f('{0} equipos', total) if total != 1 else _('1 equipo') }}</div>
       <div class="help">{{ _('El sitio es la «Ubicación» de cada equipo.') }}</div></div>
     <div><div class="lbl">{{ _('Formato') }}</div>
       <div class="seg" role="radiogroup" aria-label="{{ _('Formato') }}"><label class="segl"><input type="radio" name="fmt" value="pdf" class="vh" checked><span>PDF</span></label><label class="segl"><input type="radio" name="fmt" value="docx" class="vh"><span>Word (.docx)</span></label></div></div>
@@ -31,7 +34,13 @@
     <div><div class="lbl">{{ _('Para quién') }}</div><div class="stack" style="gap:8px">
       <label class="swrow"><span>{{ _('Portada con el logo y el nombre del cliente') }}</span><input type="checkbox" class="sw" name="cover" checked></label>
       <div class="input"><input name="client" value="{{ client }}" placeholder="{{ _('Nombre del cliente') }}" aria-label="{{ _('Nombre del cliente') }}"></div>
-      <label class="sm">{{ _('Logo (PNG o JPEG, hasta 2 MB)') }}{% if has_logo %} · <span class="muted">{{ _('hay uno guardado; elija otro para cambiarlo') }}</span>{% endif %}<input type="file" name="logo" accept="image/png,image/jpeg" style="display:block;margin-top:4px"></label>
+      <div class="nd-logo"><div class="sm b">{{ _('Logo (PNG o JPEG, hasta 2 MB)') }}</div>
+        <div class="row" style="gap:10px;margin-top:6px;flex-wrap:nowrap">
+          <span class="nd-thumb" id="nd-thumb">{% if has_logo %}<img src="/reports/netdoc/logo?v={{ logo_v }}" alt="">{% else %}{{ icon('file', 's') }}{% endif %}</span>
+          <span class="grow sm muted" id="nd-lname" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ _('Logo guardado') if has_logo else _('Sin logo') }}</span>
+          <label class="btn s" for="nd-lfile">{{ icon('dl', 's') }}{{ _('Subir logo') }}</label>
+          <button type="button" class="btn s ghost" id="nd-lx"{% if not has_logo %} hidden{% endif %}>{{ _('Quitar') }}</button></div>
+        <input type="file" name="logo" id="nd-lfile" accept="image/png,image/jpeg" class="vh"><input type="hidden" name="logo_remove" id="nd-lrm" value=""></div>
       <label class="swrow"><span>{{ _('Ocultar también las IP públicas') }}</span><input type="checkbox" class="sw" name="hide_public"></label>
       <div class="muted sm">{{ _('Las contraseñas, las comunidades SNMP y las claves nunca salen en el documento: no lleva configuraciones.') }}</div></div></div>
     <button class="btn pri" style="justify-content:center">{{ _('Generar documento') }}</button>
@@ -39,12 +48,12 @@
   <div class="stack" style="gap:12px">
     <div class="lbl">{{ _('Vista previa') }} · <span id="nd-fmt">PDF</span></div>
     {% if preview %}<div class="nd-pages" aria-label="{{ _('Vista previa de las primeras páginas') }}">
-      <div class="nd-pg" style="display:flex;flex-direction:column"><div style="width:34px;height:34px;border-radius:9px;background:#2347e8"></div><div style="font:800 16px var(--f-display,var(--f-sans));margin-top:auto">{{ _('Documento de la red') }}</div><div style="font-size:11px;color:#55607a;margin-top:4px" id="nd-cli">{{ client or '' }}{{ ' · ' if client }}{{ preview.label }}</div><div class="m">{{ _f('Generado por OpenNCCM · {0}', now_s) }}</div></div>
+      <div class="nd-pg" style="display:flex;flex-direction:column"><div class="nd-pv-logo" id="nd-pvlogo">{% if has_logo %}<img src="/reports/netdoc/logo?v={{ logo_v }}" alt="">{% endif %}</div><div style="font:800 16px var(--f-display,var(--f-sans));margin-top:auto">{{ _('Documento de la red') }}</div><div style="font-size:11px;color:#55607a;margin-top:4px" id="nd-cli">{{ client or '' }}{{ ' · ' if client }}{{ preview.label }}</div><div class="m">{{ _f('Generado por OpenNCCM · {0}', now_s) }}</div></div>
       <div class="nd-pg"><h4>1 · {{ _('Inventario') }}</h4>{% for r in preview.inv[:8] %}<div class="r"><b>{{ r.name }}</b><span class="grow">{{ r.model }}</span><span>{{ r.version }}</span></div>{% endfor %}{% if preview.inv|length > 8 %}<div class="m">{{ _f('+ {0} equipos · con número de serie', preview.inv|length - 8) }}</div>{% endif %}</div>
       <div class="nd-pg"><h4>2 · {{ _('Mapa de la red') }}</h4>{{ preview_svg|safe }}<h4 style="margin-top:8px">3 · VLAN</h4><div style="font-size:8.5px;color:#55607a;line-height:1.6">{% for v in preview.vlans[:4] %}{{ v.id }} {{ v.name }}<br>{% else %}{{ _('No se encontraron VLAN') }}{% endfor %}</div></div>
     </div>{% else %}<div class="card"><p class="muted" style="margin:0">{{ _('Agregue equipos para generar el documento.') }}</p></div>{% endif %}
     <div class="card" style="padding:0"><div style="padding:12px 14px"><b>{{ _('Documentos generados') }}</b></div>
-      {% for d in docs %}<div class="nd-doc"><span class="grow"><b>{{ d.label }} · {{ 'PDF' if d.fmt == 'pdf' else 'Word' }}</b><span class="muted sm" style="display:block">{{ d.when|ago }} · {{ d.user }}{% if d.pages %} · {{ _f('{0} páginas', d.pages) }}{% endif %}</span></span>
+      {% for d in docs %}<div class="nd-doc"><span class="grow"><b>{{ d.label }} · {{ 'PDF' if d.fmt == 'pdf' else 'Word' }}</b><span class="muted sm" style="display:block">{{ d.when|ago }} · {{ d.user }}{% if d.pages %} · {{ _f('{0} páginas', d.pages) if d.pages != 1 else _('1 página') }}{% endif %}</span></span>
         <span class="sm" style="color:var(--{{ 'warn' if d.changed else 'muted' }})">{{ d.changed or _('Sin cambios desde entonces') }}</span>
         {% if d.fmt == 'pdf' %}<a class="btn s ghost" href="/reports/netdoc/{{ d.id }}/file?view=1" target="_blank" rel="noopener">{{ icon('eye', 's') }}{{ _('Ver') }}</a>{% endif %}
         <a class="btn s" href="/reports/netdoc/{{ d.id }}/file">{{ icon('dl', 's') }}{{ _('Descargar') }}</a>
@@ -62,6 +71,19 @@
     document.getElementById('nd-fmt').textContent = (f.querySelector('[name=fmt]:checked') || {}).value === 'docx' ? 'WORD' : 'PDF';
   };
   f.addEventListener('change', sync); sync();
+  // logo: «Subir logo» con miniatura y nombre (también en la portada de la vista previa) y «Quitar»
+  const lf = document.getElementById('nd-lfile'), th = document.getElementById('nd-thumb'), ln = document.getElementById('nd-lname'),
+    lx = document.getElementById('nd-lx'), pv = document.getElementById('nd-pvlogo'), rm = document.getElementById('nd-lrm');
+  const show = (src, name) => {
+    th.innerHTML = src ? '<img alt="" src="' + src + '">' : '';
+    pv.innerHTML = src ? '<img alt="" src="' + src + '">' : '';
+    ln.textContent = name; lx.hidden = !src;
+  };
+  lf.addEventListener('change', () => {
+    const file = lf.files[0]; if (!file) return;
+    rm.value = ''; show(URL.createObjectURL(file), file.name);
+  });
+  lx.addEventListener('click', () => { lf.value = ''; rm.value = '1'; show('', {{ _('Sin logo')|tojson }}); });
 })();
 </script>
 {% endblock %}

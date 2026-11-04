@@ -35,7 +35,7 @@
 <div class="card" style="margin-top:14px"><p class="muted" style="margin:0">{{ _('No hay switches con estado de puertos. El estado de los puertos se lee en cada respaldo; los equipos que no lo informan no aparecen aquí.') }}</p></div>
 {% else %}
 <div class="up-kpi" style="margin-top:14px">
-  <div class="card"><div class="lbl">{{ _('Puertos de acceso') }}</div><div class="v">{{ u.kpi.access }}</div><div class="muted sm">{{ _f('en {0} switches (sin uplinks ni troncales)', u.switches|length) }}</div></div>
+  <div class="card"><div class="lbl">{{ _('Puertos de acceso') }}</div><div class="v">{{ u.kpi.access }}</div><div class="muted sm">{{ _f('en {0} switches (sin uplinks ni troncales)', u.switches|length) if u.switches|length != 1 else _('en 1 switch (sin uplinks ni troncales)') }}</div></div>
   <div class="card"><div class="lbl">{{ _('Sin enlace') }}</div><div class="v" style="color:var(--warn)">{{ u.kpi.nolink }}</div><div class="muted sm">{{ _f('{0} % · más de {1} días', u.kpi.nolink_pct, u.days) }}</div></div>
   <div class="card"><div class="lbl">{{ _('Libres para usar') }}</div><div class="v" style="color:var(--ok)">{{ u.kpi.free }}</div><div class="muted sm">{{ _f('{0} % · apagados o ya recuperados', u.kpi.free_pct) }}</div></div>
   <div class="card"><div class="lbl">{{ _('Switches casi llenos') }}</div><div class="v" style="color:var(--crit)">{{ u.kpi.full }}</div><div class="muted sm">{{ _('menos del 10 % libre: comprar o recuperar') }}</div></div>
@@ -43,7 +43,7 @@
 <div class="up-main" style="margin-top:12px">
   <div class="card up-l" style="padding:0"><div class="row" style="padding:10px 14px"><span class="lbl grow">{{ _('Switch') }}</span><span class="lbl" style="width:140px">{{ _('Capacidad') }}</span><span class="lbl" style="width:44px;text-align:right">{{ _('Sin uso') }}</span></div>
     {% for s in u.switches %}<a class="up-sw {{ 'on' if cur and s.id == cur.id }}" href="/reports/unused?days={{ u.days }}&site={{ u.site|urlencode }}&vlan={{ u.vlan|urlencode }}&sw={{ s.id }}">
-      <span class="grow"><b>{{ s.name }}</b><span class="muted sm" style="display:block">{{ s.site or '—' }} · {{ _f('{0} puertos', s.total) }}</span></span>
+      <span class="grow"><b>{{ s.name }}</b><span class="muted sm" style="display:block">{{ s.site or '—' }} · {{ _f('{0} puertos', s.total) if s.total != 1 else _('1 puerto') }}</span></span>
       <span style="width:140px"><span class="up-bar"><i class="u" style="width:{{ 100 * s.inuse / s.total }}%"></i><i class="n" style="width:{{ 100 * s.nolink / s.total }}%"></i><i class="f" style="width:{{ 100 * s.free / s.total }}%"></i></span>
         <span class="sm" style="display:block;margin-top:4px;color:var(--{{ 'crit' if s.full else 'ok' }})">{{ _f('{0} libres', s.free) if s.free != 1 else _('1 libre') }}</span></span>
       <span style="width:44px;text-align:right;font-weight:700;color:var(--warn)">{{ s.nolink }}</span></a>{% endfor %}
@@ -51,12 +51,12 @@
   </div>
   <div class="card" style="padding:0">
     {% if cur %}
-    <div class="row" style="padding:12px 14px;gap:8px;flex-wrap:wrap"><b class="grow">{{ _f('{0} · {1} puertos sin enlace', cur.name, cur.rows|length) }}</b><span class="muted sm"><span id="up-n">0</span> {{ _('elegidos') }}</span>
+    <div class="row" style="padding:12px 14px;gap:8px;flex-wrap:wrap"><b class="grow">{{ _f('{0} · {1} puertos sin enlace', cur.name, cur.rows|length) if cur.rows|length != 1 else _f('{0} · 1 puerto sin enlace', cur.name) }}</b><span class="muted sm" id="up-nl">{{ _f('{0} elegidos', 0) }}</span>
       {% if user.role in ('admin', 'operator') %}<button type="button" class="btn s" id="up-exc">{{ _('Marcar como excepción') }}</button>
       <button type="button" class="btn s pri" id="up-prep"{% if not cur.can_shut %} disabled title="{{ _('OpenNCCM no sabe apagar puertos en este tipo de equipo.') }}"{% endif %}>{{ _('Preparar «shutdown» como solicitud de cambio') }}</button>{% endif %}</div>
     {% if cur.rows %}<table class="t up-t"><thead><tr><th style="width:28px"><input type="checkbox" id="up-all" aria-label="{{ _('Elegir todos') }}"></th><th>{{ _('Puerto') }}</th><th>VLAN</th><th>{{ _('Descripción') }}</th><th>{{ _('Sin enlace') }}</th></tr></thead><tbody>
       {% for r in cur.rows %}<tr><td><input type="checkbox" class="up-ck" value="{{ r.n }}" aria-label="{{ _f('Elegir {0}', r.n) }}"></td><td class="mono">{{ r.n }}</td><td>{{ r.vlan or '—' }}</td><td>{{ r.d or '—' }}</td>
-        <td class="nl">{% if r.days is none %}{{ _f('nunca (datos desde el {0})', r.since) }}{% else %}{{ _f('{0} días', r.days) }}{% endif %}</td></tr>{% endfor %}
+        <td class="nl">{% if r.days is none %}{{ _f('nunca (datos desde el {0})', r.since) }}{% elif r.capped %}{{ _f('más de {0} días (datos desde el {1})', r.days, r.since_short) }}{% else %}{{ _f('{0} días', r.days) if r.days != 1 else _('1 día') }}{% endif %}</td></tr>{% endfor %}
     </tbody></table>
     {% else %}<p class="muted sm" style="padding:0 14px">{{ _f('Ningún puerto de {0} lleva más de {1} días sin enlace.', cur.name, u.days) }}</p>{% endif %}
     <p class="muted sm" style="padding:10px 14px;margin:0;border-top:1px solid var(--line)">{{ _('Apagar los puertos sin uso también es una mejora de seguridad: nadie puede conectar un equipo en un puerto olvidado. Los uplinks, las troncales, los puertos con 802.1X y los que tienen una excepción no se cuentan ni se proponen.') }}{% if cur.excluded %} {{ _f('En {0}: {1} excluidos.', cur.name, cur.excluded) }}{% endif %}</p>
@@ -74,10 +74,10 @@
 </dialog>
 <script>
 (function () {
-  const DEV = {{ cur.id }}, DAYS = {{ u.days }}, T = {{ {'sel': _('Elija al menos un puerto.'), 'sub': _('Apagar {0} puertos sin enlace hace más de {1} días'), 'prev': _('La descripción anterior se guarda en la solicitud para poder revertirla:'), 'exc': _('{0} puertos marcados como excepción.')}|tojson }};
+  const DEV = {{ cur.id }}, DAYS = {{ u.days }}, T = {{ {'sel': _('Elija al menos un puerto.'), 'sub': _('Apagar {0} puertos sin enlace hace más de {1} días'), 'prev': _('La descripción anterior se guarda en la solicitud para poder revertirla:'), 'exc': _('{0} puertos marcados como excepción.'), 'exc1': _('1 puerto marcado como excepción.'), 'one': _('1 elegido'), 'many': _('{0} elegidos'), 'sub1': _('Apagar 1 puerto sin enlace hace más de {1} días')}|tojson }};
   const cks = () => Array.from(document.querySelectorAll('.up-ck')), sel = () => cks().filter(c => c.checked).map(c => c.value);
-  const n = document.getElementById('up-n'), all = document.getElementById('up-all');
-  const sync = () => { n.textContent = sel().length; };
+  const n = document.getElementById('up-nl'), all = document.getElementById('up-all');
+  const sync = () => { const k = sel().length; n.textContent = k === 1 ? T.one : T.many.replace('{0}', k); };
   cks().forEach(c => c.addEventListener('change', sync));
   if (all) all.addEventListener('change', () => { cks().forEach(c => { c.checked = all.checked; }); sync(); });
   const post = (url, body) => fetch(url, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)}).then(r => r.json());
@@ -89,7 +89,7 @@
     const ps = sel(); if (!ps.length) { toast(T.sel, 'error'); return; }
     post('/reports/unused/preview', {device_id: DEV, ports: ps}).then(j => {
       if (j.error) { toast(j.error, 'error'); return; }
-      document.getElementById('up-dsub').textContent = T.sub.replace('{0}', ps.length).replace('{1}', DAYS);
+      document.getElementById('up-dsub').textContent = (ps.length === 1 ? T.sub1 : T.sub).replace('{0}', ps.length).replace('{1}', DAYS);
       document.getElementById('up-cmds').textContent = j.commands;
       const pv = Object.entries(j.prev || {}).filter(e => e[1]).map(e => e[0] + ': «' + e[1] + '»').join(' · ');
       document.getElementById('up-prev').textContent = pv ? T.prev + ' ' + pv : '';
@@ -105,7 +105,7 @@
   const exc = document.getElementById('up-exc');
   if (exc) exc.addEventListener('click', () => {
     const ps = sel(); if (!ps.length) { toast(T.sel, 'error'); return; }
-    post('/reports/unused/except', {device_id: DEV, ports: ps}).then(j => { if (j.ok) { toast(T.exc.replace('{0}', j.n)); setTimeout(() => location.reload(), 700); } });
+    post('/reports/unused/except', {device_id: DEV, ports: ps}).then(j => { if (j.ok) { toast(j.n === 1 ? T.exc1 : T.exc.replace('{0}', j.n)); setTimeout(() => location.reload(), 700); } });
   });
 })();
 </script>

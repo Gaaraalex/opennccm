@@ -166,5 +166,21 @@ with SessionLocal() as db:
     db.commit()
 check("«Documentos generados» avisa si la red cambió desde entonces", "La red cambió: 1 equipo nuevo" in adm.get(B + "/reports/netdoc").text)
 check("descargar un documento ajeno a la carpeta: no", adm.get(B + "/reports/netdoc/..%2F..%2Fsecret/file").status_code in (403, 404, 422))
+# ---- RoMON en el mapa: un MikroTik a dos saltos, unido al salto anterior con una línea punteada
+with SessionLocal() as db:
+    d = db.get(Device, ids["IMP-SUC"])
+    nbx = json.loads(d.neighbors) + [
+        {"local_port": "", "remote_name": "IMP-ROMON-1", "remote_port": "", "remote_ip": "", "mac": "6C:3B:6B:00:00:01",
+         "platform": "MikroTik CRS326", "romon": True, "hops": 1, "via": "", "version": "7.16"},
+        {"local_port": "", "remote_name": "IMP-ROMON-2", "remote_port": "", "remote_ip": "", "mac": "6C:3B:6B:00:00:02",
+         "platform": "MikroTik wAP", "romon": True, "hops": 2, "via": "6C:3B:6B:00:00:01", "version": "7.16"}]
+    d.neighbors = json.dumps(nbx)
+    db.commit()
+topo = adm.get(B + "/topology").text
+check("mapa: los MikroTik que encuentra RoMON, con línea punteada y su salto anterior",
+      '"romon": true' in topo and "u:imp-romon-1|u:imp-romon-2|romon" in topo and "Por RoMON (sin puerto)" in topo)
+j = adm.get(B + f"/api/impact/{ids['IMP-SUC']}").json()
+check("…y RoMON no cuenta para el análisis de impacto (no dice por qué puerto)",
+      "IMP-ROMON-1" not in json.dumps(j), j.get("sentence"))
 print("\nRESULTADO:", "TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}")
 sys.exit(1 if fails else 0)

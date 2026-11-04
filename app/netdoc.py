@@ -118,49 +118,67 @@ def collect(user, opts: dict) -> dict:
             "graph": g, "ids": ids, "snap": snap, "nodata": [g.nodes[n]["name"] for n in g.nodata if n in ids]}
 
 
-def layout(g: impact.Graph, ids: set[str], w: float = 500, h: float = 320, box: float = 76) -> tuple[dict, list]:
-    """Posiciones por niveles: arriba el núcleo (el equipo más conectado y los vecinos casi tan conectados como él),
-    debajo lo que cuelga de cada nivel. Una fila que no cabe se parte en dos. Los equipos sueltos van al final."""
+def layout(g: impact.Graph, ids: set[str], w: float = 500, row: float = 36, box: float = 76) -> tuple[dict, list, float]:
+    """Posiciones del mapa del documento: (posiciones, enlaces, alto). Cada grupo de equipos enlazados se arma por niveles
+    (arriba el núcleo: el más conectado y los vecinos casi tan conectados como él; debajo lo que cuelga de cada nivel, en
+    filas que caben en el ancho). Los grupos se acomodan uno al lado del otro, como en estantes, y los equipos sin enlaces
+    conocidos van al final en una grilla. El alto sale de las filas que hagan falta: nada queda encimado."""
     keep = set(ids) | {n for i in ids for n in g.adj.get(i, ()) if g.nodes[n]["dev"] is None}
     if not keep:
-        return {}, []
-    deg = {n: len(g.adj.get(n, set()) & keep) for n in keep}
-    level: dict[str, int] = {}
-    left = set(keep)
-    base = 0
-    while left:
-        root = max(left, key=lambda n: (deg[n], g.nodes[n]["name"]))
-        top = {root} | {n for n in g.adj.get(root, set()) & left if deg[n] >= max(2, deg[root] * 0.6)}
-        todo = sorted(top, key=lambda n: g.nodes[n]["name"])
-        for n in todo:
-            level[n] = base
+        return {}, [], 0
+    adj = {n: g.adj.get(n, set()) & keep for n in keep}
+    name = lambda n: g.nodes[n]["name"].lower()  # noqa: E731
+    per_row = max(1, int(w // box))
+    blocks, left = [], set(keep)
+    while left:  # cada grupo conexo, del más grande al más chico
+        root = max(left, key=lambda n: (len(adj[n]), name(n)))
+        comp, todo = {root}, [root]
+        while todo:
+            x = todo.pop()
+            for y in adj[x] - comp:
+                comp.add(y)
+                todo.append(y)
+        left -= comp
+        top = {root} | {n for n in adj[root] if len(adj[n]) >= max(2, len(adj[root]) * 0.6)}
+        level = {n: 0 for n in top}
+        todo = sorted(top, key=name)
         while todo:
             x = todo.pop(0)
-            left.discard(x)
-            for y in sorted(g.adj.get(x, set()) & keep, key=lambda n: g.nodes[n]["name"]):
+            for y in sorted(adj[x], key=name):
                 if y not in level:
                     level[y] = level[x] + 1
                     todo.append(y)
-        base = max(level.values()) + 1
-    per_row = max(1, int(w // box))
-    rows: list[list[str]] = []
-    for lv in range(max(level.values()) + 1):
-        ns = sorted((n for n in keep if level[n] == lv), key=lambda n: g.nodes[n]["name"])
-        for k in range(0, len(ns), per_row):
-            rows.append(ns[k:k + per_row])
-    rows = [r for r in rows if r]
-    pos = {}
-    for r, ns in enumerate(rows):
-        y = h / 2 if len(rows) == 1 else 24 + r * (h - 48) / (len(rows) - 1)
-        for k, n in enumerate(ns):
-            pos[n] = ((k + 1) * w / (len(ns) + 1), y)
+        rows = []
+        for lv in range(max(level.values()) + 1):
+            ns = sorted((n for n in comp if level[n] == lv), key=name)
+            rows += [ns[k:k + per_row] for k in range(0, len(ns), per_row)]
+        blocks.append([r for r in rows if r])
+    linked = sorted((b for b in blocks if len(b) > 1 or len(b[0]) > 1), key=lambda b: -sum(len(r) for r in b))
+    alone = sorted((b[0][0] for b in blocks if len(b) == 1 and len(b[0]) == 1), key=name)
+    blocks = linked + [[alone[k:k + per_row]] for k in range(0, len(alone), per_row)]
+    pos: dict[str, tuple[float, float]] = {}
+    x0 = shelf_y = shelf_h = 0.0
+    for b in blocks:  # estantes: se pone a la derecha del anterior si cabe; si no, en el estante de abajo
+        bw = max(len(r) for r in b) * box
+        if x0 and x0 + bw > w + 1:
+            shelf_y, x0, shelf_h = shelf_y + shelf_h + row * 0.4, 0.0, 0.0
+        for r, ns in enumerate(b):
+            for k, n in enumerate(ns):
+                pos[n] = (x0 + (k + 0.5) * bw / len(ns), shelf_y + (r + 0.5) * row)
+        x0 += bw + box * 0.3
+        shelf_h = max(shelf_h, len(b) * row)
+    height = shelf_y + shelf_h
+    if x0 and len(blocks) == 1:  # un solo grupo: centrado
+        dx = (w - (x0 - box * 0.3)) / 2
+        pos = {n: (x + dx, y) for n, (x, y) in pos.items()}
     edges = [(e["a"], e["b"]) for e in g.edges if e["a"] in pos and e["b"] in pos]
-    return pos, edges
+    return pos, edges, height
 
 
 def mini_svg(data: dict, w: int = 172, h: int = 120) -> str:
     """El mapa chico de la vista previa (página 2)."""
-    pos, edges = layout(data["graph"], data["ids"], w, h, 24)
+    pos, edges, hh = layout(data["graph"], data["ids"], w, 22, 24)
+    h = max(h, int(hh) + 2)
     if not pos:
         return '<div style="font-size:8.5px;color:#55607a">' + html.escape(_("Sin vecinos LLDP/CDP: no hay mapa.")) + "</div>"
     out = [f'<svg viewBox="0 0 {w} {h}" width="{w}" height="{h}" aria-hidden="true"><g stroke="#9aa6bf" stroke-width="1.2">']
@@ -195,6 +213,34 @@ def save_logo(raw: bytes) -> str:
     return ""
 
 
+def remove_logo() -> None:
+    for old in DIR.glob("logo.*") if DIR.exists() else []:
+        old.unlink()
+
+
+def inv_table(data: dict) -> tuple[list, list, tuple]:
+    """Inventario. La columna «Sitio» solo si hay más de uno (en un documento de un sitio repetiría lo mismo)."""
+    many = len({r["site"] for r in data["inv"]}) > 1
+    head = [_("Equipo"), _("IP"), _("Plataforma"), _("Modelo"), _("Serie"), _("Firmware")] + ([_("Sitio")] if many else [])
+    rows = [[r["name"], r["ip"], r["platform"], r["model"], r["serial"], r["version"]] + ([r["site"]] if many else [])
+            for r in data["inv"]]
+    return head, rows, ((26, 20, 26, 24, 24, 24, 30) if many else (32, 22, 32, 30, 30, 28))
+
+
+def comp_table(data: dict) -> tuple[list, list, tuple, str]:
+    """Cumplimiento y CVE. Si ningún equipo se auditó, sin las columnas de reglas (con una nota); si algunos sí, «sin
+    auditar» en los que no."""
+    audited = any(c["pct"] is not None for c in data["comp"])
+    cves = [(c["crit"], c["high"], c["other"]) for c in data["comp"]]
+    if not audited:
+        return ([_("Equipo"), _("CVE críticos"), _("CVE altos"), _("Otros CVE")],
+                [[c["name"], *v] for c, v in zip(data["comp"], cves)], (64, 36, 37, 37),
+                _("Todavía no se auditó el cumplimiento de estos equipos (Cumplimiento › Auditar ahora)."))
+    return ([_("Equipo"), _("Reglas cumplidas"), _("Infracciones"), _("CVE críticos"), _("CVE altos"), _("Otros CVE")],
+            [[c["name"], _("sin auditar") if c["pct"] is None else f"{c['pct']} %", "—" if c["pct"] is None else c["fails"], *v]
+             for c, v in zip(data["comp"], cves)], (44, 30, 25, 25, 25, 25), "")
+
+
 # --------------------------------------------------------------------------- PDF
 def _pdf(data: dict, opts: dict) -> tuple[bytes, int]:
     from reportlab.graphics.shapes import Drawing, Line, Rect, String
@@ -205,7 +251,7 @@ def _pdf(data: dict, opts: dict) -> tuple[bytes, int]:
     from reportlab.platypus import Image, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
     ss = getSampleStyleSheet()
-    h1 = ParagraphStyle("h1", parent=ss["Heading1"], fontName="Helvetica-Bold", fontSize=16, spaceAfter=8,
+    h1 = ParagraphStyle("h1", parent=ss["Heading1"], fontName="Helvetica-Bold", fontSize=16, spaceAfter=8, keepWithNext=1,
                         textColor=colors.HexColor("#1b2333"))
     body = ParagraphStyle("b", parent=ss["BodyText"], fontName="Helvetica", fontSize=9, leading=12,
                           textColor=colors.HexColor("#33405a"))
@@ -239,25 +285,26 @@ def _pdf(data: dict, opts: dict) -> tuple[bytes, int]:
     secs = opts["sections"]
     if "inventory" in secs:
         n += 1
-        story += [Paragraph(e(f"{n} · " + _("Inventario")), h1),
-                  table([_("Equipo"), _("IP"), _("Plataforma"), _("Modelo"), _("Serie"), _("Firmware"), _("Sitio")],
-                        [(r["name"], r["ip"], r["platform"], r["model"], r["serial"], r["version"], r["site"]) for r in data["inv"]],
-                        (28, 20, 28, 26, 26, 26, 20)), Spacer(1, 6 * mm)]
+        story += [Paragraph(e(f"{n} · " + _("Inventario")), h1), table(*inv_table(data)), Spacer(1, 6 * mm)]
     if "map" in secs:
         n += 1
         title = Paragraph(e(f"{n} · " + _("Mapa de la red")), h1)
-        pos, edges = layout(data["graph"], data["ids"], 480, 330)
+        pos, edges, hh = layout(data["graph"], data["ids"], 480, 36, 74)
         if pos:
-            dr = Drawing(480, 340)
+            if hh > 640:  # más alto que la página: se achica para que entre
+                k = 640 / hh
+                pos, hh = {n: (x, y * k) for n, (x, y) in pos.items()}, 640
+            H = hh + 10
+            dr = Drawing(480, H)
             for a, b in edges:
-                dr.add(Line(pos[a][0], 340 - pos[a][1], pos[b][0], 340 - pos[b][1], strokeColor=colors.HexColor("#9aa6bf"), strokeWidth=1))
+                dr.add(Line(pos[a][0], H - 5 - pos[a][1], pos[b][0], H - 5 - pos[b][1], strokeColor=colors.HexColor("#9aa6bf"), strokeWidth=0.8))
             for k, (x, y) in pos.items():
                 nd = data["graph"].nodes[k]
                 mine = nd["dev"] is not None
-                dr.add(Rect(x - 34, 340 - y - 9, 68, 18, rx=4, ry=4, fillColor=blue if mine else colors.white,
+                dr.add(Rect(x - 34, H - 5 - y - 9, 68, 18, rx=4, ry=4, fillColor=blue if mine else colors.white,
                             strokeColor=blue, strokeWidth=0.8))
                 name = nd["name"] if len(nd["name"]) <= 14 else nd["name"][:13] + "…"
-                dr.add(String(x, 340 - y - 3, name, fontName="Helvetica-Bold", fontSize=6.5, textAnchor="middle",
+                dr.add(String(x, H - 5 - y - 3, name, fontName="Helvetica-Bold", fontSize=6.5, textAnchor="middle",
                               fillColor=colors.white if mine else blue))
             story.append(KeepTogether([title, dr, Paragraph(e(_(MAP_NOTE) + (" " + _f("Sin vecinos conocidos: {0}.", ", ".join(
                 data["nodata"][:12])) if data["nodata"] else "")), body)]))
@@ -268,7 +315,7 @@ def _pdf(data: dict, opts: dict) -> tuple[bytes, int]:
         n += 1
         story += [Paragraph(e(f"{n} · " + _("VLAN y direcciones IP")), h1)]
         story.append(table([_("VLAN"), _("Nombre"), _("Equipos")], [(v["id"], v["name"], v["devs"]) for v in data["vlans"]] or
-                           [("—", _("No se encontraron VLAN en las configuraciones"), "")], (20, 110, 30)))
+                           [("—", _("No se encontraron VLAN en las configuraciones"), "")], (24, 120, 30)))
         story.append(Spacer(1, 4 * mm))
         story.append(table([_("Equipo"), _("Interfaz"), _("Dirección")], [(x["dev"], x["iface"], x["ip"]) for x in data["ips"]] or
                            [("—", "", "")], (50, 64, 60)))
@@ -277,19 +324,18 @@ def _pdf(data: dict, opts: dict) -> tuple[bytes, int]:
         n += 1
         story += [Paragraph(e(f"{n} · " + _("Enlaces entre equipos")), h1),
                   table([_("Equipo"), _("Puerto"), _("Equipo"), _("Puerto")],
-                        [(x["a"], x["pa"], x["b"], x["pb"]) for x in data["links"]] or [("—", "", "", "")], (43, 43, 43, 43)),
+                        [(x["a"], x["pa"], x["b"], x["pb"]) for x in data["links"]] or [("—", "", "", "")], (44, 43, 44, 43)),
                   Spacer(1, 6 * mm)]
     if "compliance" in secs:
         n += 1
-        story += [Paragraph(e(f"{n} · " + _("Cumplimiento y vulnerabilidades")), h1),
-                  table([_("Equipo"), _("Reglas cumplidas"), _("Infracciones"), _("CVE críticos"), _("CVE altos"), _("Otros CVE")],
-                        [(c["name"], "—" if c["pct"] is None else f"{c['pct']} %", c["fails"], c["crit"], c["high"], c["other"])
-                         for c in data["comp"]], (45, 28, 25, 25, 25, 25)), Spacer(1, 6 * mm)]
+        head, rows, widths, note = comp_table(data)
+        story += [Paragraph(e(f"{n} · " + _("Cumplimiento y vulnerabilidades")), h1)] + \
+            ([Paragraph(e(note), body), Spacer(1, 3 * mm)] if note else []) + [table(head, rows, widths), Spacer(1, 6 * mm)]
     if "backups" in secs:
         n += 1
         story += [Paragraph(e(f"{n} · " + _("Último respaldo de cada equipo")), h1),
                   table([_("Equipo"), _("Último respaldo"), _("Estado")], [(b["name"], b["at"], b["status"]) for b in data["backups"]],
-                        (70, 50, 40))]
+                        (84, 50, 40))]
     pages = [0]
 
     def foot(c, doc):
@@ -311,9 +357,10 @@ def _pdf(data: dict, opts: dict) -> tuple[bytes, int]:
 # --------------------------------------------------------------------------- Word (.docx)
 def _png_map(data: dict, w: int = 1000, h: int = 680) -> bytes | None:
     from PIL import Image, ImageDraw, ImageFont
-    pos, edges = layout(data["graph"], data["ids"], w, h - 20, 150)
+    pos, edges, hh = layout(data["graph"], data["ids"], w, 70, 152)
     if not pos:
         return None
+    h = int(hh) + 20
     im = Image.new("RGB", (w, h), "white")
     dr = ImageDraw.Draw(im)
     try:
@@ -321,7 +368,7 @@ def _png_map(data: dict, w: int = 1000, h: int = 680) -> bytes | None:
     except TypeError:  # Pillow viejo
         font = ImageFont.load_default()
     for a, b in edges:
-        dr.line([pos[a][0], pos[a][1] + 10, pos[b][0], pos[b][1] + 10], fill="#9aa6bf", width=2)
+        dr.line([pos[a][0], pos[a][1] + 10, pos[b][0], pos[b][1] + 10], fill="#9aa6bf", width=1)
     for k, (x, y) in pos.items():
         nd = data["graph"].nodes[k]
         mine = nd["dev"] is not None
@@ -395,14 +442,17 @@ def _docx(data: dict, opts: dict) -> bytes:
     if "inventory" in secs:
         n += 1
         p(f"{n} · " + _("Inventario"), "Heading1")
-        table([_("Equipo"), _("IP"), _("Plataforma"), _("Modelo"), _("Serie"), _("Firmware"), _("Sitio")],
-              [(r["name"], r["ip"], r["platform"], r["model"], r["serial"], r["version"], r["site"]) for r in data["inv"]])
+        head, rows, _w = inv_table(data)
+        table(head, rows)
     if "map" in secs:
         n += 1
         p(f"{n} · " + _("Mapa de la red"), "Heading1")
         png = _png_map(data)
         if png:
-            img("rMap", "mapa.png", png, 165, 112)
+            from PIL import Image as PImage
+            with PImage.open(io.BytesIO(png)) as im:
+                ratio = im.height / max(1, im.width)
+            img("rMap", "mapa.png", png, 165, min(230, 165 * ratio))
             p(_(MAP_NOTE), color="55607A")
         else:
             p(_("Ningún equipo de este alcance informa vecinos LLDP/CDP: no hay mapa."))
@@ -419,8 +469,10 @@ def _docx(data: dict, opts: dict) -> bytes:
     if "compliance" in secs:
         n += 1
         p(f"{n} · " + _("Cumplimiento y vulnerabilidades"), "Heading1")
-        table([_("Equipo"), _("Reglas cumplidas"), _("Infracciones"), _("CVE críticos"), _("CVE altos"), _("Otros CVE")],
-              [(c["name"], "—" if c["pct"] is None else f"{c['pct']} %", c["fails"], c["crit"], c["high"], c["other"]) for c in data["comp"]])
+        head, rows, _w, note = comp_table(data)
+        if note:
+            p(note, color="55607A")
+        table(head, rows)
     if "backups" in secs:
         n += 1
         p(f"{n} · " + _("Último respaldo de cada equipo"), "Heading1")

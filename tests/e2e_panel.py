@@ -176,13 +176,36 @@ check("alarmas: severidad con forma y texto (sin valores crudos)", 'class="sev '
 if eid:
     r = adm.post(B + "/events/ack", data={"id": eid.group(1)}, headers={"Referer": B + "/events?unack=1"})
     check("reconocer una alarma avisa y ofrece «Deshacer»", '<div class="flash ok">Alarma reconocida</div>' in r.text
-          and 'action="/events/unack"' in r.text and f'value="{eid.group(1)}"' in r.text)
+          and 'action="/events/unack"' in r.text and 'value="saved"' in r.text)
     check("el lector no puede deshacer", lec.post(B + "/events/unack", data={"ids": eid.group(1)},
                                                    allow_redirects=False).status_code == 403)
-    r = adm.post(B + "/events/unack", data={"ids": eid.group(1)}, headers={"Referer": B + "/events?unack=1"})
+    r = adm.post(B + "/events/unack", data={"ids": "saved"}, headers={"Referer": B + "/events?unack=1"})
     check("«Deshacer» vuelve a dejar la alarma pendiente", "la alarma vuelve a estar pendiente" in r.text
           and f'name="id" value="{eid.group(1)}"' in r.text)
     check("el aviso de «Deshacer» sale una sola vez", 'action="/events/unack"' not in adm.get(B + "/events").text)
+
+# --- «Reconocer todas» con cientos de alarmas: la cookie de la sesión no crece (antes nginx respondía 502) y las
+# alarmas críticas de CVE (un estado, no un incidente) se reconocen aunque la regla de la base de conocimiento esté activa
+from app.db import Event, SessionLocal, set_setting  # noqa: E402
+
+set_setting("kb_rule_critical", "1")
+with SessionLocal() as db:
+    db.add_all([Event(severity="warning", category="Prueba masiva", message=f"alarma {i}") for i in range(800)])
+    db.add_all([Event(severity="critical", category="Vulnerabilidad de firmware", message=f"CVE {i}") for i in range(20)])
+    db.commit()
+r = adm.post(B + "/events/ack", data={}, headers={"Referer": B + "/events"}, allow_redirects=False)
+ck = r.headers.get("set-cookie", "")
+check("«Reconocer todas» con 820 alarmas: responde y la cookie de la sesión sigue chica", r.status_code in (302, 303) and len(ck) < 3500,
+      (r.status_code, len(ck)))
+with SessionLocal() as db:
+    left = db.query(Event).filter(Event.acknowledged.is_(False), Event.category.in_(["Prueba masiva", "Vulnerabilidad de firmware"])).count()
+check("…se reconocen todas, también las críticas de CVE (no piden un caso)", left == 0, left)
+r = adm.post(B + "/events/unack", data={"ids": "saved"}, headers={"Referer": B + "/events"})
+m = re.search(r"Se deshizo: (\d+) alarmas vuelven a estar pendientes", r.text)
+check("…y «Deshacer» las vuelve a dejar pendientes (todas las de esa vez)", m is not None and int(m.group(1)) >= 820, m.group(0) if m else "")
+adm.post(B + "/events/ack", data={}, headers={"Referer": B + "/events"})
+check("una recarga con GET de /events/ack vuelve a la lista (no «Method Not Allowed»)",
+      adm.get(B + "/events/ack", allow_redirects=False).status_code in (302, 303, 307))
 
 m = re.search(r"<b>lector9</b>[\s\S]*?/users/(\d+)/edit", adm.get(B + "/users").text)
 if m:
