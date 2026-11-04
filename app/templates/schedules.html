@@ -7,7 +7,8 @@
 {% for s in items %}{% set nxt = jobs.get('sched-' ~ s.id) %}
 <tr><td><div class="dev"><span class="qi {{ 'info' if s.enabled else 'mut' }}" style="width:32px;height:32px">{{ icon('cal', 's') }}</span>{{ s.name }}</div></td>
   <td class="sm">{{ _(ACTIONS.get(s.action, s.action)) }}{% if s.action == 'configlet' and s.configlet_id %} «{{ cfl_names.get(s.configlet_id, '?') }}»{% endif %}
-    <div class="muted">{% if s.group %}{{ _f('Grupo {0}', s.group.name) }}{% elif s.action in ('backup', 'compliance', 'cve', 'configlet') %}Todos los equipos{% endif %}</div></td>
+    <div class="muted">{% if s.group %}{{ _f('Grupo {0}', s.group.name) }}{% elif s.action in ('backup', 'compliance', 'cve', 'configlet') %}Todos los equipos{% endif %}</div>
+    {% set im = imps.get(s.id) %}{% if im %}<div class="sm" style="margin-top:4px"><span class="pill {{ {'high': 'crit', 'medium': 'warn', 'none': 'ok'}.get(im.level, '') }}">{{ _('Reinicia') }} · {{ im.label }}</span> <span class="muted">{{ im.sentence }}</span></div>{% endif %}</td>
   <td class="sm">{{ s.cron|cron_text }}</td>
   <td class="{{ '' if s.enabled else 'muted' }}" style="white-space:nowrap">{% if s.enabled and nxt %}<span title="{{ nxt|dt }}">{{ nxt|cuando }}</span>{% else %}En pausa{% endif %}</td>
   <td>{% if s.last_run %}<span class="pill ok" title="{{ s.last_run|dt }}">{{ s.last_run|ago }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>

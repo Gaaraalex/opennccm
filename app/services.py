@@ -648,6 +648,9 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
             rear = chassis.parse(chassis.MARK + craw if craw else None, dev.device_type)
             dev.ports = json.dumps({"at": now().isoformat(), "status": has_status, "ports": plist, "rear": rear,
                                     "raw": (ports_raw or "")[-12000:]}) if plist or any(rear.values()) else None
+            if plist and has_status:  # cuándo tuvo enlace cada puerto por última vez (informe «Puertos sin uso»)
+                from . import netreports
+                dev.port_seen, dev.port_seen_since = netreports.track(dev.port_seen, dev.port_seen_since, plist)
 
         # solo se lee si falta (_license_missing); la misma que ya estaba guardada no se vuelve a guardar
         new_license = bool(license_raw) and license_raw != (try_decrypt(dev.license_enc) if dev.license_enc else None)
@@ -966,10 +969,24 @@ def render_commands(body: str, dev: Device, variables: dict) -> list[str]:
     return [l for l in text.splitlines() if l.strip()]
 
 
+def run_due_changes():
+    """Cada minuto: las solicitudes aprobadas para una hora (ventana de mantenimiento) que ya llegó."""
+    with SessionLocal() as db:
+        due = [c.id for c in db.scalars(select(ChangeRequest).where(ChangeRequest.status == "approved",
+                                                                     ChangeRequest.run_at.is_not(None),
+                                                                     ChangeRequest.run_at <= now()))]
+    for cid in due:
+        with SessionLocal() as db:
+            c = db.get(ChangeRequest, cid)
+            c.run_at = None  # una sola vez
+            db.commit()
+        jobs.submit(execute_change_request, cid)
+
+
 def execute_change_request(cr_id: int):
     with SessionLocal() as db:
         cr = db.get(ChangeRequest, cr_id)
-        if cr.status not in ("approved",):
+        if cr.status not in ("approved",) or (cr.run_at is not None and cr.run_at > now()):
             return
         cr.status = "running"
         db.commit()

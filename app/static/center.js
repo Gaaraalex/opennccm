@@ -73,8 +73,13 @@
         '<button type="button" class="tbtn" data-pm="find" data-id="' + id + '" title="' + esc(T.find) + '" aria-label="' + esc(T.find) + '">' + ic('search') + '</button>' +
         '<button type="button" class="tbtn" data-pm="theme" data-id="' + id + '" title="' + esc(T.theme) + '" aria-label="' + esc(T.theme) + '">' + ic('moon') + '</button>' +
         '<button type="button" class="btn s ghost" data-share="' + id + '">' + esc(T.share) + '</button><button type="button" class="btn s ghost" data-files="' + id + '">' + esc(T.files) + '</button>' +
-        (D.ai ? '<button type="button" class="btn s ghost" data-pm="ai" data-id="' + id + '">✦ ' + esc(T.ai) + '</button>' : '') +
+        (D.ai ? '<button type="button" class="btn s ghost cx-aibtn" data-pm="ai" data-id="' + id + '">' + (D.ailogo || '✦ ') + esc(T.ai) + '</button>' : '') +
         '<button type="button" class="tbtn" data-pm="reconnect" data-id="' + id + '" title="' + esc(T.recon) + '" aria-label="' + esc(T.recon) + '">' + ic('refresh') + '</button>' +
+        // tamaño, como el diálogo de la ficha: letra, ampliar en la ventana, ventana aparte y pantalla completa
+        '<button type="button" class="tbtn txt" data-pm="fs-" data-id="' + id + '" title="' + esc(T.fsm) + '" aria-label="' + esc(T.fsm) + '">A−</button>' +
+        '<button type="button" class="tbtn txt" data-pm="fs+" data-id="' + id + '" title="' + esc(T.fsp) + '" aria-label="' + esc(T.fsp) + '">A+</button>' +
+        '<button type="button" class="btn s ghost" data-big="' + id + '" aria-pressed="false">' + ic('expand') + '<span>' + esc(T.big) + '</span></button>' +
+        '<button type="button" class="tbtn" data-win="' + id + '" title="' + esc(T.win) + '" aria-label="' + esc(T.win) + '">' + ic('monitor') + '</button>' +
         '<button type="button" class="tbtn" data-full="' + id + '" title="' + esc(T.full) + '" aria-label="' + esc(T.full) + '">' + ic('expand') + '</button></div>' +
         '<iframe src="/devices/' + id + '/console?embed=2" title="' + esc(d.name) + '"></iframe>';
       frames[id] = w;
@@ -96,18 +101,36 @@
     Object.keys(frames).forEach(function (id) { frames[id].hidden = shown.indexOf(+id) < 0; });
     shown.forEach(function (id) { var f = frame(id); f.classList.toggle('on', id === active); if (!f.parentNode) grid.appendChild(f); f.hidden = false; });
     $('cc-open').textContent = open.length === 1 ? T.open1 : T.open.replace('{0}', open.length);
+    document.body.classList.toggle('cc-big', !!document.querySelector('.cc-panel.big:not([hidden])'));
   }
   $('cc-stabs').addEventListener('click', function (e) {
     var a = e.target.closest('[data-act]'), x = e.target.closest('[data-x]');
     if (x) { var id = +x.dataset.x; open = open.filter(function (i) { return i !== id; }); if (active === id) active = open[0] || null; save(); paint(); }
     else if (a) { active = +a.dataset.act; save(); paint(); }
   });
+  // «Ampliar»: la sesión ocupa toda la ventana del navegador (sin pantalla completa); Esc o el mismo botón la devuelven
+  function big(w, on) {
+    if (!w) return;
+    Object.keys(frames).forEach(function (k) { if (frames[k] !== w) frames[k].classList.remove('big'); });
+    w.classList.toggle('big', on); document.body.classList.toggle('cc-big', on);
+    var b = w.querySelector('[data-big]'); b.setAttribute('aria-pressed', on ? 'true' : 'false'); b.lastChild.textContent = on ? T.small : T.big;
+    setTimeout(function () { msgTo(+w.dataset.id, {cmd: 'fit'}); }, 60);
+  }
+  document.addEventListener('keydown', function (e) { var w = document.querySelector('.cc-panel.big'); if (e.key === 'Escape' && w) big(w, false); });
   $('cc-layout').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) { layout = +b.dataset.n; save(); paint(); } });
   $('cc-grid').addEventListener('click', function (e) {
     var p = e.target.closest('.cc-panel'); if (p && +p.dataset.id !== active) { active = +p.dataset.id; save(); paint(); }
     var s = e.target.closest('[data-share]'), f = e.target.closest('[data-files]'), pm = e.target.closest('[data-pm]'), fu = e.target.closest('[data-full]');
     if (pm) msgTo(+pm.dataset.id, {cmd: pm.dataset.pm});
     if (fu && frames[fu.dataset.full].requestFullscreen) frames[fu.dataset.full].requestFullscreen();
+    var bg = e.target.closest('[data-big]');
+    if (bg) big(frames[bg.dataset.big], !frames[bg.dataset.big].classList.contains('big'));
+    var wn = e.target.closest('[data-win]');
+    if (wn) {  // ventana aparte: esta sesión se cierra aquí y se abre otra en la ventana
+      var url = '/devices/' + wn.dataset.win + '/console', wid = +wn.dataset.win;
+      open = open.filter(function (i) { return i !== wid; }); if (active === wid) active = open[0] || null; save(); paint();
+      if (window.abrirVentana) window.abrirVentana(url, 'consola-' + wid, 1000, 640); else window.open(url);
+    }
     if (s) msgTo(+s.dataset.share, {cmd: 'share'});
     if (f) files(+f.dataset.files, '/');
   });

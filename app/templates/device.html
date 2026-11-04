@@ -246,7 +246,20 @@
   <div class="bento"><div class="c6 stack">
     <div class="field"><label for="fwimg">Imagen</label><div class="input"><select id="fwimg" name="image_id">{% for i in images %}<option value="{{ i.id }}">{{ i.filename }}{% if i.version %} · {{ i.version }}{% endif %}</option>{% endfor %}</select></div>
       <span class="help">{{ _f('Se transfiere por SCP a {0}, se verifica el MD5 en el equipo y se configura el arranque. Requiere aprobación.', profile.firmware.fs) }}</span></div>
-    <label class="ck"><input type="checkbox" name="reload"> Reiniciar al terminar</label>
+    <label class="ck"><input type="checkbox" name="reload" id="fw-reload"> Reiniciar al terminar</label>
+    <div class="banner sm" id="fw-imp" hidden role="status"></div>
+    <script>
+    (function () {  // al marcar «Reiniciar», qué queda sin servicio (app/impact.py, con el mapa LLDP/CDP)
+      const ck = document.getElementById('fw-reload'), box = document.getElementById('fw-imp');
+      ck.addEventListener('change', () => {
+        if (!ck.checked) { box.hidden = true; return; }
+        fetch('/api/impact/{{ device.id }}', {credentials: 'same-origin'}).then(r => r.json()).then(j => {
+          box.className = 'banner sm ' + ({high: 'crit', medium: 'warn', none: 'ok'}[j.level] || 'info');
+          box.textContent = j.label + ': ' + j.sentence; box.hidden = false;
+        }).catch(() => { box.hidden = true; });
+      });
+    })();
+    </script>
     <div><button class="btn pri">Solicitar actualización…</button></div></div>
   <div class="c6"><div class="summ">{{ icon('shield') }}<div><b>Antes de actualizar</b><div class="muted sm">Se hace un respaldo automático. Si el equipo no vuelve en 10 minutos, aparece en Alarmas.{% if crit_cves %} {{ _f('Hay {0} CVE críticos en la versión instalada.', crit_cves) }}{% endif %}</div></div></div></div></div>
   </form>

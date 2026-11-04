@@ -335,6 +335,13 @@ check("cambiar de modelo: solo uno de la cuenta", r.status_code == 400, r.text)
 ia.post(B + "/api/ai/model", json={"model": "modelo-falso"})
 check("Operar › Consola: cada sesión tiene su botón «Asistente»", '"ai": true' in adm.get(B + "/console").text
       and 'data-pm="ai"' in adm.get(B + "/static/center.js").text)
+cjs = adm.get(B + "/static/center.js").text
+check("Operar › Consola: los mismos tamaños que la consola de la ficha (letra, ampliar, ventana aparte, pantalla completa)",
+      all(x in cjs for x in ('data-pm="fs-"', 'data-pm="fs+"', "data-big=", "data-win=", "data-full=")))
+cc = json.loads(re.search(r'<script type="application/json" id="cc-data">(.*?)</script>', adm.get(B + "/console").text, re.S).group(1))
+check("Operar › Consola: el botón «Asistente» lleva el logo del proveedor", "ai-tile" in cc.get("ailogo", ""), cc.get("ailogo"))
+check("asistente: la cabecera se oculta desde ella misma («Ocultar»)",
+      json.loads(__import__("html").unescape(mt.group(1))).get("hide") == "Ocultar" and "data-headtog" in adm.get(B + "/static/assistant.js").text)
 r = ia.post(B + "/api/ai/chat", json={"q": "documenta esto y crea un configlet", "path": "/kb", "title": "Base"}).json()
 acts = {a["kind"]: a for a in r.get("actions", [])}
 check("chat: prepara un configlet y un borrador de caso para confirmar", set(acts) >= {"configlet", "kb"}
@@ -343,6 +350,9 @@ j = ia.post(B + "/api/ai/chat/act", json={"id": acts.get("configlet", {}).get("i
 cl = adm.get(B + "/configlets").text
 check("chat: al confirmar crea el configlet (sin tipos de equipo inventados)", j.get("ok") and "VLAN de invitados" in cl
       and "/configlets/" in j.get("url", ""), j)
+run = adm.get(B + j.get("url", "/configlets").replace("/edit", "/run")).text if j.get("ok") else ""
+check("chat: el configlet aplica a sus tipos de equipo (expresión regular, no una lista con comas): R1 es compatible",
+      "^(cisco_ios)$" in adm.get(B + j.get("url", "/configlets")).text and "R1" in run and "No hay equipos compatibles" not in run)
 j = ia.post(B + "/api/ai/chat/act", json={"id": acts.get("kb", {}).get("id", "")}).json()
 ed = adm.get(B + j.get("url", "/kb")).text if j.get("ok") else ""
 check("chat: al confirmar deja el caso como borrador en la Base de conocimiento", j.get("ok") and "/edit" in j.get("url", "")

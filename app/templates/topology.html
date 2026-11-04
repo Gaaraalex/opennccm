@@ -26,6 +26,10 @@
   .topo-node .name{font:600 12px var(--f-sans);fill:var(--ink);pointer-events:none;paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
   .topo-node .sub{font:400 10.5px var(--f-mono);fill:var(--muted);pointer-events:none}
   .topo-node.dim,.topo-node.vdim{opacity:.25}.topo-node.hit .ring{stroke-width:4}
+  /* «¿Qué se cae?» (app/impact.py): rojo aislado, ámbar router o sucursal, verde sigue por otro camino */
+  .topo-node.imp-sub .ring{fill:var(--crit-soft);stroke:var(--crit);stroke-width:4}.topo-node.imp-red .ring{fill:var(--crit-soft);stroke:var(--crit);stroke-width:3}
+  .topo-node.imp-amber .ring{fill:var(--warn-soft);stroke:var(--warn);stroke-width:3}.topo-node.imp-green .ring{fill:var(--ok-soft);stroke:var(--ok);stroke-width:3}
+  .topo-imp{border-radius:10px;padding:10px 12px;background:var(--surface-2);font-size:13px;line-height:1.45}
   .topo-chips{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px}
   .topo-chips .chip{padding-left:6px}.topo-chips .chip[aria-pressed="true"]{border-color:var(--brand);background:var(--brand-soft);color:var(--ink)}
   .topo-chips .chip[aria-pressed="true"] .n{color:var(--ink-2)}
@@ -96,7 +100,7 @@
   const svg = document.getElementById('tsvg');
   if (!svg) return;
   const NODES = {{ nodes|tojson }}, LINKS = {{ links|tojson }}, ADMIN = {{ (user.role == 'admin')|tojson }};
-  const L = {{ {'open': _('Abrir el equipo'), 'add': _('Agregar a OpenNCCM'), 'notin': _('No está en OpenNCCM'), 'notin_a': _('no está en OpenNCCM'),
+  const L = {{ {'falls': _('¿Qué se cae?'), 'falls_x': _('Quitar el análisis'), 'open': _('Abrir el equipo'), 'add': _('Agregar a OpenNCCM'), 'notin': _('No está en OpenNCCM'), 'notin_a': _('no está en OpenNCCM'),
                 'links': _('Enlaces'), 'close': _('Cerrar'), 'how': _('Cómo se reconoció'),
                 'st': {'ok': _('Respaldo correcto'), 'error': _('Último respaldo con error'), 'pending': _('Sin respaldo todavía'),
                        'new': _('No está en OpenNCCM')},
@@ -233,13 +237,15 @@
     wrap.classList.toggle('side-open', open); side.toggleAttribute('inert', !open);
     clearTimeout(refit); refit = setTimeout(reframe, was === open ? 0 : 450);
   }
+  function clearImp() { NODES.forEach(m => nodeEls[m.id].classList.remove('imp-sub', 'imp-red', 'imp-amber', 'imp-green')); }
   function unselect() {
-    cur = null; panel(false);
+    cur = null; panel(false); clearImp();
     edgeEls.forEach(x => { x.line.classList.remove('hl'); x.g.classList.remove('on'); x.on = false; x.own = ''; });
     NODES.forEach(m => nodeEls[m.id].classList.remove('sel'));
     place(); ports();
   }
   function select(n) {
+    clearImp();
     const ls = LINKS.filter(e => e.a === n.id || e.b === n.id), many = ls.length > 8;
     // los puertos solo se ven en los enlaces del equipo elegido (en todos a la vez tapan el centro del mapa); con más de 8
     // enlaces, solo el del vecino: los del propio equipo están en la lista «Enlaces» del panel
@@ -258,9 +264,24 @@
       return `<div class="topo-lk"><span class="mono sm">${esc(me ? e.pa : e.pb) || '—'}</span><span class="muted" aria-hidden="true">→</span><span class="o">${esc(o.label)}</span><span class="mono sm muted">${esc(me ? e.pb : e.pa) || ''}</span></div>`;
     }).join('') + '</div>';
     if (n.kind === 'new') h += ADMIN ? `<a class="btn pri" style="justify-content:center" href="/devices/new?name=${encodeURIComponent(n.name || '')}&host=${encodeURIComponent(n.ip || '')}" data-sheet data-title="${esc(L.add)}">${esc(L.add)}</a>` : '';
-    else h += `<a class="btn pri" style="justify-content:center" href="${esc(n.href)}">${esc(L.open)}</a>`;
+    else h += `<a class="btn pri" style="justify-content:center" href="${esc(n.href)}">${esc(L.open)}</a>`
+      + `<button type="button" class="btn" style="justify-content:center" data-falls>${esc(L.falls)}</button><div class="topo-imp" data-imp hidden></div>`;
     sideIn.innerHTML = h; panel(true);
     sideIn.querySelector('[data-x]').addEventListener('click', unselect);
+    const fb = sideIn.querySelector('[data-falls]');
+    if (fb) fb.addEventListener('click', () => {  // qué queda sin servicio si este equipo se reinicia o se cae
+      if (fb.dataset.on) { clearImp(); fb.textContent = L.falls; delete fb.dataset.on; sideIn.querySelector('[data-imp]').hidden = true; return; }
+      fetch('/api/impact/' + n.id.slice(1), {credentials: 'same-origin'}).then(r => r.json()).then(j => {
+        clearImp();
+        const mark = (id, c) => { if (nodeEls[id]) nodeEls[id].classList.add(c); };
+        mark(n.id, 'imp-sub');
+        (j.isolated || []).forEach(x => mark(x.id, 'imp-red')); (j.branches || []).forEach(x => mark(x.id, 'imp-amber'));
+        (j.kept_ids || []).forEach(id => mark(id, 'imp-green'));
+        const box = sideIn.querySelector('[data-imp]');
+        box.textContent = j.label + ': ' + j.sentence + (j.age ? ' · LLDP/CDP ' + j.age : '');
+        box.hidden = false; fb.textContent = L.falls_x; fb.dataset.on = '1';
+      });
+    });
   }
   // arrastrar equipos, mover y hacer zoom en el lienzo
   let tf = {x: 0, y: 0, k: 1}, drag = null, pan = null, moved = false, net = -1;

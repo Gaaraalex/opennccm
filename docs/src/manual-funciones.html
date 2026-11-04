@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.23.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 2.24.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -612,6 +612,32 @@ lo aprobó, qué se aplicó y con qué resultado.</p>
 responde: se detiene y lo informa.</div>
 <figure><img src="img/14-solicitud-pendiente.png"><figcaption>Solicitud pendiente con vista previa y formulario de revisión.</figcaption></figure>
 <figure><img src="img/13-solicitudes.png" style="max-height:95mm"><figcaption>Historial de solicitudes con su estado.</figcaption></figure>
+<h2 id="impacto">Análisis de impacto: «¿Qué se cae si toco este equipo?»</h2>
+<p>Cuando una solicitud <b>reinicia</b> equipos (comandos como <code>reload</code>, <code>reboot</code>, <code>/system reboot</code>
+o un firmware con «Reiniciar al terminar») o <b>apaga puertos</b>, OpenNCCM calcula con el mapa de la red (vecinos LLDP/CDP del
+último respaldo) qué queda sin servicio mientras dure el corte, y lo muestra en la solicitud:</p>
+<ul>
+  <li>Una tarjeta <b>Impacto alto / medio / sin impacto</b> con una frase («Si reinicias CORE-01 quedan aislados 3 equipos y se
+  cortan 2 enlaces a routers o sucursales») y un mini-mapa: en <b>rojo</b> lo que queda aislado (sin camino alternativo), en
+  <b>ámbar</b> los routers, firewalls y equipos de otra ubicación que se cortan, en <b>verde</b> los vecinos que siguen por otro
+  camino. Al lado, las listas con de quién cuelga cada uno.</li>
+  <li>Lo que no se sabe se dice: los equipos que no informan vecinos «no se pudieron evaluar», el cálculo lleva la hora del
+  respaldo del que salen los datos y no se estima cuánto dura el corte (depende del equipo).</li>
+  <li>Con impacto alto o medio, <b>Aprobar</b> queda desactivado hasta marcar <b>Leí el impacto</b>. Al aprobar, el impacto que se
+  mostró queda en <b>Auditoría</b> junto con la aprobación.</li>
+  <li><b>Ejecutar a esta hora:</b> la solicitud aprobada puede quedar programada para la ventana de mantenimiento (por omisión, hoy
+  a las 23:00); se ejecuta sola a esa hora.</li>
+  <li>Si en Ajustes se desactivó «Exigir aprobación», una solicitud que deja equipos aislados (o cuyo impacto no se puede
+  calcular) igual espera aprobación.</li>
+</ul>
+<p><b>Firmware de varios equipos con reinicio:</b> la solicitud muestra el <b>orden sugerido</b> (primero los que no aíslan a
+nadie, juntos; después, de a uno, los que sí) y se ejecuta en ese orden, esperando que termine cada paso. Nunca reinicia a la vez
+dos equipos que juntos dejan sin servicio más que cada uno por separado, y avisa cuáles son.</p>
+<p>El mismo cálculo aparece al marcar <b>Reiniciar al terminar</b> en «Actualizar firmware» de la ficha, en las <b>tareas
+programadas</b> con un configlet que reinicia y en el <b>mapa de la red</b>: el botón <b>¿Qué se cae?</b> del panel de cada
+equipo pinta el mapa con los mismos colores.</p>
+<div class="note"><b>Para que sea preciso</b>Active LLDP o CDP en los equipos (y en sus vecinos) y respáldelos: el cálculo usa los
+vecinos que se leen en cada respaldo. Un equipo con dos uplinks aparece en verde; si tiene uno solo, en rojo.</div>
 <div class="note"><b>Opciones en Ajustes</b>«Exigir aprobación» (activado por defecto) y «Permitir que un administrador apruebe sus
 propias solicitudes» (activado por defecto desde la versión 1.4.0; desactívelo si quiere que siempre revise otro administrador). Las actualizaciones de firmware siempre requieren aprobación.</div>
 </section>
@@ -1054,7 +1080,33 @@ HP/Aruba, Dell, Ruckus, Allied, MikroTik, EdgeSwitch, UniFi Switch y EXOS, si ti
   <tr><td>Vulnerabilidades</td><td>CVE por equipo</td></tr>
   <tr><td>Solicitudes de cambio</td><td>Quién pidió, quién aprobó y el resultado</td></tr>
   <tr><td>Auditoría de usuarios</td><td>Inicios de sesión y acciones (solo administradores)</td></tr>
+  <tr><td>Puertos sin uso</td><td>Puertos de acceso de los switches sin enlace hace más de 30, 60 o 90 días (ver abajo)</td></tr>
+  <tr><td>Documento de la red</td><td>PDF o Word con lo que OpenNCCM sabe de la red (ver abajo)</td></tr>
 </table>
+<h2 id="puertos-sin-uso">Puertos sin uso</h2>
+<p><b>Informes → Puertos sin uso</b> muestra, por switch, cuántos puertos de acceso están <b>en uso</b>, <b>sin enlace</b> hace más
+de 30, 60 o 90 días y <b>libres</b> (apagados o marcados «SIN-USO»), con los «switches casi llenos» (menos del 10&nbsp;% libre).
+Se filtra por sitio (la «Ubicación» de cada equipo) y VLAN, y se exporta en CSV.</p>
+<ul>
+  <li>No cuenta los <b>uplinks</b> (puertos con un vecino LLDP/CDP que es switch, router o firewall), las <b>troncales</b>, los
+  puertos con <b>802.1X</b> ni los que tienen una <b>excepción</b> («Marcar como excepción»).</li>
+  <li>OpenNCCM anota en cada respaldo la última vez que cada puerto tuvo enlace. <b>No hay historial anterior</b>: el informe dice
+  desde cuándo hay datos y, mientras no pase el plazo elegido, no presenta un puerto como «sin enlace hace 90 días».</li>
+  <li><b>Preparar «shutdown» como solicitud de cambio</b> arma la configuración de cada fabricante (descripción
+  <code>SIN-USO-AAAA-MM</code> y apagado), guarda la descripción anterior para revertir y la envía a aprobación, con su análisis
+  de impacto. Está para Cisco IOS/IOS-XE/NX-OS, Arista, EdgeSwitch y similares, Aruba, HPE ProCurve, Huawei/Comware, Juniper,
+  Extreme EXOS y MikroTik.</li>
+</ul>
+<p>Apagar los puertos sin uso también es una mejora de seguridad: nadie puede conectar un equipo en un puerto olvidado.</p>
+<h2 id="documento-red">Documento de la red</h2>
+<p><b>Informes → Documento de la red</b> genera un <b>PDF</b> o un <b>Word (.docx)</b> de un sitio, un grupo o toda la red, con las
+secciones que se elijan: inventario (modelo, serie y firmware), mapa de la red, VLAN y direcciones IP, enlaces entre equipos,
+cumplimiento y vulnerabilidades y el último respaldo de cada equipo. Opcionalmente lleva una <b>portada</b> con el logo (PNG o JPEG)
+y el nombre del cliente, y puede <b>ocultar las IP públicas</b>. Las contraseñas, comunidades SNMP y claves nunca salen: el
+documento no lleva configuraciones.</p>
+<p>Los documentos generados quedan en la lista con <b>Ver</b> (el PDF en el navegador), <b>Descargar</b> y, si la red cambió desde
+entonces («La red cambió: 3 equipos nuevos, 1 VLAN y 2 firmwares»), <b>Regenerar</b>. Cada documento generado y descargado queda
+en Auditoría.</p>
 <div class="two">
 <figure><img src="img/23-informes.png"><figcaption>Lista de informes.</figcaption></figure>
 <figure><img src="img/24-informe-inventario.png"><figcaption>Informe de inventario en pantalla.</figcaption></figure>

@@ -1,0 +1,113 @@
+{% extends "base.html" %}{% block title %}{{ _('Puertos sin uso') }}{% endblock %}
+{% block crumbs %}<a href="/reports">{{ _('Informes') }}</a>{{ icon('right', 's') }}<b>{{ _('Puertos sin uso') }}</b>{% endblock %}
+{% block content %}
+{# Informes › Puertos sin uso (app/netreports.py): capacidad de cada switch y puertos de acceso sin enlace hace más de N días. #}
+<style>
+  .up-f{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .up-kpi{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+  @media (max-width:900px){.up-kpi{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  .up-kpi .v{font:700 24px var(--f-sans);margin-top:4px}.up-kpi .lbl,.up-l .lbl{font:700 10.5px var(--f-sans);letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+  .up-main{display:grid;grid-template-columns:minmax(280px,380px) minmax(0,1fr);gap:14px;align-items:start}
+  @media (max-width:900px){.up-main{grid-template-columns:1fr}}
+  .up-sw{display:flex;align-items:center;gap:12px;padding:10px 14px;border-top:1px solid var(--line);color:inherit;text-decoration:none}
+  .up-sw:hover,.up-sw.on{background:var(--surface-2)}.up-sw .grow{min-width:0}
+  .up-bar{display:flex;height:8px;border-radius:99px;overflow:hidden;background:var(--surface-2)}
+  .up-bar i{display:block}.up-bar .u{background:var(--brand)}.up-bar .n{background:var(--warn)}.up-bar .f{background:var(--ok)}
+  .up-leg{display:flex;gap:12px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--line)}.up-leg i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px}
+  .up-t td,.up-t th{vertical-align:middle}.up-t .nl{color:var(--warn);font-weight:600}
+  .dlg.up-pane{width:min(640px,calc(100vw - 24px));max-width:none;max-height:85vh;overflow:hidden;padding:0;gap:0;display:flex;flex-direction:column}
+  .up-pane .up-h{flex:none;padding:18px 22px 12px;border-bottom:1px solid var(--line)}
+  .up-pane .up-b{flex:1 1 auto;min-height:0;overflow:auto;padding:14px 22px}
+  .up-pane .up-ft{flex:none;padding:12px 22px;border-top:1px solid var(--line)}
+</style>
+<div class="ph"><div class="grow"><h1>{{ _('Puertos sin uso') }}</h1><div class="sub">{{ _('Puertos de acceso de los switches que llevan tiempo sin enlace: para saber cuántos quedan libres y apagar los que nadie usa.') }}</div></div></div>
+<form class="up-f" method="get" action="/reports/unused" id="up-f">
+  <span class="muted sm">{{ _('Sin enlace hace más de') }}</span>
+  <div class="seg" role="group" aria-label="{{ _('Días') }}">{% for d in (30, 60, 90) %}<button type="submit" name="days" value="{{ d }}" class="{{ 'on' if u.days == d }}">{{ _f('{0} días', d) }}</button>{% endfor %}</div>
+  <input type="hidden" name="days" value="{{ u.days }}" disabled>
+  <div class="input" style="width:auto"><select name="site" aria-label="{{ _('Sitio') }}" onchange="this.form.days.disabled=false;this.form.submit()"><option value="">{{ _('Sitio: todos') }}</option>{% for s in u.sites %}<option {{ 'selected' if s == u.site }}>{{ s }}</option>{% endfor %}</select></div>
+  <div class="input" style="width:auto"><select name="vlan" aria-label="VLAN" onchange="this.form.days.disabled=false;this.form.submit()"><option value="">{{ _('VLAN: todas') }}</option>{% for v in u.vlans %}<option {{ 'selected' if v == u.vlan }}>{{ v }}</option>{% endfor %}</select></div>
+  <span class="grow"></span><a class="btn s" href="/reports/unused/csv?days={{ u.days }}&site={{ u.site|urlencode }}&vlan={{ u.vlan|urlencode }}">{{ icon('dl', 's') }}{{ _('Exportar CSV') }}</a>
+</form>
+{% if u.short %}<div class="banner info" style="margin-top:12px">{{ icon('info') }}<span class="grow">{{ _f('OpenNCCM mira el enlace de los puertos desde el {0} (en cada respaldo). Con {1} días de datos aún no puede decir qué puertos llevan más de {2} días sin enlace: esos aparecerán cuando pase ese tiempo.', u.oldest, u.data_days, u.days) }}</span></div>{% endif %}
+{% if u.nostatus %}<p class="muted sm">{{ _f('Sin estado de enlace (no se pueden evaluar): {0}.', u.nostatus|join(', ')) }}</p>{% endif %}
+{% if not u.switches %}
+<div class="card" style="margin-top:14px"><p class="muted" style="margin:0">{{ _('No hay switches con estado de puertos. El estado de los puertos se lee en cada respaldo; los equipos que no lo informan no aparecen aquí.') }}</p></div>
+{% else %}
+<div class="up-kpi" style="margin-top:14px">
+  <div class="card"><div class="lbl">{{ _('Puertos de acceso') }}</div><div class="v">{{ u.kpi.access }}</div><div class="muted sm">{{ _f('en {0} switches (sin uplinks ni troncales)', u.switches|length) }}</div></div>
+  <div class="card"><div class="lbl">{{ _('Sin enlace') }}</div><div class="v" style="color:var(--warn)">{{ u.kpi.nolink }}</div><div class="muted sm">{{ _f('{0} % · más de {1} días', u.kpi.nolink_pct, u.days) }}</div></div>
+  <div class="card"><div class="lbl">{{ _('Libres para usar') }}</div><div class="v" style="color:var(--ok)">{{ u.kpi.free }}</div><div class="muted sm">{{ _f('{0} % · apagados o ya recuperados', u.kpi.free_pct) }}</div></div>
+  <div class="card"><div class="lbl">{{ _('Switches casi llenos') }}</div><div class="v" style="color:var(--crit)">{{ u.kpi.full }}</div><div class="muted sm">{{ _('menos del 10 % libre: comprar o recuperar') }}</div></div>
+</div>
+<div class="up-main" style="margin-top:12px">
+  <div class="card up-l" style="padding:0"><div class="row" style="padding:10px 14px"><span class="lbl grow">{{ _('Switch') }}</span><span class="lbl" style="width:140px">{{ _('Capacidad') }}</span><span class="lbl" style="width:44px;text-align:right">{{ _('Sin uso') }}</span></div>
+    {% for s in u.switches %}<a class="up-sw {{ 'on' if cur and s.id == cur.id }}" href="/reports/unused?days={{ u.days }}&site={{ u.site|urlencode }}&vlan={{ u.vlan|urlencode }}&sw={{ s.id }}">
+      <span class="grow"><b>{{ s.name }}</b><span class="muted sm" style="display:block">{{ s.site or '—' }} · {{ _f('{0} puertos', s.total) }}</span></span>
+      <span style="width:140px"><span class="up-bar"><i class="u" style="width:{{ 100 * s.inuse / s.total }}%"></i><i class="n" style="width:{{ 100 * s.nolink / s.total }}%"></i><i class="f" style="width:{{ 100 * s.free / s.total }}%"></i></span>
+        <span class="sm" style="display:block;margin-top:4px;color:var(--{{ 'crit' if s.full else 'ok' }})">{{ _f('{0} libres', s.free) if s.free != 1 else _('1 libre') }}</span></span>
+      <span style="width:44px;text-align:right;font-weight:700;color:var(--warn)">{{ s.nolink }}</span></a>{% endfor %}
+    <div class="up-leg muted sm"><span><i style="background:var(--brand)"></i>{{ _('en uso') }}</span><span><i style="background:var(--warn)"></i>{{ _('sin enlace') }}</span><span><i style="background:var(--ok)"></i>{{ _('libres') }}</span></div>
+  </div>
+  <div class="card" style="padding:0">
+    {% if cur %}
+    <div class="row" style="padding:12px 14px;gap:8px;flex-wrap:wrap"><b class="grow">{{ _f('{0} · {1} puertos sin enlace', cur.name, cur.rows|length) }}</b><span class="muted sm"><span id="up-n">0</span> {{ _('elegidos') }}</span>
+      {% if user.role in ('admin', 'operator') %}<button type="button" class="btn s" id="up-exc">{{ _('Marcar como excepción') }}</button>
+      <button type="button" class="btn s pri" id="up-prep"{% if not cur.can_shut %} disabled title="{{ _('OpenNCCM no sabe apagar puertos en este tipo de equipo.') }}"{% endif %}>{{ _('Preparar «shutdown» como solicitud de cambio') }}</button>{% endif %}</div>
+    {% if cur.rows %}<table class="t up-t"><thead><tr><th style="width:28px"><input type="checkbox" id="up-all" aria-label="{{ _('Elegir todos') }}"></th><th>{{ _('Puerto') }}</th><th>VLAN</th><th>{{ _('Descripción') }}</th><th>{{ _('Sin enlace') }}</th></tr></thead><tbody>
+      {% for r in cur.rows %}<tr><td><input type="checkbox" class="up-ck" value="{{ r.n }}" aria-label="{{ _f('Elegir {0}', r.n) }}"></td><td class="mono">{{ r.n }}</td><td>{{ r.vlan or '—' }}</td><td>{{ r.d or '—' }}</td>
+        <td class="nl">{% if r.days is none %}{{ _f('nunca (datos desde el {0})', r.since) }}{% else %}{{ _f('{0} días', r.days) }}{% endif %}</td></tr>{% endfor %}
+    </tbody></table>
+    {% else %}<p class="muted sm" style="padding:0 14px">{{ _f('Ningún puerto de {0} lleva más de {1} días sin enlace.', cur.name, u.days) }}</p>{% endif %}
+    <p class="muted sm" style="padding:10px 14px;margin:0;border-top:1px solid var(--line)">{{ _('Apagar los puertos sin uso también es una mejora de seguridad: nadie puede conectar un equipo en un puerto olvidado. Los uplinks, las troncales, los puertos con 802.1X y los que tienen una excepción no se cuentan ni se proponen.') }}{% if cur.excluded %} {{ _f('En {0}: {1} excluidos.', cur.name, cur.excluded) }}{% endif %}</p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% if cur %}
+<dialog class="dlg up-pane" id="up-dlg" aria-labelledby="up-dh">
+  <div class="up-h"><h2 id="up-dh" style="margin:0;font-size:17px">{{ _f('Nueva solicitud de cambio · {0}', cur.name) }}</h2><div class="muted sm" id="up-dsub"></div></div>
+  <div class="up-b"><div class="lbl muted sm b">{{ _('CONFIGURACIÓN QUE SE APLICARÁ') }}</div><pre class="term" id="up-cmds" style="min-height:0;margin-top:6px"></pre>
+    <p class="muted sm" id="up-prev"></p>
+    <p class="muted sm" style="margin:0">{{ _('Pasa por aprobación como cualquier cambio, con su análisis de impacto, y queda en Auditoría.') }}</p></div>
+  <div class="row end up-ft"><button type="button" class="btn" data-close>{{ _('Cancelar') }}</button><button type="button" class="btn pri" id="up-send">{{ _('Enviar a aprobación') }}</button></div>
+</dialog>
+<script>
+(function () {
+  const DEV = {{ cur.id }}, DAYS = {{ u.days }}, T = {{ {'sel': _('Elija al menos un puerto.'), 'sub': _('Apagar {0} puertos sin enlace hace más de {1} días'), 'prev': _('La descripción anterior se guarda en la solicitud para poder revertirla:'), 'exc': _('{0} puertos marcados como excepción.')}|tojson }};
+  const cks = () => Array.from(document.querySelectorAll('.up-ck')), sel = () => cks().filter(c => c.checked).map(c => c.value);
+  const n = document.getElementById('up-n'), all = document.getElementById('up-all');
+  const sync = () => { n.textContent = sel().length; };
+  cks().forEach(c => c.addEventListener('change', sync));
+  if (all) all.addEventListener('change', () => { cks().forEach(c => { c.checked = all.checked; }); sync(); });
+  const post = (url, body) => fetch(url, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)}).then(r => r.json());
+  const toast = (t, k) => window.ocToast ? window.ocToast(t, k) : alert(t);
+  const dlg = document.getElementById('up-dlg');
+  dlg.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => dlg.close()));
+  const prep = document.getElementById('up-prep');
+  if (prep) prep.addEventListener('click', () => {
+    const ps = sel(); if (!ps.length) { toast(T.sel, 'error'); return; }
+    post('/reports/unused/preview', {device_id: DEV, ports: ps}).then(j => {
+      if (j.error) { toast(j.error, 'error'); return; }
+      document.getElementById('up-dsub').textContent = T.sub.replace('{0}', ps.length).replace('{1}', DAYS);
+      document.getElementById('up-cmds').textContent = j.commands;
+      const pv = Object.entries(j.prev || {}).filter(e => e[1]).map(e => e[0] + ': «' + e[1] + '»').join(' · ');
+      document.getElementById('up-prev').textContent = pv ? T.prev + ' ' + pv : '';
+      dlg.showModal();
+    });
+  });
+  document.getElementById('up-send').addEventListener('click', () => {
+    post('/reports/unused/shutdown', {device_id: DEV, ports: sel(), days: DAYS}).then(j => {
+      if (j.error) { toast(j.error, 'error'); return; }
+      dlg.close(); toast(j.msg); setTimeout(() => { location.href = j.url; }, 900);
+    });
+  });
+  const exc = document.getElementById('up-exc');
+  if (exc) exc.addEventListener('click', () => {
+    const ps = sel(); if (!ps.length) { toast(T.sel, 'error'); return; }
+    post('/reports/unused/except', {device_id: DEV, ports: ps}).then(j => { if (j.ok) { toast(T.exc.replace('{0}', j.n)); setTimeout(() => location.reload(), 700); } });
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

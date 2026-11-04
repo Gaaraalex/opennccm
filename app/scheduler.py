@@ -225,6 +225,9 @@ def start():
                       replace_existing=True)
     scheduler.add_job(updates.check_latest, IntervalTrigger(hours=24), id="update-check", replace_existing=True,
                       next_run_time=datetime.now() + timedelta(minutes=2))
+    # solicitudes de cambio aprobadas para una hora (ventana de mantenimiento)
+    from . import services as _svc
+    scheduler.add_job(_svc.run_due_changes, IntervalTrigger(minutes=1), id="due-changes", replace_existing=True)
     # actualizaciones de firmware de los equipos (MikroTik, Ubiquiti y NVD), una vez al día
     from . import fwupdates
     scheduler.add_job(fwupdates.scheduled, IntervalTrigger(hours=24), id="fw-update-check", replace_existing=True,

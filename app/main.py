@@ -10,7 +10,7 @@ import re
 import secrets
 import time
 from contextlib import asynccontextmanager
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from fastapi import FastAPI, Request
 from starlette.concurrency import run_in_threadpool
@@ -1936,6 +1936,17 @@ def _create_cr(user, title, body, variables, ids, is_rollback=False, kind="confi
             devs = list(db.scalars(select(Device).where(Device.id.in_(ids))))
             if services.lockout_risks(body, [(d, d.credential)[0] for d in devs]):
                 auto = False  # podría dejar a OpenNCCM sin acceso: que lo revise un administrador
+        if auto:
+            from types import SimpleNamespace
+
+            from . import impact
+            try:  # si reinicia o apaga puertos y deja equipos aislados, alguien tiene que leer el impacto y aprobarla
+                imp = impact.for_change(SimpleNamespace(device_ids=json.dumps(ids), variables=json.dumps(variables),
+                                                        kind=kind, body=body, reload=reload), user)
+            except Exception:  # noqa: BLE001
+                imp = None
+            if imp and imp["level"] in ("high", "medium", "nodata"):
+                auto = False
     with SessionLocal() as db:
         cr = ChangeRequest(title=title, body=body, variables=json.dumps(variables), device_ids=json.dumps(ids),
                            requested_by=user.username, is_rollback=is_rollback, kind=kind,
@@ -2029,12 +2040,21 @@ def change_detail(request: Request, cr_id: int):
     kind_label = (_("Firmware") if cr.kind == "firmware" else _("Reversión") if cr.is_rollback
                   else _("Corrección de cumplimiento") if cr.title.startswith(("Corrección", "Corregir")) else _("Configlet"))
     vend = {d.id: (get_profile(d.device_type).vendor if d.device_type in PROFILE_MAP else d.device_type)[:3].upper() for d in devs}
+    from . import impact
+    try:  # qué queda sin servicio si se reinicia o se apagan puertos (mapa LLDP/CDP); nunca impide ver la solicitud
+        imp = impact.for_change(cr, user)
+    except Exception:  # noqa: BLE001
+        log.exception("análisis de impacto de #%s", cr_id)
+        imp = None
     return render(request, "change.html", user, cr=cr, devices=devs, previews=previews, can_review=can_review,
-                  kind_label=kind_label, vend=vend, example=example, risks=risks)
+                  kind_label=kind_label, vend=vend, example=example, risks=risks, imp=imp,
+                  prev_desc=json.loads(cr.variables or "{}").get("_prev_desc") or {},
+                  default_run=now().replace(hour=23, minute=0, second=0, microsecond=0))
 
 
-def review_change(user: User, cr_id: int, decision: str, comment: str) -> tuple[bool, str]:
-    """Aprueba o rechaza una solicitud de cambio (web y app). (hecho, mensaje para el usuario)."""
+def review_change(user: User, cr_id: int, decision: str, comment: str, run_at=None) -> tuple[bool, str]:
+    """Aprueba o rechaza una solicitud de cambio (web y app). (hecho, mensaje para el usuario). Con run_at, la aprobada se
+    ejecuta a esa hora (services.run_due_changes, cada minuto)."""
     with SessionLocal() as db:
         cr = db.get(ChangeRequest, cr_id)
         if cr is None:
@@ -2056,8 +2076,12 @@ def review_change(user: User, cr_id: int, decision: str, comment: str) -> tuple[
             return False, _("Escribe por qué se rechaza: así quien la pidió sabe qué cambiar.")
         cr.status = "approved" if decision == "approve" else "rejected"
         cr.reviewed_by, cr.review_comment = user.username, comment
+        later = decision == "approve" and run_at is not None and run_at > now()
+        cr.run_at = run_at if later else None
         db.commit()
         status = cr.status
+    if status == "approved" and later:
+        return True, _f("Solicitud aprobada: se ejecutará {0}.", run_at.strftime("%d-%m-%Y %H:%M"))
     if status == "approved":
         services.jobs.submit(services.execute_change_request, cr_id)
         return True, _("Solicitud aprobada: ejecutándose en segundo plano")
@@ -2068,9 +2092,33 @@ def review_change(user: User, cr_id: int, decision: str, comment: str) -> tuple[
 async def change_review(request: Request, cr_id: int):
     user = require(request, "admin")
     form = await request.form()
-    ok, msg = review_change(user, cr_id, form.get("decision") or "", form.get("comment") or "")
+    decision = form.get("decision") or ""
+    imp, run_at = None, None
+    if decision == "approve":
+        from . import impact
+        with SessionLocal() as db:
+            cr = db.get(ChangeRequest, cr_id)
+            try:
+                imp = impact.for_change(cr, user) if cr is not None else None
+            except Exception:  # noqa: BLE001
+                imp = None
+        if imp and imp["level"] in ("high", "medium") and form.get("ack_impact") != "on":
+            flash(request, _("Primero marque «Leí el impacto»."), "error")
+            return go(f"/changes/{cr_id}")
+        if form.get("when") == "later" and form.get("run_at"):
+            try:
+                run_at = datetime.fromisoformat(form["run_at"])
+            except ValueError:
+                flash(request, _("La hora no es válida."), "error")
+                return go(f"/changes/{cr_id}")
+            if run_at <= now():
+                flash(request, _("Elija una hora futura para ejecutarla."), "error")
+                return go(f"/changes/{cr_id}")
+    ok, msg = review_change(user, cr_id, decision, form.get("comment") or "", run_at)
     if ok:
-        log_action(request, user, "change_approved" if form.get("decision") == "approve" else "change_rejected", f"#{cr_id}")
+        from . import impact
+        detail = f"#{cr_id}" + (f" · {impact.audit_text(imp)}" if imp else "") + (f" · a las {run_at:%Y-%m-%d %H:%M}" if run_at else "")
+        log_action(request, user, "change_approved" if decision == "approve" else "change_rejected", detail)
     if ok:
         flash(request, msg)
     else:
@@ -2376,12 +2424,30 @@ def schedules(request: Request):
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
         configlets = db.scalars(select(Configlet).order_by(Configlet.name)).all()
     jobs = {j.id: j.next_run_time for j in scheduler.scheduler.get_jobs()}
+    # tareas con un configlet que reinicia: qué queda sin servicio (app/impact.py) con los equipos a los que aplica
+    from . import impact
+    imps = {}
+    rebooting = {c.id: c for c in configlets if impact.REBOOT.search(c.body or "")}
+    if rebooting and any(s.action == "configlet" and s.configlet_id in rebooting for s in items):
+        try:
+            g = impact._graph()
+            with SessionLocal() as db:
+                alldevs = list(db.scalars(select(Device)))
+            for s in items:
+                c = rebooting.get(s.configlet_id) if s.action == "configlet" else None
+                if c is None:
+                    continue
+                ids = [d.id for d in alldevs if (not s.group_id or d.group_id == s.group_id)
+                       and (not c.device_type_filter or re.search(c.device_type_filter, d.device_type))]
+                imps[s.id] = impact.analyze(g, ids, user=user) if ids else None
+        except Exception:  # noqa: BLE001
+            log.exception("análisis de impacto de las tareas")
     from . import cronutil
     sf = {"name": "Respaldo nocturno", "action": "backup", "group_id": None, "configlet_id": None,
           **cronutil.to_form("0 2 * * *")}
     return render(request, "schedules.html", user, items=items, groups=groups, configlets=configlets, jobs=jobs,
                   DAYS=cronutil.DAYS, FREQS=cronutil.FREQS, ACTIONS=SCHEDULE_ACTIONS, sf=sf,
-                  cfl_names={c.id: c.name for c in configlets})
+                  cfl_names={c.id: c.name for c in configlets}, imps=imps)
 
 
 SCHEDULE_ACTIONS = {"backup": N_("Respaldo de configuración"), "compliance": N_("Auditoría de cumplimiento"),
@@ -3121,6 +3187,10 @@ app.include_router(fxi.router)
 from . import credview  # noqa: E402  (ver credenciales con MFA y contraseña)
 
 app.include_router(credview.router)
+from . import impact, netreports  # noqa: E402  (análisis de impacto; puertos sin uso y documento de la red)
+
+app.include_router(impact.router)
+app.include_router(netreports.router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)

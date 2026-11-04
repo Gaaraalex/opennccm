@@ -1,0 +1,67 @@
+{% extends "base.html" %}{% block title %}{{ _('Documento de la red') }}{% endblock %}
+{% block crumbs %}<a href="/reports">{{ _('Informes') }}</a>{{ icon('right', 's') }}<b>{{ _('Documento de la red') }}</b>{% endblock %}
+{% block content %}
+{# Informes › Documento de la red (app/netdoc.py): PDF o Word con lo que OpenNCCM sabe de la red, por sitio, grupo o toda. #}
+<style>
+  .nd-main{display:grid;grid-template-columns:minmax(280px,360px) minmax(0,1fr);gap:14px;align-items:start}
+  @media (max-width:900px){.nd-main{grid-template-columns:1fr}}
+  .nd .lbl{font:700 10.5px var(--f-sans);letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin-bottom:6px}
+  .nd-pages{display:flex;gap:14px;overflow-x:auto;padding-bottom:4px}
+  .nd-pg{flex:none;width:200px;height:270px;border-radius:6px;background:#f4f6fa;color:#1b2333;box-shadow:0 10px 30px -14px rgba(0,0,0,.45);
+    padding:14px;box-sizing:border-box;overflow:hidden;font-family:var(--f-sans)}
+  .nd-pg h4{margin:0 0 6px;font:700 11px var(--f-sans)}.nd-pg .r{display:flex;gap:6px;font-size:8.5px;padding:4px 0;border-bottom:1px solid #dde2ec}
+  .nd-pg .r b{width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nd-pg .r span{color:#55607a}
+  .nd-pg .m{font-size:8px;color:#8890a2;margin-top:6px}
+  .nd-doc{display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--line);flex-wrap:wrap}
+</style>
+<div class="ph"><div class="grow"><h1>{{ _('Documento de la red') }}</h1><div class="sub">{{ _('Lo que OpenNCCM ya sabe de la red, en un PDF o un Word listo para entregar a un cliente, a una auditoría o a otro técnico.') }}</div></div></div>
+<div class="nd-main nd">
+  <form class="card stack" method="post" action="/reports/netdoc" enctype="multipart/form-data" id="nd-f" style="gap:16px">
+    <div><div class="lbl">{{ _('Alcance') }}</div>
+      <div class="seg" role="radiogroup" aria-label="{{ _('Alcance') }}">
+        {% for k, l in [('site', _('Sitio')), ('group', _('Grupo')), ('all', _('Toda la red'))] %}<label class="segl"><input type="radio" name="scope" value="{{ k }}" class="vh" {{ 'checked' if k == 'all' }}><span>{{ l }}</span></label>{% endfor %}</div>
+      <div class="input" style="margin-top:8px" data-for="site" hidden><select name="site" aria-label="{{ _('Sitio') }}">{% for s, n in sites %}<option value="{{ s }}">{{ s }} · {{ _f('{0} equipos', n) }}</option>{% else %}<option value="">{{ _('No hay ubicaciones cargadas en los equipos') }}</option>{% endfor %}</select></div>
+      <div class="input" style="margin-top:8px" data-for="group" hidden><select name="group" aria-label="{{ _('Grupo') }}">{% for gid, name, n in groups %}<option value="{{ gid }}">{{ name }} · {{ _f('{0} equipos', n) }}</option>{% else %}<option value="0">{{ _('No hay grupos') }}</option>{% endfor %}</select></div>
+      <div class="muted sm" data-for="all" style="margin-top:6px">{{ _f('{0} equipos', total) }}</div>
+      <div class="help">{{ _('El sitio es la «Ubicación» de cada equipo.') }}</div></div>
+    <div><div class="lbl">{{ _('Formato') }}</div>
+      <div class="seg" role="radiogroup" aria-label="{{ _('Formato') }}"><label class="segl"><input type="radio" name="fmt" value="pdf" class="vh" checked><span>PDF</span></label><label class="segl"><input type="radio" name="fmt" value="docx" class="vh"><span>Word (.docx)</span></label></div></div>
+    <div><div class="lbl">{{ _('Secciones') }}</div><div class="stack" style="gap:8px">
+      {% for k, l in sections %}<label class="ck"><input type="checkbox" name="sec_{{ k }}" checked> {{ _(l) }}</label>{% endfor %}</div></div>
+    <div><div class="lbl">{{ _('Para quién') }}</div><div class="stack" style="gap:8px">
+      <label class="swrow"><span>{{ _('Portada con el logo y el nombre del cliente') }}</span><input type="checkbox" class="sw" name="cover" checked></label>
+      <div class="input"><input name="client" value="{{ client }}" placeholder="{{ _('Nombre del cliente') }}" aria-label="{{ _('Nombre del cliente') }}"></div>
+      <label class="sm">{{ _('Logo (PNG o JPEG, hasta 2 MB)') }}{% if has_logo %} · <span class="muted">{{ _('hay uno guardado; elija otro para cambiarlo') }}</span>{% endif %}<input type="file" name="logo" accept="image/png,image/jpeg" style="display:block;margin-top:4px"></label>
+      <label class="swrow"><span>{{ _('Ocultar también las IP públicas') }}</span><input type="checkbox" class="sw" name="hide_public"></label>
+      <div class="muted sm">{{ _('Las contraseñas, las comunidades SNMP y las claves nunca salen en el documento: no lleva configuraciones.') }}</div></div></div>
+    <button class="btn pri" style="justify-content:center">{{ _('Generar documento') }}</button>
+  </form>
+  <div class="stack" style="gap:12px">
+    <div class="lbl">{{ _('Vista previa') }} · <span id="nd-fmt">PDF</span></div>
+    {% if preview %}<div class="nd-pages" aria-label="{{ _('Vista previa de las primeras páginas') }}">
+      <div class="nd-pg" style="display:flex;flex-direction:column"><div style="width:34px;height:34px;border-radius:9px;background:#2347e8"></div><div style="font:800 16px var(--f-display,var(--f-sans));margin-top:auto">{{ _('Documento de la red') }}</div><div style="font-size:11px;color:#55607a;margin-top:4px" id="nd-cli">{{ client or '' }}{{ ' · ' if client }}{{ preview.label }}</div><div class="m">{{ _f('Generado por OpenNCCM · {0}', now_s) }}</div></div>
+      <div class="nd-pg"><h4>1 · {{ _('Inventario') }}</h4>{% for r in preview.inv[:8] %}<div class="r"><b>{{ r.name }}</b><span class="grow">{{ r.model }}</span><span>{{ r.version }}</span></div>{% endfor %}{% if preview.inv|length > 8 %}<div class="m">{{ _f('+ {0} equipos · con número de serie', preview.inv|length - 8) }}</div>{% endif %}</div>
+      <div class="nd-pg"><h4>2 · {{ _('Mapa de la red') }}</h4>{{ preview_svg|safe }}<h4 style="margin-top:8px">3 · VLAN</h4><div style="font-size:8.5px;color:#55607a;line-height:1.6">{% for v in preview.vlans[:4] %}{{ v.id }} {{ v.name }}<br>{% else %}{{ _('No se encontraron VLAN') }}{% endfor %}</div></div>
+    </div>{% else %}<div class="card"><p class="muted" style="margin:0">{{ _('Agregue equipos para generar el documento.') }}</p></div>{% endif %}
+    <div class="card" style="padding:0"><div style="padding:12px 14px"><b>{{ _('Documentos generados') }}</b></div>
+      {% for d in docs %}<div class="nd-doc"><span class="grow"><b>{{ d.label }} · {{ 'PDF' if d.fmt == 'pdf' else 'Word' }}</b><span class="muted sm" style="display:block">{{ d.when|ago }} · {{ d.user }}{% if d.pages %} · {{ _f('{0} páginas', d.pages) }}{% endif %}</span></span>
+        <span class="sm" style="color:var(--{{ 'warn' if d.changed else 'muted' }})">{{ d.changed or _('Sin cambios desde entonces') }}</span>
+        {% if d.fmt == 'pdf' %}<a class="btn s ghost" href="/reports/netdoc/{{ d.id }}/file?view=1" target="_blank" rel="noopener">{{ icon('eye', 's') }}{{ _('Ver') }}</a>{% endif %}
+        <a class="btn s" href="/reports/netdoc/{{ d.id }}/file">{{ icon('dl', 's') }}{{ _('Descargar') }}</a>
+        {% if d.changed and user.role in ('admin', 'operator') %}<form method="post" action="/reports/netdoc/{{ d.id }}/again" style="margin:0"><button class="btn s pri">{{ _('Regenerar') }}</button></form>{% endif %}</div>
+      {% else %}<p class="muted sm" style="padding:0 14px 12px;margin:0">{{ _('Todavía no se generó ninguno.') }}</p>{% endfor %}</div>
+  </div>
+</div>
+<script>
+(function () {
+  const f = document.getElementById('nd-f');
+  const sync = () => {
+    const sc = (f.querySelector('[name=scope]:checked') || {}).value;
+    f.querySelectorAll('[data-for]').forEach(el => { el.hidden = el.dataset.for !== sc; });
+    f.querySelectorAll('.segl').forEach(l => l.classList.toggle('on', l.querySelector('input').checked));
+    document.getElementById('nd-fmt').textContent = (f.querySelector('[name=fmt]:checked') || {}).value === 'docx' ? 'WORD' : 'PDF';
+  };
+  f.addEventListener('change', sync); sync();
+})();
+</script>
+{% endblock %}
