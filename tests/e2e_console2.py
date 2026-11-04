@@ -350,6 +350,9 @@ j = ia.post(B + "/api/ai/chat/act", json={"id": acts.get("configlet", {}).get("i
 cl = adm.get(B + "/configlets").text
 check("chat: al confirmar crea el configlet (sin tipos de equipo inventados)", j.get("ok") and "VLAN de invitados" in cl
       and "/configlets/" in j.get("url", ""), j)
+run = adm.get(B + j.get("url", "/configlets").replace("/edit", "/run")).text if j.get("ok") else ""
+check("chat: el configlet aplica a sus tipos de equipo (expresión regular, no una lista con comas): R1 es compatible",
+      "^(cisco_ios)$" in adm.get(B + j.get("url", "/configlets")).text and "R1" in run and "No hay equipos compatibles" not in run)
 j = ia.post(B + "/api/ai/chat/act", json={"id": acts.get("kb", {}).get("id", "")}).json()
 ed = adm.get(B + j.get("url", "/kb")).text if j.get("ok") else ""
 check("chat: al confirmar deja el caso como borrador en la Base de conocimiento", j.get("ok") and "/edit" in j.get("url", "")

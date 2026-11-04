@@ -495,7 +495,9 @@ def _resolve(user, raw: list, listed: list[str] | None = None) -> list[dict]:
                 from .drivers import PROFILES
                 keys = {p.key for p in PROFILES}
                 name = str(a["nombre"]).strip()[:128]
-                types = ",".join(x.strip() for x in str(a.get("tipos_de_equipo") or "").split(",") if x.strip() in keys)
+                picked = list(dict.fromkeys(x.strip() for x in str(a.get("tipos_de_equipo") or "").split(",") if x.strip() in keys))
+                # «Aplica a» es una expresión regular sobre el tipo de equipo: ^(cisco_ios|cisco_xe)$, no una lista con comas
+                types = "^(" + "|".join(re.escape(x) for x in picked) + ")$" if picked else ""
                 body = str(a["comandos"]).strip()[:8000]
                 out.append({"kind": "configlet", "label": label, "name": name, "body": body,
                             "desc": str(a.get("descripcion") or "")[:500], "ckind": "exec" if a.get("tipo_configlet") == "exec" else "config",
