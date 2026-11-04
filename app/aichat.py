@@ -28,17 +28,18 @@ from . import cmdref as _cmdref
 from .auth import ROLES, Forbidden, check_device, device_scope, require
 from .config import BASE_DIR
 from .crypto import try_decrypt
-from .db import (AiChat, AiUsage, ChangeRequest, ComplianceResult, ConfigVersion, Device, DeviceGroup, EolEntry, Event,
-                 Schedule, SessionLocal, audit, now)
+from .db import (AiChat, AiUsage, ChangeRequest, ComplianceResult, ConfigVersion, Configlet, Device, DeviceGroup, EolEntry,
+                 Event, KbCase, Schedule, SessionLocal, Vulnerability, audit, now)
 from .drivers import get_profile
 from .errors import short_error
 from .i18n import _, _f, get_lang
+from .kb import CATS as KB_CATS
 
 router = APIRouter()
-MAX_STEPS = 6
+MAX_STEPS = 8
 MANUAL = BASE_DIR.parent / "docs" / "src" / "manual-funciones.html"
 GO_PATHS = re.compile(r"^/(devices|versions|diff|changes|compliance|events|console|schedules|search|firmware|eol|vulns|topology|"
-                      r"ipam|reports|analytics|configlets|account)(/[\w\-./]*)?(\?[\w=&%.\-]*)?(#[\w\-]*)?$")
+                      r"ipam|reports|analytics|configlets|account|kb)(/[\w\-./]*)?(\?[\w=&%.\-]*)?(#[\w\-]*)?$")
 
 
 # --------------------------------------------------------------------------- funciones de solo lectura
@@ -220,6 +221,61 @@ def f_manual(user, tema: str) -> dict:
     return {"secciones": [{"titulo": t, "texto": b} for _s, _h, t, b in scored[:3]]}
 
 
+def f_vulnerabilidades(user, equipo: str = "", severidad: str = "") -> dict:
+    """CVE que encontró el escaneo, de los equipos que el usuario ve (los más graves primero)."""
+    with SessionLocal() as db:
+        ids = {d.id: d for d in _devs(db, user)}
+        q = select(Vulnerability).order_by(Vulnerability.score.desc().nulls_last()).limit(2000)
+        out = []
+        for v in db.scalars(q):
+            d = ids.get(v.device_id)
+            if d is None or (equipo and d.name.lower() != equipo.lower().strip()):
+                continue
+            if severidad and (v.severity or "").upper() != severidad.upper():
+                continue
+            out.append({"equipo": d.name, "equipo_id": d.id, "plataforma": get_profile(d.device_type).label,
+                        "version": d.os_version, "cve": v.cve_id, "puntaje": v.score, "severidad": v.severity,
+                        "descripcion": (v.description or "")[:300]})
+        return {"total": len(out), "vulnerabilidades": out[:60]}
+
+
+def f_base_conocimiento(user, texto: str) -> dict:
+    """Casos publicados de la Base de conocimiento que hablan de eso (cómo se resolvió antes en esta red)."""
+    from . import kb
+    if not kb.can_see(user):
+        return {"error": "sin permiso para la base de conocimiento"}
+    with SessionLocal() as db:
+        rows = db.scalars(kb._search(select(KbCase).where(KbCase.status == "published"), texto or "").limit(8)).all()
+        return {"casos": [{"codigo": kb.code(c.id), "url": f"/kb/{c.id}", "titulo": c.title, "sintoma": c.symptom[:400],
+                           "causa": c.cause[:400], "pasos": [s.get("t") or s.get("c") for s in json.loads(c.steps or "[]")][:8]}
+                          for c in rows]}
+
+
+def f_configlets(user) -> dict:
+    with SessionLocal() as db:
+        return {"configlets": [{"id": c.id, "nombre": c.name, "descripcion": c.description, "tipo": c.kind,
+                                "tipos_de_equipo": c.device_type_filter} for c in db.scalars(select(Configlet).order_by(Configlet.name))][:80]}
+
+
+def f_tareas(user) -> dict:
+    with SessionLocal() as db:
+        return {"tareas": [{"nombre": s.name, "accion": s.action, "cron": s.cron, "activa": s.enabled,
+                            "grupo": s.group.name if s.group else None, "ultima": _ago(s.last_run)}
+                           for s in db.scalars(select(Schedule).order_by(Schedule.name))][:80]}
+
+
+def f_plataformas(user, texto: str = "") -> dict:
+    """Tipos de equipo que admite OpenNCCM (la clave «device_type» de la importación), para migrar desde otro sistema."""
+    from .drivers import PROFILES
+    t = (texto or "").lower().strip()
+    rows = [{"device_type": p.key, "nombre": p.label, "fabricante": p.vendor} for p in PROFILES
+            if not t or t in (p.key + " " + p.label + " " + p.vendor).lower()]
+    return {"total": len(rows), "plataformas": rows[:80],
+            "importar": {"pagina": "/devices/import", "columnas": "name,host,device_type,credential,group,port,protocol,location",
+                         "nota": "CSV con una fila por equipo; device_type es una de estas claves; credential y group son "
+                                 "nombres que ya existen en OpenNCCM; protocol ssh o telnet."}}
+
+
 FUNCS = {
     "equipos": (f_equipos, "Lista los equipos que el usuario puede ver, con estado y último respaldo.",
                 {"estado": {"type": "string", "enum": ["todos", "error", "ok"]}, "texto": {"type": "string"}}),
@@ -234,6 +290,14 @@ FUNCS = {
     "ciclo_de_vida": (f_ciclo_de_vida, "Equipos sin soporte, sin parches o con fin de venta.", {}),
     "buscar_configs": (f_buscar_configs, "Busca un texto en la última configuración de cada equipo.", {"texto": {"type": "string"}}),
     "manual": (f_manual, "Busca en el Manual de funciones de OpenNCCM cómo se hace algo.", {"tema": {"type": "string"}}),
+    "vulnerabilidades": (f_vulnerabilidades, "CVE encontrados en los equipos (opcional: un equipo o una severidad CRITICAL/HIGH/MEDIUM/LOW).",
+                         {"equipo": {"type": "string"}, "severidad": {"type": "string"}}),
+    "base_conocimiento": (f_base_conocimiento, "Busca casos publicados de la Base de conocimiento (cómo se resolvió algo antes).",
+                          {"texto": {"type": "string"}}),
+    "configlets": (f_configlets, "Configlets y scripts guardados.", {}),
+    "tareas": (f_tareas, "Tareas programadas.", {}),
+    "plataformas": (f_plataformas, "Tipos de equipo que admite OpenNCCM y el formato CSV para importar equipos (migraciones).",
+                    {"texto": {"type": "string"}}),
 }
 ANSWER = {
     "type": "object",
@@ -243,11 +307,22 @@ ANSWER = {
             "nombre": {"type": "string"}, "estado": {"type": "string", "enum": ["ok", "aviso", "error"]},
             "motivo": {"type": "string"}}, "required": ["nombre", "estado", "motivo"]}},
         "acciones": {"type": "array", "items": {"type": "object", "properties": {
-            "tipo": {"type": "string", "enum": ["ir", "respaldar", "tarea", "solicitud_cambio"]},
+            "tipo": {"type": "string", "enum": ["ir", "respaldar", "tarea", "solicitud_cambio", "configlet", "caso_kb"]},
             "etiqueta": {"type": "string"}, "url": {"type": "string"},
             "equipos": {"type": "array", "items": {"type": "string"}},
-            "comandos": {"type": "string"}, "accion_tarea": {"type": "string", "enum": ["backup", "compliance", "cve"]},
-            "cron": {"type": "string"}, "nombre_tarea": {"type": "string"}}, "required": ["tipo", "etiqueta"]}},
+            "comandos": {"type": "string"},
+            "accion_tarea": {"type": "string", "enum": ["backup", "compliance", "cve", "system_backup"]},
+            "cron": {"type": "string"}, "nombre_tarea": {"type": "string"},
+            "nombre": {"type": "string", "description": "configlet: nombre único"},
+            "descripcion": {"type": "string"}, "tipo_configlet": {"type": "string", "enum": ["config", "exec"]},
+            "tipos_de_equipo": {"type": "string", "description": "configlet: claves device_type separadas por coma"},
+            "caso": {"type": "object", "description": "caso_kb: borrador para la Base de conocimiento", "properties": {
+                "titulo": {"type": "string"}, "categoria": {"type": "string", "enum": [k for k, _l in KB_CATS]},
+                "sintoma": {"type": "string"}, "causa": {"type": "string"},
+                "pasos": {"type": "array", "items": {"type": "object", "properties": {
+                    "texto": {"type": "string"}, "comando": {"type": "string"}}}},
+                "verificar": {"type": "string"}, "prevenir": {"type": "string"}}}},
+            "required": ["tipo", "etiqueta"]}},
         "fuente": {"type": "string", "description": "De dónde sale la respuesta, en pocas palabras."},
     },
     "required": ["texto"],
@@ -271,13 +346,22 @@ def _system(lang: str, page: dict) -> str:
             "de los últimos 7 días» o «Manual › Tareas programadas»). Acciones: «ir» con una url interna de OpenNCCM "
             "(/devices/ID, /devices/ID/console, /diff?a=ID&b=ID, /changes, /compliance, /events, /schedules, /search?q=…); "
             "«respaldar» con los equipos; «tarea» (accion_tarea, cron de 5 campos, nombre_tarea); «solicitud_cambio» "
-            "(equipos y comandos). En «motivo» usa el «error» corto que dan las funciones, tal cual. Nunca digas que hiciste algo: solo lo preparas y el usuario confirma. En los «¿cómo "
-            "hago…?» ofrece dejarlo listo y «Ver cómo se hace» (ir a la página). Los secretos aparecen como ******. ")
+            "(equipos y comandos); «configlet» (nombre, descripcion, tipo_configlet, tipos_de_equipo y en «comandos» la "
+            "plantilla Jinja2 con {{ variables }}) para scripts y configuraciones que se repiten; «caso_kb» (caso con "
+            "titulo, categoria, sintoma, causa, pasos con su comando, verificar y prevenir) para documentar en la Base de "
+            "conocimiento lo que se resolvió. En «motivo» usa el «error» corto que dan las funciones, tal cual. Nunca digas "
+            "que hiciste algo: solo lo preparas y el usuario confirma. En los «¿cómo hago…?» ofrece dejarlo listo y «Ver "
+            "cómo se hace» (ir a la página). Para proteger un equipo usa «vulnerabilidades», «cumplimiento» y "
+            "«ciclo_de_vida» y propone la corrección (firmware o comandos de esa plataforma y versión) como solicitud de "
+            "cambio. Para migrar desde otro sistema (RANCID, Oxidized, SolarWinds, una planilla…) usa «plataformas»: "
+            "traduce sus tipos de equipo a las claves device_type de OpenNCCM y da el CSV listo para /devices/import. "
+            "Antes de proponer comandos de un equipo, mira su ficha con «equipo» (trae sus comandos de referencia). "
+            "Los secretos aparecen como ******. ")
     if lang == "en":
         base += "Answer in English. "
     else:
         base += "Responde en español. "
-    return base + ctx
+    return base + assistant.SCOPE["en" if lang == "en" else "es"] + " " + ctx
 
 
 # --------------------------------------------------------------------------- bucle con cada proveedor
@@ -330,7 +414,7 @@ def _loop_anthropic(c, system, history, q, user, used):
     for _i in range(MAX_STEPS):
         r = requests.post(c["base"] + "/messages", timeout=assistant.TIMEOUT,
                           headers={"x-api-key": c["key"], "anthropic-version": "2023-06-01", "content-type": "application/json"},
-                          json={"model": c["model"], "max_tokens": 2000, "system": system, "messages": msgs, "tools": tools})
+                          json={"model": c["model"], "max_tokens": 4000, "system": system, "messages": msgs, "tools": tools})
         j = assistant._json(r)
         u = j.get("usage") or {}
         ti, to = ti + int(u.get("input_tokens") or 0), to + int(u.get("output_tokens") or 0)
@@ -407,7 +491,30 @@ def _resolve(user, raw: list, listed: list[str] | None = None) -> list[dict]:
                             "title": _("Crear solicitud de cambio"),
                             "summary": _f("{0} · {1} comandos (pasa por aprobación)", ", ".join(d.name for d in devs[:8]),
                                           len(cmds.splitlines()))})
-            elif t == "tarea" and user.role == "admin" and a.get("accion_tarea") in ("backup", "compliance", "cve"):
+            elif t == "configlet" and user.role == "admin" and (a.get("comandos") or "").strip() and (a.get("nombre") or "").strip():
+                from .drivers import PROFILES
+                keys = {p.key for p in PROFILES}
+                name = str(a["nombre"]).strip()[:128]
+                types = ",".join(x.strip() for x in str(a.get("tipos_de_equipo") or "").split(",") if x.strip() in keys)
+                body = str(a["comandos"]).strip()[:8000]
+                out.append({"kind": "configlet", "label": label, "name": name, "body": body,
+                            "desc": str(a.get("descripcion") or "")[:500], "ckind": "exec" if a.get("tipo_configlet") == "exec" else "config",
+                            "types": types or None, "title": _("Crear el configlet"),
+                            "summary": _f("{0} · {1} líneas (se revisa antes de ejecutarlo)", name, len(body.splitlines()))})
+            elif t == "caso_kb" and isinstance(a.get("caso"), dict) and (a["caso"].get("titulo") or "").strip():
+                from . import kb
+                if kb.can_write(user):
+                    k = a["caso"]
+                    case = {"title": str(k.get("titulo") or ""), "category": str(k.get("categoria") or ""),
+                            "symptom": str(k.get("sintoma") or ""), "cause": str(k.get("causa") or ""),
+                            "verify": str(k.get("verificar") or ""), "prevent": str(k.get("prevenir") or ""),
+                            "steps": [{"t": str(s.get("texto") or ""), "c": str(s.get("comando") or "")}
+                                      for s in (k.get("pasos") or []) if isinstance(s, dict)],
+                            "devices": [d.id for d in devs][:50]}
+                    out.append({"kind": "kb", "label": label, "case": case, "title": _("Crear el borrador del caso"),
+                                "summary": _f("{0} · {1} pasos (queda como borrador para revisarlo)", case["title"][:120],
+                                              len(case["steps"]))})
+            elif t == "tarea" and user.role == "admin" and a.get("accion_tarea") in ("backup", "compliance", "cve", "system_backup"):
                 from . import cronutil
                 cron = str(a.get("cron") or "").strip()
                 try:
@@ -457,7 +564,7 @@ def _public(msgs: list) -> list:
 
 
 def chat(user, q: str, page: dict) -> dict:
-    c = assistant.cfg()
+    c = assistant.cfg(user)
     if not assistant.allowed(user):
         raise assistant.AiError(_("El asistente no está disponible para su usuario."))
     if c["limit"] and assistant._today_count(user.username) >= c["limit"]:
@@ -536,6 +643,41 @@ def act(user, action_id: str) -> dict:
             db.commit()
         scheduler.reload_jobs()
         res = {"ok": True, "msg": _f("Tarea «{0}» creada.", a["name"]), "url": "/schedules"}
+    elif a["kind"] == "configlet":
+        if user.role != "admin":
+            raise Forbidden()
+        with SessionLocal() as db:
+            name, n = a["name"], 2
+            while db.scalar(select(Configlet).where(Configlet.name == name)) is not None:  # el nombre es único
+                name, n = f"{a['name'][:120]} ({n})", n + 1
+            cf = Configlet(name=name, description=a.get("desc") or None, kind=a.get("ckind") or "config", body=a["body"],
+                           device_type_filter=a.get("types"))
+            db.add(cf)
+            db.commit()
+            cid = cf.id
+        res = {"ok": True, "msg": _f("Configlet «{0}» creado. Revíselo antes de ejecutarlo.", name), "url": f"/configlets/{cid}/edit"}
+    elif a["kind"] == "kb":
+        from . import kb
+        if not kb.can_write(user):
+            raise Forbidden()
+        data, _hidden = kb._parse(a["case"])
+        with SessionLocal() as db:
+            ids = []
+            for i in data.get("devices") or []:
+                try:
+                    check_device(user, i)
+                    ids.append(i)
+                except Forbidden:
+                    pass
+            data["devices"] = ids
+            c = KbCase(author=user.username, status="draft")
+            db.add(c)
+            db.flush()
+            kb._apply(db, c, data)
+            c.ai_marks = json.dumps(["cause", "verify"])  # lo propuso el asistente: falta que alguien lo revise
+            db.commit()
+            cid = c.id
+        res = {"ok": True, "msg": _f("Borrador {0} creado. Revíselo y envíelo.", kb.code(cid)), "url": f"/kb/{cid}/edit"}
     else:
         return {"error": _("Esa acción ya no está disponible.")}
     a["done"] = True
@@ -556,7 +698,7 @@ def api_chat_get(request: Request, path: str = "/"):
         ngroups = db.scalar(select(func.count()).select_from(DeviceGroup)) or 0
     return JSONResponse({"on": True, "messages": _public(json.loads(ch.messages)) if ch else [], "devices": n, "suggest": suggestions(path),
                          "groups": ngroups, "who": assistant.provider_name(assistant.cfg()["provider"]),
-                         "model": assistant.cfg()["model"]})
+                         "model": assistant.cfg(user)["model"], "models": assistant.models_for(user)})
 
 
 @router.post("/api/ai/chat")
@@ -602,6 +744,16 @@ def suggestions(path: str) -> list[str]:
         return [_("¿Qué infracciones son críticas?"), _("¿Cómo corrijo Telnet habilitado?"), _("¿Qué equipos cumplen todo?")]
     if path.startswith("/changes"):
         return [_("¿Qué cambios están pendientes?"), _("¿Qué cambió en 24 h?")]
+    if path.startswith("/vulns"):
+        return [_("¿Qué CVE críticos tengo y cómo los corrijo?"), _("¿Qué equipo es el más expuesto?")]
+    if path.startswith("/kb"):
+        return [_("Documenta en un caso cómo se resolvió la última alarma"), _("¿Hay un caso sobre respaldos fallidos?")]
+    if path.startswith("/configlets"):
+        return [_("Crea un configlet que agregue una VLAN con su nombre"), _("¿Qué configlets tengo?")]
+    if path.startswith("/schedules"):
+        return [_("Programa una búsqueda de CVE cada lunes"), _("¿Qué tareas tengo programadas?")]
+    if path.startswith("/devices/import"):
+        return [_("¿Cómo migro mis equipos desde otro sistema?"), _("¿Qué tipos de equipo admite OpenNCCM?")]
     return [_("¿Qué baja la salud de la red?"), _("¿Qué cambió en 24 h?"), _("¿Qué equipos no tienen soporte?"),
             _("¿Cómo programo un respaldo diario?")]
 

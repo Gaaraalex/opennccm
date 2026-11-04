@@ -112,7 +112,7 @@
     <div class="field" id="ai-base-f"><label for="ai-base">{{ _('Dirección del servicio (compatible con OpenAI)') }}</label><div class="input mono"><input id="ai-base" name="ai_base_url" value="{{ ai.cfg.base if ai.cfg.provider == 'compat' else '' }}" placeholder="https://openrouter.ai/api/v1" spellcheck="false"></div></div>
     <div class="f2">
       <div class="field"><label for="ai-key">{{ _('Clave de API') }}</label><div class="input mono"><input id="ai-key" name="ai_key" type="password" autocomplete="new-password" spellcheck="false" placeholder="{{ _('•••••••• (guardada)') if ai.keys_set[ai.cfg.provider] else '' }}"></div><span class="help">{{ _('Se guarda cifrada, una por proveedor. Déjela vacía para no cambiarla.') }}</span></div>
-      <div class="field"><label for="ai-model">{{ _('Modelo') }}</label><div class="row nowrap" style="gap:6px"><div class="input mono grow"><input id="ai-model" name="ai_model" value="{{ ai.cfg.model }}" list="ai-models" spellcheck="false"></div><button type="button" class="btn s" id="ai-load">{{ _('Cargar de la cuenta') }}</button></div><datalist id="ai-models"></datalist></div>
+      <div class="field"><label for="ai-model">{{ _('Modelo') }}</label><div class="row nowrap" style="gap:6px"><div class="input mono grow"><select id="ai-model" name="ai_model"></select></div><button type="button" class="btn s" id="ai-load">{{ _('Cargar de la cuenta') }}</button></div><span class="help">{{ _('El que usa el asistente de fábrica. Cada usuario puede elegir otro de la lista en el chat.') }}</span></div>
     </div>
     <div class="row"><button type="button" class="btn s" id="ai-test">{{ icon('refresh', 's') }}{{ _('Probar conexión') }}</button><span id="ai-res" class="sm grow"></span></div>
     <div class="sec"><h3>{{ icon('lock', 's') }}{{ _('Privacidad') }}</h3>
@@ -193,7 +193,17 @@
   });
   const prov = () => (document.querySelector('[name=ai_provider]:checked') || {}).value;
   const baseF = document.getElementById('ai-base-f');
-  const syncProv = () => { baseF.hidden = prov() !== 'compat'; };
+  // Modelo: desplegable con los modelos de la cuenta de cada proveedor (los trae «Cargar de la cuenta» y se guardan)
+  const aiModels = {{ ai.models|tojson }}, aiSel = document.getElementById('ai-model');
+  let aiCur = {{ ai.cfg.default_model|tojson }};
+  const fillModels = () => {
+    const list = (aiModels[prov()] || []).slice();
+    if (aiCur && prov() === {{ ai.cfg.provider|tojson }} && list.indexOf(aiCur) < 0) list.unshift(aiCur);
+    aiSel.innerHTML = list.length ? list.map(m => { const o = document.createElement('option'); o.value = o.textContent = m; o.defaultSelected = m === aiCur; return o.outerHTML; }).join('')
+      : '<option value="">' + {{ _('— Pulse «Cargar de la cuenta» —')|tojson }} + '</option>';
+  };
+  aiSel.addEventListener('change', () => { aiCur = aiSel.value; });
+  const syncProv = () => { baseF.hidden = prov() !== 'compat'; fillModels(); };
   document.querySelectorAll('[name=ai_provider]').forEach(r => r.addEventListener('change', syncProv)); syncProv();
   const air = document.getElementById('ai-res');
   async function aiPost(url) {
@@ -204,9 +214,11 @@
   document.getElementById('ai-load').addEventListener('click', async () => {
     const j = await aiPost('/settings/ai/models');
     if (!j.ok) { air.textContent = j.msg; air.style.color = 'var(--crit)'; return; }
-    document.getElementById('ai-models').innerHTML = j.models.map(m => '<option value="' + m.replace(/"/g, '') + '">').join('');
+    aiModels[prov()] = j.models;
+    if (j.models.length && j.models.indexOf(aiCur) < 0 && !aiSel.value) aiCur = j.models[0];
+    fillModels();
     air.textContent = {{ _('{0} modelos en la cuenta. Elija uno en la lista.')|tojson }}.replace('{0}', j.models.length); air.style.color = 'var(--ok)';
-    const mi = document.getElementById('ai-model'); if (!mi.value && j.models.length) mi.value = j.models[0]; mi.focus();
+    aiSel.focus();
   });
   document.getElementById('ai-test').addEventListener('click', async () => {
     const j = await aiPost('/settings/ai/test'); air.textContent = j.msg; air.style.color = j.ok ? 'var(--ok)' : 'var(--crit)';

@@ -1,5 +1,21 @@
 # Historial de versiones
 
+## 2.23.0
+- [mejora] **Panel del asistente más amplio:** En la consola, las preguntas sugeridas ya no se salen del panel, se pliegan
+  solas al preguntar y se vuelven a abrir con «✦ Preguntas sugeridas». El botón ⓘ oculta la parte de arriba (proveedor,
+  contexto y aviso) para dejar más espacio a las respuestas, y la pregunta se escribe al fondo del panel.
+- [nuevo] **Elegir el modelo de IA:** En Ajustes › Asistente IA el modelo se elige en un desplegable con los de la cuenta
+  del proveedor. Cada usuario puede cambiarlo a su gusto desde el chat de la barra superior o desde el panel de la consola,
+  sin cambiar el de los demás.
+- [mejora] **El asistente solo habla de la red:** Responde sobre redes y seguridad, los equipos que OpenNCCM admite y
+  administra y el uso de OpenNCCM. A una pregunta ajena contesta en una frase que solo ayuda con la red.
+- [arreglo] **Asistente en Operar › Consola:** Cada sesión abierta tiene su botón «✦ Asistente», como la consola de la
+  ficha del equipo.
+- [nuevo] **El asistente ayuda en todo el sistema:** El chat consulta las vulnerabilidades, la Base de conocimiento, los
+  configlets, las tareas programadas y los tipos de equipo admitidos. Prepara configlets y scripts, borradores de casos de
+  la Base de conocimiento, tareas, correcciones de vulnerabilidades como solicitud de cambio y migraciones desde otro
+  sistema (el CSV para importar equipos). Todo se hace solo cuando el usuario confirma.
+
 ## 2.22.0
 - [mejora] **Feature key de WatchGuard lista para restaurar:** OpenNCCM guarda la feature key tal como se pega en el Firebox
   para restaurarla (Serial Number, License ID, Name, Model, Version, una línea Feature por función, Expiration y Signature). La

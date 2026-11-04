@@ -230,11 +230,24 @@ class FakeAI(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.headers.get("Authorization") != "Bearer sk-prueba":
             return self._send({"error": {"message": "bad key"}}, 401)
-        self._send({"data": [{"id": "modelo-falso"}, {"id": "text-embedding-x"}]})
+        self._send({"data": [{"id": "modelo-falso"}, {"id": "modelo-grande"}, {"id": "text-embedding-x"}]})
 
     def do_POST(self):
         data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         SEEN.append(data)
+        if data.get("tools") and "documenta" in json.dumps(data["messages"][-1]):  # configlet y caso de la KB
+            args = {"texto": "Te dejo el configlet y el caso.", "fuente": "Pedido",
+                    "acciones": [{"tipo": "configlet", "etiqueta": "Crear el configlet", "nombre": "VLAN de invitados",
+                                  "descripcion": "Agrega una VLAN", "tipo_configlet": "config", "tipos_de_equipo": "cisco_ios,no_existe",
+                                  "comandos": "vlan {{ id }}\n name {{ nombre }}"},
+                                 {"tipo": "caso_kb", "etiqueta": "Crear el caso", "equipos": ["R1"],
+                                  "caso": {"titulo": "VLAN de invitados en R1", "categoria": "cambios",
+                                           "sintoma": "Faltaba la VLAN", "causa": "No estaba creada",
+                                           "pasos": [{"texto": "Crear la VLAN", "comando": "vlan 30"}],
+                                           "verificar": "show vlan brief", "prevenir": "Usar el configlet"}}]}
+            return self._send({"choices": [{"message": {"content": None, "tool_calls": [
+                {"id": "c3", "type": "function", "function": {"name": "responder", "arguments": json.dumps(args)}}]}}],
+                "usage": {"prompt_tokens": 60, "completion_tokens": 30}})
         if data.get("tools"):  # chat de la barra superior: primero consulta, después responde con «responder»
             if not any(m.get("role") == "tool" for m in data["messages"]):
                 return self._send({"choices": [{"message": {"content": None, "tool_calls": [
@@ -264,7 +277,7 @@ AI = {**BASE, "ai_form": "1", "ai_enabled": "on", "ai_provider": "compat", "ai_b
       "ai_key": "sk-prueba", "ai_model": "", "ai_role_admin": "on", "ai_daily_limit": "3", "ai_include_backup": "on",
       "ai_include_console": "on", "ai_price_in": "3", "ai_price_out": "15"}
 r = adm.post(B + "/settings/ai/models", data=AI).json()
-check("Ajustes: carga los modelos de la cuenta (sin los de embeddings)", r.get("models") == ["modelo-falso"], r)
+check("Ajustes: carga los modelos de la cuenta (sin los de embeddings)", r.get("models") == ["modelo-falso", "modelo-grande"], r)
 AI["ai_model"] = "modelo-falso"
 r = adm.post(B + "/settings/ai/test", data=AI).json()
 check("Ajustes: «Probar conexión» con el tiempo de respuesta", r.get("ok") and " ms" in r.get("msg", ""), r)
@@ -272,6 +285,8 @@ adm.post(B + "/settings", data=AI)
 st = adm.get(B + "/settings").text
 check("Ajustes: la clave queda guardada (cifrada, no se muestra)", "sk-prueba" not in st and "clave guardada" in st)
 check("Ajustes: vista previa con los secretos ocultos", "******" in st)
+check("Ajustes: el modelo se elige en un desplegable con los de la cuenta",
+      '<select id="ai-model" name="ai_model">' in st and '"modelo-grande"' in st)
 check("asistente activo: botón en la barra superior", 'data-chat' in adm.get(B + "/").text)
 before = int((re.findall(r'class="ai-big">(\d+)<', st) or ["0"])[0])
 adm.post(B + "/users", data={"username": AIU, "role": "admin", "password": "Asistente2026x", "password2": "Asistente2026x"})
@@ -307,6 +322,31 @@ st = adm.get(B + "/settings").text
 after = int((re.findall(r'class="ai-big">(\d+)<', st) or ["0"])[0])
 check("uso del mes: preguntas, tokens y costo estimado", after - before == 3 and "US$" in st, (before, after))
 check("auditoría: cada pregunta con proveedor y equipo", "ai_ask" in adm.get(B + "/audit").text)
+sysmsg = json.dumps(SEEN[-1]["messages"][0]) if SEEN else ""
+check("solo temas de red y de OpenNCCM: la regla va en las instrucciones", "Solo ayudas con redes" in sysmsg, sysmsg[-300:])
+info = ia.get(B + "/api/ai/info?device_id=1").json()
+check("consola: lista de modelos para elegir", info.get("models") == ["modelo-falso", "modelo-grande"] and info.get("model") == "modelo-falso", info)
+r = ia.post(B + "/api/ai/model", json={"model": "modelo-grande"}).json()
+ia.post(B + "/api/ai/ask", json={"q": "¿Y las rutas?", "device_id": 1})
+check("cambiar de modelo en el chat: se usa en la pregunta siguiente", r.get("model") == "modelo-grande" and SEEN[-1].get("model") == "modelo-grande", r)
+check("cambiar de modelo: el de los demás usuarios sigue igual", adm.get(B + "/api/ai/info").json().get("model") == "modelo-falso")
+r = ia.post(B + "/api/ai/model", json={"model": "otro-que-no-existe"})
+check("cambiar de modelo: solo uno de la cuenta", r.status_code == 400, r.text)
+ia.post(B + "/api/ai/model", json={"model": "modelo-falso"})
+check("Operar › Consola: cada sesión tiene su botón «Asistente»", '"ai": true' in adm.get(B + "/console").text
+      and 'data-pm="ai"' in adm.get(B + "/static/center.js").text)
+r = ia.post(B + "/api/ai/chat", json={"q": "documenta esto y crea un configlet", "path": "/kb", "title": "Base"}).json()
+acts = {a["kind"]: a for a in r.get("actions", [])}
+check("chat: prepara un configlet y un borrador de caso para confirmar", set(acts) >= {"configlet", "kb"}
+      and "body" not in acts.get("configlet", {}), r)
+j = ia.post(B + "/api/ai/chat/act", json={"id": acts.get("configlet", {}).get("id", "")}).json()
+cl = adm.get(B + "/configlets").text
+check("chat: al confirmar crea el configlet (sin tipos de equipo inventados)", j.get("ok") and "VLAN de invitados" in cl
+      and "/configlets/" in j.get("url", ""), j)
+j = ia.post(B + "/api/ai/chat/act", json={"id": acts.get("kb", {}).get("id", "")}).json()
+ed = adm.get(B + j.get("url", "/kb")).text if j.get("ok") else ""
+check("chat: al confirmar deja el caso como borrador en la Base de conocimiento", j.get("ok") and "/edit" in j.get("url", "")
+      and "VLAN de invitados en R1" in ed, j)
 # ---- chat de la barra superior: funciones de solo lectura, respuesta simple y acciones con confirmación
 r = ia.post(B + "/api/ai/chat", json={"q": "¿Qué equipos tengo?", "path": "/", "title": "Panel"}).json()
 check("chat: consulta con una función y responde con texto y equipos", "equipos" in r.get("text", "") and r.get("items"), r)

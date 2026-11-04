@@ -16,7 +16,8 @@
     panel = document.createElement('aside');
     panel.className = 'ai-chat'; panel.id = 'ai-chat'; panel.setAttribute('aria-label', T.chat);
     var lg = document.getElementById('ai-logo');
-    panel.innerHTML = '<div class="ai-ch">' + (lg ? lg.innerHTML : '') + '<div class="grow"><b>' + esc(T.chat) + '</b><small class="ai-who"></small></div>' +
+    panel.innerHTML = '<div class="ai-ch">' + (lg ? lg.innerHTML : '') + '<div class="grow"><b>' + esc(T.chat) + '</b><small class="ai-who"></small>' +
+      '<select class="ai-model" aria-label="' + esc(T.model) + '" hidden></select></div>' +
       '<span class="ai-cloud">' + esc(T.cloud) + '</span><button type="button" class="tbtn" data-new title="' + esc(T.newc) + '" aria-label="' + esc(T.newc) + '">+</button>' +
       '<button type="button" class="tbtn" data-x aria-label="' + esc(T.close) + '">✕</button></div>' +
       '<div class="ai-view sm"></div><div class="ai-msgs" role="log" aria-live="polite"></div>' +
@@ -28,12 +29,21 @@
     panel.querySelector('form').addEventListener('submit', function (e) { e.preventDefault(); var ta = panel.querySelector('textarea'); ask(ta.value); ta.value = ''; });
     panel.querySelector('textarea').addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); panel.querySelector('form').requestSubmit(); } });
     panel.addEventListener('click', onClick);
+    panel.querySelector('.ai-model').addEventListener('change', function () {
+      post('/api/ai/model', {model: this.value}).then(function (j) {
+        var t = j.error || (T.modelset || '{0}').replace('{0}', j.model);
+        if (window.ocToast) window.ocToast(t); else panel.querySelector('.ai-who').textContent = t;
+      });
+    });
   }
   function load(then) {
     fetch('/api/ai/chat?path=' + encodeURIComponent(location.pathname), {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (j) {
       info = j;
       if (!j.on) return;
-      panel.querySelector('.ai-who').textContent = j.model + ' · ' + j.who;
+      var sel = panel.querySelector('.ai-model'), list = j.models || [];
+      sel.hidden = list.length < 2;  // con varios modelos en la cuenta se elige aquí; si no, solo se muestra
+      sel.innerHTML = list.map(function (m) { return '<option' + (m === j.model ? ' selected' : '') + '>' + esc(m) + '</option>'; }).join('');
+      panel.querySelector('.ai-who').textContent = sel.hidden ? j.model + ' · ' + j.who : j.who;
       panel.querySelector('.ai-view').innerHTML = esc(T.viewing.replace('{0}', title()).replace('{1}', j.devices)) + ' · <span class="ok">' + esc(T.secrets) + '</span>';
       panel.querySelector('.ai-chips').innerHTML = (j.suggest || []).map(function (q) { return '<button type="button" data-q="' + esc(q) + '">' + esc(q) + '</button>'; }).join('');
       var box = panel.querySelector('.ai-msgs'); box.innerHTML = '';

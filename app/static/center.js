@@ -73,6 +73,7 @@
         '<button type="button" class="tbtn" data-pm="find" data-id="' + id + '" title="' + esc(T.find) + '" aria-label="' + esc(T.find) + '">' + ic('search') + '</button>' +
         '<button type="button" class="tbtn" data-pm="theme" data-id="' + id + '" title="' + esc(T.theme) + '" aria-label="' + esc(T.theme) + '">' + ic('moon') + '</button>' +
         '<button type="button" class="btn s ghost" data-share="' + id + '">' + esc(T.share) + '</button><button type="button" class="btn s ghost" data-files="' + id + '">' + esc(T.files) + '</button>' +
+        (D.ai ? '<button type="button" class="btn s ghost" data-pm="ai" data-id="' + id + '">✦ ' + esc(T.ai) + '</button>' : '') +
         '<button type="button" class="tbtn" data-pm="reconnect" data-id="' + id + '" title="' + esc(T.recon) + '" aria-label="' + esc(T.recon) + '">' + ic('refresh') + '</button>' +
         '<button type="button" class="tbtn" data-full="' + id + '" title="' + esc(T.full) + '" aria-label="' + esc(T.full) + '">' + ic('expand') + '</button></div>' +
         '<iframe src="/devices/' + id + '/console?embed=2" title="' + esc(d.name) + '"></iframe>';

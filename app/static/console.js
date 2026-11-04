@@ -282,6 +282,7 @@
     if (e.data.cmd === 'share') $('cx-share').click();
     if (e.data.cmd === 'find') $('cx-find').click();
     if (e.data.cmd === 'theme') $('cx-theme').click();
+    if (e.data.cmd === 'ai' && aiBtn) aiBtn.click();  // botón «Asistente» del panel de Operar › Consola
   });
   if (!C.embed) document.title = C.dev.name + ' · consola';
   connect();
