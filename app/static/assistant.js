@@ -36,7 +36,8 @@
     var lg = document.getElementById('ai-logo');
     // arriba, ocultable (proveedor, contexto y aviso); abajo del todo, la fila de herramientas y la pregunta
     el.innerHTML = '<div class="ai-hd"' + (store('head') === '0' ? ' hidden' : '') + '><div class="ai-h">' + (lg ? lg.innerHTML : '<span class="ai-logo" aria-hidden="true">✦</span>') +
-      '<div class="grow"><b>' + esc(T.title) + '</b><small class="ai-who"></small></div><span class="ai-cloud">' + esc(T.cloud) + '</span></div>' +
+      '<div class="grow"><b>' + esc(T.title) + '</b><small class="ai-who"></small></div><span class="ai-cloud">' + esc(T.cloud) + '</span>' +
+      '<button type="button" class="ai-tg" data-headtog title="' + esc(T.hide) + '" aria-label="' + esc(T.hide) + '">' + esc(T.hide) + ' ▴</button></div>' +
       '<div class="ai-ctx"></div><div class="ai-note">' + esc(T.note) + '</div></div>' +
       '<div class="ai-msgs" role="log" aria-live="polite"></div><div class="ai-sug" hidden></div>' +
       '<div class="ai-tools"><button type="button" class="ai-tg" data-sugtog aria-expanded="false" hidden>✦ ' + esc(T.sugtog) + ' <span aria-hidden="true">▴</span></button>' +
@@ -45,8 +46,12 @@
       (el.classList.contains('ai-float') ? '<button type="button" class="ai-tg ai-x" aria-label="' + esc(T.close) + '">✕</button>' : '') + '</div>' +
       '<form class="ai-in"><textarea rows="1" placeholder="' + esc(T.ph) + '" aria-label="' + esc(T.ph) + '"></textarea><button class="btn s pri" type="submit">↑</button></form>';
     var x = el.querySelector('.ai-x'); if (x) x.addEventListener('click', function () { el.hidden = true; });
-    el.querySelector('[data-headtog]').addEventListener('click', function () {
-      var top = el.querySelector('.ai-hd'); top.hidden = !top.hidden; store('head', top.hidden ? '0' : '1'); this.setAttribute('aria-expanded', top.hidden ? 'false' : 'true');
+    // «Ocultar ▴» en la cabecera y ⓘ abajo: la misma cabecera (proveedor, contexto y aviso), recordado en este navegador
+    Array.prototype.forEach.call(el.querySelectorAll('[data-headtog]'), function (b) {
+      b.addEventListener('click', function () {
+        var top = el.querySelector('.ai-hd'); top.hidden = !top.hidden; store('head', top.hidden ? '0' : '1');
+        el.querySelector('.ai-tools [data-headtog]').setAttribute('aria-expanded', top.hidden ? 'false' : 'true');
+      });
     });
     el.querySelector('[data-sugtog]').addEventListener('click', function () { sug(el.querySelector('.ai-sug').hidden); });
     el.querySelector('.ai-model').addEventListener('change', function () { pickModel(this); });

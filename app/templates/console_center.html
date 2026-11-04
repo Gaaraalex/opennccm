@@ -159,7 +159,7 @@
 {% endif %}
 <div class="cx-toast" id="cx-toast" role="status" hidden></div>
 <script type="application/json" id="cc-data">{{ {'devs': devs, 'favs': favs, 'recent': recent, 'groups': groups, 'recipes': recipes or [], 'cats': cats or {}, 'rec': rec,
-  'role': user.role, 'ai': ai.on, 'tab': tab,
+  'role': user.role, 'ai': ai.on, 'ailogo': (ai_logo(ai.provider, 18)|string) if ai.on else '', 'tab': tab,
   't': {'rec': _('REC'), 'fav': _('Favoritos'), 'recent': _('Recientes'), 'bygroup': _('POR GRUPO'), 'nogroup': _('Sin grupo'), 'share': _('Compartir'), 'files': _('Archivos'),
         'close': _('Cerrar'), 'open': _('{0} sesiones abiertas · todo queda grabado en Auditoría'), 'open1': _('1 sesión abierta · todo queda grabado en Auditoría'), 'sel': _('{0} equipos elegidos'), 'sel1': _('1 equipo elegido'), 'same': _('{0} iguales'), 'same1': _('1 igual'), 'diff': _('{0} distintos'), 'diff1': _('1 distinto'), 'find': _('Buscar en la salida'), 'theme': _('Tema de la consola'), 'recon': _('Reconectar'), 'full': _('Pantalla completa'),
         'meta': _('respondieron {0} de {1} · {2} s'), 'equal': _('Iguales'), 'distinct': _('Distintos'), 'failed': _('No respondieron'), 'running': _('Ejecutando…'),
@@ -167,7 +167,7 @@
         'copy': _('Copiar'), 'insert': _('Insertar'), 'warn': _('Ojo'), 'check': _('Comprobar'), 'apply': _('Aplicar como solicitud de cambio'), 'runact': _('Ejecutar en la consola activa'),
         'multi': _('Usar en multi-equipo'), 'dup': _('Duplicar y adaptar'), 'edit': _('Editar'), 'del': _('Eliminar'), 'doc': _('Documentación del fabricante'), 'noact': _('Abra primero una sesión en Sesiones.'),
         'copied': _('Copiado.'), 'sent': _('Enviado a la consola activa.'), 'crdone': _('Solicitud de cambio creada.'), 'saved': _('Receta guardada.'), 'all': _('Todas'),
-        'ai': _('Asistente'), 'openc': _('Abrir consola de {0}'), 'pickdev': _('Elija al menos un equipo.'), 'analyze': _('Analiza estas respuestas de varios equipos al mismo comando: qué tienen distinto y cómo igualarlos.'),
+        'ai': _('Asistente'), 'big': _('Ampliar'), 'small': _('Volver al tamaño normal'), 'fsm': _('Letra más pequeña'), 'fsp': _('Letra más grande'), 'win': _('Abrir en una ventana aparte'), 'openc': _('Abrir consola de {0}'), 'pickdev': _('Elija al menos un equipo.'), 'analyze': _('Analiza estas respuestas de varios equipos al mismo comando: qué tienen distinto y cómo igualarlos.'),
         'played': _('{0} comandos · {1}'), 'stopped': _('Detenido.'), 'shared': _('Enlace de solo lectura copiado.')}}|tojson }}</script>
 <script src="/static/center.js?v={{ VERSION }}-{{ CX_HASH }}"></script>
 {% endblock %}

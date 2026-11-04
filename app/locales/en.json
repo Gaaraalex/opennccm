@@ -3849,5 +3849,7 @@
 "Programa una búsqueda de CVE cada lunes": "Schedule a CVE scan every Monday",
 "¿Qué tareas tengo programadas?": "Which tasks do I have scheduled?",
 "¿Cómo migro mis equipos desde otro sistema?": "How do I migrate my devices from another system?",
-"¿Qué tipos de equipo admite OpenNCCM?": "Which device types does OpenNCCM support?"
+"¿Qué tipos de equipo admite OpenNCCM?": "Which device types does OpenNCCM support?",
+"Ampliar": "Enlarge",
+"Volver al tamaño normal": "Back to normal size"
 }

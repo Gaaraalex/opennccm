@@ -283,6 +283,7 @@
     if (e.data.cmd === 'find') $('cx-find').click();
     if (e.data.cmd === 'theme') $('cx-theme').click();
     if (e.data.cmd === 'ai' && aiBtn) aiBtn.click();  // botón «Asistente» del panel de Operar › Consola
+    if (e.data.cmd === 'fs-' || e.data.cmd === 'fs+') $('cx-' + e.data.cmd).click();  // letra, desde Operar › Consola
   });
   if (!C.embed) document.title = C.dev.name + ' · consola';
   connect();
