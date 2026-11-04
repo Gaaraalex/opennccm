@@ -117,6 +117,9 @@ class Device(Base):
     neighbors: Mapped[str | None] = mapped_column(Text)  # JSON: vecinos LLDP/CDP del último respaldo (mapa de la red)
     # JSON {"at", "status", "ports"}: puertos físicos y su estado leídos en el último respaldo (app/ports.py)
     ports: Mapped[str | None] = mapped_column(Text)
+    # JSON {puerto: última vez con enlace (ISO) o null}: se anota en cada respaldo desde port_seen_since (Puertos sin uso)
+    port_seen: Mapped[str | None] = mapped_column(Text)
+    port_seen_since: Mapped[datetime | None] = mapped_column(DateTime)
     # licencia del equipo (Profile.license_cmd, p. ej. la feature key de WatchGuard), cifrada; se lee una sola vez
     license_enc: Mapped[str | None] = mapped_column(Text)
     license_at: Mapped[datetime | None] = mapped_column(DateTime)
@@ -234,6 +237,7 @@ class ChangeRequest(Base):
     firmware_id: Mapped[int | None] = mapped_column(Integer)
     reload: Mapped[bool] = mapped_column(Boolean, default=False)
     notes: Mapped[str | None] = mapped_column(Text)  # avisos de la reversión: lo que hay que revisar a mano
+    run_at: Mapped[datetime | None] = mapped_column(DateTime)  # aprobada para ejecutarse a esa hora (ventana de mantenimiento)
 
 
 class Schedule(Base):

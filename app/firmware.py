@@ -256,15 +256,26 @@ def execute_firmware_request(db, cr):
     ids = json.loads(cr.device_ids)
     devices = list(db.scalars(select(Device).where(Device.id.in_(ids))))
     channel = json.loads(cr.variables or "{}").get("channel", "")
-    futs = [(d.name, services.pool.submit(upgrade_device, d.id, cr.firmware_id or 0, cr.reload, channel)) for d in devices]
-    report, ok, fail = [], 0, 0
-    for name, f in futs:
+    by_id = {d.id: d for d in devices}
+    waves = [[d.id for d in devices]]
+    if cr.reload and len(devices) > 1:  # con reinicio: en el orden sugerido (app/impact.py), nunca dos que juntos aíslan más
+        from . import impact
         try:
-            report.append(f"===== {name}: OK\n{f.result()}")
-            ok += 1
-        except Exception as e:  # noqa: BLE001
-            report.append(f"===== {name}: ERROR\n{e}")
-            fail += 1
+            waves = impact.waves(impact._graph(), [d.id for d in devices])
+        except Exception:  # noqa: BLE001 - sin mapa: de a uno, que es lo más prudente
+            waves = [[d.id] for d in devices]
+    report, ok, fail = [], 0, 0
+    for n, wave in enumerate(waves, 1):
+        futs = [(by_id[i].name, services.pool.submit(upgrade_device, i, cr.firmware_id or 0, cr.reload, channel))
+                for i in wave if i in by_id]
+        tag = f"{n}/{len(waves)} · " if len(waves) > 1 else ""
+        for name, f in futs:
+            try:
+                report.append(f"===== {tag}{name}: OK\n{f.result()}")
+                ok += 1
+            except Exception as e:  # noqa: BLE001
+                report.append(f"===== {tag}{name}: ERROR\n{e}")
+                fail += 1
     cr.status = "done" if fail == 0 else ("failed" if ok == 0 else "partial")
     cr.result, cr.executed_at = "\n\n".join(report), now()
     db.commit()

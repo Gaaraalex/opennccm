@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% block title %}{{ _f('Solicitud #{0}', cr.id) }}{% endblock %}
+{% extends "base.html" %}{% from "_impact.html" import impact_card %}{% block title %}{{ _f('Solicitud #{0}', cr.id) }}{% endblock %}
 {% block crumbs %}<a href="/changes">Cambios</a>{{ icon('right', 's') }}<b>#{{ cr.id }}</b>{% endblock %}
 {% block content %}
 {% set st = {'pending': ('info', _('Por aprobar')), 'approved': ('info', _('Aprobada')), 'running': ('info', _('En curso')), 'done': ('ok', _('Aprobada y ejecutada')), 'partial': ('warn', _('Ejecutada en parte')), 'failed': ('crit', _('Fallida')), 'rejected': ('crit', _('Rechazada'))} %}
@@ -10,23 +10,59 @@
   {% if cr.status in ('approved', 'running') %}<span class="muted sm">· Actualiza la página para ver el avance.</span>{% endif %}</div>
 {% if cr.is_rollback %}<div class="banner warn">{{ icon('alert') }}<span class="grow">Comandos generados automáticamente a partir de la diferencia entre la configuración actual y la versión destino. Revísalos con cuidado antes de aprobar.</span></div>{% endif %}
 {% if cr.notes %}<div class="banner warn" role="alert">{{ icon('alert') }}<span class="grow"><b>{{ _('Revisar a mano: la reversión no lo cubre') }}</b><ul style="margin:6px 0 0 18px">{% for n in cr.notes.splitlines() %}<li>{{ n }}</li>{% endfor %}</ul></span></div>{% endif %}
-<div class="field"><span class="fl">{% if devices|length > 5 %}Comandos a aplicar (vista previa, primeros 5 equipos){% else %}Comandos a aplicar{% endif %}</span>
-  {% for name, text in previews %}<div><div class="row sm b" style="margin-bottom:4px">{% for d in devices if d.name == name %}<span class="vend" style="width:24px;height:24px;font-size:9px">{{ vend[d.id] }}</span>{% endfor %}{{ name }}</div><pre class="term" style="min-height:0">{{ text }}</pre></div>{% endfor %}</div>
+{% if imp %}{% if imp.plan %}
+<div class="banner info">{{ icon('info') }}<span class="grow"><b>{{ _('Orden sugerido para no cortar más de lo necesario:') }}</b> {{ _('primero los que no aíslan a nadie y de a uno los que sí; se ejecuta en este orden.') }}{% if imp.plan.pair %} {{ _f('{0} y {1} no se actualizan al mismo tiempo: juntos dejarían sin servicio a {2} equipos.', imp.plan.pair.a, imp.plan.pair.b, imp.plan.pair.n) }}{% endif %}</span></div>
+<div class="card" style="padding:0"><table class="t imp-plan"><thead><tr><th>{{ _('Orden') }}</th><th>{{ _('Equipo') }}</th><th>{{ _('Versión') }}</th><th>{{ _('Si se reinicia') }}</th><th>{{ _('Qué depende de él') }}</th></tr></thead><tbody>
+  {% for r in imp.plan.rows %}<tr><td class="ord">{{ r.order }}</td><td><b>{{ r.name }}</b>{% if r.model %}<div class="muted sm">{{ r.model }}</div>{% endif %}</td><td class="mono sm">{{ r.version or '—' }}{% if r.target %} → {{ r.target }}{% endif %}</td>
+    <td>{% if r.level == 'none' %}<span class="pill ok">{{ _('Sin impacto') }}</span>{% elif r.level == 'nodata' %}<span class="pill">{{ _('Sin datos de vecinos') }}</span>{% else %}<span class="pill {{ 'crit' if r.level == 'high' else 'warn' }}">{{ _f('Aísla {0}', r.iso) }}{% if r.br %} · {{ _f('corta {0}', r.br) }}{% endif %}</span>{% endif %}</td>
+    <td class="sm">{% if r.deps %}{{ r.deps }}{% elif r.level == 'none' %}{{ _f('{0} vecinos siguen por otro camino.', r.kept) if r.kept != 1 else _('1 vecino sigue por otro camino.') }}{% else %}—{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>
+<div class="f2">
+  <div class="card"><div class="lbl muted sm b">{{ _('EQUIPOS SIN CAMINO ALTERNATIVO') }}</div><p class="sm" style="margin:6px 0 10px">{{ _('Los que dependen de un solo enlace se ven en rojo en el mapa. Para quitarles el riesgo, agrégueles un segundo uplink: OpenNCCM lo nota en el siguiente respaldo (LLDP/CDP).') }}</p><a class="btn s" href="/topology">{{ _('Ver en el mapa de la red') }}</a></div>
+  <div class="card"><div class="lbl muted sm b">{{ _('ANTES DE EMPEZAR') }}</div><ul class="sm" style="margin:6px 0 0 18px;line-height:1.7"><li>{{ _('OpenNCCM hace un respaldo de cada equipo antes de actualizarlo.') }}</li><li>{{ _('Avise a quienes usan lo que queda sin servicio (sucursales, usuarios).') }}</li><li>{{ _('Elija la hora abajo («Ejecutar a esta hora») para hacerlo en su ventana de mantenimiento.') }}</li></ul></div>
+</div>
+{% endif %}{% endif %}
+{% set two = imp and not imp.plan %}
+{% if two %}<div class="cr-grid"><div class="cr-l">{{ impact_card(imp) }}
+  <div class="card"><div class="lbl muted sm b">{{ _('HISTORIAL DE LA SOLICITUD') }}</div>
+    <div class="imp-row"><span class="mono sm muted">{{ cr.created_at.strftime('%d-%m %H:%M') }}</span><span>{{ _f('{0} la pidió', cr.requested_by) }}</span></div>
+    {% if cr.reviewed_by %}<div class="imp-row"><span class="mono sm muted">—</span><span>{{ _f('{0} la rechazó', cr.reviewed_by) if cr.status == 'rejected' else _f('{0} la aprobó', cr.reviewed_by) }}</span></div>{% endif %}
+    {% if cr.executed_at %}<div class="imp-row"><span class="mono sm muted">{{ cr.executed_at.strftime('%d-%m %H:%M') }}</span><span>{{ _('Se ejecutó') }}</span></div>{% endif %}
+    <p class="muted sm" style="margin:6px 0 0">{{ _('El impacto se calcula al abrirla, con el mapa de ese momento; al aprobar, el que se mostró queda en Auditoría.') }}</p></div>
+</div><div class="cr-r stack">{% endif %}
+{% if imp and imp.plan %}<details class="field"><summary class="fl" style="cursor:pointer">{{ _('Comandos de cada equipo') }}</summary>{% else %}<div class="field">{% endif %}<span class="fl">{% if devices|length > 5 %}Comandos a aplicar (vista previa, primeros 5 equipos){% else %}Comandos a aplicar{% endif %}</span>
+  {% for name, text in previews %}<div><div class="row sm b" style="margin-bottom:4px">{% for d in devices if d.name == name %}<span class="vend" style="width:24px;height:24px;font-size:9px">{{ vend[d.id] }}</span>{% endfor %}{{ name }}</div><pre class="term" style="min-height:0">{{ text }}</pre></div>{% endfor %}
+  {% if prev_desc %}<p class="muted sm" style="margin:6px 0 0">{{ _('Descripción anterior de cada puerto, para revertir:') }} {% for k, v in prev_desc.items() %}<span class="mono">{{ k }}</span> «{{ v or '—' }}»{{ ' · ' if not loop.last }}{% endfor %}</p>{% endif %}{% if imp and imp.plan %}</details>{% else %}</div>{% endif %}
 {% if example and cr.status == 'pending' %}<div class="banner crit" role="alert">{{ icon('alert') }}<span class="grow"><b>{{ _('Usa direcciones de ejemplo que no existen en ninguna red:') }}</b> <span class="mono">{{ example|join(', ') }}</span>. {{ _('No se puede aprobar así: recházala y, si quieres aplicar el cambio, créalo con las direcciones reales de tus servidores.') }}</span></div>{% endif %}
 {% if risks and cr.status == 'pending' %}<div class="banner crit" role="alert">{{ icon('alert') }}<span class="grow"><b>{{ _('Dejaría a OpenNCCM sin acceso:') }}</b> {{ risks|join(' ') }}</span></div>{% endif %}
 {% if cr.status == 'pending' %}
   {% if can_review %}<form method="post" action="/changes/{{ cr.id }}/review" id="review" class="stack">
     <div class="field"><label for="chc">Comentario</label><textarea class="ta prose" id="chc" name="comment" placeholder="{{ _f('Opcional al aprobar; obligatorio al rechazar. Se avisará a {0}.', cr.requested_by) }}"></textarea></div>
+    {% set need_ack = imp and imp.level in ('high', 'medium') %}
+    {% if imp and imp.level != 'none' %}<div class="card imp-sug"><b>{{ _('Sugerencia') }}</b>
+      <p class="sm" style="margin:4px 0 8px">{{ _('Hágalo en su ventana de mantenimiento y avise a quienes quedan sin servicio.') }}{% if imp.direct %} {{ _f('O primero agregue un segundo enlace a {0} para que no quede aislado.', imp.direct[:3]|join(', ')) }}{% endif %}</p>
+      <div class="row" style="gap:10px;flex-wrap:wrap"><label class="ck"><input type="radio" name="when" value="now" checked> {{ _('Ejecutar al aprobar') }}</label>
+        <label class="ck"><input type="radio" name="when" value="later"> {{ _('Ejecutar a esta hora:') }}</label>
+        <div class="input" style="max-width:230px"><input type="datetime-local" name="run_at" value="{{ default_run.strftime('%Y-%m-%dT%H:%M') }}" aria-label="{{ _('Hora de ejecución') }}"></div></div></div>
+    {% endif %}
+    {% if need_ack %}<label class="imp-ack"><input type="checkbox" name="ack_impact" id="ack"> <span>{{ _('Leí el impacto:') }} <b>{{ imp.sentence }}</b>{{ _(', mientras dure el corte.') }}</span></label>{% endif %}
     <div class="row" data-sheet-foot><span class="grow"></span><button class="btn dz" name="decision" value="reject" id="rej">Rechazar</button>
-      <button class="btn sig" name="decision" value="approve"{% if example or risks %} disabled aria-disabled="true" title="{{ _('Usa direcciones de ejemplo: no se puede aprobar') if example else _('Dejaría a OpenNCCM sin acceso: no se puede aprobar') }}"{% endif %}>{{ icon('check', 's') }}Aprobar y ejecutar</button></div></form>
+      <button class="btn sig" name="decision" value="approve" id="apv"{% if need_ack %} data-need-ack{% endif %}{% if example or risks %} disabled aria-disabled="true" title="{{ _('Usa direcciones de ejemplo: no se puede aprobar') if example else _('Dejaría a OpenNCCM sin acceso: no se puede aprobar') }}"{% endif %}>{{ icon('check', 's') }}{{ _('Aprobar') if imp and imp.level != 'none' else _('Aprobar y ejecutar') }}</button></div></form>
   {% else %}<div class="banner info">{{ icon('info') }}<span>Solo un administrador puede aprobar o rechazar esta solicitud{% if user.role == 'admin' %} (y no quien la pidió, según los Ajustes){% endif %}.</span></div>{% endif %}
 {% else %}
+  {% if cr.status == 'approved' and cr.run_at %}<div class="banner info">{{ icon('clock') }}<span class="grow">{{ _f('Se ejecutará el {0}.', cr.run_at.strftime('%d-%m-%Y a las %H:%M')) }}</span></div>{% endif %}
   {% if cr.reviewed_by %}<div class="sec"><h3>Revisión</h3><div class="summ">{{ icon('x' if cr.status == 'rejected' else 'check') }}<div><b>{{ _f('Rechazada por {0}', cr.reviewed_by) if cr.status == 'rejected' else _f('Aprobada por {0}', cr.reviewed_by) }}</b><div class="muted sm">{{ cr.review_comment or _('Sin comentario') }}</div></div></div></div>{% endif %}
   {% if cr.result %}<div class="sec"><h3>Resultado</h3>{% if cr.executed_at %}<span class="muted sm">{{ _f('Ejecutada {0}', cr.executed_at|ago) }}</span>{% endif %}<pre class="term" style="min-height:0">{{ cr.result }}</pre></div>{% endif %}
   <div class="row" data-sheet-foot><span class="grow"></span><a class="btn" href="/changes" data-cancel>Cerrar</a></div>
 {% endif %}
+{% if two %}</div></div>{% endif %}
 <script>
 (function () {
+  const apv = document.getElementById('apv'), ack = document.getElementById('ack');
+  if (apv && ack && apv.hasAttribute('data-need-ack') && !apv.disabled) {  // «Aprobar» solo después de «Leí el impacto»
+    const sync = () => { apv.disabled = !ack.checked; apv.setAttribute('aria-disabled', ack.checked ? 'false' : 'true'); };
+    ack.addEventListener('change', sync); sync();
+  }
   const rej = document.getElementById('rej'); if (!rej) return;
   rej.addEventListener('click', e => {  // rechazar exige un comentario (como en el prototipo)
     const c = document.getElementById('chc');
