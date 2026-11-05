@@ -134,6 +134,9 @@ class Device(Base):
     fxi_pasv: Mapped[str | None] = mapped_column(String(16))
     fxi_fails: Mapped[int] = mapped_column(Integer, default=0)
     fxi_last_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # tablas MAC y ARP (app/macfind.py): cuándo se leyeron por última vez y, si no se pudo, por qué
+    tables_at: Mapped[datetime | None] = mapped_column(DateTime)
+    tables_note: Mapped[str | None] = mapped_column(String(255))
 
     credential = relationship("Credential", foreign_keys=[credential_id])
     group = relationship("DeviceGroup")
@@ -495,6 +498,21 @@ class KbPending(Base):
     decided_by: Mapped[str | None] = mapped_column(String(64))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime)
     overdue_sent: Mapped[bool] = mapped_column(Boolean, default=False)  # ya se avisó al admin de los 5 días
+
+
+class MacSeen(Base):
+    """Historial MAC → puerto (tabla MAC, kind «mac») e IP → MAC (tabla ARP, kind «arp») de cada equipo (app/macfind.py).
+    Se ve «ahora» si last_seen coincide con la última lectura del equipo (Device.tables_at)."""
+    __tablename__ = "mac_seen"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    device_id: Mapped[int] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(4))  # mac | arp
+    mac: Mapped[str] = mapped_column(String(12), index=True)  # «AABBCCDDEEFF»
+    ip: Mapped[str | None] = mapped_column(String(45), index=True)
+    port: Mapped[str] = mapped_column(String(64), default="")
+    vlan: Mapped[str | None] = mapped_column(String(16))
+    first_seen: Mapped[datetime] = mapped_column(DateTime, default=now)
+    last_seen: Mapped[datetime] = mapped_column(DateTime, default=now, index=True)
 
 
 class ConsoleFavorite(Base):

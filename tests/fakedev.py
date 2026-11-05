@@ -269,6 +269,17 @@ def handle(line, mode, ctx):
                     "Interface: GigabitEthernet0/1,  Port ID (outgoing port): GigabitEthernet1/0/48\n")
         if s == "show lldp neighbors detail":
             return "% LLDP is not enabled"
+        if s == "show mac address-table":  # buscar una MAC o una IP (app/macfind.py)
+            return ("          Mac Address Table\n-------------------------------------------\n\n"
+                    "Vlan    Mac Address       Type        Ports\n----    -----------       --------    -----\n"
+                    " All    0100.0ccc.cccc    STATIC      CPU\n"
+                    "  10    f439.091a.2b3c    DYNAMIC     Gi0/3\n"
+                    "  10    0011.2233.4401    DYNAMIC     Gi0/1\n"
+                    "Total Mac Addresses for this criterion: 3")
+        if s == "show ip arp":
+            return ("Protocol  Address          Age (min)  Hardware Addr   Type   Interface\n"
+                    "Internet  10.10.9.200            12   f439.091a.2b3c  ARPA   Vlan10\n"
+                    "Internet  10.10.9.1               -   0011.2233.4401  ARPA   Vlan10")
         if s == "show environment all":  # parte de atrás de la ficha: fuentes y ventiladores
             return ("FAN 1 is OK\nFAN 2 is FAULTY\nSYSTEM TEMPERATURE is OK\n"
                     "SW  PID                 Serial#     Status           Sys Pwr  PoE Pwr  Watts\n"

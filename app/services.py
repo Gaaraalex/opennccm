@@ -588,7 +588,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
                     raise RuntimeError("El dispositivo no tiene credencial asignada")
                 cred = (dev.credential.username, decrypt(dev.credential.password_enc) if dev.credential.password_enc else "")
                 running, inventory = swos.backup(dev, cred)
-                startup = neighbors_raw = ports_raw = license_raw = None
+                startup = neighbors_raw = ports_raw = license_raw = tables_raw = None
             else:
                 with connect(dev) as conn:
                     running = conn.send_command(dev.custom_backup_cmd or prof.backup, read_timeout=180)
@@ -597,6 +597,8 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
                                             if c.strip()) if prof.inventory else None
                     neighbors_raw = _read_neighbors(conn, dev.device_type)
                     ports_raw = _read_ports(conn, dev.device_type)
+                    from . import macfind
+                    tables_raw = macfind.read(conn, dev.device_type)  # tablas MAC y ARP (buscar una MAC o una IP)
                     want_license = _license_missing(dev, prof)
                     license_raw = _read_license(conn, prof) if want_license else None
                 if want_license and prof.key == "watchguard_fireware":  # la firma, por la Web UI (ya sin SSH)
@@ -667,6 +669,13 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
         else:
             new_conflict = False
 
+        if tables_raw:
+            try:
+                from . import macfind
+                with db.begin_nested():
+                    macfind.store(dev.id, tables_raw, db)
+            except Exception as e:  # noqa: BLE001 - las tablas nunca hacen fallar el respaldo
+                log.warning("tablas MAC/ARP de %s: %s", dev.name, e)
         if neighbors_raw is not None:
             from . import topology
             dev.neighbors = json.dumps(topology.parse(neighbors_raw, dev.device_type))

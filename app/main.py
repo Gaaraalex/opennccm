@@ -3238,6 +3238,9 @@ app.include_router(netreports.router)
 from . import favorites  # noqa: E402  (comandos favoritos de la consola)
 
 app.include_router(favorites.router)
+from . import macfind  # noqa: E402  (buscar una MAC o una IP)
+
+app.include_router(macfind.router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)
