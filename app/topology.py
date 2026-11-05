@@ -119,13 +119,14 @@ def _lldp_detail(text: str) -> list[dict]:
 # RouterOS no envía los caracteres no ASCII: los muestra como su byte en hexadecimal resaltado («Caba» + «F1» resaltado +
 # «as»). Al leer la salida (services._read_neighbors) cada byte resaltado se cambia por dos caracteres privados: el byte
 # (U+E100 + byte) y un relleno (U+E0FF), así las columnas no se corren. _ros_text los vuelve a juntar en texto.
-_HEX_HL = re.compile(r"\x1b\[[0-9;]*m((?:[0-9A-Fa-f]{2})+)\x1b\[[0-9;]*m")
+# En «print detail» de 7.25 el byte resaltado lleva además su barra: «Caba» + resaltado «\F1» + «as».
+_HEX_HL = re.compile(r"\x1b\[[0-9;]*m((?:\\?[0-9A-Fa-f]{2})+)\x1b\[[0-9;]*m")
 
 
 def mark_hex(raw: str) -> str:
     """Salida con los códigos de la terminal: los bytes resaltados pasan a caracteres privados (ver _HEX_HL)."""
     def one(m):
-        h = m.group(1)
+        h = m.group(1).replace("\\", "")
         return "".join(chr(0xE100 + int(h[k:k + 2], 16)) + "\ue0ff" for k in range(0, len(h), 2))
     return _HEX_HL.sub(one, raw)
 

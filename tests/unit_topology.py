@@ -1,5 +1,6 @@
 """Vecinos LLDP/CDP leídos de la salida real de cada plataforma (mapa de la red)."""
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
@@ -279,6 +280,13 @@ check("vecinos MikroTik sin «terse»: nombre, puerto, MAC y modelo", len(d) == 
 check("la «ñ» sin barra ni resaltado («CabaF1as», «PeF1a») se lee bien; lo demás no se toca",
       [_ros_text(x) for x in ("CabaF1as", "PeF1alolen", "CaC3B1ete", "R-CORE F1", "SW-C9300", "ETH-E1", "mdF1")]
       == ["Cabañas", "Peñalolen", "Cañete", "R-CORE F1", "SW-C9300", "ETH-E1", "mdF1"])
+
+# 7.25 con colores (salida REAL de la CI): identity="Caba" + ESC[34;1m + «\F1» + ESC[m + "as"
+c725 = mark_hex(' 0 interface=ether2 mac-address=52:54:00:00:02:02 identity\x1b[m\x1b[33m=\x1b[m"Caba\x1b[m\x1b[34;1m\\F1\x1b[mas"'
+                ' platform="MikroTik" board="CHR"\n')
+check("vecinos 7.25 con colores: «\\F1» resaltado", [n["remote_name"] for n in parse(
+    MARK + "/ip neighbor print detail without-paging\n" + re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", c725), "mikrotik_routeros")]
+      == ["Cabañas"])
 
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)

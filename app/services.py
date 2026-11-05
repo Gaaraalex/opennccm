@@ -470,7 +470,8 @@ def _ros_read(conn, cmd: str) -> str:
     finally:
         conn.ansi_escape_codes = keep
     from . import topology
-    return conn.strip_ansi_escape_codes(topology.mark_hex(raw))
+    # netmiko no quita todos los códigos de color («ESC[34;1m»): lo que quede se borra aquí
+    return re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", conn.strip_ansi_escape_codes(topology.mark_hex(raw)))
 
 
 def device_error(text: str) -> bool:
