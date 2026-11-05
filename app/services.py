@@ -678,7 +678,14 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
                 log.warning("tablas MAC/ARP de %s: %s", dev.name, e)
         if neighbors_raw is not None:
             from . import topology
-            dev.neighbors = json.dumps(topology.parse(neighbors_raw, dev.device_type))
+            nbrs = topology.parse(neighbors_raw, dev.device_type)
+            dev.neighbors = json.dumps(nbrs)
+            try:  # aviso de vecino nuevo o perdido (app/nbwatch.py)
+                from . import nbwatch
+                with db.begin_nested():
+                    nbwatch.update(db, dev, nbrs, running)
+            except Exception as e:  # noqa: BLE001 - nunca hace fallar el respaldo
+                log.warning("vecinos nuevos o perdidos de %s: %s", dev.name, e)
 
         if prof.key not in HTTP_ONLY:  # puertos y su estado, para la ficha del equipo
             from . import ports as ports_mod

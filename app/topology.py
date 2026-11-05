@@ -178,6 +178,9 @@ def _mikrotik(text: str) -> list[dict]:
     # de enfrente. LLDP no se reenvía, así que en un puerto con varios vecinos solo cuentan los vistos por LLDP.
     wired = [n for n in out if not is_air(n)]
     many = {p for p in {n["local_port"] for n in wired} if sum(n["local_port"] == p for n in wired) > 1}
+    for n, d in zip(out, by):  # «discovered-by=cdp,lldp,mndp»: el más específico
+        if d:
+            n["proto"] = next((p for p in ("lldp", "cdp", "mndp") if p in d), "mndp")
     return [n for n, d in zip(out, by) if d is None or is_air(n) or n["local_port"] not in many or "lldp" in d]
 
 
@@ -250,6 +253,7 @@ def parse(text: str, device_type: str) -> list[dict]:
     for cmd, out in pairs:
         if re.search(r"(?im)^\s*%|invalid input|unrecognized command|bad command name|syntax error", out[:400]):
             continue
+        start = len(found)
         if cmd.startswith("/tool romon"):
             found += _romon(out)
         elif "cdp" in cmd:
@@ -265,6 +269,9 @@ def parse(text: str, device_type: str) -> list[dict]:
                       _table(out, {"local": 0, "port": -2, "name": -1}, r"Local Interface")]
         else:
             found += _lldp_detail(out)
+        proto = "romon" if cmd.startswith("/tool romon") else "cdp" if "cdp" in cmd else "lldp"
+        for n in found[start:]:  # por qué protocolo se vio (aviso de vecino nuevo o perdido)
+            n.setdefault("proto", proto)
     uniq, keys = [], set()
     for n in found:
         if not (n["remote_name"] or n["remote_ip"] or n.get("romon")):  # RoMON sin identidad: queda su MAC

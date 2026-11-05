@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block title %}{{ _('Vecinos conocidos') }}{% endblock %}
+{% block crumbs %}<a href="/topology">{{ _('Mapa de la red') }}</a>{% endblock %}
+{% block content %}
+<div class="ph"><div class="grow"><h1>{{ _('Vecinos conocidos') }}</h1>
+  <div class="sub">{{ _('No avisan cuando aparecen; sí avisan si dejan de verse. Si quitas uno y sigue conectado, en la próxima lectura avisa como vecino nuevo.') }}</div></div></div>
+<section class="card flush"><div class="tw"><table class="t"><thead><tr><th>{{ _('Equipo') }}</th><th>{{ _('Puerto') }}</th><th>{{ _('Vecino') }}</th><th>{{ _('Por') }}</th><th>{{ _('Visto') }}</th><th><span class="vh">{{ _('Acciones') }}</span></th></tr></thead><tbody data-pager>
+{% for r in rows %}<tr><td>{{ names.get(r.device_id, '—') }}</td><td class="mono">{{ r.port or '—' }}</td><td>{{ r.name or r.mac or r.ip }}{% if r.platform %} <span class="muted sm">· {{ r.platform }}</span>{% endif %}</td>
+  <td>{{ labels.get(r.proto, r.proto) }}</td><td>{{ ago(r.last_seen) }}{% if r.status == 'lost' %} <span class="pill crit">{{ _('perdido') }}</span>{% endif %}</td>
+  <td><form method="post" action="/neighbors/{{ r.id }}/unknown" style="margin:0"><button class="btn s">{{ _('Quitar') }}</button></form></td></tr>
+{% else %}<tr><td colspan="6"><div class="empty"><p>{{ _('Todavía no hay vecinos conocidos: se toman en la primera lectura de cada equipo.') }}</p></div></td></tr>{% endfor %}
+</tbody></table></div></section>
+{% endblock %}

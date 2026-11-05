@@ -399,7 +399,7 @@ def lookup(user, q: str) -> dict:
         return {"device": d.name, "device_id": d.id, "port": s.port, "vlan": s.vlan, "vlan_name": vnames.get(d.id, {}).get(s.vlan, ""),
                 "desc": _port_info(d, s.port)["desc"], "ago": _ago(s.last_seen), "first": _ago(s.first_seen),
                 "console": console_allowed(user, d.id)}
-    access.sort(key=lambda s: s.first_seen, reverse=True)  # el más reciente primero (el que se enchufó último)
+    access.sort(key=lambda s: (s.first_seen, s.id), reverse=True)  # el más reciente primero (el que se enchufó último)
     res["found"] = [card(s) for s in access]
     path = []
     if res.get("arp") and res["arp"]["current"]:
