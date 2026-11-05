@@ -34,7 +34,14 @@ with SessionLocal() as db:
 s = requests.Session()
 s.post(B + "/login", data={"username": "admin", "password": "Admin12345"})
 w = s.get(B + "/api/where", params={"q": "10.10.9.200"}).json()
-check("sin tablas leídas: no se encuentra y lo dice", w["kind"] == "ip" and not w.get("found") and not w["cov"]["read_ago"], w)
+MINE = ("ACC-MAC", "ACC-B")
+
+
+def mine(w):  # en la suite completa otros equipos de prueba (el mismo Cisco simulado) ven la misma MAC
+    return [x for x in w.get("found", []) if x["device"] in MINE]
+
+
+check("sin tablas leídas: no se encuentra en este equipo", w["kind"] == "ip" and not mine(w), w)
 s.post(B + f"/devices/{dev_id}/backup")
 for _ in range(60):
     time.sleep(0.5)
@@ -48,17 +55,17 @@ check("el respaldo guarda la tabla MAC (sin la CPU) y la ARP", sorted((r.kind, r
     ("mac", "F439091A2B3C", "Gi0/3")], [(r.kind, r.mac, r.port) for r in rows])
 
 w = s.get(B + "/api/where", params={"q": "10.10.9.200"}).json()
-f = w.get("found") or [{}]
-check("por IP: switch, puerto de acceso y VLAN", len(w.get("found", [])) == 1 and f[0].get("device") == "ACC-MAC"
+f = mine(w) or [{}]
+check("por IP: switch, puerto de acceso y VLAN", len(mine(w)) == 1 and f[0].get("device") == "ACC-MAC"
       and f[0].get("port") == "Gi0/3" and f[0].get("vlan") == "10", w)
-check("por IP: la MAC sale de la tabla ARP", w.get("mac") == "F4:39:09:1A:2B:3C" and w.get("arp", {}).get("device") == "ACC-MAC", w)
-check("cobertura: tablas leídas en 1 de 1 equipos", w["cov"]["read_n"] == 1 and w["cov"]["total_n"] >= 1 and w["cov"]["read_ago"], w["cov"])
+check("por IP: la MAC sale de la tabla ARP", w.get("mac") == "F4:39:09:1A:2B:3C" and w.get("arp", {}).get("device"), w)
+check("cobertura: tablas leídas y cuándo", w["cov"]["read_n"] >= 1 and w["cov"]["total_n"] >= 1 and w["cov"]["read_ago"], w["cov"])
 for q in ("f4:39:09:1a:2b:3c", "f439.091a.2b3c", "F4-39-09-1A-2B-3C"):
     w2 = s.get(B + "/api/where", params={"q": q}).json()
-    check(f"por MAC ({q})", w2["kind"] == "mac" and [x["port"] for x in w2.get("found", [])] == ["Gi0/3"]
+    check(f"por MAC ({q})", w2["kind"] == "mac" and [x["port"] for x in mine(w2)] == ["Gi0/3"]
           and w2.get("ip") == "10.10.9.200", w2)
 w = s.get(B + "/api/where", params={"q": "10.10.9.1"}).json()
-check("una MAC que solo se ve en un uplink (con vecino CDP) no se muestra como puerto de acceso", w.get("found") == [], w)
+check("una MAC que solo se ve en un uplink (con vecino CDP) no se muestra como puerto de acceso", mine(w) == [], w)
 
 with SessionLocal() as db:  # el mismo equipo visto también en otro switch: dos puertos de acceso
     d2 = Device(name="ACC-B", host="192.0.2.80", device_type="cisco_ios", tables_at=now())
@@ -70,7 +77,7 @@ with SessionLocal() as db:  # el mismo equipo visto también en otro switch: dos
     db.commit()
     d2_id = d2.id
 w = s.get(B + "/api/where", params={"q": "10.10.9.200"}).json()
-check("aparece en 2 puertos de acceso, el más reciente primero", [x["device"] for x in w.get("found", [])] == ["ACC-B", "ACC-MAC"], w)
+check("aparece en 2 puertos de acceso, el más reciente primero", [x["device"] for x in mine(w)] == ["ACC-B", "ACC-MAC"], w)
 w = s.get(B + "/api/where", params={"q": "aa:bb:cc:00:00:01"}).json()
 check("no conectado ahora: «Visto por última vez»", w.get("found") == [] and w.get("last", {}).get("port") == "Gi1/0/9", w)
 w = s.get(B + "/api/where", params={"q": "f4:39:09:1a"}).json()
