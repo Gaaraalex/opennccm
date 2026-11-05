@@ -145,8 +145,10 @@ def console_page(request: Request, dev_id: int, embed: int = 0):  # embed=2: pan
         ok, acc = _open_allowed(user, dev)
         os_key = cc.os_of(dev.device_type)
         info = _dev_info(dev)
-    from . import assistant
+        dtype = dev.device_type
+    from . import assistant, favorites
     resp = render(request, "console.html", user, dev=info, compact=True, embed=bool(embed), bare=embed == 2,
+                  favs=favorites.for_console(user, dtype),
                   autologin=_setting("console_autologin", "0") == "1", access=acc, can_open=ok,
                   profile=cc.client_profile(os_key, _, dev), idle_min=idle_seconds() // 60,
                   recording=_setting("console_record", "1") == "1", ai=assistant.panel_info(user))

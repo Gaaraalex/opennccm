@@ -421,29 +421,116 @@
       }).catch(function () {});
     }, 220);
   }
+  /* ---------- buscar una MAC o una IP (app/macfind.py): dónde está conectado ---------- */
+  var where = null, whereQ = '', whereT = 0;
+  function whereKind(v) {
+    v = (v || '').trim();
+    if (/^(?:[0-9a-f]{2}([:-])[0-9a-f]{2}(?:\1[0-9a-f]{2}){4}|[0-9a-f]{4}([.-])[0-9a-f]{4}\2[0-9a-f]{4})$/i.test(v)) return 'mac';
+    var m = v.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (m && m.slice(1).every(function (x) { return +x < 256; })) return 'ip';
+    if (/^\d{1,3}(?:\.\d{0,3}){1,3}$/.test(v) && v.split('.').length >= 3) return 'bad';
+    if (/^[0-9a-f]{1,4}(?:[:.-][0-9a-f]{0,4}){1,6}$/i.test(v) && /[:.-]/.test(v) && v.replace(/[^0-9a-f]/ig, '').length >= 4 && !/^[\d.]+$/.test(v)) return 'bad';
+    return '';
+  }
+  function searchWhere(raw) {
+    clearTimeout(whereT);
+    var k = whereKind(raw), tag = $('#palkind');
+    if (tag) { tag.hidden = k !== 'mac' && k !== 'ip'; tag.textContent = k === 'ip' ? 'IP' : 'MAC'; }
+    if (!k) { where = null; whereQ = ''; whereFoot(); return; }
+    whereT = setTimeout(function () {
+      fetch('/api/where?q=' + encodeURIComponent(raw), {credentials: 'same-origin'}).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+        where = j; whereQ = raw; whereFoot();
+        if (overlay && overlay.classList.contains('palw')) palFill();
+      }).catch(function () {});
+    }, 200);
+  }
+  function whereFoot() {
+    var f = $('#palfoot'); if (!f) return;
+    var c = where && where.cov;
+    f.hidden = !c || !c.total_n;
+    if (c) f.textContent = c.read_ago ? T.w_foot.replace('{0}', c.read_ago).replace('{1}', c.read_n).replace('{2}', c.total_n) : T.w_never;
+  }
+  function wCard(f, k) {
+    var chips = [];
+    if (f.vlan) chips.push(T.w_vlan.replace('{0}', f.vlan) + (f.vlan_name ? ' · ' + f.vlan_name : ''));
+    if (f.desc) chips.push(f.desc);
+    chips.push(T.w_seen.replace('{0}', f.ago));
+    return '<div class="wh-card"><div class="it' + (k === palIdx ? ' on' : '') + '" role="option" id="pi' + k + '" data-pi="' + k + '">' + icon('server', 's') +
+      '<b>' + esc(T.w_port.replace('{0}', f.device).replace('{1}', f.port)) + '</b></div>' +
+      '<div class="wh-chips">' + chips.map(function (c) { return '<span class="chip">' + esc(c) + '</span>'; }).join('') + '</div>' +
+      '<div class="wh-acts"><a class="btn s pri" href="/devices/' + f.device_id + '">' + esc(T.w_open.replace('{0}', f.device)) + '</a>' +
+      (f.console ? '<a class="btn s" href="/devices/' + f.device_id + '/console">' + icon('term', 's') + esc(T.w_console) + '</a>' : '') + '</div></div>';
+  }
+  function wKv(w) {
+    var rows = [];
+    if (w.ip) rows.push([T.w_ip, '<span class="mono">' + esc(w.ip) + '</span>' + (w.arp ? ' <span class="muted sm">' + esc(T.w_from.replace('{0}', w.arp.device)) + '</span>' : '')]);
+    if (w.mac) rows.push([T.w_mac, '<span class="mono">' + esc(w.mac) + '</span>' + (w.vendor ? ' <span class="muted sm">· ' + esc(w.vendor) + '</span>' : '')]);
+    if (w.path && w.path.length) rows.push([T.w_path, w.path.map(function (p) {
+      return esc(p.device) + (p.port ? ' ' + esc(p.port) : '') + (p.role === 'arp' ? ' ' + esc(T.w_arp) : p.role === 'access' ? ' ' + esc(T.w_access) : '');
+    }).join(' → ')]);
+    return rows.length ? '<dl class="kv wh-kv">' + rows.map(function (r) { return '<dt>' + esc(r[0]) + '</dt><dd>' + r[1] + '</dd>'; }).join('') + '</dl>' : '';
+  }
+  function whereHtml(w, raw, devN, cfgN) {
+    var items = [], h = '';
+    if (w.kind === 'bad') {
+      h = '<div class="wh wh-bad"><b>' + esc(T.w_bad.replace('{0}', raw)) + '</b><p class="sm">' + esc(T.w_bad_t) + '</p>' +
+        '<p class="mono sm">aa:bb:cc:dd:ee:ff · aabb.ccdd.eeff · AA-BB-CC-DD-EE-FF · 10.10.9.200</p>' +
+        '<p class="muted sm">' + esc(T.w_astext.replace('{0}', devN).replace('{1}', cfgN)) + '</p></div>';
+      return {html: h, items: items};
+    }
+    var f = w.found || [];
+    if (f.length === 1) {
+      items.push({href: '/devices/' + f[0].device_id});
+      h = '<div class="wh"><div class="gl label">' + esc(T.w_where) + '</div>' + wCard(f[0], 0) + wKv(w) + '<p class="muted sm">' + esc(T.w_note) + '</p></div>';
+    } else if (f.length > 1) {
+      h = '<div class="wh"><div class="gl label">' + esc(T.w_many.replace('{0}', f.length)) + ' <span class="muted">· ' + esc(T.w_recent) + '</span></div>' +
+        f.map(function (x, i) { items.push({href: '/devices/' + x.device_id}); return wCard(x, i); }).join('') + wKv(w) +
+        '<div class="banner warn wh-why">' + icon('alert', 's') + '<div><b>' + esc(T.w_why) + '</b><p class="sm">' + esc(T.w_why_t) + '</p></div></div></div>';
+    } else {
+      var c = w.cov || {};
+      h = '<div class="wh wh-none"><b>' + esc(T.w_none.replace('{0}', raw)) + '</b><p class="sm">' +
+        esc(c.read_ago ? T.w_none_t.replace('{0}', c.read_ago) : T.w_never) + '</p>' +
+        (OC.op && c.total_n ? '<div class="row" style="gap:10px;align-items:center"><button type="button" class="btn s" id="wh-read">' + icon('refresh', 's') + esc(T.w_read) + '</button><span class="muted sm">' +
+          esc(T.w_read_n.replace('{0}', c.total_n).replace('{1}', c.eta_s)) + '</span></div>' : '') +
+        (w.last ? '<dl class="kv wh-kv"><dt>' + esc(T.w_last) + '</dt><dd>' + esc(w.last.device + ' · ' + w.last.port + ' · ' + w.last.ago) + '</dd></dl>' : '') + wKv(w) +
+        (c.missing && c.missing.length ? '<details class="sm"><summary>' + esc(T.w_notables) + ' · ' + c.missing_n + '</summary><ul class="wh-miss">' +
+          c.missing.map(function (m) { return '<li><b>' + esc(m.name) + '</b> — ' + esc(m.why) + '</li>'; }).join('') + '</ul></details>' : '') + '</div>';
+    }
+    return {html: h, items: items};
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('#wh-read'); if (!b) return;
+    b.disabled = true; b.textContent = T.w_reading;
+    fetch('/api/where/refresh', {method: 'POST', credentials: 'same-origin'}).then(function () { whereQ = ''; searchWhere(($('#palq') || {}).value || ''); })
+      .catch(function () { b.disabled = false; });
+  });
   function palFill() {
     var inp = $('#palq'); if (!inp) return;
     var raw = inp.value.trim(), q = norm(raw);
     var groups = [];
+    var wk = whereKind(raw), wh = (wk && where && whereQ === raw) ? where : null;
     var devs = (devices || []).filter(function (d) { return !q || d.key.indexOf(q) >= 0; }).slice(0, 5);
     if (devs.length) groups.push([T.devices, devs]);
-    if (q.length > 1 && cfgQ === raw && cfgHits.length) groups.push([T.configs, cfgHits]);
+    if (q.length > 1 && cfgQ === raw && cfgHits.length) groups.push([wk ? T.w_also : T.configs, cfgHits]);
     else if (q.length > 1) groups.push([T.configs, [{i: 'code', t: (T.search_in || '{0}').replace('{0}', raw), r: T.config, href: '/search?q=' + encodeURIComponent(raw)}]]);
     var pages = navPages.filter(function (p) { return !q || norm(p.t).indexOf(q) >= 0; });
     if (pages.length) groups.push([T.pages, pages.slice(0, q ? 7 : 4)]);
     var acts = (OC.actions || []).filter(function (a) { return !q || norm(a[0]).indexOf(q) >= 0; })
       .map(function (a) { return {i: a[2], t: a[0], act: a}; });
     if (acts.length) groups.push([T.actions, acts.slice(0, q ? 6 : 4)]);
-    palItems = []; groups.forEach(function (g) { palItems = palItems.concat(g[1]); });
+    var wb = wh ? whereHtml(wh, raw, devs.length, cfgQ === raw ? cfgHits.length : 0) : {html: '', items: []};
+    if (wh) groups = groups.filter(function (g) { return g[0] !== T.devices || devs.length; });
+    palItems = wb.items.slice(); groups.forEach(function (g) { palItems = palItems.concat(g[1]); });
     if (palIdx >= palItems.length) palIdx = 0;
-    var n = 0;
-    $('#palres').innerHTML = palItems.length ? groups.map(function (g) {
+    var n = wb.items.length;
+    if (wb.html) wb = whereHtml(wh, raw, devs.length, cfgQ === raw ? cfgHits.length : 0);
+    $('#palres').innerHTML = wb.html + (palItems.length > wb.items.length ? groups.map(function (g) {
       return '<div class="gl label">' + esc(g[0]) + '</div>' + g[1].map(function (it) {
         var k = n++;
         return '<div class="it ' + (k === palIdx ? 'on' : '') + '" role="option" id="pi' + k + '" data-pi="' + k + '">' + icon(it.i, 's') + '<span>' + hl(it.t, q) +
           (it.sub ? ' <span class="muted sm">· ' + hl(it.sub, q) + '</span>' : '') + '</span><span class="r">' + esc(it.r || '') + '</span></div>';
       }).join('');
-    }).join('') : '<div class="empty" style="padding:28px"><p>' + esc((T.none || '{0}').replace('{0}', raw)) + '</p></div>';
+    }).join('') : (wb.html ? '' : '<div class="empty" style="padding:28px"><p>' + esc((T.none || '{0}').replace('{0}', raw)) + '</p></div>'));
     inp.setAttribute('aria-activedescendant', palItems.length ? 'pi' + palIdx : '');
   }
   function palRun(i) {
@@ -457,8 +544,8 @@
     overlay.className = 'scrim palw';
     overlay._from = document.activeElement;
     overlay.innerHTML = '<div class="pal" role="dialog" aria-modal="true" aria-label="' + esc(T.ph) + '"><div class="q">' + icon('search') +
-      '<input id="palq" placeholder="' + esc(T.ph) + '" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="palres"><kbd>Esc</kbd></div>' +
-      '<div class="res" id="palres" role="listbox"></div><div class="ft"><span><kbd>↑</kbd> <kbd>↓</kbd> ' + esc(T.move) + '</span><span><kbd>↵</kbd> ' + esc(T.open) +
+      '<input id="palq" placeholder="' + esc(T.ph) + '" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="palres"><span class="pill info" id="palkind" hidden></span><kbd>Esc</kbd></div>' +
+      '<div class="res" id="palres" role="listbox"></div><div class="ft"><span id="palfoot" hidden></span><span><kbd>↵</kbd> ' + esc(T.open) + '</span><span><kbd>↑</kbd> <kbd>↓</kbd> ' + esc(T.move) +
       '</span><span class="grow"></span><a href="/search">' + esc(T.adv) + '</a></div></div>';
     document.body.appendChild(overlay);
     var ov = overlay;
@@ -471,7 +558,7 @@
       if (it && +it.dataset.pi !== palIdx) { palIdx = +it.dataset.pi; $$('.it', ov).forEach(function (x) { x.classList.toggle('on', +x.dataset.pi === palIdx); }); }
     });
     var inp = $('#palq');
-    inp.addEventListener('input', function () { palIdx = 0; searchCfg(inp.value.trim()); palFill(); });
+    inp.addEventListener('input', function () { palIdx = 0; searchCfg(inp.value.trim()); searchWhere(inp.value.trim()); palFill(); });
     inp.addEventListener('keydown', function (e) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault(); if (!palItems.length) return;

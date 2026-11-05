@@ -1607,6 +1607,37 @@ def topology_page(request: Request, group: int = 0):
                                                    (", " + d.model) if d.model else "")
                                  + " " + _topo_role_how(role, rby, sorted(set(seen_caps.get(d.id) or []))))
     links = [e for lst in edges.values() for e in lst]
+    # cambios de vecinos de las últimas 24 h (app/nbwatch.py): nuevos resaltados y perdidos dibujados aparte
+    from . import nbwatch
+    nbm = nbwatch.marks([d.id for d in devs])
+
+    def nb_node(x):
+        t = by_name.get(topology.norm_name(x["name"]))
+        return f"d{t.id}" if t is not None else f"u:{x['key']}"
+    for x in nbm["new"]:
+        nid = nb_node(x)
+        if nid in nodes and nid != f"d{x['dev']}":
+            nodes[nid]["chg"] = "new"
+            for e in links:
+                if {e["a"], e["b"]} == {nid, f"d{x['dev']}"}:
+                    e["chg"] = "new"
+    for x in nbm["lost"]:
+        nid = nb_node(x)
+        if nid == f"d{x['dev']}" or f"d{x['dev']}" not in nodes:
+            continue
+        if nid not in nodes:
+            nid = f"x:{x['key']}"
+            nodes[nid] = {"id": nid, "label": x["name"], "kind": "lost", "sub": x.get("ip") or x.get("mac") or "",
+                          "fam": "mikrotik" if x["romon"] else "other", "role": "unknown", "how": ""}
+        nodes[nid]["chg"], nodes[nid]["lost_ago"] = "lost", x["ago"]
+        if not any({e["a"], e["b"]} == {nid, f"d{x['dev']}"} for e in links):
+            a_, b_ = f"d{x['dev']}", nid
+            links.append({"a": a_, "b": b_, "pa": x["port"] if not x["romon"] else "", "pb": x.get("remote_port") or "",
+                          "k": f"{a_}|{b_}|lost", "air": False, "romon": x["romon"], "chg": "lost"})
+        else:
+            for e in links:
+                if {e["a"], e["b"]} == {nid, f"d{x['dev']}"}:
+                    e["chg"] = "lost"
     linked = {e["a"] for e in links} | {e["b"] for e in links}
     show = [n for n in nodes.values() if n["id"] in linked]
     alone = [n for n in nodes.values() if n["id"] not in linked and n["kind"] == "dev"]
@@ -1618,7 +1649,8 @@ def topology_page(request: Request, group: int = 0):
                   families=topology.FAMILIES, fam_count=fam_count, roles={k: _(v) for k, v in topology.ROLES},
                   fam_names={k: _(v) for k, v in topology.FAMILIES},
                   labels={n["id"]: n["label"] for n in show},
-                  group=group, with_data=with_data, clients=clients, hidden=sorted(hidden.values(), key=str.lower), total=len(devs), enabled=get_setting("topology_enabled", "1") == "1")
+                  group=group, with_data=with_data, clients=clients, hidden=sorted(hidden.values(), key=str.lower), total=len(devs), enabled=get_setting("topology_enabled", "1") == "1",
+                  nb_feed=nbm["feed"][:50])
 
 
 # --------------------------------------------------------------------------- inventario de IP y VLAN
@@ -2591,7 +2623,7 @@ EV_SEV = {"crit": ("critical",), "major": ("major", "error"), "minor": ("warning
 
 
 @app.get("/events")
-def events(request: Request, sev: str = "", unack: int | None = None, page: int = 1, per: int = 15):
+def events(request: Request, sev: str = "", unack: int | None = None, page: int = 1, per: int = 15, cat: str = ""):
     """Alarmas y eventos (prototipo): chips por severidad con recuento, «Sin reconocer / Todas» y cola."""
     from .web import _event_title
     user = require(request)
@@ -2604,6 +2636,11 @@ def events(request: Request, sev: str = "", unack: int | None = None, page: int 
         scope = device_scope(user)
         if scope is not None:  # eventos de sus equipos (los globales solo los ven usuarios sin restricción)
             base = base.where(Event.device_id.in_(scope))
+        from . import nbwatch
+        nb_cats = (nbwatch.CAT_NEW, nbwatch.CAT_LOST)
+        nb_n = db.scalar(select(func.count()).select_from(base.where(Event.category.in_(nb_cats)).subquery())) or 0
+        if cat == "vecinos":
+            base = base.where(Event.category.in_(nb_cats))
         counts = {k: 0 for k in EV_SEV}
         sub = base.subquery()
         for sv, n in db.execute(select(sub.c.severity, func.count()).group_by(sub.c.severity)).all():
@@ -2621,13 +2658,18 @@ def events(request: Request, sev: str = "", unack: int | None = None, page: int 
         pages = max(1, -(-shown // per))
         page = min(max(page, 1), pages)
         items = db.scalars(stmt.offset((page - 1) * per).limit(per)).all()
+        from .db import NeighborState
+        nbs = {r.event_id: r.id for r in db.scalars(select(NeighborState).where(NeighborState.event_id.in_([e.id for e in items])))}
         for e in items:
             e.device.name if e.device else None  # carga la relación antes de cerrar la sesión
             e.title = _event_title(e)
+            e.nb = nbs.get(e.id)
+            e.sub = (e.message or "").splitlines()[1] if e.category in nb_cats and len((e.message or "").splitlines()) > 1 else ""
         open_n = db.scalar(select(func.count(Event.id)).where(Event.acknowledged.is_(False),
                                                               *([Event.device_id.in_(scope)] if scope is not None else []))) or 0
     return render(request, "events.html", user, items=items, sev=sev, unack=unack, page=page, per=per, shown=shown, pages=pages, counts=counts,
-                  total=total, open_n=open_n, min_sev=get_setting("alert_min_severity", "warning"))
+                  total=total, open_n=open_n, min_sev=get_setting("alert_min_severity", "warning"), cat=cat, nb_n=nb_n,
+                  nb_interval=nbwatch.interval_min(), nb_reads=nbwatch.cfg()["reads"])
 
 
 @app.post("/events/ack")
@@ -2941,8 +2983,9 @@ def settings(request: Request):
     values["nvd_api_key_env"] = bool(NVD_API_KEY)  # la del archivo opennccm.env tiene prioridad
     from .topology import FAMILIES
     from . import assistant
+    from . import nbwatch
     return render(request, "settings.html", user, s=values, redirect_uri=_redirect_uri(request), families=FAMILIES,
-                  ai=assistant.settings_values())
+                  ai=assistant.settings_values(), nb=nbwatch.settings_values())
 
 
 @app.post("/settings/git-export")
@@ -3025,6 +3068,9 @@ async def settings_save(request: Request):
             set_setting(k, "" if len(sel) == len(FAMILIES) else ",".join(sel) or "none")  # vacío = todos
         else:
             set_setting(k, (form.get(k) or "").strip())
+    if "nb_form" in form:  # Mapa de la red › aviso de vecino nuevo o perdido
+        from . import nbwatch
+        nbwatch.save_settings(form)
     if "ai_form" in form:  # sección Asistente IA
         from . import assistant
         assistant.save_settings(form)
@@ -3235,6 +3281,18 @@ from . import impact, netreports  # noqa: E402  (análisis de impacto; puertos s
 
 app.include_router(impact.router)
 app.include_router(netreports.router)
+from . import favorites  # noqa: E402  (comandos favoritos de la consola)
+
+app.include_router(favorites.router)
+from . import macfind  # noqa: E402  (buscar una MAC o una IP)
+
+app.include_router(macfind.router)
+from . import nbwatch  # noqa: E402  (aviso de vecino nuevo o perdido)
+
+app.include_router(nbwatch.router)
+from . import refconfig  # noqa: E402  (configuración de referencia por modelo)
+
+app.include_router(refconfig.router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)

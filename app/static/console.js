@@ -224,6 +224,57 @@
   $('cx-freq').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) { run(b.dataset.c); inp.focus(); } });
   out.addEventListener('click', function () { if (!getSelection().toString()) inp.focus(); });
 
+  /* ---------- comandos favoritos (app/favorites.py) ---------- */
+  var F = C.favs, FT = C.ft || {};
+  function post(url, body) {
+    return fetch(url, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body || {})})
+      .then(function (r) { return r.json(); });
+  }
+  function paintFavs() {
+    var box = $('cx-favl');
+    if (!F || !box) return;
+    if (!F.items.length) {
+      box.innerHTML = '<span class="cx-favempty">' + esc(FT.empty.replace('{0}', F.label)) + (F.suggested.length ?
+        ' <button type="button" class="cx-link" id="cx-fav-sug">' + esc(FT.addsug.replace('{0}', F.suggested.length)) + '</button>' : '') + '</span>';
+      var sg = $('cx-fav-sug');
+      if (sg) sg.addEventListener('click', function () { post('/api/console/favorites/suggested', {family: F.family}).then(function (j) { F = j; paintFavs(); }); });
+      return;
+    }
+    box.innerHTML = F.items.map(function (f, i) {
+      return '<button type="button" class="cx-fav' + (f.change ? ' chg' : '') + '" data-i="' + i + '" title="' + esc(f.command) +
+        (f.family === '*' ? ' · ' + esc(FT.all) : '') + '"><b>' + esc(f.name) + '</b><span>' + esc(f.command.split('\n')[0]) + '</span></button>';
+    }).join('');
+  }
+  if ($('cx-favl')) {
+    paintFavs();
+    $('cx-favl').addEventListener('click', function (e) {
+      var b = e.target.closest('.cx-fav'); if (!b) return;
+      var f = F.items[+b.dataset.i]; if (!f) return;
+      if (f.change) { inp.value = f.command.split('\n')[0]; showGhost(); inp.focus(); toast(FT.changed); return; }
+      if (f.mode === 'type') { inp.value = f.command.split('\n')[0]; showGhost(); inp.focus(); return; }
+      f.command.split('\n').forEach(function (l) { if (l.trim()) run(l); });
+      inp.focus();
+    });
+    $('cx-fav-save').addEventListener('click', function () {
+      var c = inp.value.trim() || hist[hist.length - 1] || '';
+      if (!c) { toast(FT.nocmd); inp.focus(); return; }
+      $('cx-fav-cmd').textContent = c; $('cx-favform').hidden = false; $('cx-fav-name').value = ''; $('cx-fav-name').focus();
+    });
+    $('cx-fav-x').addEventListener('click', function () { $('cx-favform').hidden = true; inp.focus(); });
+    $('cx-favform').addEventListener('submit', function (e) {
+      e.preventDefault();
+      post('/api/console/favorites', {name: $('cx-fav-name').value, command: $('cx-fav-cmd').textContent, family: F.family, mode: 'send'})
+        .then(function (j) {
+          if (j.error) { toast(j.error); return; }
+          $('cx-favform').hidden = true; toast(FT.saved);
+          return fetch('/api/console/favorites?family=' + encodeURIComponent(F.family), {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (k) { F = k; paintFavs(); });
+        }).then(function () { inp.focus(); });
+    });
+    window.addEventListener('focus', function () {  // al volver de «Editar» (otra pestaña), la barra se pone al día
+      fetch('/api/console/favorites?family=' + encodeURIComponent(F.family), {credentials: 'same-origin'}).then(function (r) { return r.ok ? r.json() : null; }).then(function (k) { if (k) { F = k; paintFavs(); } });
+    });
+  }
+
   /* ---------- guarda de comandos que cortan el servicio ---------- */
   var gcmd = null;
   function guard(cmd, why) { gcmd = cmd; $('cx-g-cmd').textContent = cmd; $('cx-g-why').textContent = why; $('cx-guard').hidden = false; $('cx-g-no').focus(); }

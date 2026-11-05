@@ -434,14 +434,44 @@ def _read_neighbors(conn, device_type: str) -> str | None:
     if not cmds or get_setting("topology_enabled", "1") != "1":
         return None
     out = []
-    if device_type == "mikrotik_routeros" and get_setting("topology_romon", "0") == "1":
+    ros = device_type == "mikrotik_routeros"
+    if ros and get_setting("topology_romon", "0") == "1":
         cmds = list(cmds) + [topology.ROMON]  # los MikroTik alcanzables por RoMON (unos segundos más)
     for c in cmds:
         try:
-            out.append(topology.MARK + c + "\n" + conn.send_command(c, read_timeout=30))
+            text = _ros_read(conn, c) if ros else conn.send_command(c, read_timeout=30)
+            if c == topology.ROMON and re.search(r"expected end of command|bad command name|syntax error", text[:400]):
+                c, text = topology.ROMON_PLAIN, _ros_read(conn, topology.ROMON_PLAIN)  # versión sin «proplist»
+            out.append(topology.MARK + c + "\n" + text)
         except Exception as e:  # noqa: BLE001 - sin LLDP/CDP o la orden no existe: sin vecinos
             log.info("vecinos (%s): %s", c, e)
     return "\n".join(out)
+
+
+def _ros_read(conn, cmd: str) -> str:
+    """RouterOS muestra los caracteres no ASCII como su byte resaltado («Caba» F1 «as»). netmiko quita los códigos de la
+    terminal y quedaría «CabaF1as»: se leen con los códigos, se marcan los bytes resaltados y después se quitan."""
+    keep = getattr(conn, "ansi_escape_codes", False)
+    conn.ansi_escape_codes = False
+    try:
+        if cmd.startswith("/tool romon"):
+            # la búsqueda redibuja la tabla cada segundo y en RouterOS 6 se queda en «-- [Q quit…]» al terminar: se lee
+            # hasta que deja de llegar salida (más que lo que dura la búsqueda) y, si no volvió el indicador, se envía «q»
+            raw = conn.send_command_timing(cmd, last_read=12, read_timeout=60, strip_prompt=False)
+            tail = conn.strip_ansi_escape_codes(raw)[-300:]
+            if not re.search(r"\]\s*>\s*$", tail):
+                conn.write_channel("q")
+                try:
+                    raw += conn.read_until_prompt(read_timeout=15)
+                except Exception as e:  # noqa: BLE001
+                    log.info("RoMON: no volvió el indicador: %s", e)
+        else:
+            raw = conn.send_command(cmd, read_timeout=60)
+    finally:
+        conn.ansi_escape_codes = keep
+    from . import topology
+    # netmiko no quita todos los códigos de color («ESC[34;1m»): lo que quede se borra aquí
+    return re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", conn.strip_ansi_escape_codes(topology.mark_hex(raw)))
 
 
 def device_error(text: str) -> bool:
@@ -558,7 +588,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
                     raise RuntimeError("El dispositivo no tiene credencial asignada")
                 cred = (dev.credential.username, decrypt(dev.credential.password_enc) if dev.credential.password_enc else "")
                 running, inventory = swos.backup(dev, cred)
-                startup = neighbors_raw = ports_raw = license_raw = None
+                startup = neighbors_raw = ports_raw = license_raw = tables_raw = None
             else:
                 with connect(dev) as conn:
                     running = conn.send_command(dev.custom_backup_cmd or prof.backup, read_timeout=180)
@@ -567,6 +597,8 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
                                             if c.strip()) if prof.inventory else None
                     neighbors_raw = _read_neighbors(conn, dev.device_type)
                     ports_raw = _read_ports(conn, dev.device_type)
+                    from . import macfind
+                    tables_raw = macfind.read(conn, dev.device_type)  # tablas MAC y ARP (buscar una MAC o una IP)
                     want_license = _license_missing(dev, prof)
                     license_raw = _read_license(conn, prof) if want_license else None
                 if want_license and prof.key == "watchguard_fireware":  # la firma, por la Web UI (ya sin SSH)
@@ -637,9 +669,23 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
         else:
             new_conflict = False
 
+        if tables_raw:
+            try:
+                from . import macfind
+                with db.begin_nested():
+                    macfind.store(dev.id, tables_raw, db)
+            except Exception as e:  # noqa: BLE001 - las tablas nunca hacen fallar el respaldo
+                log.warning("tablas MAC/ARP de %s: %s", dev.name, e)
         if neighbors_raw is not None:
             from . import topology
-            dev.neighbors = json.dumps(topology.parse(neighbors_raw, dev.device_type))
+            nbrs = topology.parse(neighbors_raw, dev.device_type)
+            dev.neighbors = json.dumps(nbrs)
+            try:  # aviso de vecino nuevo o perdido (app/nbwatch.py)
+                from . import nbwatch
+                with db.begin_nested():
+                    nbwatch.update(db, dev, nbrs, running)
+            except Exception as e:  # noqa: BLE001 - nunca hace fallar el respaldo
+                log.warning("vecinos nuevos o perdidos de %s: %s", dev.name, e)
 
         if prof.key not in HTTP_ONLY:  # puertos y su estado, para la ficha del equipo
             from . import ports as ports_mod

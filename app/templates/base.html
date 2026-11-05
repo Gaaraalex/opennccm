@@ -71,7 +71,7 @@
   {% if user.role == 'admin' and DL %}<span class="dropw"><button type="button" class="donate" data-drop="don-pop" aria-haspopup="true" aria-expanded="false" aria-label="{{ _('Apoya OpenNCCM: donar') }}" title="{{ _('Apoya OpenNCCM') }}">{{ icon('heart') }}<span class="dt"><b>Apoya OpenNCCM</b><small>Libre y gratis gracias a ti</small></span><span class="dbtn">Donar</span></button>
     <div class="drop don-pop" id="don-pop" hidden>{{ donate_body(DL) }}</div></span>{% endif %}
   {% if ai_top %}<button type="button" class="btn s ghost ai-top" data-chat aria-pressed="false" title="{{ ai_top.model }} · {{ ai_top.who }}">{{ ai_logo(ai_top.p, 20) }}{{ _('Asistente') }}</button>{% endif %}
-  <button type="button" class="search-top" data-palette aria-label="Buscar">{{ icon('search', 's') }}<span>Buscar equipo, IP o texto…</span><kbd>Ctrl K</kbd></button>
+  <button type="button" class="search-top" data-palette aria-label="Buscar">{{ icon('search', 's') }}<span>{{ _('Buscar equipo, IP, MAC o texto…') }}</span><kbd>Ctrl K</kbd></button>
   {% set th = user.theme or 'auto' %}
   <span class="dropw"><button type="button" class="tbtn" data-drop="theme-menu" aria-haspopup="true" aria-expanded="false" aria-label="Tema y color" title="Tema y color">{{ icon('moon' if th == 'oscuro' else 'sun' if th == 'claro' else 'eye' if th == 'contraste' else 'monitor') }}</button>
     <div class="drop" id="theme-menu" hidden>
@@ -121,7 +121,20 @@
         'pages': _('Páginas'), 'devices': _('Equipos'), 'actions': _('Acciones'), 'configs': _('En configuraciones'),
         'search_in': _('Buscar «{0}» en las configuraciones'), 'none': _('Nada coincide con «{0}».'), 'close': _('Cerrar'),
         'go': _('Ir a'), 'device': _('Equipo'), 'config': _('Configuración'), 'line': _('línea {0}'),
-        'ph': _('Equipos, IPs, texto en configuraciones, páginas o acciones…'), 'move': _('moverse'), 'open': _('abrir'),
+        'ph': _('Equipos, IPs, MAC, texto en configuraciones, páginas o acciones…'),
+        'w_where': _('Dónde está conectado'), 'w_port': _('{0} · puerto {1}'), 'w_vlan': _('VLAN {0}'), 'w_seen': _('Visto {0}'),
+        'w_open': _('Abrir {0}'), 'w_console': _('Consola'), 'w_ip': 'IP', 'w_mac': 'MAC', 'w_path': _('Camino'), 'w_from': _('según la tabla ARP de {0}'),
+        'w_arp': _('(tabla ARP)'), 'w_access': _('(puerto de acceso)'),
+        'w_note': _('La MAC también aparece en los uplinks y troncales por donde pasa; se muestra el puerto de acceso, que es donde está enchufado el equipo.'),
+        'w_many': _('Aparece en {0} puertos de acceso'), 'w_recent': _('el más reciente primero'), 'w_why': _('¿Por qué en dos puertos?'),
+        'w_why_t': _('Lo más común es que el equipo se cambió de puerto. También puede haber un switch o un punto de acceso sin gestionar detrás de un puerto, o dos equipos con la misma MAC. Si los dos se ven al mismo tiempo, revisa si alguien conectó un switch sin permiso.'),
+        'w_none': _('No encontramos {0} conectado ahora'),
+        'w_none_t': _('No está en las tablas ARP ni MAC que se leyeron {0}. Los switches olvidan un equipo después de unos 5 min sin tráfico: si está apagado, dormido o en otra red, no aparece.'),
+        'w_never': _('Todavía no se leyó ninguna tabla MAC ni ARP: se leen en cada respaldo.'), 'w_read': _('Leer las tablas ahora'),
+        'w_read_n': _('{0} equipos · unos {1} segundos'), 'w_reading': _('Leyendo las tablas…'), 'w_last': _('Visto por última vez'),
+        'w_notables': _('Sin tablas MAC'), 'w_bad': _('«{0}» no es una MAC ni una IP completa.'), 'w_bad_t': _('Escríbela completa en cualquiera de estos formatos:'),
+        'w_astext': _('Buscado como texto: {0} equipos y {1} configuraciones.'), 'w_foot': _('Tablas MAC y ARP leídas {0} en {1} de {2} equipos'),
+        'w_also': _('También en'), 'move': _('moverse'), 'open': _('abrir'),
         'adv': _('Búsqueda avanzada en configuraciones'), 'expand': _('Desplegar menú'), 'collapse': _('Plegar menú'),
         'loading': _('Cargando…'), 'error': _('Error'), 'done': _('Hecho'), 'dirty': _('Tienes cambios sin guardar'),
         'discard': _('Descartar'), 'working': _('Trabajando…'), 'console': _('Consola · {0}'), 'reconnect': _('Reconectar'),

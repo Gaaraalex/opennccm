@@ -22,14 +22,18 @@ COMMANDS = {
     "hp_comware": ["display lldp neighbor-information verbose"], "h3c_comware": ["display lldp neighbor-information verbose"],
     "huawei": ["display lldp neighbor brief"], "huawei_vrpv8": ["display lldp neighbor brief"],
     "juniper_junos": ["show lldp neighbors"],
-    "mikrotik_routeros": ["/ip neighbor print detail terse without-paging"],
+    "mikrotik_routeros": ["/ip neighbor print detail without-paging"],
     "ubiquiti_edgeswitch": ["show lldp remote-device all"],
     "extreme_exos": ["show lldp neighbors detailed"],
 }
 MARK = "### vecinos: "  # separa la salida de cada orden en el texto guardado
 # MikroTik con RoMON (Ajustes › Mapa de la red, desactivado de fábrica): los MikroTik que se alcanzan por RoMON, aunque
 # estén a varios saltos o sin dirección IP. No dice por qué puerto: el mapa los une con una línea punteada.
-ROMON = "/tool romon discover duration=5"
+# Por defecto la orden solo muestra ADDRESS, COST, HOPS, PATH y L2MTU: la identidad, la versión y el modelo hay que pedirlos.
+# Cada fila empieza con su marca («A» = activo) y el camino va en varias líneas, una MAC por línea (salida real de
+# RouterOS 7.23). Si la versión no acepta «proplist», se usa la orden sin él (ROMON_PLAIN).
+ROMON = "/tool romon discover duration=10 proplist=address,hops,path,identity,version,board"
+ROMON_PLAIN = "/tool romon discover duration=10"
 
 
 def commands(device_type: str) -> list[str]:
@@ -112,15 +116,43 @@ def _lldp_detail(text: str) -> list[dict]:
     return out
 
 
+# RouterOS no envía los caracteres no ASCII: los muestra como su byte en hexadecimal resaltado («Caba» + «F1» resaltado +
+# «as»). Al leer la salida (services._read_neighbors) cada byte resaltado se cambia por dos caracteres privados: el byte
+# (U+E100 + byte) y un relleno (U+E0FF), así las columnas no se corren. _ros_text los vuelve a juntar en texto.
+# En «print detail» de 7.25 el byte resaltado lleva además su barra: «Caba» + resaltado «\F1» + «as».
+_HEX_HL = re.compile(r"\x1b\[[0-9;]*m((?:\\?[0-9A-Fa-f]{2})+)\x1b\[[0-9;]*m")
+
+
+def mark_hex(raw: str) -> str:
+    """Salida con los códigos de la terminal: los bytes resaltados pasan a caracteres privados (ver _HEX_HL)."""
+    def one(m):
+        h = m.group(1).replace("\\", "")
+        return "".join(chr(0xE100 + int(h[k:k + 2], 16)) + "\ue0ff" for k in range(0, len(h), 2))
+    return _HEX_HL.sub(one, raw)
+
+
+def _dec(raw: bytes) -> str:
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return raw.decode("cp1252", "replace")
+
+
 def _ros_text(v: str) -> str:
-    """RouterOS escribe los caracteres no ASCII como bytes «\\XX» («Caba\\F1as»): en UTF-8 si lo son, si no en Windows-1252."""
-    def dec(m):
-        raw = bytes(int(h, 16) for h in re.findall(r"\\([0-9A-Fa-f]{2})", m.group(0)))
-        try:
-            return raw.decode("utf-8")
-        except UnicodeDecodeError:
-            return raw.decode("cp1252", "replace")
-    return re.sub(r"(?:\\[0-9A-Fa-f]{2})+", dec, v)
+    """RouterOS escribe los caracteres no ASCII como bytes: «\\XX» («Caba\\F1as») en export y terse, o resaltados en las
+    tablas (ver mark_hex). En UTF-8 si lo son, si no en Windows-1252 (lo habitual en RouterOS)."""
+    v = re.sub(r"(?:\\[0-9A-Fa-f]{2})+",
+               lambda m: _dec(bytes(int(h, 16) for h in re.findall(r"\\([0-9A-Fa-f]{2})", m.group(0)))), v or "")
+    v = v.replace("\ue0ff", "")
+    v = re.sub("[\ue100-\ue1ff]+", lambda m: _dec(bytes(ord(c) - 0xE100 for c in m.group(0))), v)
+    return re.sub(r"(?<=[a-z])(C3[89AB][0-9A-F]|[C-F][0-9A-F])(?=[a-z])", _bare_hex, v)
+
+
+def _bare_hex(m) -> str:
+    """Algunas versiones (la tabla de RoMON en 7.23, «terse» en 7.x) escriben el byte sin barra ni resaltado: «CabaF1as».
+    Se lee como letra solo si va entre minúsculas y da una letra (F1 → ñ, E9 → é, C3B1 → ñ en UTF-8)."""
+    t = _dec(bytes.fromhex(m.group(1)))
+    return t if len(t) == 1 and t.isalpha() else m.group(1)
 
 
 def _mikrotik(text: str) -> list[dict]:
@@ -146,23 +178,55 @@ def _mikrotik(text: str) -> list[dict]:
     # de enfrente. LLDP no se reenvía, así que en un puerto con varios vecinos solo cuentan los vistos por LLDP.
     wired = [n for n in out if not is_air(n)]
     many = {p for p in {n["local_port"] for n in wired} if sum(n["local_port"] == p for n in wired) > 1}
+    for n, d in zip(out, by):  # «discovered-by=cdp,lldp,mndp»: el más específico
+        if d:
+            n["proto"] = next((p for p in ("lldp", "cdp", "mndp") if p in d), "mndp")
     return [n for n, d in zip(out, by) if d is None or is_air(n) or n["local_port"] not in many or "lldp" in d]
 
 
 def _romon(text: str) -> list[dict]:
-    """«/tool romon discover»: ADDRESS (id RoMON, una MAC), COST, HOPS, PATH (las MAC del camino, sin espacios), L2MTU,
-    IDENTITY, VERSION, BOARD. Se lee por campos: lo que queda entre L2MTU y la versión es la identidad (puede tener
-    espacios). Cada vecino lleva «via»: la MAC del salto anterior (vacía si está a un salto)."""
-    out = []
-    mac_re = r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}"
-    for line in text.splitlines():
-        t = line.split()
-        if len(t) < 8 or not re.fullmatch(mac_re, t[0]) or not t[2].isdigit():
+    """«/tool romon discover»: cada fila empieza con su marca («A») y la dirección RoMON (una MAC); el camino (PATH) va en
+    varias líneas, una MAC por línea, o separado por comas. PATH, IDENTITY, VERSION y BOARD se leen por la posición de su
+    título (la identidad puede tener espacios, incluso dobles). HOPS es el último número antes del camino. Cada vecino
+    lleva «via»: la MAC del salto anterior (vacía si está a un salto). Si la pantalla se redibujó, vale la última fila."""
+    mac = r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}"
+    lines = text.splitlines()
+    head = next((ln for ln in lines if re.search(r"\bADDRESS\b", ln) and re.search(r"\bPATH\b", ln)
+                 and not ln.lstrip().startswith("Columns")), None)
+    if head is None:
+        return []
+    cols = {m.group(0): m.start() for m in re.finditer(r"[A-Z][A-Z0-9-]*", head)}
+    order = sorted(cols.items(), key=lambda kv: kv[1])
+
+    def field(line, name):
+        if name not in cols:
+            return ""
+        start = cols[name]
+        nxt = [pos for _n, pos in order if pos > start]
+        return line[start:nxt[0] if nxt else None].strip()
+
+    found: dict[str, dict] = {}
+    cur = None
+    for line in lines:
+        if line is head or not line.strip():
             continue
-        path = [p.upper() for p in t[3].split(",") if re.fullmatch(mac_re, p)]
-        out.append({"local_port": "", "remote_name": " ".join(t[5:-2]), "remote_port": "", "remote_ip": "",
-                    "mac": t[0].upper(), "platform": "MikroTik " + t[-1], "romon": True, "hops": int(t[2]),
-                    "via": path[-2] if len(path) > 1 else "", "version": t[-2]})
+        m = re.match(r"^[A-Z*\s]{0,6}?(" + mac + r")\b", line)
+        if m and m.start(1) < cols.get("PATH", 999):
+            before = line[m.end(1):cols["PATH"]] if "PATH" in cols else ""
+            nums = re.findall(r"\d+", before)
+            path = re.findall(mac, field(line, "PATH"))
+            board = field(line, "BOARD")
+            cur = {"local_port": "", "remote_name": _ros_text(field(line, "IDENTITY")), "remote_port": "", "remote_ip": "",
+                   "mac": m.group(1).upper(), "platform": ("MikroTik " + board) if board else "MikroTik", "romon": True,
+                   "hops": int(nums[-1]) if nums else 0, "path": [x.upper() for x in path], "version": field(line, "VERSION")}
+            found[cur["mac"]] = cur
+        elif cur is not None and "PATH" in cols and not re.search(mac, line[:cols["PATH"]]):
+            cur["path"] += [x.upper() for x in re.findall(mac, field(line, "PATH"))]
+    out = []
+    for n in found.values():
+        path = n.pop("path")
+        n["via"] = path[-2] if len(path) > 1 else ""
+        out.append(n)
     return out
 
 
@@ -189,6 +253,7 @@ def parse(text: str, device_type: str) -> list[dict]:
     for cmd, out in pairs:
         if re.search(r"(?im)^\s*%|invalid input|unrecognized command|bad command name|syntax error", out[:400]):
             continue
+        start = len(found)
         if cmd.startswith("/tool romon"):
             found += _romon(out)
         elif "cdp" in cmd:
@@ -204,11 +269,14 @@ def parse(text: str, device_type: str) -> list[dict]:
                       _table(out, {"local": 0, "port": -2, "name": -1}, r"Local Interface")]
         else:
             found += _lldp_detail(out)
+        proto = "romon" if cmd.startswith("/tool romon") else "cdp" if "cdp" in cmd else "lldp"
+        for n in found[start:]:  # por qué protocolo se vio (aviso de vecino nuevo o perdido)
+            n.setdefault("proto", proto)
     uniq, keys = [], set()
     for n in found:
-        if not (n["remote_name"] or n["remote_ip"]):
+        if not (n["remote_name"] or n["remote_ip"] or n.get("romon")):  # RoMON sin identidad: queda su MAC
             continue
-        k = (short_port(n["local_port"]), norm_name(n["remote_name"]) or n["remote_ip"], bool(n.get("romon")))
+        k = (short_port(n["local_port"]), norm_name(n["remote_name"]) or n["remote_ip"] or n.get("mac"), bool(n.get("romon")))
         if k not in keys:
             keys.add(k)
             uniq.append(n)

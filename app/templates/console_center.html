@@ -3,7 +3,8 @@
 {% block content %}
 <link rel="stylesheet" href="/static/console.css?v={{ VERSION }}-{{ CX_HASH }}">
 <link rel="stylesheet" href="/static/center.css?v={{ VERSION }}-{{ CX_HASH }}">
-<div class="ph"><div class="grow"><h1>{{ _('Consola') }}</h1><div class="sub" id="cc-open">{{ _('Todo queda grabado en Auditoría.') }}</div></div></div>
+<div class="ph"><div class="grow"><h1>{{ _('Consola') }}</h1><div class="sub" id="cc-open">{{ _('Todo queda grabado en Auditoría.') }}</div></div>
+  <a class="btn s ghost" href="/console/favorites">{{ icon('star', 's') }}{{ _('Administrar favoritos') }}</a></div>
 <nav class="tabs" role="tablist" aria-label="{{ _('Secciones de la consola') }}" id="cc-tabs">
   {% for k, l, i in [('sesiones', _('Sesiones'), 'term'), ('multi', _('Multi-equipo'), 'grid'), ('recetas', _('Recetas'), 'file'), ('grabaciones', _('Grabaciones'), 'play'), ('herramientas', _('Herramientas'), 'globe')] + ([('acceso', _('Acceso'), 'lock')] if user.role == 'admin' else []) %}
   <a href="#{{ k }}" role="tab" data-tab="{{ k }}">{{ icon(i, 's') }}{{ l }}{% if k == 'acceso' and n_pending %}<span class="cnt">{{ n_pending }}</span>{% endif %}</a>{% endfor %}
@@ -160,7 +161,7 @@
 <div class="cx-toast" id="cx-toast" role="status" hidden></div>
 <script type="application/json" id="cc-data">{{ {'devs': devs, 'favs': favs, 'recent': recent, 'groups': groups, 'recipes': recipes or [], 'cats': cats or {}, 'rec': rec,
   'role': user.role, 'ai': ai.on, 'ailogo': (ai_logo(ai.provider, 18)|string) if ai.on else '', 'tab': tab,
-  't': {'rec': _('REC'), 'fav': _('Favoritos'), 'recent': _('Recientes'), 'bygroup': _('POR GRUPO'), 'nogroup': _('Sin grupo'), 'share': _('Compartir'), 'files': _('Archivos'),
+  't': {'rec': _('REC'), 'fav': _('Favoritos'), 'recent': _('Recientes'), 'bygroup': _('POR GRUPO'), 'nogroup': _('Sin grupo'), 'share': _('Compartir en solo lectura'), 'files': _('Archivos'),
         'close': _('Cerrar'), 'open': _('{0} sesiones abiertas · todo queda grabado en Auditoría'), 'open1': _('1 sesión abierta · todo queda grabado en Auditoría'), 'sel': _('{0} equipos elegidos'), 'sel1': _('1 equipo elegido'), 'same': _('{0} iguales'), 'same1': _('1 igual'), 'diff': _('{0} distintos'), 'diff1': _('1 distinto'), 'find': _('Buscar en la salida'), 'theme': _('Tema de la consola'), 'recon': _('Reconectar'), 'full': _('Pantalla completa'),
         'meta': _('respondieron {0} de {1} · {2} s'), 'equal': _('Iguales'), 'distinct': _('Distintos'), 'failed': _('No respondieron'), 'running': _('Ejecutando…'),
         'steps': _('{0} pasos'), 'uses': _('{0} usos'), 'mine': _('mía'), 'team': _('del equipo'), 'opennccm': _('de OpenNCCM'), 'none': _('No hay recetas con ese filtro.'),

@@ -134,6 +134,11 @@ class Device(Base):
     fxi_pasv: Mapped[str | None] = mapped_column(String(16))
     fxi_fails: Mapped[int] = mapped_column(Integer, default=0)
     fxi_last_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # tablas MAC y ARP (app/macfind.py): cuándo se leyeron por última vez y, si no se pudo, por qué
+    tables_at: Mapped[datetime | None] = mapped_column(DateTime)
+    tables_note: Mapped[str | None] = mapped_column(String(255))
+    # aviso de vecino nuevo o perdido (app/nbwatch.py): ya se tomó la primera lectura como conocida
+    nb_tracked: Mapped[bool] = mapped_column(Boolean, default=False)
 
     credential = relationship("Credential", foreign_keys=[credential_id])
     group = relationship("DeviceGroup")
@@ -495,6 +500,66 @@ class KbPending(Base):
     decided_by: Mapped[str | None] = mapped_column(String(64))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime)
     overdue_sent: Mapped[bool] = mapped_column(Boolean, default=False)  # ya se avisó al admin de los 5 días
+
+
+class MacSeen(Base):
+    """Historial MAC → puerto (tabla MAC, kind «mac») e IP → MAC (tabla ARP, kind «arp») de cada equipo (app/macfind.py).
+    Se ve «ahora» si last_seen coincide con la última lectura del equipo (Device.tables_at)."""
+    __tablename__ = "mac_seen"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    device_id: Mapped[int] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(4))  # mac | arp
+    mac: Mapped[str] = mapped_column(String(12), index=True)  # «AABBCCDDEEFF»
+    ip: Mapped[str | None] = mapped_column(String(45), index=True)
+    port: Mapped[str] = mapped_column(String(64), default="")
+    vlan: Mapped[str | None] = mapped_column(String(16))
+    first_seen: Mapped[datetime] = mapped_column(DateTime, default=now)
+    last_seen: Mapped[datetime] = mapped_column(DateTime, default=now, index=True)
+
+
+class NeighborState(Base):
+    """Un vecino de un equipo (LLDP, CDP, MNDP o RoMON) y su estado para el aviso de vecino nuevo o perdido (app/nbwatch.py).
+    status: ok | new (apareció y no se marcó como conocido) | lost (faltó en N lecturas seguidas)."""
+    __tablename__ = "neighbor_states"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    device_id: Mapped[int] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"), index=True)
+    key: Mapped[str] = mapped_column(String(160))
+    port: Mapped[str] = mapped_column(String(64), default="")
+    remote_port: Mapped[str | None] = mapped_column(String(64))
+    name: Mapped[str | None] = mapped_column(String(128))
+    mac: Mapped[str | None] = mapped_column(String(17))
+    ip: Mapped[str | None] = mapped_column(String(45))
+    platform: Mapped[str | None] = mapped_column(String(128))
+    caps: Mapped[str | None] = mapped_column(String(64))
+    proto: Mapped[str] = mapped_column(String(8), default="lldp")
+    romon: Mapped[bool] = mapped_column(Boolean, default=False)
+    hops: Mapped[int | None] = mapped_column(Integer)
+    via: Mapped[str | None] = mapped_column(String(17))
+    status: Mapped[str] = mapped_column(String(8), default="ok")
+    known: Mapped[bool] = mapped_column(Boolean, default=False)
+    first_seen: Mapped[datetime] = mapped_column(DateTime, default=now)
+    last_seen: Mapped[datetime] = mapped_column(DateTime, default=now)
+    missing: Mapped[int] = mapped_column(Integer, default=0)
+    lost_from: Mapped[datetime | None] = mapped_column(DateTime)  # última lectura en que se vio antes de faltar
+    lost_at: Mapped[datetime | None] = mapped_column(DateTime)
+    back_at: Mapped[datetime | None] = mapped_column(DateTime)
+    back_after: Mapped[int | None] = mapped_column(Integer)  # segundos que faltó
+    event_id: Mapped[int | None] = mapped_column(Integer)
+
+
+class ConsoleFavorite(Base):
+    """Comando favorito de la consola (app/favorites.py): de un usuario o compartido con todos (solo administradores).
+    family: familia de equipos (favorites.family_of) o «*» para todos los equipos."""
+    __tablename__ = "console_favorites"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner: Mapped[str] = mapped_column(String(64), index=True)
+    shared: Mapped[bool] = mapped_column(Boolean, default=False)
+    family: Mapped[str] = mapped_column(String(32), index=True)
+    name: Mapped[str] = mapped_column(String(64))
+    command: Mapped[str] = mapped_column(Text)
+    mode: Mapped[str] = mapped_column(String(8), default="send")  # send | type («Solo escribir»)
+    pos: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
 
 
 class Setting(Base):

@@ -225,20 +225,67 @@ with SessionLocal() as db:
 res = restore.check_ssh(ver_id, target, "ci")
 check("restaurar en otro equipo: otro modelo se rechaza", not res["ok"] and "mismo modelo" in res["error"], res)
 
-# RoMON (Ajustes › Mapa de la red): la orden existe así en esta versión y el respaldo la lee sin fallar
+# RoMON y vecinos con un segundo CHR unido por ether2 y llamado «Cabañas» como lo guarda RouterOS (byte F1 de
+# Windows-1252): el respaldo del primero lo encuentra por RoMON (con su identidad) y por LLDP/MNDP, con la «ñ» bien
+import json  # noqa: E402
+import os  # noqa: E402
+
 from app.db import set_setting  # noqa: E402
 from app.topology import ROMON  # noqa: E402
 
-ros("/tool romon set enabled=yes")
-out = ros(ROMON)
-print("ROMON:", out[-400:])
-check(f"RoMON: «{ROMON}» existe en RouterOS {VER} y termina sola",
-      not any(x in out for x in ("bad command name", "expected end of command", "syntax error", "failure:")), out[-300:])
-set_setting("topology_romon", "1")
-r = services.backup_device(dev_id, "manual", "ci")
-check("RoMON: el respaldo con RoMON activado sigue bien", r in ("unchanged", "changed", "first"), r)
-set_setting("topology_romon", "0")
-ros("/tool romon set enabled=no")
+PORT2 = int(os.environ.get("ROMON2_PORT", "0"))
+
+
+def ros2(*cmds):
+    global PORT
+    keep, PORT = PORT, PORT2
+    try:
+        return ros(*cmds)
+    finally:
+        PORT = keep
+
+
+if PORT2:
+    print(ros2('/system identity set name="Caba\\F1as"', "/tool romon set enabled=yes"))
+    print(ros("/tool romon set enabled=yes"))
+    for _ in range(40):  # MNDP/LLDP anuncian cada 30 s
+        nb = ros("/ip neighbor print detail")
+        if "identity" in nb.lower():
+            break
+        time.sleep(3)
+    print("VECINOS (a mano):", repr(nb[-600:]))
+    out = ros(ROMON)
+    if "expected end of command" in out:  # RouterOS 6 no acepta «proplist»: OpenNCCM usa la orden sin él
+        from app.topology import ROMON_PLAIN
+        out = ros(ROMON_PLAIN)
+    print("ROMON (a mano):", repr(out[-800:]))
+    check(f"RoMON: la búsqueda existe en RouterOS {VER}",
+          not any(x in out for x in ("bad command name", "expected end of command", "syntax error", "failure:")), out[-300:])
+    from app import topology as _topo  # muestra lo que llega crudo de RouterOS (con los códigos de la terminal)
+    _mark = _topo.mark_hex
+
+    def _show(raw):
+        print("CRUDO:", repr(raw[-900:]))
+        return _mark(raw)
+    _topo.mark_hex = _show
+    print(ros(_topo.ROMON_PLAIN)[-600:])
+    set_setting("topology_romon", "1")
+    r = services.backup_device(dev_id, "manual", "ci")
+    check("RoMON: el respaldo con RoMON activado sigue bien", r in ("unchanged", "changed", "first"), r)
+    with SessionLocal() as db:
+        nbrs = json.loads(db.get(Device, dev_id).neighbors or "[]")
+    print("VECINOS GUARDADOS:", json.dumps(nbrs, ensure_ascii=False))
+    rm = [n for n in nbrs if n.get("romon")]
+    check("RoMON: encuentra el otro CHR a un salto", len(rm) == 1 and rm[0]["hops"] == 1 and rm[0]["via"] == "", rm)
+    check("RoMON: con su identidad «Cabañas», versión y modelo", rm and rm[0]["remote_name"] == "Cabañas"
+          and rm[0]["version"].startswith(VER.split(".")[0]) and rm[0]["platform"].startswith("MikroTik"), rm)
+    ld = [n for n in nbrs if not n.get("romon")]
+    check("vecinos LLDP/MNDP: «Cabañas» con la «ñ» (no «CabaF1as»)", any(n["remote_name"] == "Cabañas" for n in ld), ld)
+    _topo.mark_hex = _mark
+    set_setting("topology_romon", "0")
+    ros("/tool romon set enabled=no")
+else:
+    print("(sin segundo CHR: no se prueba RoMON)")
 
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)

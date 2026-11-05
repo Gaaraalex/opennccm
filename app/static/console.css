@@ -142,3 +142,20 @@ body.ai-open .search-top kbd,body.ai-open .donate .dt{display:none}
 body.ai-open .search-top{min-width:0;width:auto;flex:none}body.ai-open .search-top span{display:none}body.ai-open .top{flex-wrap:nowrap;min-width:0}body.ai-open .top .crumbs{min-width:0;overflow:hidden}
 @media (max-width:1099px){body.ai-open .main{margin-right:0}}
 .ai-empty button{display:block;width:100%;justify-content:flex-start}
+/* comandos favoritos */
+.cx-favs{display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--cx-head);border-bottom:1px solid var(--cx-line);min-width:0}
+.cx-fav-t{color:var(--k-warn);white-space:nowrap;flex:none}
+.cx-favl{display:flex;gap:6px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:thin}
+.cx-fav{display:inline-flex;align-items:baseline;gap:6px;flex:none;border:1px solid var(--cx-line);background:var(--cx-bg);color:var(--k-txt);
+  border-radius:99px;padding:3px 11px;cursor:pointer;font:12px var(--f-sans);max-width:320px}
+.cx-fav b{font-weight:600}.cx-fav span{font-family:var(--f-mono);color:var(--k-path);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cx-fav:hover{border-color:var(--k-path)}.cx-fav.chg span{color:var(--k-warn)}
+.cx-favempty{font-size:12px;color:var(--k-mut)}
+.cx-link{background:none;border:0;padding:0;color:var(--k-path);text-decoration:underline;cursor:pointer;font:inherit}
+.cx-favs a.cx-k{text-decoration:none;flex:none}
+.cx-favbtn{flex:none;white-space:nowrap}
+.cx-favsave{display:flex;align-items:center;gap:8px;padding:0 14px 8px;flex-wrap:wrap}
+.cx-favsave input{background:var(--cx-bg);border:1px solid var(--cx-line);color:var(--k-txt);border-radius:8px;padding:4px 8px;font:12.5px var(--f-sans);min-width:180px}
+.cx-favsave code{color:var(--k-path);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40%}
+.cx-favnote{color:var(--k-mut)}
+@media (max-width:700px){.cx-favbtn{display:none}.cx-favnote{display:none}}

@@ -621,3 +621,13 @@ dialog.dlg:not([open]){display:none}
 /* solicitud con impacto: «Aprobar» mientras no se marca «Leí el impacto» se ve claramente desactivado */
 #apv:disabled,#apv[aria-disabled="true"]{background:var(--surface-3)!important;border-color:var(--line)!important;color:var(--muted)!important;
   opacity:.55;cursor:not-allowed;box-shadow:none!important;filter:grayscale(1)}
+/* buscar una MAC o una IP (paleta) */
+.pal .wh{display:flex;flex-direction:column;gap:8px;padding:6px 4px 10px}
+.pal .wh-card{border:1px solid var(--line);border-radius:var(--r-md);padding:4px 4px 10px;background:var(--surface-2)}
+.pal .wh-card .it b{font-weight:650}.pal .wh-chips{display:flex;gap:6px;flex-wrap:wrap;padding:0 10px 8px}
+.pal .wh-acts{display:flex;gap:8px;padding:0 10px}
+.pal .wh-kv{margin:2px 6px;font-size:13px}.pal .wh-kv dd{margin:0}
+.pal .wh-why{margin:2px 0}.pal .wh-why p{margin:2px 0 0}
+.pal .wh-none,.pal .wh-bad{padding:10px 8px}.pal .wh-none p,.pal .wh-bad p{margin:4px 0}
+.pal .wh-miss{margin:6px 0 0;padding-left:18px}
+.pal #palkind{flex:none}

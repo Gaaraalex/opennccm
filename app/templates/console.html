@@ -38,6 +38,10 @@
       </div>
     </header>
     <div class="cx-search" id="cx-search" hidden><input id="cx-q" placeholder="{{ _('Buscar en la salida…') }}" aria-label="{{ _('Buscar en la salida') }}"><span id="cx-hits" class="muted sm"></span><button type="button" class="tbtn" id="cx-q-x" aria-label="{{ _('Cerrar') }}">✕</button></div>
+    {% if favs is defined %}<div class="cx-favs" id="cx-favs" role="toolbar" aria-label="{{ _('Comandos favoritos') }}">
+      <span class="cx-lbl cx-fav-t">★ {{ _('Favoritos') }} · {{ favs.label }}</span><div class="cx-favl" id="cx-favl"></div>
+      <a class="cx-k" id="cx-fav-edit" href="/console/favorites?family={{ favs.family|urlencode }}" target="_blank" rel="noopener">{{ _('Editar') }}</a>
+    </div>{% endif %}
     <div class="cx-term" id="cx-term">
       <div class="cx-out mono" id="cx-out" role="log" aria-live="polite" aria-label="{{ _f('Salida de la consola de {0}', dev.name) }}" tabindex="0"></div>
       <div class="cx-guard" id="cx-guard" hidden role="alertdialog" aria-labelledby="cx-g-t">
@@ -47,7 +51,11 @@
       </div>
       <div class="cx-input">
         <div class="cx-sug" id="cx-sug" hidden role="listbox"></div>
-        <div class="cx-line mono"><span class="cx-pr" id="cx-pr">›</span><div class="cx-field"><span class="cx-ghost" id="cx-ghost" aria-hidden="true"></span><input id="cx-in" autocomplete="off" spellcheck="false" aria-label="{{ _('Comando') }}" aria-autocomplete="list" aria-controls="cx-sug"></div></div>
+        <div class="cx-line mono"><span class="cx-pr" id="cx-pr">›</span><div class="cx-field"><span class="cx-ghost" id="cx-ghost" aria-hidden="true"></span><input id="cx-in" autocomplete="off" spellcheck="false" aria-label="{{ _('Comando') }}" aria-autocomplete="list" aria-controls="cx-sug"></div>
+          {% if favs is defined %}<button type="button" class="cx-k cx-favbtn" id="cx-fav-save" title="{{ _('Guarda el último comando con un nombre') }}">☆ {{ _('Guardar como favorito') }}</button>{% endif %}</div>
+        {% if favs is defined %}<form class="cx-favsave" id="cx-favform" hidden><span class="cx-lbl">☆ {{ _('Nuevo favorito') }}</span>
+          <input id="cx-fav-name" maxlength="64" placeholder="{{ _('Nombre') }}" aria-label="{{ _('Nombre') }}" required>
+          <code class="mono" id="cx-fav-cmd"></code><button class="cx-k on">{{ _('Guardar') }}</button><button type="button" class="cx-k" id="cx-fav-x">{{ _('Cancelar') }}</button></form>{% endif %}
         <div class="cx-bar"><span class="cx-lbl">{{ _('FRECUENTES') }}</span><div class="cx-freq" id="cx-freq"></div>
           <span class="grow"></span><button type="button" class="cx-k" id="cx-hist">↑ {{ _('Historial') }}</button><button type="button" class="cx-k" id="cx-tab">Tab ⇥</button><button type="button" class="cx-k on" id="cx-run">{{ _('Ejecutar') }} ↵</button></div>
       </div>
@@ -57,6 +65,7 @@
       <span>SSH · {% if autologin and dev.has_cred %}{{ _('entró con la credencial del equipo') }}{% else %}{{ _('usuario y contraseña del equipo') }}{% endif %}</span>
       <span>{{ profile.label or dev.os }}</span>
       <label class="cx-ro"><input type="checkbox" id="cx-ro" {{ 'checked disabled' if access.mode == 'ro' }}> {{ _('Solo lectura') }}</label>
+      {% if favs is defined %}<span class="cx-favnote">{{ _('Clic en un favorito: se escribe y se envía. Si el comando cambia la configuración, se escribe pero no se envía: lo confirmas tú con Enter.') }}</span>{% endif %}
       <span class="muted">{{ _f('se cierra tras {0} min sin escribir', idle_min) }} · {{ _('sesión en Auditoría') }}{% if recording %} · <span class="cx-rec">● REC</span>{% endif %}</span>
     </footer>
   </div>
@@ -65,6 +74,10 @@
 <div class="cx-toast" id="cx-toast" role="status" hidden></div>
 <script>
 window.CX = {{ {'dev': dev, 'profile': profile, 'mode': access.mode, 'embed': embed, 'ai': ai, 'watch': watch.token if watch else '',
+  'favs': favs if favs is defined else None,
+  'ft': {'empty': _('Todavía no tienes favoritos para {0}. Escribe un comando y pulsa ☆ para guardarlo, o'),
+         'addsug': _('agrega los {0} sugeridos'), 'changed': _('Cambia la configuración: se escribió sin enviar. Pulsa Enter para confirmarlo.'),
+         'saved': _('Guardado en favoritos.'), 'nocmd': _('Escribe o ejecuta un comando primero.'), 'all': _('Todos los equipos')},
   'watchmsg': _f('Mirando la sesión de {0} en solo lectura.', watch.owner) if watch else '',
   'nocred': (('admin' if user.role == 'admin' else 'user') if (not autologin and dev.has_cred) else ''),
   't': {'connecting': _('conectando…'), 'connected': _('conectado'), 'disconnected': _('desconectado'), 'closed': _('Desconectado'),

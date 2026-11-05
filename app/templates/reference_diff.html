@@ -1,0 +1,35 @@
+{% extends "base.html" %}{% block title %}{{ _f('{0} contra {1}', dev.name, ref.name) }}{% endblock %}
+{% block crumbs %}<a href="/config-reference?t={{ tkey|urlencode }}">{{ _('Configuración de referencia') }}</a>{% endblock %}
+{% block content %}
+{% set op = ROLES[user.role] >= 1 %}
+<style>
+.rd-blk{border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden;margin-bottom:12px}
+.rd-h{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface-2);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.rd-t{width:100%;border-collapse:collapse;font:12.5px/1.5 var(--f-mono);table-layout:fixed}
+.rd-t td{padding:2px 10px;vertical-align:top;white-space:pre-wrap;word-break:break-word;border-left:1px solid var(--line)}
+.rd-t td:first-child{border-left:0}.rd-t .eq{color:var(--muted)}
+.rd-t .m{background:var(--crit-soft);color:var(--crit)}.rd-t .p{background:var(--ok-soft);color:var(--ok)}
+.rd-t .par{opacity:.65}
+.rd-cols{display:grid;grid-template-columns:1fr 1fr;font:700 11px var(--f-sans);letter-spacing:.06em;color:var(--muted);padding:6px 10px}
+</style>
+<div class="ph"><div class="grow"><h1>{{ _f('{0} contra {1}', dev.name, ref.name) }} <span class="pill warn" style="vertical-align:4px">{{ _f('{0} diferencias', c.n) if c.n != 1 else _('1 diferencia') }}</span></h1></div>
+  <div class="seg"><a class="{{ 'on' if view == 'side' }}" href="?view=side">{{ _('Lado a lado') }}</a><a class="{{ 'on' if view == 'changes' }}" href="?view=changes">{{ _('Solo cambios') }}</a></div>
+  <a class="btn ghost" href="/config-reference?t={{ tkey|urlencode }}">{{ _('Volver') }}</a></div>
+
+{% if op and c.n %}<div class="banner info">{{ icon('info') }}<span class="grow"><b>{{ _('Preparar un cambio para igualar a la referencia') }}</b><br>
+  <span class="sm">{{ _('Arma una solicitud de cambio con los comandos que faltan y los que sobran. Nunca se aplica sola: la revisas y la aprueba alguien.') }}{% if skipped %} {{ _f('{0} diferencias llevan claves o la IP de gestión y quedan para hacer a mano.', skipped) }}{% endif %}</span></span>
+  <form method="post" action="/config-reference/request/{{ dev.id }}" style="margin:0"><button class="btn pri" {{ 'disabled' if not cmd_n }}>{{ _f('Preparar solicitud · {0} líneas', cmd_n) if cmd_n != 1 else _('Preparar solicitud · 1 línea') }}</button></form></div>{% endif %}
+
+{% if view == 'side' %}<div class="rd-cols"><span>★ {{ _('REFERENCIA') }} · {{ ref.name }}</span><span>{{ dev.name }}</span></div>{% endif %}
+{% for b in blocks %}<div class="rd-blk">
+  <div class="rd-h"><b class="grow">{{ b.sec }} <span class="muted" style="font-weight:400">{{ _f('{0} diferencias', b.n) if b.n != 1 else _('1 diferencia') }}</span></b>
+    {% if op %}<form method="post" action="/config-reference/ignore" style="margin:0"><input type="hidden" name="device_id" value="{{ dev.id }}"><input type="hidden" name="section" value="{{ b.sec }}"><input type="hidden" name="scope" value="dev"><button class="btn s ghost">{{ _f('Ignorar en {0}', dev.name) }}</button></form>
+    <form method="post" action="/config-reference/ignore" style="margin:0"><input type="hidden" name="device_id" value="{{ dev.id }}"><input type="hidden" name="section" value="{{ b.sec }}"><input type="hidden" name="scope" value="all"><button class="btn s ghost">{{ _('Ignorar en todos') }}</button></form>{% endif %}</div>
+  <table class="rd-t">{% for r in b.rows %}{% set par, sep, ch = r.k.partition(SEP) %}{% set txt %}{% if sep %}<span class="par">{{ par }}</span>
+ {{ ch }}{% else %}{{ par }}{% endif %}{% endset %}
+    {% if view == 'side' %}<tr>{% if r.t == '=' %}<td class="eq">  {{ txt }}</td><td class="eq">  {{ txt }}</td>{% elif r.t == '-' %}<td class="m">− {{ txt }}</td><td></td>{% else %}<td></td><td class="p">+ {{ txt }}</td>{% endif %}</tr>
+    {% elif r.t != '=' %}<tr><td class="{{ 'm' if r.t == '-' else 'p' }}">{{ '−' if r.t == '-' else '+' }} {{ txt }}</td></tr>{% endif %}
+  {% endfor %}</table></div>
+{% else %}<section class="card"><div class="empty"><p>{{ _('Igual a la referencia') }}</p></div></section>{% endfor %}
+<p class="muted sm">{{ _('En rojo lo que tiene la referencia y falta aquí; en verde lo que hay aquí y no en la referencia.') }}</p>
+{% endblock %}

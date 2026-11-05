@@ -1,5 +1,6 @@
 """Vecinos LLDP/CDP leídos de la salida real de cada plataforma (mapa de la red)."""
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
@@ -208,31 +209,84 @@ check("Ubiquiti por la MAC cuando no anuncia modelo", family_why(by["SW-Patio"])
 check("modelos USW, USL y EdgeSwitch ES-", all(family({"platform": p}) == "ubiquiti" and role_why(p, [])[0] == "switch"
                                               for p in ("USW-Lite-16-PoE, 7.0.50", "USL8LP", "ES-24-250W", "US-8-60W")))
 
-# RoMON («/tool romon discover»): RouterOS 6 y 7, identidades con espacios, varios saltos y su camino
-from app.topology import ROMON, lldp_only  # noqa: E402
+# RoMON («/tool romon discover»): salida REAL de RouterOS 7.23.2 (R-CALL CENTER de un usuario, 2026-11-05): cada fila
+# empieza con la marca «A», el camino va en varias líneas y la «ñ» llega como byte resaltado
+from app.topology import ROMON, ROMON_PLAIN, _ros_text, lldp_only, mark_hex  # noqa: E402
 
-ros7 = MARK + ROMON + """
-Columns: ADDRESS, COST, HOPS, PATH, L2MTU, IDENTITY, VERSION, BOARD
-ADDRESS            COST  HOPS  PATH                                 L2MTU  IDENTITY        VERSION  BOARD
-6C:3B:6B:12:34:56   200     1  6C:3B:6B:12:34:56                     1592  SW-Torre        7.16.2   CRS326-24G-2S+
-DC:2C:6E:AA:BB:CC   400     2  6C:3B:6B:12:34:56,DC:2C:6E:AA:BB:CC   1592  AP Cerro Alto   7.16     RBwAPG-5HacD2HnD
+HL = "\x1b[1m{}\x1b[m"  # cómo resalta RouterOS un byte que no es ASCII (la prueba con CHR comprueba el de verdad)
+ros7 = MARK + ROMON + "\n" + mark_hex("""Flags: A - ACTIVE
+Columns: ADDRESS, HOPS, PATH, IDENTITY, VERSION, BOARD
+  ADDRESS            HOPS  PATH               IDENTITY                      VERSION  BOARD
+A 04:F4:1C:48:9A:57     5  48:A9:8A:52:94:88  JOY MALL                      7.24.4   RB760iGS
+                           18:FD:74:BE:02:CF
+                           08:55:31:E5:EA:0B
+                           48:A9:8A:9E:B3:26
+                           04:F4:1C:48:9A:57
+A 04:F4:1C:67:DE:72     2  48:A9:8A:52:94:88  R-PP-SPM1                     7.18.2   CCR2116-12G-4S+
+                           04:F4:1C:67:DE:72
+A 08:55:31:E5:EA:0B     3  48:A9:8A:52:94:88  R-ASPM  CCTV ROUTER ROAMING   7.22.1   CCR1009-7G-1C-1S+
+                           18:FD:74:BE:02:CF
+                           08:55:31:E5:EA:0B
+A 2C:C8:1B:B5:D5:70     5  48:A9:8A:52:94:88  Caba""" + HL.format("F1") + """as Gold                 7.20     RB3011UiAS
+                           18:FD:74:BE:02:CF
+                           08:55:31:E5:EA:0B
+                           48:A9:8A:9E:B3:26
+                           2C:C8:1B:B5:D5:70
+A 48:A9:8A:52:94:88     1  48:A9:8A:52:94:88  R-CORE VALNET                 7.22     CCR2216-1G-12XS-2XQ
+""")
+plain = MARK + ROMON_PLAIN + """
+Flags: A - ACTIVE
+Columns: ADDRESS, COST, HOPS, PATH, L2MTU
+  ADDRESS            COST  HOPS  PATH               L2MTU
+A 04:F4:1C:67:DE:72   400     2  48:A9:8A:52:94:88   1500
+                                 04:F4:1C:67:DE:72
 """
-ros6 = MARK + ROMON + """
- ADDRESS                    COST HOPS PATH                                            L2MTU IDENTITY  VERSION   BOARD
- 4C:5E:0C:01:02:03           200    1 4C:5E:0C:01:02:03                                1588 MikroTik  6.49.10   RB2011UiAS
-"""
-r7, r6 = parse(ros7, "mikrotik_routeros"), parse(ros6, "mikrotik_routeros")
+r7, rp = parse(ros7, "mikrotik_routeros"), parse(plain, "mikrotik_routeros")
 by7 = {n["remote_name"]: n for n in r7}
-check("RoMON (RouterOS 7): identidad, MAC, saltos y modelo", by7.get("SW-Torre", {}).get("hops") == 1
-      and by7["SW-Torre"]["mac"] == "6C:3B:6B:12:34:56" and by7["SW-Torre"]["platform"] == "MikroTik CRS326-24G-2S+"
-      and by7["SW-Torre"]["romon"], r7)
-check("RoMON: identidad con espacios y el salto anterior del camino", by7.get("AP Cerro Alto", {}).get("hops") == 2
-      and by7["AP Cerro Alto"]["via"] == "6C:3B:6B:12:34:56", r7)
-check("RoMON (RouterOS 6): columnas alineadas a la derecha", len(r6) == 1 and r6[0]["remote_name"] == "MikroTik"
-      and r6[0]["hops"] == 1 and r6[0]["via"] == "", r6)
+check("RoMON real (7.23): las filas con la marca «A» se leen todas", len(r7) == 5, [n["remote_name"] for n in r7])
+check("RoMON: identidad, MAC, saltos, versión y modelo", by7.get("R-PP-SPM1", {}).get("hops") == 2
+      and by7["R-PP-SPM1"]["mac"] == "04:F4:1C:67:DE:72" and by7["R-PP-SPM1"]["platform"] == "MikroTik CCR2116-12G-4S+"
+      and by7["R-PP-SPM1"]["version"] == "7.18.2" and by7["R-PP-SPM1"]["romon"], r7)
+check("RoMON: el camino en varias líneas da el salto anterior", by7.get("JOY MALL", {}).get("via") == "48:A9:8A:9E:B3:26"
+      and by7["R-PP-SPM1"]["via"] == "48:A9:8A:52:94:88" and by7.get("R-CORE VALNET", {}).get("via") == "", r7)
+check("RoMON: identidad con espacios dobles", "R-ASPM  CCTV ROUTER ROAMING" in by7, list(by7))
+check("RoMON: la «ñ» (byte F1 resaltado) se lee como «ñ» y no corre las columnas",
+      by7.get("Cabañas Gold", {}).get("version") == "7.20" and by7["Cabañas Gold"]["platform"] == "MikroTik RB3011UiAS",
+      list(by7))
+check("RoMON sin «proplist» (sin identidad): queda la MAC y el camino", len(rp) == 1 and rp[0]["remote_name"] == ""
+      and rp[0]["hops"] == 2 and rp[0]["via"] == "48:A9:8A:52:94:88", rp)
 check("RoMON no cuenta para el impacto ni los puertos (no dice por qué puerto)", lldp_only(r7) == [])
 check("RoMON: una salida con error no da vecinos", parse(MARK + ROMON + "\nbad command name romon (line 1 column 7)\n",
                                                         "mikrotik_routeros") == [])
+lldp = MARK + "/ip neighbor print detail terse without-paging\n" + mark_hex(
+    ' 0 interface=ether1 address=10.0.0.9 mac-address=2C:C8:1B:B5:D5:70 identity=Caba' + HL.format("F1") +
+    'as Skymax platform=MikroTik version=7.20 board=RB3011UiAS\n')
+check("vecinos LLDP/MNDP: la «ñ» resaltada también", [n["remote_name"] for n in parse(lldp, "mikrotik_routeros")]
+      == ["Cabañas Skymax"])
+check("vecinos: «\\F1» (export/terse) y UTF-8 «\\C3\\B1»", _ros_text("Caba\\F1as") == "Cabañas"
+      and _ros_text("Caba\\C3\\B1as") == "Cabañas")
+
+# Salida REAL de «/ip neighbor print detail» (sin terse) en un CHR 7.23.8 de la CI: valores entre comillas, cortados en
+# varias líneas, y la «ñ» como «\F1». En 7.x «terse» la escribía «CabaF1as» sin barra.
+DET = (' 0 interface=ether2 address=fe80::5054:ff:fe00:202 \r\n   address6=fe80::5054:ff:fe00:202 mac-address=52:54:00:00:02:02 '
+       '\r\n   identity="Caba\\F1as" platform="MikroTik" \r\n   version="7.23.8 (long-term) 2026-10-08 09:46:16" unpack=none '
+       'age=1s \r\n   uptime=1m38s software-id="5fYNfjQrKiN" board="CHR" ipv6=yes \r\n   interface-name="ether2" \r\n'
+       '   system-description="MikroTik RouterOS 7.23.8 (long-term) 2026-10-08 \r\n                   09:46:16 CHR" \r\n'
+       '   system-caps=bridge,router system-caps-enabled=router \r\n   discovered-by=cdp,lldp,mndp \r\n\r\n')
+d = parse(MARK + "/ip neighbor print detail without-paging\n" + DET, "mikrotik_routeros")
+check("vecinos MikroTik sin «terse»: nombre, puerto, MAC y modelo", len(d) == 1 and d[0]["remote_name"] == "Cabañas"
+      and d[0]["local_port"] == "ether2" and d[0]["remote_port"] == "ether2" and d[0]["mac"] == "52:54:00:00:02:02"
+      and d[0]["platform"] == "MikroTik CHR", d)
+check("la «ñ» sin barra ni resaltado («CabaF1as», «PeF1a») se lee bien; lo demás no se toca",
+      [_ros_text(x) for x in ("CabaF1as", "PeF1alolen", "CaC3B1ete", "R-CORE F1", "SW-C9300", "ETH-E1", "mdF1")]
+      == ["Cabañas", "Peñalolen", "Cañete", "R-CORE F1", "SW-C9300", "ETH-E1", "mdF1"])
+
+# 7.25 con colores (salida REAL de la CI): identity="Caba" + ESC[34;1m + «\F1» + ESC[m + "as"
+c725 = mark_hex(' 0 interface=ether2 mac-address=52:54:00:00:02:02 identity\x1b[m\x1b[33m=\x1b[m"Caba\x1b[m\x1b[34;1m\\F1\x1b[mas"'
+                ' platform="MikroTik" board="CHR"\n')
+check("vecinos 7.25 con colores: «\\F1» resaltado", [n["remote_name"] for n in parse(
+    MARK + "/ip neighbor print detail without-paging\n" + re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", c725), "mikrotik_routeros")]
+      == ["Cabañas"])
 
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)

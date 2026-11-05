@@ -8,20 +8,24 @@
   {% if ROLES[user.role] >= 1 %}<form class="inline" method="post" action="/events/ack"><button class="btn" {{ 'disabled' if not open_n }}>{{ icon('check', 's') }}Reconocer todas</button></form>{% endif %}</div>
 
 <div class="row">
-  {% for k, l in [('', _('Todas')), ('crit', _('Críticas')), ('major', _('Mayores')), ('minor', _('Menores')), ('info', _('Info'))] %}<a class="chip {{ 'on' if sev == k }}" href="?sev={{ k }}&amp;unack={{ unack }}">{{ l }} <span class="n">{{ total if not k else counts[k] }}</span></a>{% endfor %}
+  {% for k, l in [('', _('Todas')), ('crit', _('Críticas')), ('major', _('Mayores')), ('minor', _('Menores')), ('info', _('Info'))] %}<a class="chip {{ 'on' if sev == k and not cat }}" href="?sev={{ k }}&amp;unack={{ unack }}">{{ l }} <span class="n">{{ total if not k else counts[k] }}</span></a>{% endfor %}
+  {% if nb_n or cat == 'vecinos' %}<a class="chip {{ 'on' if cat == 'vecinos' }}" href="?cat=vecinos&amp;unack={{ unack }}">{{ _('Vecinos') }} <span class="n">{{ nb_n }}</span></a>{% endif %}
   <span class="grow"></span>
-  <div class="seg"><a class="{{ 'on' if unack }}" href="?sev={{ sev }}&amp;unack=1">Sin reconocer</a><a class="{{ 'on' if not unack }}" href="?sev={{ sev }}&amp;unack=0">Todas</a></div></div>
+  {% if user.role == 'admin' %}<a class="btn s ghost" href="/settings#mapa">{{ icon('cog', 's') }}{{ _('Ajustes de vecinos') }}</a>{% endif %}
+  <div class="seg"><a class="{{ 'on' if unack }}" href="?sev={{ sev }}&amp;cat={{ cat }}&amp;unack=1">Sin reconocer</a><a class="{{ 'on' if not unack }}" href="?sev={{ sev }}&amp;cat={{ cat }}&amp;unack=0">Todas</a></div></div>
 
 <section class="card flush">
 {% if items %}<ul class="queue">{% for e in items %}{% set q = QI.get(e.severity, ('info', 'bell')) %}
   <li><span class="qi {{ q[0] }}">{{ icon(q[1]) }}</span>
     <div style="min-width:0"><div class="row" style="gap:10px"><span class="qt" title="{{ e.message }}">{{ e.title }}</span>{{ sevtag(e.severity) }}{% if e.acknowledged %}<span class="tag">reconocida</span>{% endif %}</div>
+      {% if e.sub %}<div class="qs">{{ e.sub }}</div>{% endif %}
       <div class="qs">{{ _(e.category) }}{% if e.device %} · {{ e.device.name }}{% endif %} · <span title="{{ e.created_at|dt }}">{{ e.created_at|ago }}</span></div></div>
-    <div class="row nowrap">{% if e.device_id %}<a class="btn s ghost" href="/devices/{{ e.device_id }}">Abrir equipo</a>{% endif %}
+    <div class="row nowrap">{% if e.nb %}<a class="btn s ghost" href="/neighbors/{{ e.nb }}">{{ _('Ver detalle') }}</a>{% elif e.device_id %}<a class="btn s ghost" href="/devices/{{ e.device_id }}">Abrir equipo</a>{% endif %}
       {% if not e.acknowledged and ROLES[user.role] >= 1 %}<form method="post" action="/events/ack" style="margin:0"><input type="hidden" name="id" value="{{ e.id }}"><button class="btn s">Reconocer</button></form>{% endif %}</div></li>
 {% endfor %}</ul>
 {% elif unack %}<div class="empty">{{ empty_art('check') }}<h2>Sin alarmas</h2><p>Nada pendiente. Tu red está en orden.</p></div>
 {% else %}<div class="empty">{{ empty_art('plus') }}<h2>Aún no hay eventos</h2><p>Aquí aparecerán los respaldos fallidos, los cambios detectados por syslog y las alertas de cumplimiento.</p></div>{% endif %}
 </section>
-{% from "_pager.html" import pager %}{{ pager(page, pages, per, shown, 'sev=' ~ (sev|urlencode) ~ '&unack=' ~ unack) }}
+{% if cat == 'vecinos' %}<p class="muted sm">{% if nb_interval %}{{ _f('Los vecinos se comparan con la lectura anterior de LLDP, CDP, MNDP y RoMON (cada {0} min). Un vecino perdido se avisa recién cuando falta en {1} lecturas seguidas, para no avisar por un corte de segundos.', nb_interval, nb_reads) }}{% else %}{{ _f('Los vecinos se comparan con la lectura anterior de LLDP, CDP, MNDP y RoMON (en cada respaldo). Un vecino perdido se avisa recién cuando falta en {0} lecturas seguidas, para no avisar por un corte de segundos.', nb_reads) }}{% endif %}</p>{% endif %}
+{% from "_pager.html" import pager %}{{ pager(page, pages, per, shown, 'sev=' ~ (sev|urlencode) ~ '&cat=' ~ (cat|urlencode) ~ '&unack=' ~ unack) }}
 {% endblock %}
