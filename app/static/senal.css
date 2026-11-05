@@ -617,3 +617,7 @@ dialog.dlg:not([open]){display:none}
 .cr-grid .imp-grid{grid-template-columns:1fr}
 @media (min-width:1500px){.cr-grid .imp-grid{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)}}
 .imp-sug{border-color:color-mix(in srgb,var(--brand) 35%,var(--line));background:color-mix(in srgb,var(--brand) 6%,var(--surface))}
+
+/* solicitud con impacto: «Aprobar» mientras no se marca «Leí el impacto» se ve claramente desactivado */
+#apv:disabled,#apv[aria-disabled="true"]{background:var(--surface-3)!important;border-color:var(--line)!important;color:var(--muted)!important;
+  opacity:.55;cursor:not-allowed;box-shadow:none!important;filter:grayscale(1)}

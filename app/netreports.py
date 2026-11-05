@@ -117,7 +117,7 @@ def unused(user, days: int = 30, site: str = "", vlan: str = "") -> dict:
             since = d.port_seen_since
             oldest = since if oldest is None or (since and since < oldest) else oldest
             up_links = set()
-            for n in topology.network_view(json.loads(d.neighbors) if d.neighbors else [])[0]:
+            for n in topology.network_view(topology.lldp_only(json.loads(d.neighbors) if d.neighbors else []))[0]:
                 role, _by = topology.role_why(n.get("platform") or "", n.get("caps"))
                 if role in ("switch", "router", "firewall", "unknown"):
                     up_links.add(topology.short_port(n.get("local_port") or ""))
@@ -135,7 +135,11 @@ def unused(user, days: int = 30, site: str = "", vlan: str = "") -> dict:
                     vlans.add(net)
                 last = seen.get(p["n"])
                 last_dt = datetime.fromisoformat(last) if last else None
+                span = (t - since).days if since else None  # días con datos: nunca se dice más que eso
                 age = (t - last_dt).days if last_dt else None
+                capped = age is not None and span is not None and age > span
+                if capped:
+                    age = span
                 if p.get("s") == "up":
                     inuse += 1
                     continue
@@ -152,7 +156,8 @@ def unused(user, days: int = 30, site: str = "", vlan: str = "") -> dict:
                     inuse += 1  # sin enlace hace poco, o sin datos de tantos días: se cuenta como en uso
                     state = "recent"
                 if state == "nolink" and (not vlan or net == vlan):
-                    rows.append({"n": p["n"], "vlan": net, "d": desc, "days": age,
+                    rows.append({"n": p["n"], "vlan": net, "d": desc, "days": age, "capped": capped,
+                                 "since_short": since.strftime("%d-%m") if since else "",
                                  "since": since.strftime("%d-%m-%Y") if since else "", "s": p.get("s")})
             total = inuse + nolink + free
             if not total:
@@ -242,7 +247,8 @@ async def unused_shutdown(request: Request):
                                          "_reason": _f("sin enlace hace más de {0} días", days)}, [dev_id])
     log_action(request, user, "unused_shutdown_request", f"#{cr} {name}: {', '.join(ports)}")
     return JSONResponse({"ok": True, "id": cr, "url": f"/changes/{cr}",
-                         "msg": _f("Solicitud #{0} creada: apagar {1} puertos en {2}. Espera aprobación.", cr, len(ports), name)})
+                         "msg": _f("Solicitud #{0} creada: apagar {1} puertos en {2}. Espera aprobación.", cr, len(ports), name)
+                         if len(ports) != 1 else _f("Solicitud #{0} creada: apagar 1 puerto en {1}. Espera aprobación.", cr, name)})
 
 
 @router.post("/reports/unused/except")
@@ -310,6 +316,7 @@ def netdoc_page(request: Request):
     return render(request, "netdoc.html", user, sites=sorted(sites.items()), groups=groups, total=len(devs),
                   docs=netdoc.listing(user), sections=netdoc.SECTIONS, client=get_setting("org_name", ""),
                   has_logo=netdoc.logo_path() is not None, preview=preview, preview_svg=psvg,
+                  logo_v=int(netdoc.logo_path().stat().st_mtime) if netdoc.logo_path() else 0,
                   now_s=now().strftime("%d-%m-%Y"))
 
 
@@ -318,6 +325,8 @@ async def netdoc_make(request: Request):
     user = require(request, "operator")
     from . import netdoc
     form = await request.form()
+    if form.get("logo_remove") == "1":  # «Quitar» el logo guardado
+        netdoc.remove_logo()
     up = form.get("logo")
     if up is not None and getattr(up, "filename", ""):
         raw = await up.read()
@@ -335,6 +344,18 @@ async def netdoc_make(request: Request):
     log_action(request, user, "netdoc", f"{meta['file']} · {meta['label']} · {meta['pages'] or '?'} págs.")
     flash(request, _f("Listo: {0}.", meta["file"]))
     return go(f"/reports/netdoc?made={meta['id']}")
+
+
+@router.get("/reports/netdoc/logo")
+def netdoc_logo(request: Request):
+    """El logo guardado, para la miniatura y la portada de la vista previa."""
+    require(request)
+    from . import netdoc
+    p = netdoc.logo_path()
+    if p is None:
+        return Response(status_code=404)
+    return Response(p.read_bytes(), media_type="image/png" if p.suffix == ".png" else "image/jpeg",
+                    headers={"Cache-Control": "private, max-age=3600"})
 
 
 @router.post("/reports/netdoc/{doc_id}/again")

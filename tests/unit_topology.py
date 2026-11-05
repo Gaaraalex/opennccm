@@ -208,5 +208,31 @@ check("Ubiquiti por la MAC cuando no anuncia modelo", family_why(by["SW-Patio"])
 check("modelos USW, USL y EdgeSwitch ES-", all(family({"platform": p}) == "ubiquiti" and role_why(p, [])[0] == "switch"
                                               for p in ("USW-Lite-16-PoE, 7.0.50", "USL8LP", "ES-24-250W", "US-8-60W")))
 
+# RoMON («/tool romon discover»): RouterOS 6 y 7, identidades con espacios, varios saltos y su camino
+from app.topology import ROMON, lldp_only  # noqa: E402
+
+ros7 = MARK + ROMON + """
+Columns: ADDRESS, COST, HOPS, PATH, L2MTU, IDENTITY, VERSION, BOARD
+ADDRESS            COST  HOPS  PATH                                 L2MTU  IDENTITY        VERSION  BOARD
+6C:3B:6B:12:34:56   200     1  6C:3B:6B:12:34:56                     1592  SW-Torre        7.16.2   CRS326-24G-2S+
+DC:2C:6E:AA:BB:CC   400     2  6C:3B:6B:12:34:56,DC:2C:6E:AA:BB:CC   1592  AP Cerro Alto   7.16     RBwAPG-5HacD2HnD
+"""
+ros6 = MARK + ROMON + """
+ ADDRESS                    COST HOPS PATH                                            L2MTU IDENTITY  VERSION   BOARD
+ 4C:5E:0C:01:02:03           200    1 4C:5E:0C:01:02:03                                1588 MikroTik  6.49.10   RB2011UiAS
+"""
+r7, r6 = parse(ros7, "mikrotik_routeros"), parse(ros6, "mikrotik_routeros")
+by7 = {n["remote_name"]: n for n in r7}
+check("RoMON (RouterOS 7): identidad, MAC, saltos y modelo", by7.get("SW-Torre", {}).get("hops") == 1
+      and by7["SW-Torre"]["mac"] == "6C:3B:6B:12:34:56" and by7["SW-Torre"]["platform"] == "MikroTik CRS326-24G-2S+"
+      and by7["SW-Torre"]["romon"], r7)
+check("RoMON: identidad con espacios y el salto anterior del camino", by7.get("AP Cerro Alto", {}).get("hops") == 2
+      and by7["AP Cerro Alto"]["via"] == "6C:3B:6B:12:34:56", r7)
+check("RoMON (RouterOS 6): columnas alineadas a la derecha", len(r6) == 1 and r6[0]["remote_name"] == "MikroTik"
+      and r6[0]["hops"] == 1 and r6[0]["via"] == "", r6)
+check("RoMON no cuenta para el impacto ni los puertos (no dice por qué puerto)", lldp_only(r7) == [])
+check("RoMON: una salida con error no da vecinos", parse(MARK + ROMON + "\nbad command name romon (line 1 column 7)\n",
+                                                        "mikrotik_routeros") == [])
+
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)

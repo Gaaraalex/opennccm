@@ -1020,9 +1020,15 @@ async def kb_ai(request: Request):
 
 
 # --------------------------------------------------------------------------- cerrar una alarma crítica
+# alarmas críticas que son un estado y no un incidente: se resuelven al corregir la causa (los CVE, al actualizar el
+# firmware) y su registro ya está en su página (Vulnerabilidades); no piden un caso para reconocerlas
+STATE_CATEGORIES = {"Vulnerabilidad de firmware"}
+
+
 def needs_case(e: Event, user) -> bool:
-    """Con la regla activa, una alarma crítica no se cierra sin un caso nuevo o un enlace a uno existente."""
-    return e is not None and e.severity == "critical" and not e.acknowledged and rule("kb_rule_critical") and can_write(user)
+    """Con la regla activa, una alarma crítica (un incidente) no se cierra sin un caso nuevo o un enlace a uno existente."""
+    return (e is not None and e.severity == "critical" and not e.acknowledged and e.category not in STATE_CATEGORIES
+            and rule("kb_rule_critical") and can_write(user))
 
 
 @router.get("/kb/close/{event_id:int}")

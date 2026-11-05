@@ -1516,9 +1516,12 @@ def topology_page(request: Request, group: int = 0):
         edges: dict = {}
         with_data = clients = 0
         views = {}
+        romon = {}
         for d in devs:
             with_data += bool(d.neighbors is not None)
-            views[d.id], c = topology.network_view(json.loads(d.neighbors) if d.neighbors else [])
+            nb = json.loads(d.neighbors) if d.neighbors else []
+            romon[d.id] = [n for n in nb if n.get("romon")]
+            views[d.id], c = topology.network_view(topology.lldp_only(nb))
             clients += c
         # fabricante y tipo de cada vecino descubierto: lo que se reconozca desde cualquiera de los equipos que lo ven
         fams: dict = {}
@@ -1572,6 +1575,32 @@ def topology_page(request: Request, group: int = 0):
                 else:
                     edges.setdefault(kk, []).append({"a": a, "b": b, "pa": pa, "pb": pb, "k": "|".join(k),
                                                      "air": topology.is_wireless(pa, pb)})
+    # RoMON: los MikroTik que alcanza cada uno, unidos al salto anterior del camino (o a él, si están a un salto) con una
+    # línea punteada, salvo que ya haya un enlace LLDP/CDP entre los dos
+    for d in devs:
+        by_mac = {n["mac"]: n for n in romon.get(d.id, []) if n.get("mac")}
+        for n in romon.get(d.id, []):
+            def node_of(x):
+                t = by_name.get(topology.norm_name(x.get("remote_name")))
+                if t is not None:
+                    return f"d{t.id}"
+                key = topology.norm_name(x.get("remote_name")) or x.get("mac")
+                nid = f"u:{key}"
+                if nid not in nodes:
+                    nodes[nid] = {"id": nid, "label": x.get("remote_name") or x.get("mac"), "kind": "new", "sub": x.get("mac") or "",
+                                  "platform": x.get("platform", ""), "ip": "", "name": (x.get("remote_name") or "").split(".")[0],
+                                  "fam": "mikrotik", "role": topology.role_why(x.get("platform") or "")[0],
+                                  "how": _("Encontrado por RoMON: no se sabe por qué puerto se conecta.")}
+                return nid
+            other = node_of(n)
+            prev = by_mac.get(n.get("via")) if n.get("via") else None
+            src = node_of(prev) if prev else f"d{d.id}"
+            if src == other:
+                continue
+            a, b = sorted([src, other])
+            if (a, b) in edges:  # ya hay un enlace con puertos (LLDP/CDP) o RoMON visto desde otro equipo
+                continue
+            edges[(a, b)] = [{"a": a, "b": b, "pa": "", "pb": "", "k": f"{a}|{b}|romon", "air": False, "romon": True}]
     for d in devs:  # tipo de los equipos de OpenNCCM: modelo, perfil o lo que anuncian a sus vecinos
         role, rby = topology.device_role(d.device_type, d.model, seen_caps.get(d.id))
         nodes[f"d{d.id}"].update(role=role, how=_f("Es un equipo de OpenNCCM: {0}{1}.", get_profile(d.device_type).label,
@@ -2630,8 +2659,19 @@ async def events_ack(request: Request):
     log_action(request, user, "events_ack", form.get("id") or "all")
     if ids:
         flash(request, _("Alarma reconocida") if len(ids) == 1 else _f("{0} alarmas reconocidas", len(ids)))
-        request.session["undo"] = {"url": "/events/unack", "ids": ",".join(map(str, ids[:5000]))}
+        # los ids de «Deshacer» quedan en el servidor: con cientos de alarmas no caben en la cookie de la sesión (nginx
+        # rechazaba la respuesta con 502 y se veía «OpenNCCM se está reiniciando»)
+        set_setting(f"undo_events_{user.username}", ",".join(map(str, ids[:20000])))
+        request.session["undo"] = {"url": "/events/unack", "ids": "saved"}
     return go(request.headers.get("referer") or "/events")
+
+
+@app.get("/events/ack")
+@app.get("/events/unack")
+def events_ack_get(request: Request):
+    """Una recarga del navegador (por ejemplo, tras la página «se está reiniciando») llega con GET: a la lista."""
+    require(request)
+    return go("/events")
 
 
 @app.post("/events/unack")
@@ -2639,18 +2679,22 @@ async def events_unack(request: Request):
     """«Deshacer» del aviso flotante: vuelve a dejar sin reconocer las alarmas recién reconocidas."""
     user = require(request, "operator")
     form = await request.form()
-    ids = [int(x) for x in (form.get("ids") or "").split(",") if x.strip().isdigit()][:5000]
+    raw = form.get("ids") or ""
+    if raw == "saved":  # los de la última «Reconocer», guardados en el servidor
+        raw = get_setting(f"undo_events_{user.username}", "")
+        set_setting(f"undo_events_{user.username}", "")
+    ids = [int(x) for x in raw.split(",") if x.strip().isdigit()][:20000]
     n = 0
+    scope = device_scope(user)
     with SessionLocal() as db:
-        if ids:
-            stmt = select(Event).where(Event.id.in_(ids), Event.acknowledged.is_(True))
-            scope = device_scope(user)
+        for k in range(0, len(ids), 500):  # de a 500: SQLite no acepta miles de valores en un mismo IN
+            stmt = select(Event).where(Event.id.in_(ids[k:k + 500]), Event.acknowledged.is_(True))
             if scope is not None:
                 stmt = stmt.where(Event.device_id.in_(scope))
             for e in db.scalars(stmt):
                 e.acknowledged = False
                 n += 1
-            db.commit()
+        db.commit()
     log_action(request, user, "events_unack", str(n))
     flash(request, _("Se deshizo: la alarma vuelve a estar pendiente") if n == 1
           else _f("Se deshizo: {0} alarmas vuelven a estar pendientes", n))
@@ -2870,14 +2914,14 @@ SETTING_KEYS = ["smtp_host", "smtp_port", "smtp_security", "smtp_user", "smtp_fr
                 "allow_self_approval", "notify_compliance", "retention_versions", "cisco_api_client_id",
                 "dr_keep", "dr_remote_host", "dr_remote_port", "dr_remote_user", "dr_remote_path",
                 "session_idle_minutes", "remember_days", "require_2fa_admins", "console_access", "console_autologin", "cred_view", "update_check",
-                "topology_enabled", "topology_types", "git_enabled", "git_url", "git_branch", "git_user", "git_mask", "org_name", "org_contact", "org_address", "default_lang", "support_button",
+                "topology_enabled", "topology_types", "topology_romon", "git_enabled", "git_url", "git_branch", "git_user", "git_mask", "org_name", "org_contact", "org_address", "default_lang", "support_button",
                 "ldap_enabled", "ldap_url", "ldap_starttls", "ldap_verify_tls", "ldap_bind_dn", "ldap_base_dn",
                 "ldap_user_filter", "ldap_group_admin", "ldap_group_operator", "ldap_group_viewer", "ldap_default_role",
                 "oidc_enabled", "oidc_tenant", "oidc_client_id", "oidc_discovery", "oidc_button", "oidc_redirect",
                 "oidc_group_admin", "oidc_group_operator", "oidc_group_viewer", "oidc_default_role"]
 CHECKBOX_KEYS = ("require_approval", "allow_self_approval", "notify_compliance", "require_2fa_admins",
                  "console_autologin", "update_check", "ldap_enabled", "ldap_starttls", "ldap_verify_tls", "oidc_enabled",
-                 "topology_enabled", "git_enabled", "git_mask", "support_button")
+                 "topology_enabled", "topology_romon", "git_enabled", "git_mask", "support_button")
 # valores por defecto cuando el ajuste nunca se guardó
 SETTING_DEFAULTS = {"allow_self_approval": "1", "cred_view": "off", "session_idle_minutes": "30", "remember_days": "14", "require_2fa_admins": "0",
                     "console_access": "admin", "console_autologin": "0", "update_check": "1", "topology_enabled": "1", "git_mask": "1", "support_button": "1", "git_branch": "main",

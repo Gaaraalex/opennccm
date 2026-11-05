@@ -434,6 +434,8 @@ def _read_neighbors(conn, device_type: str) -> str | None:
     if not cmds or get_setting("topology_enabled", "1") != "1":
         return None
     out = []
+    if device_type == "mikrotik_routeros" and get_setting("topology_romon", "0") == "1":
+        cmds = list(cmds) + [topology.ROMON]  # los MikroTik alcanzables por RoMON (unos segundos más)
     for c in cmds:
         try:
             out.append(topology.MARK + c + "\n" + conn.send_command(c, read_timeout=30))

@@ -225,5 +225,20 @@ with SessionLocal() as db:
 res = restore.check_ssh(ver_id, target, "ci")
 check("restaurar en otro equipo: otro modelo se rechaza", not res["ok"] and "mismo modelo" in res["error"], res)
 
+# RoMON (Ajustes › Mapa de la red): la orden existe así en esta versión y el respaldo la lee sin fallar
+from app.db import set_setting  # noqa: E402
+from app.topology import ROMON  # noqa: E402
+
+ros("/tool romon set enabled=yes")
+out = ros(ROMON)
+print("ROMON:", out[-400:])
+check(f"RoMON: «{ROMON}» existe en RouterOS {VER} y termina sola",
+      not any(x in out for x in ("bad command name", "expected end of command", "syntax error", "failure:")), out[-300:])
+set_setting("topology_romon", "1")
+r = services.backup_device(dev_id, "manual", "ci")
+check("RoMON: el respaldo con RoMON activado sigue bien", r in ("unchanged", "changed", "first"), r)
+set_setting("topology_romon", "0")
+ros("/tool romon set enabled=no")
+
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)

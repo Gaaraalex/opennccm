@@ -27,6 +27,9 @@ COMMANDS = {
     "extreme_exos": ["show lldp neighbors detailed"],
 }
 MARK = "### vecinos: "  # separa la salida de cada orden en el texto guardado
+# MikroTik con RoMON (Ajustes › Mapa de la red, desactivado de fábrica): los MikroTik que se alcanzan por RoMON, aunque
+# estén a varios saltos o sin dirección IP. No dice por qué puerto: el mapa los une con una línea punteada.
+ROMON = "/tool romon discover duration=5"
 
 
 def commands(device_type: str) -> list[str]:
@@ -146,6 +149,23 @@ def _mikrotik(text: str) -> list[dict]:
     return [n for n, d in zip(out, by) if d is None or is_air(n) or n["local_port"] not in many or "lldp" in d]
 
 
+def _romon(text: str) -> list[dict]:
+    """«/tool romon discover»: ADDRESS (id RoMON, una MAC), COST, HOPS, PATH (las MAC del camino, sin espacios), L2MTU,
+    IDENTITY, VERSION, BOARD. Se lee por campos: lo que queda entre L2MTU y la versión es la identidad (puede tener
+    espacios). Cada vecino lleva «via»: la MAC del salto anterior (vacía si está a un salto)."""
+    out = []
+    mac_re = r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}"
+    for line in text.splitlines():
+        t = line.split()
+        if len(t) < 8 or not re.fullmatch(mac_re, t[0]) or not t[2].isdigit():
+            continue
+        path = [p.upper() for p in t[3].split(",") if re.fullmatch(mac_re, p)]
+        out.append({"local_port": "", "remote_name": " ".join(t[5:-2]), "remote_port": "", "remote_ip": "",
+                    "mac": t[0].upper(), "platform": "MikroTik " + t[-1], "romon": True, "hops": int(t[2]),
+                    "via": path[-2] if len(path) > 1 else "", "version": t[-2]})
+    return out
+
+
 def _table(text: str, cols: dict[str, int], header: str) -> list[dict]:
     """Tablas de una línea por vecino (Huawei «brief», EdgeSwitch, Junos): columnas por posición."""
     out, seen = [], False
@@ -169,7 +189,9 @@ def parse(text: str, device_type: str) -> list[dict]:
     for cmd, out in pairs:
         if re.search(r"(?im)^\s*%|invalid input|unrecognized command|bad command name|syntax error", out[:400]):
             continue
-        if "cdp" in cmd:
+        if cmd.startswith("/tool romon"):
+            found += _romon(out)
+        elif "cdp" in cmd:
             found += _cdp(out)
         elif device_type == "mikrotik_routeros":
             found += _mikrotik(out)
@@ -186,7 +208,7 @@ def parse(text: str, device_type: str) -> list[dict]:
     for n in found:
         if not (n["remote_name"] or n["remote_ip"]):
             continue
-        k = (short_port(n["local_port"]), norm_name(n["remote_name"]) or n["remote_ip"])
+        k = (short_port(n["local_port"]), norm_name(n["remote_name"]) or n["remote_ip"], bool(n.get("romon")))
         if k not in keys:
             keys.add(k)
             uniq.append(n)
@@ -211,6 +233,11 @@ def is_wireless(pa: str, pb: str) -> bool:
 # (con una VLAN por cliente, cada CPE llega por su propia interfaz)
 CPE_MODELS = re.compile(r"(?i)litebeam|nanostation|\bloco|nanobeam|nanobridge|airgrid|powerstation|\bbullet|"
                         r"\bltu[- ]?(?:lite|pro|long|extreme)|\bwave[- ]?(?:nano|pro|lr)|\bsxt|\blhg|\bldf|\bdisc\b|\bgroove")
+
+
+def lldp_only(nbrs: list[dict]) -> list[dict]:
+    """Los vecinos con su puerto (LLDP, CDP, MNDP): sin los de RoMON, que no dicen por dónde se conectan."""
+    return [n for n in nbrs if not n.get("romon")]
 
 
 def network_view(nbrs: list[dict]) -> tuple[list[dict], int]:

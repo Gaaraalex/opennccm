@@ -6,17 +6,17 @@
   {% if imp.level != 'nodata' %}
   <div class="imp-grid">
     {% if imp.svg and (imp.isolated or imp.branches or imp.kept) %}<div>{{ imp.svg|safe }}
-      <div class="imp-leg sm"><span><i class="r"></i>{{ _('Queda aislado (sin camino alternativo)') }}</span><span><i class="a"></i>{{ _('Router o sucursal que se corta') }}</span><span><i class="g"></i>{{ _('Sigue funcionando por otro camino') }}</span></div></div>{% endif %}
+      <div class="imp-leg sm"><span><i class="r"></i>{{ _('Queda aislado (sin camino alternativo)') }}</span><span><i class="a"></i>{{ _('De otra ubicación: pierde la conexión') }}</span><span><i class="g"></i>{{ _('Sigue funcionando por otro camino') }}</span></div></div>{% endif %}
     <div class="stack" style="gap:10px">
       <div><div class="lbl">{{ _f('SIN CAMINO ALTERNATIVO · {0}', imp.isolated|length) }}</div>
         {% for r in imp.isolated[:8] %}<div class="imp-row"><span class="imp-dot r">!</span><b>{{ r.name }}</b><span class="muted sm">{{ _f('conectado a {0}', r.via) if r.direct else _f('detrás de {0}', r.via) }}</span></div>
         {% else %}<div class="muted sm">{{ _('Ninguno.') }}</div>{% endfor %}{% if imp.isolated|length > 8 %}<div class="muted sm">{{ _f('y {0} más', imp.isolated|length - 8) }}</div>{% endif %}</div>
-      <div><div class="lbl">{{ _f('ROUTERS Y SUCURSALES · {0}', imp.branches|length) }}</div>
+      <div><div class="lbl">{{ _f('DE OTRAS UBICACIONES · {0}', imp.branches|length) }}</div>
         {% for r in imp.branches[:6] %}<div class="imp-row"><span class="imp-dot a">!</span><b>{{ r.name }}</b><span class="muted sm">{{ _f('conectado a {0}', r.via) if r.direct else _f('detrás de {0}', r.via) }}</span></div>
         {% else %}<div class="muted sm">{{ _('Ninguno.') }}</div>{% endfor %}</div>
-      <p class="muted sm" style="margin:0">{% if imp.kept %}<span style="color:var(--ok);font-weight:600">{{ _f('{0} vecinos', imp.kept|length) if imp.kept|length != 1 else _('1 vecino') }}</span> {{ _('siguen por otro camino.') }} {% endif %}
+      <p class="muted sm" style="margin:0">{% if imp.kept %}<span style="color:var(--ok);font-weight:600">{{ _f('{0} vecinos', imp.kept|length) if imp.kept|length != 1 else _('1 vecino') }}</span> {{ _('siguen por otro camino.') if imp.kept|length != 1 else _('sigue por otro camino.') }} {% endif %}
         {% if imp.age %}{{ _f('Calculado con LLDP/CDP del último respaldo ({0}).', imp.age) }}{% endif %}
-        {% if imp.nodata %}<span style="color:var(--warn);font-weight:600">{{ _f('{0} equipos', imp.nodata|length) if imp.nodata|length != 1 else _('1 equipo') }}</span> {{ _('no informan vecinos y no se pudieron evaluar') }} <span class="mono">({{ imp.nodata[:4]|join(', ') }}{% if imp.nodata|length > 4 %}…{% endif %})</span>.{% endif %}
+        {% if imp.nodata %}<span style="color:var(--warn);font-weight:600">{{ _f('{0} equipos', imp.nodata|length) if imp.nodata|length != 1 else _('1 equipo') }}</span> {{ _('no informan vecinos y no se pudieron evaluar') if imp.nodata|length != 1 else _('no informa vecinos y no se pudo evaluar') }} <span class="mono">({{ imp.nodata[:4]|join(', ') }}{% if imp.nodata|length > 4 %}…{% endif %})</span>.{% endif %}
         {% if imp.kind != 'ports' %}{{ _('No se estima cuánto dura el corte: depende del equipo.') }}{% endif %}</p>
     </div>
   </div>

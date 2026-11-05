@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.24.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 2.25.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -617,10 +617,10 @@ responde: se detiene y lo informa.</div>
 o un firmware con «Reiniciar al terminar») o <b>apaga puertos</b>, OpenNCCM calcula con el mapa de la red (vecinos LLDP/CDP del
 último respaldo) qué queda sin servicio mientras dure el corte, y lo muestra en la solicitud:</p>
 <ul>
-  <li>Una tarjeta <b>Impacto alto / medio / sin impacto</b> con una frase («Si reinicias CORE-01 quedan aislados 3 equipos y se
-  cortan 2 enlaces a routers o sucursales») y un mini-mapa: en <b>rojo</b> lo que queda aislado (sin camino alternativo), en
-  <b>ámbar</b> los routers, firewalls y equipos de otra ubicación que se cortan, en <b>verde</b> los vecinos que siguen por otro
-  camino. Al lado, las listas con de quién cuelga cada uno.</li>
+  <li>Una tarjeta <b>Impacto alto / medio / sin impacto</b> con una frase («Si reinicias CORE-01 quedan aislados 3 equipos y
+  otros 2 de otras ubicaciones pierden la conexión») y un mini-mapa: en <b>rojo</b> lo que queda aislado (sin camino
+  alternativo), en <b>ámbar</b> los equipos de otra «Ubicación» (sucursales) que pierden la conexión, en <b>verde</b> los vecinos
+  que siguen por otro camino. Al lado, las listas con de quién cuelga cada uno.</li>
   <li>Lo que no se sabe se dice: los equipos que no informan vecinos «no se pudieron evaluar», el cálculo lleva la hora del
   respaldo del que salen los datos y no se estima cuánto dura el corte (depende del equipo).</li>
   <li>Con impacto alto o medio, <b>Aprobar</b> queda desactivado hasta marcar <b>Leí el impacto</b>. Al aprobar, el impacto que se
@@ -949,7 +949,9 @@ pueden reconocer todas (con <b>Deshacer</b> en el aviso).
 Las de severidad igual o mayor a la configurada en Ajustes se envían por correo, webhook (Teams, Slack…) y/o Telegram.</p>
 <p>Si la regla «Al cerrar una alarma crítica» de la base de conocimiento está activa (lo está por omisión), una alarma
 <b>crítica</b> no se cierra con <b>Reconocer</b>: se abre <b>Cerrar alarma crítica</b>, donde se elige <b>Cerrar y documentar</b> o
-<b>Cerrar y enlazar</b> a un caso que ya existe. «Reconocer todas» deja abiertas las críticas (ver capítulo 19).</p>
+<b>Cerrar y enlazar</b> a un caso que ya existe. «Reconocer todas» deja abiertas las críticas (ver capítulo 19). Las alarmas
+críticas de <b>CVE</b> («Vulnerabilidad de firmware») son la excepción: son un estado que se resuelve al actualizar el firmware y
+su registro está en Vulnerabilidades, así que se reconocen sin caso, también con «Reconocer todas».</p>
 <figure><img src="img/21-alarmas.png" class="tall"><figcaption>Alarmas y eventos.</figcaption></figure>
 </section>
 
@@ -1060,6 +1062,12 @@ HP/Aruba, Dell, Ruckus, Allied, MikroTik, EdgeSwitch, UniFi Switch y EXOS, si ti
   <li>Se puede filtrar por grupo, buscar y arrastrar los equipos. Para recorrerlo: arrastrar el fondo, la rueda o los botones
   + y − para el zoom, «Ver todo el mapa» y «Pantalla completa». Debajo, la lista de enlaces.</li>
   <li>Se desactiva en <b>Ajustes › Mapa de la red</b> (entonces los respaldos no leen vecinos).</li>
+  <li><b>RoMON</b> (MikroTik, desactivado de fábrica): con <b>Buscar también los MikroTik por RoMON</b> en Ajustes › Mapa de la
+  red, el respaldo de cada MikroTik con RoMON activado ejecuta además <code>/tool romon discover duration=5</code> y el mapa
+  muestra los MikroTik que alcanza, aunque estén a varios saltos o sin dirección IP. RoMON no dice por qué puerto se conectan:
+  se unen al salto anterior del camino con una <b>línea punteada</b> («Por RoMON (sin puerto)»), salvo que ya haya un enlace
+  LLDP/CDP entre los dos. No cuentan para el análisis de impacto ni para Puertos sin uso. Suma unos 5 segundos al respaldo de
+  cada MikroTik.</li>
 </ul>
 </section>
 
