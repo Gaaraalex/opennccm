@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.25.0<br>Para administradores y operadores de red<br>Octubre de 2026</div>
+  <div class="meta">Versión del software: 2.26.0<br>Para administradores y operadores de red<br>Noviembre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -317,6 +317,16 @@ sigue sola.</p>
   <tr><td>Quién puede abrirla y cómo (Operar → Consola → Acceso)</td><td>Ver «Centro de consola».</td></tr>
 </table>
 
+<h3 id="favoritos">Comandos favoritos</h3>
+<p>Sobre la terminal (en la ficha y en Operar → Consola) está la barra <b>★ Favoritos</b> con los comandos guardados para ese tipo de
+equipo (Cisco IOS / IOS-XE, MikroTik RouterOS, WatchGuard…) y los de <b>Todos los equipos</b>. Un clic escribe el comando y lo
+envía. Si el comando cambia la configuración (copy, conf, write, set y sus equivalentes), se escribe pero no se envía, aunque
+el favorito diga «Enviar»: se confirma con Enter. <b>☆ Guardar como favorito</b>, junto al indicador, guarda el último comando
+con un nombre. Sin favoritos para un tipo, se pueden agregar los sugeridos.</p>
+<p><b>Administrar favoritos</b> (arriba en Operar → Consola, o <b>Editar</b> en la barra) abre la ventana <b>Comandos favoritos</b>:
+una pestaña por tipo de equipo, arrastrar para cambiar el orden, editar, quitar (con «Deshacer»), elegir <b>Enviar</b> o
+<b>Solo escribir</b> y, para los administradores, <b>Compartir con todo el equipo</b>. Los tuyos los ves solo tú.</p>
+
 <h2 id="centro-consola">Centro de consola (Operar → Consola)</h2>
 <table>
   <tr><th>Sección</th><th>Qué hace</th></tr>
@@ -500,6 +510,19 @@ poder volver a ella en un paso (por ejemplo, tras un incidente).</p>
   y, en el menú <b>⋯</b>, <b>Volver a la línea base…</b>, que genera una solicitud de reversión para aprobar.</li>
   <li>Use <b>Dispositivos → estado «fuera de línea base»</b> o <b>Informes → Fuera de línea base</b> para ver todos los afectados.</li>
 </ol>
+<h2 id="referencia">Configuración de referencia por modelo</h2>
+<p><b>Dispositivos › Configuración de referencia</b> compara los equipos del mismo tipo (mismo modelo y sistema) con el que está
+bien configurado. Se elige en la página o desde la ficha del equipo (⋯ › <b>Usar como referencia</b>).</p>
+<ul>
+  <li>A la izquierda, cada tipo de equipo con su referencia; a la derecha, cada equipo con la cantidad de diferencias, las
+  secciones donde están (AAA, SNMP, NTP, VLAN…) y la fecha de su respaldo. Se compara el último respaldo de cada uno.</li>
+  <li><b>No se comparan</b> el nombre del equipo, la IP de gestión, las descripciones de interfaces, las contraseñas y claves
+  cifradas, los certificados ni las líneas que se ignoraron.</li>
+  <li><b>Ver</b> muestra las diferencias por sección, lado a lado o solo los cambios: en rojo lo que tiene la referencia y falta,
+  en verde lo que hay y no en la referencia. Cada bloque se puede <b>ignorar en ese equipo</b> o <b>en todos</b>.</li>
+  <li><b>Preparar solicitud</b> arma una solicitud de cambio con los comandos que faltan y los que sobran. Nunca se aplica sola:
+  pasa por la aprobación y su análisis de impacto. Las diferencias con claves o con la IP de gestión quedan para hacer a mano.</li>
+</ul>
 </section>
 
 <section class="chapter">
@@ -538,6 +561,19 @@ deshacer el cambio automáticamente.</p>
 <p>Escriba el texto (o una expresión regular marcando la casilla) y pulse <b>Buscar</b>. Se busca en la última configuración en
 ejecución de cada equipo y se muestran las líneas con su número.</p>
 <figure><img src="img/09-busqueda.png"><figcaption>Búsqueda de «snmp» en todas las configuraciones.</figcaption></figure>
+<h2 id="mac-ip">Buscar una MAC o una IP</h2>
+<p>En el buscador de la barra superior (<kbd>Ctrl K</kbd>) se puede escribir una MAC (aa:bb:cc:dd:ee:ff, aabb.ccdd.eeff o
+AA-BB-CC-DD-EE-FF) o una IP: OpenNCCM dice <b>dónde está conectado</b>, en qué switch y puerto, con su VLAN, la descripción del
+puerto, cuándo se vio y el camino (por ejemplo «CORE-01 (tabla ARP) → DIST-NORTE Gi1/1/2 → ACC-S-P2 Gi1/0/17»). Con la IP saca la
+MAC de las tablas ARP. La MAC también aparece en los uplinks y troncales: se muestra el puerto de acceso.</p>
+<ul>
+  <li>Las tablas MAC y ARP se leen en cada respaldo (Cisco, NX-OS, Arista, Huawei, Juniper, EXOS, VOSS, EdgeSwitch, MikroTik y
+  Linux) y se guarda un historial MAC → puerto de 90 días, para mostrar <b>Visto por última vez</b>.</li>
+  <li>Si aparece en varios puertos de acceso, salen todos (el más reciente primero) y una explicación de por qué puede pasar.</li>
+  <li>Si no está conectado ahora, <b>Leer las tablas ahora</b> (operadores y administradores) vuelve a leerlas en los equipos
+  que las entregan, de a 8 a la vez. Se ven también los equipos que no entregan tablas y por qué.</li>
+  <li>El fabricante de la MAC sale de la base del IEEE que instala el paquete <code>ieee-data</code> (lo agrega el instalador).</li>
+</ul>
 </section>
 
 <section class="chapter">
@@ -1068,6 +1104,28 @@ HP/Aruba, Dell, Ruckus, Allied, MikroTik, EdgeSwitch, UniFi Switch y EXOS, si ti
   se unen al salto anterior del camino con una <b>línea punteada</b> («Por RoMON (sin puerto)»), salvo que ya haya un enlace
   LLDP/CDP entre los dos. No cuentan para el análisis de impacto ni para Puertos sin uso. Suma unos 10 segundos al respaldo de
   cada MikroTik.</li>
+</ul>
+<h2 id="vecinos">Aviso de vecino nuevo o perdido</h2>
+<p>Con <b>Avisar cuando cambian los vecinos</b> (Ajustes › Mapa de la red, apagado de fábrica) OpenNCCM crea una alarma cuando
+aparece un equipo que antes no estaba o deja de verse uno que sí estaba. Usa las lecturas de LLDP, CDP, MNDP y RoMON que ya hace
+el mapa en cada respaldo: no agrega consultas a los equipos.</p>
+<ul>
+  <li>La primera lectura de cada equipo, y todo lo que se ve al activar el aviso, se toma como conocido: no crea alarmas.</li>
+  <li><b>Vecino nuevo</b>: avisa en la primera lectura en que aparece (nivel Aviso de fábrica). <b>Vecino perdido</b>: avisa solo
+  si falta en 2 lecturas seguidas (se cambia en Ajustes), para no avisar por un corte de segundos (nivel Alta de fábrica).</li>
+  <li>Si un vecino perdido vuelve a verse, la alarma se cierra sola y queda en el historial con la duración del corte.</li>
+  <li>En <b>Alarmas</b>, el filtro <b>Vecinos</b> muestra solo estas. <b>Ver detalle</b> abre la ficha del vecino: puerto (con su
+  VLAN y descripción), nombre que anuncia, qué dice ser, MAC con su fabricante, IP y qué había antes en ese puerto. Desde ahí:
+  <b>Es conocido, no avisar más</b>, <b>Ver en el mapa</b> y <b>Preparar «shutdown» del puerto</b>, que crea una solicitud de
+  cambio (no se apaga nada sin aprobación). En un vecino perdido se ven cuándo se vio por última vez, en cuántas lecturas faltó,
+  el estado del puerto y qué depende de él.</li>
+  <li>En el mapa, <b>Resaltar cambios de vecinos</b> (encendido) marca los nuevos con borde ámbar y la etiqueta «NUEVO», y dibuja
+  los perdidos en rojo discontinuo, con una ✕ en su enlace. El panel lateral <b>Cambios de vecinos · últimas 24 h</b> lista los
+  nuevos, perdidos y los que volvieron. El resaltado se apaga al reconocer la alarma o a las 24 h.</li>
+  <li><b>No avisar por</b>: teléfonos IP y puntos de acceso (según lo que anuncian por LLDP), puertos con 802.1X y equipos de las
+  ubicaciones elegidas. <b>Vecinos conocidos</b> lista los que no avisan al aparecer; quitar uno que sigue conectado hace que
+  avise como nuevo en la próxima lectura.</li>
+  <li>Las alarmas salen por los mismos canales que las demás (correo, webhook y Telegram).</li>
 </ul>
 </section>
 
