@@ -1,0 +1,51 @@
+{% extends "base.html" %}{% block title %}{{ _('Configuración de referencia') }}{% endblock %}
+{% block crumbs %}<a href="/devices">{{ _('Dispositivos') }}</a>{% endblock %}
+{% block content %}
+{# Configuración de referencia por modelo (app/refconfig.py) #}
+{% set op = ROLES[user.role] >= 1 %}
+<style>
+.rf-wrap{display:grid;grid-template-columns:minmax(220px,280px) 1fr;gap:16px;align-items:start}
+@media (max-width:860px){.rf-wrap{grid-template-columns:1fr}}
+.rf-types{display:flex;flex-direction:column;gap:2px;padding:8px}
+.rf-types a{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:var(--r-md);color:var(--ink);text-decoration:none}
+.rf-types a.on{background:var(--brand-soft)}.rf-types a:hover{background:var(--surface-2)}
+.rf-types .r{font-size:12px;color:var(--muted)}.rf-types .r.has{color:var(--warn)}
+.rf-bar{display:flex;align-items:center;gap:8px}.rf-bar i{display:block;height:6px;border-radius:3px;background:var(--brand);min-width:4px}
+.rf-bar i.many{background:var(--warn)}
+.rf-chips{display:flex;gap:4px;flex-wrap:wrap}
+</style>
+<div class="ph"><div class="grow"><h1>{{ _('Configuración de referencia') }}</h1>
+  <div class="sub">{{ _('Elige el equipo que está bien configurado y compara los demás contra él.') }}</div></div></div>
+{% if not o.types %}<section class="card"><div class="empty"><p>{{ _('Todavía no hay equipos.') }}</p></div></section>{% else %}
+<div class="rf-wrap">
+  <section class="card flush"><div class="card-h"><h2 class="label">{{ _('TIPO DE EQUIPO') }}</h2></div><nav class="rf-types">
+    {% for t in o.types %}<a href="?t={{ t.key|urlencode }}" class="{{ 'on' if t.key == o.cur }}"{% if t.key == o.cur %} aria-current="page"{% endif %}><b>{{ t.label }}</b>
+      <span class="r {{ 'has' if t.ref }}">{% if t.ref %}{{ _f('Referencia: {0} · {1} equipos', t.ref, t.n) if t.n != 1 else _f('Referencia: {0} · 1 equipo', t.ref) }}{% else %}{{ _f('Sin referencia · {0} equipos', t.n) if t.n != 1 else _('Sin referencia · 1 equipo') }}{% endif %}</span></a>{% endfor %}
+  </nav></section>
+  <div class="stack">
+  {% if o.members|length < 2 %}
+    <section class="card"><div class="empty"><h2>{{ _f('Hay un solo {0}', o.cur_label) }}</h2><p>{{ _('Se necesitan al menos 2 equipos del mismo tipo para comparar.') }}</p></div></section>
+  {% elif not o.ref %}
+    <section class="card stack"><h2 style="margin:0">☆ {{ _f('Todavía no hay referencia para {0}', o.cur_label) }}</h2>
+      <p class="muted" style="margin:0">{{ _f('Elige el equipo cuya configuración está bien. Los demás {0} se comparan contra él cada vez que se respaldan.', o.members|length - 1) }}</p>
+      {% if op %}<form method="post" action="/config-reference/set" class="row" style="gap:10px"><div class="input" style="max-width:320px"><select name="device_id" aria-label="{{ _('Equipo') }}">{% for m in o.members %}<option value="{{ m.id }}">{{ m.name }}</option>{% endfor %}</select></div>
+        <button class="btn pri">★ {{ _('Usar como referencia') }}</button></form>{% endif %}</section>
+  {% else %}
+    <section class="card"><div class="row" style="gap:12px;align-items:flex-start"><div class="grow"><h2 style="margin:0">★ {{ _f('Referencia: {0}', o.ref.name) }}</h2>
+      <p class="muted sm" style="margin:4px 0 0">{{ o.cur_label }}{% if o.ref.os %} · {{ o.ref.os }}{% endif %} · {% if o.ref.at %}{{ _f('se compara su respaldo {0} con el último de cada equipo.', ago(o.ref.at)) }}{% else %}{{ _('todavía no tiene respaldo: se compara cuando haya uno.') }}{% endif %}</p></div>
+      {% if op %}<details class="dropw"><summary class="btn s">{{ _('Cambiar referencia') }}</summary><form method="post" action="/config-reference/set" class="row card" style="gap:8px;position:absolute;right:0;z-index:5;padding:10px">
+        <div class="input"><select name="device_id" aria-label="{{ _('Equipo') }}">{% for m in o.members %}<option value="{{ m.id }}" {{ 'selected' if m.id == o.ref.id }}>{{ m.name }}</option>{% endfor %}</select></div><button class="btn s pri">{{ _('Guardar') }}</button></form></details>{% endif %}</div></section>
+    <section class="card flush"><div class="tw"><table class="t"><thead><tr><th>{{ _('Equipo') }}</th><th>{{ _('Diferencias') }}</th><th>{{ _('En qué') }}</th><th>{{ _('Respaldo') }}</th><th><span class="vh">{{ _('Acciones') }}</span></th></tr></thead><tbody>
+    {% for r in o.rows %}<tr><td><b>{{ r.name }}</b></td>
+      {% if r.n is none %}<td colspan="3" class="muted">{{ _('Sin respaldo todavía: se compara cuando haya uno.') }}</td><td></td>
+      {% else %}<td>{% if r.n == 0 %}<span class="pill ok">{{ _('Igual a la referencia') }}</span>{% else %}<div class="rf-bar"><b>{{ r.n }}</b><i class="{{ 'many' if r.n > 10 }}" style="width:{{ (r.n / o.max * 120)|round|int }}px"></i></div>{% endif %}</td>
+        <td><div class="rf-chips">{% for sct in r.sections[:4] %}<span class="chip">{{ sct }}</span>{% endfor %}{% if r.sections|length > 4 %}<span class="chip">+{{ r.sections|length - 4 }}</span>{% endif %}</div></td>
+        <td class="muted">{{ ago(r.at) }}</td><td>{% if r.n %}<a class="btn s" href="/config-reference/diff/{{ r.id }}">{{ _('Ver') }}</a>{% endif %}</td>{% endif %}</tr>
+    {% endfor %}</tbody></table></div></section>
+    <section class="card"><div class="row" style="gap:10px;align-items:flex-start"><div class="grow"><b>{{ _('No se comparan') }}</b>
+      <p class="muted sm" style="margin:4px 0 0">{{ _('Nombre del equipo, IP de gestión, descripciones de interfaces, contraseñas y claves cifradas, certificados y líneas que ignoraste.') }}</p></div>
+      {% if op %}<a class="btn s" href="/config-reference/ignored?t={{ o.cur|urlencode }}">{{ _('Editar') }}</a>{% endif %}</div></section>
+  {% endif %}
+  </div>
+</div>{% endif %}
+{% endblock %}

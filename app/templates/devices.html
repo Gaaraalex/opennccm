@@ -5,6 +5,7 @@
 {% set qs = ('&q=' ~ q|urlencode if q else '') ~ ('&group=' ~ group if group else '') %}
 <div class="ph"><div class="grow"><h1>Dispositivos</h1>
   <div class="sub">{{ _f('{0} equipos en {1} grupos', counts[''], n_groups) }}{% if last_global %} · {{ _f('último respaldo global {0}', last_global|ago) }}{% endif %}</div></div>
+  <a class="btn" href="/config-reference">{{ icon('star', 's') }}{{ _('Configuración de referencia') }}</a>
   {% if user.role == 'admin' %}<a class="btn" href="/credentials#groups">{{ icon('folder', 's') }}Grupos</a>
   <span class="dropw"><button type="button" class="btn" data-drop="add-menu" aria-haspopup="true" aria-expanded="false">{{ icon('plus', 's') }}Agregar {{ icon('down', 's') }}</button>
     <div class="drop" id="add-menu" hidden>

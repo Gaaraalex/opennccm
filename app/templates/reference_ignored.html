@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block title %}{{ _('Líneas que no se comparan') }}{% endblock %}
+{% block crumbs %}<a href="/config-reference?t={{ t|urlencode }}">{{ _('Configuración de referencia') }}</a>{% endblock %}
+{% block content %}
+<div class="ph"><div class="grow"><h1>{{ _('Líneas que no se comparan') }}</h1>
+  <div class="sub">{{ _('Una línea por renglón, tal como aparece en las diferencias. Borra una para volver a compararla.') }}</div></div></div>
+<form method="post" action="/config-reference/ignored" class="stack" style="max-width:900px">
+  <input type="hidden" name="t" value="{{ t }}">
+  {% if t %}<section class="card stack"><h2 style="margin:0">{{ _f('En todos los {0}', label) }}</h2>
+    <div class="input"><textarea name="lines:{{ t }}" rows="8" class="mono" spellcheck="false">{{ all_lines|join('\n') }}</textarea></div></section>{% endif %}
+  {% for name, (slot, lines) in devs.items() %}<section class="card stack"><h2 style="margin:0">{{ _f('Solo en {0}', name) }}</h2>
+    <div class="input"><textarea name="lines:{{ slot }}" rows="5" class="mono" spellcheck="false">{{ lines|join('\n') }}</textarea></div></section>{% endfor %}
+  <div class="row end"><a class="btn ghost" href="/config-reference?t={{ t|urlencode }}">{{ _('Cancelar') }}</a><button class="btn pri">{{ _('Guardar') }}</button></div>
+</form>
+{% endblock %}

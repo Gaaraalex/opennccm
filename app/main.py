@@ -3290,6 +3290,9 @@ app.include_router(macfind.router)
 from . import nbwatch  # noqa: E402  (aviso de vecino nuevo o perdido)
 
 app.include_router(nbwatch.router)
+from . import refconfig  # noqa: E402  (configuración de referencia por modelo)
+
+app.include_router(refconfig.router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)
