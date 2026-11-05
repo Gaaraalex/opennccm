@@ -6,7 +6,7 @@ import requests
 
 sys.path.insert(0, ".")
 from app import favorites  # noqa: E402
-from app.db import Device, SessionLocal, select, set_setting  # noqa: E402
+from app.db import Device, SessionLocal, set_setting  # noqa: E402
 
 B = "http://127.0.0.1:8000"
 fails = []
