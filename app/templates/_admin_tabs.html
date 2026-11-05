@@ -3,7 +3,7 @@
 {% set navp = request.url.path %}{% set ac = admin_counts() %}
 <div class="ph"><div class="grow"><h1>Administración</h1><div class="sub">Solo para administradores.</div></div></div>
 <nav class="tabs" aria-label="Administración">
-  {% for href, label, n in [('/users', _('Usuarios'), ac.users), ('/credentials', _('Credenciales'), ac.creds), ('/groups', _('Grupos'), ac.groups),
+  {% for href, label, n in [('/users', _('Usuarios'), ac.users), ('/credentials', _('Credenciales'), ac.creds), ('/groups', _('Grupos'), ac.groups), ('/nodes', _('Nodos'), ac.nodes),
                            ('/vendors', _('Plataformas'), ac.platforms), ('/audit', _('Auditoría'), none), ('/system', _('Sistema'), none), ('/settings', _('Ajustes'), none)] %}
   <a href="{{ href }}"{% if navp.startswith(href) %} aria-current="page" class="on"{% endif %}>{{ label }}{% if n is not none %} <span class="cnt2">{{ n }}</span>{% endif %}</a>{% endfor %}
 </nav>

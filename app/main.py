@@ -711,7 +711,9 @@ async def devices_bulk(request: Request):
 
 def _device_form_ctx(db):
     from .rollback import rollback_supported
+    from .db import NetNode
     return {"groups": db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all(),
+            "nodes": db.scalars(select(NetNode).order_by(NetNode.name)).all(),
             "credentials": db.scalars(select(Credential).order_by(Credential.name)).all(),
             "no_rollback": sorted(k for k, p in PROFILE_MAP.items() if not rollback_supported(p))}
 
@@ -742,6 +744,8 @@ def _apply_device_form(dev: Device, form):
         dev.port = 80 if dev.port in (22, 23) else dev.port
     dev.credential_id = int(form["credential_id"]) if form.get("credential_id") else None
     dev.group_id = int(form["group_id"]) if form.get("group_id") else None
+    if "node_id" in form:  # formularios sin el campo (importar…) no lo tocan
+        dev.node_id = int(form["node_id"]) if (form.get("node_id") or "").isdigit() else None
     dev.location = form.get("location") or None
     dev.notes = form.get("notes") or None
     dev.enabled = form.get("enabled") == "on"
@@ -772,6 +776,15 @@ async def device_save(request: Request, dev_id: int | None = None):
                 db.add(g)
                 db.flush()
             dev.group_id = g.id
+        new_node = (form.get("new_node") or "").strip()[:100]
+        if new_node:  # escribir un nodo nuevo desde el propio formulario (o reutilizar uno con ese nombre)
+            from .db import NetNode
+            nd = next((x for x in db.scalars(select(NetNode)) if x.name.lower() == new_node.lower()), None)
+            if nd is None:
+                nd = NetNode(name=new_node)
+                db.add(nd)
+                db.flush()
+            dev.node_id = nd.id
         if not dev_id:
             db.add(dev)
         try:
@@ -1497,15 +1510,17 @@ def _topo_how(fby: str, n: dict, rby: str, rn: dict) -> str:
 
 
 @app.get("/topology")
-def topology_page(request: Request, group: int = 0):
+def topology_page(request: Request, group: int = 0, node: int = 0):
     """Equipos y enlaces descubiertos por LLDP/CDP. Los vecinos que no están en OpenNCCM se muestran aparte."""
     user = require(request)
     from . import topology
     scope = device_scope(user)
     with SessionLocal() as db:
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
+        from .db import NetNode
+        net_nodes = db.scalars(select(NetNode).order_by(NetNode.name)).all()
         devs = [d for d in db.scalars(select(Device).order_by(Device.name))
-                if (scope is None or d.id in scope) and (not group or d.group_id == group)]
+                if (scope is None or d.id in scope) and (not group or d.group_id == group) and (not node or d.node_id == node)]
         hosts = [d.host.lower() for d in devs]
         by_ip = {d.host.lower(): d for d in devs if hosts.count(d.host.lower()) == 1}  # solo IP que no se repiten
         by_name = {topology.norm_name(d.name): d for d in devs}
@@ -1683,7 +1698,7 @@ def topology_page(request: Request, group: int = 0):
                   fam_names={k: _(v) for k, v in topology.FAMILIES},
                   labels={n["id"]: n["label"] for n in show},
                   group=group, with_data=with_data, clients=clients, hidden=sorted(hidden.values(), key=str.lower), total=len(devs), enabled=get_setting("topology_enabled", "1") == "1",
-                  nb_feed=nbm["feed"][:50], lay=__import__("app.topolayout", fromlist=["x"]).page_data(user))
+                  nb_feed=nbm["feed"][:50], net_nodes=net_nodes, node=node, lay=__import__("app.topolayout", fromlist=["x"]).page_data(user))
 
 
 # --------------------------------------------------------------------------- inventario de IP y VLAN
@@ -3329,6 +3344,9 @@ app.include_router(refconfig.router)
 from . import topolayout  # noqa: E402  (distribución del mapa de la red)
 
 app.include_router(topolayout.router)
+from . import nodes as net_nodes_mod  # noqa: E402  (nodos de la red)
+
+app.include_router(net_nodes_mod.router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)

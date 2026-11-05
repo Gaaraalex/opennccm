@@ -104,7 +104,9 @@
 </style>
 <div class="ph"><div class="grow"><h1>{{ _('Mapa de la red') }}</h1>
   <div class="sub">{{ _('Enlaces que los equipos ven por LLDP o CDP, leídos en cada respaldo. Arrastre el fondo para moverse por el mapa y los equipos para ordenarlos; con la rueda o los botones + y −, zoom.') }}</div></div>
-  <form method="get" class="row" style="gap:8px"><div class="input"><select name="group" onchange="this.form.submit()" aria-label="{{ _('Grupo') }}"><option value="0">{{ _('Todos los equipos') }}</option>{% for g in groups %}<option value="{{ g.id }}" {{ 'selected' if g.id == group }}>{{ _f('Grupo: {0}', g.name) }}</option>{% endfor %}</select></div></form></div>
+  <form method="get" class="row" style="gap:8px">
+    {% if net_nodes %}<div class="input"><select name="node" onchange="this.form.submit()" aria-label="{{ _('Nodo') }}"><option value="0">{{ _('Nodo: Todos') }}</option>{% for nd in net_nodes %}<option value="{{ nd.id }}" {{ 'selected' if nd.id == node }}>{{ _f('Nodo: {0}', nd.name) }}</option>{% endfor %}</select></div>{% endif %}
+    <div class="input"><select name="group" onchange="this.form.submit()" aria-label="{{ _('Grupo') }}"><option value="0">{{ _('Todos los equipos') }}</option>{% for g in groups %}<option value="{{ g.id }}" {{ 'selected' if g.id == group }}>{{ _f('Grupo: {0}', g.name) }}</option>{% endfor %}</select></div></form></div>
 
 {% if not enabled %}<div class="banner warn">{{ icon('alert') }}<span class="grow">{{ _('La lectura de vecinos está desactivada en Ajustes › Mapa de la red.') }}</span></div>{% endif %}
 {% if nodes %}

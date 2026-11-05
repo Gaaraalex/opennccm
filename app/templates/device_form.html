@@ -29,6 +29,11 @@
         <option value="__new">+ Crear grupo nuevo…</option></select></div></div>
       <div class="field"><label for="dloc">Ubicación</label><div class="input"><input id="dloc" name="location" value="{{ device.location or '' if device }}" placeholder="CPD planta 0, rack 2"></div></div></div>
     <div class="field" id="newgrpw" hidden><label for="dngrp">Nombre del grupo nuevo</label><div class="input"><input id="dngrp" name="new_group" maxlength="100" placeholder="Oficina principal"></div></div>
+    <div class="f2"><div class="field"><label for="dnode">{{ _('Nodo') }}</label><div class="input"><select id="dnode" name="node_id"><option value="">{{ _('— Sin nodo —') }}</option>
+        {% for nd in nodes %}<option value="{{ nd.id }}" {{ 'selected' if device and device.node_id == nd.id }}>{{ nd.name }}</option>{% endfor %}
+        <option value="__new">{{ _('+ Crear nodo nuevo…') }}</option></select></div>
+        <span class="help">{{ _('Filtra el mapa de la red por nodo.') }} {% if user.role == 'admin' %}<a href="/nodes">{{ _('Gestionar nodos') }}</a>{% endif %}</span></div>
+      <div class="field" id="newnodew" hidden><label for="dnnode">{{ _('Nombre del nodo nuevo') }}</label><div class="input"><input id="dnnode" name="new_node" maxlength="100" placeholder="{{ _('Nodo Quisqueya') }}"></div></div></div>
     <div class="field"><label for="dnotes">Notas</label><textarea class="ta prose" id="dnotes" name="notes" placeholder="Contacto del proveedor, contrato de soporte…">{{ device.notes or '' if device }}</textarea></div>
   </div>
   {% set web_on = not device or device.web_enabled %}
@@ -71,10 +76,12 @@
   const sync = () => {
     document.getElementById('telwarn').hidden = f.elements.protocol.value !== 'telnet';
     document.getElementById('newgrpw').hidden = f.elements.group_id.value !== '__new';
+    document.getElementById('newnodew').hidden = f.elements.node_id.value !== '__new';
     document.getElementById('webw').hidden = !document.getElementById('dhasweb').checked;
   };
   f.addEventListener('change', sync);
-  f.addEventListener('submit', () => { if (f.elements.group_id.value === '__new') f.elements.group_id.value = ''; });
+  f.addEventListener('submit', () => { if (f.elements.group_id.value === '__new') f.elements.group_id.value = '';
+    if (f.elements.node_id.value === '__new') f.elements.node_id.value = ''; });
   sync();
 })();
 </script>

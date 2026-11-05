@@ -84,6 +84,14 @@ class DeviceGroup(Base):
     name: Mapped[str] = mapped_column(String(64), unique=True)
 
 
+class NetNode(Base):
+    """Nodo de la red (Administración › Nodos): el punto o sitio al que se asignan los equipos; filtra el mapa."""
+    __tablename__ = "net_nodes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True)
+    description: Mapped[str | None] = mapped_column(String(255))
+
+
 class Device(Base):
     __tablename__ = "devices"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -94,6 +102,7 @@ class Device(Base):
     device_type: Mapped[str] = mapped_column(String(64))
     credential_id: Mapped[int | None] = mapped_column(ForeignKey("credentials.id", ondelete="SET NULL"))
     group_id: Mapped[int | None] = mapped_column(ForeignKey("device_groups.id", ondelete="SET NULL"))
+    node_id: Mapped[int | None] = mapped_column(ForeignKey("net_nodes.id", ondelete="SET NULL"))  # nodo de la red
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     auto_rollback: Mapped[bool] = mapped_column(Boolean, default=False)
     location: Mapped[str | None] = mapped_column(String(255))
@@ -142,6 +151,7 @@ class Device(Base):
 
     credential = relationship("Credential", foreign_keys=[credential_id])
     group = relationship("DeviceGroup")
+    node = relationship("NetNode")
     versions = relationship("ConfigVersion", back_populates="device", cascade="all, delete-orphan",
                             passive_deletes=True)
 
