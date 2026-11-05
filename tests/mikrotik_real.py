@@ -258,6 +258,14 @@ if PORT2:
     print("ROMON (a mano):", repr(out[-800:]))
     check(f"RoMON: «{ROMON}» existe en RouterOS {VER}",
           not any(x in out for x in ("bad command name", "expected end of command", "syntax error", "failure:")), out[-300:])
+    from app import topology as _topo  # muestra lo que llega crudo de RouterOS (con los códigos de la terminal)
+    _mark = _topo.mark_hex
+
+    def _show(raw):
+        print("CRUDO:", repr(raw[-900:]))
+        return _mark(raw)
+    _topo.mark_hex = _show
+    print(ros(_topo.ROMON_PLAIN)[-600:])
     set_setting("topology_romon", "1")
     r = services.backup_device(dev_id, "manual", "ci")
     check("RoMON: el respaldo con RoMON activado sigue bien", r in ("unchanged", "changed", "first"), r)
@@ -270,6 +278,7 @@ if PORT2:
           and rm[0]["version"].startswith(VER.split(".")[0]) and rm[0]["platform"].startswith("MikroTik"), rm)
     ld = [n for n in nbrs if not n.get("romon")]
     check("vecinos LLDP/MNDP: «Cabañas» con la «ñ» (no «CabaF1as»)", any(n["remote_name"] == "Cabañas" for n in ld), ld)
+    _topo.mark_hex = _mark
     set_setting("topology_romon", "0")
     ros("/tool romon set enabled=no")
 else:
