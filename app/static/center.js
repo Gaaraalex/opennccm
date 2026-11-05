@@ -72,7 +72,7 @@
       w.innerHTML = '<div class="cc-ph"><b class="grow">' + esc(d.name) + ' <span class="cc-rec">● ' + esc(T.rec) + '</span> <span class="cc-who muted sm"></span></b>' +
         '<button type="button" class="tbtn" data-pm="find" data-id="' + id + '" title="' + esc(T.find) + '" aria-label="' + esc(T.find) + '">' + ic('search') + '</button>' +
         '<button type="button" class="tbtn" data-pm="theme" data-id="' + id + '" title="' + esc(T.theme) + '" aria-label="' + esc(T.theme) + '">' + ic('moon') + '</button>' +
-        '<button type="button" class="btn s ghost" data-share="' + id + '">' + esc(T.share) + '</button><button type="button" class="btn s ghost" data-files="' + id + '">' + esc(T.files) + '</button>' +
+        '<button type="button" class="tbtn" data-share="' + id + '" title="' + esc(T.share) + '" aria-label="' + esc(T.share) + '">' + ic('users') + '</button><button type="button" class="btn s ghost" data-files="' + id + '">' + esc(T.files) + '</button>' +
         (D.ai ? '<button type="button" class="btn s ghost cx-aibtn" data-pm="ai" data-id="' + id + '">' + (D.ailogo || '✦ ') + esc(T.ai) + '</button>' : '') +
         '<button type="button" class="tbtn" data-pm="reconnect" data-id="' + id + '" title="' + esc(T.recon) + '" aria-label="' + esc(T.recon) + '">' + ic('refresh') + '</button>' +
         // tamaño, como el diálogo de la ficha: letra, ampliar en la ventana, ventana aparte y pantalla completa
