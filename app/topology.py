@@ -22,7 +22,7 @@ COMMANDS = {
     "hp_comware": ["display lldp neighbor-information verbose"], "h3c_comware": ["display lldp neighbor-information verbose"],
     "huawei": ["display lldp neighbor brief"], "huawei_vrpv8": ["display lldp neighbor brief"],
     "juniper_junos": ["show lldp neighbors"],
-    "mikrotik_routeros": ["/ip neighbor print detail terse without-paging"],
+    "mikrotik_routeros": ["/ip neighbor print detail without-paging"],
     "ubiquiti_edgeswitch": ["show lldp remote-device all"],
     "extreme_exos": ["show lldp neighbors detailed"],
 }
@@ -143,7 +143,15 @@ def _ros_text(v: str) -> str:
     v = re.sub(r"(?:\\[0-9A-Fa-f]{2})+",
                lambda m: _dec(bytes(int(h, 16) for h in re.findall(r"\\([0-9A-Fa-f]{2})", m.group(0)))), v or "")
     v = v.replace("\ue0ff", "")
-    return re.sub("[\ue100-\ue1ff]+", lambda m: _dec(bytes(ord(c) - 0xE100 for c in m.group(0))), v)
+    v = re.sub("[\ue100-\ue1ff]+", lambda m: _dec(bytes(ord(c) - 0xE100 for c in m.group(0))), v)
+    return re.sub(r"(?<=[a-z])(C3[89AB][0-9A-F]|[C-F][0-9A-F])(?=[a-z])", _bare_hex, v)
+
+
+def _bare_hex(m) -> str:
+    """Algunas versiones (la tabla de RoMON en 7.23, «terse» en 7.x) escriben el byte sin barra ni resaltado: «CabaF1as».
+    Se lee como letra solo si va entre minúsculas y da una letra (F1 → ñ, E9 → é, C3B1 → ñ en UTF-8)."""
+    t = _dec(bytes.fromhex(m.group(1)))
+    return t if len(t) == 1 and t.isalpha() else m.group(1)
 
 
 def _mikrotik(text: str) -> list[dict]:

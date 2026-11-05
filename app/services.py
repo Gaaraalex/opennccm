@@ -454,7 +454,19 @@ def _ros_read(conn, cmd: str) -> str:
     keep = getattr(conn, "ansi_escape_codes", False)
     conn.ansi_escape_codes = False
     try:
-        raw = conn.send_command(cmd, read_timeout=60)
+        if cmd.startswith("/tool romon"):
+            # la búsqueda redibuja la tabla cada segundo y en RouterOS 6 se queda en «-- [Q quit…]» al terminar: se lee
+            # hasta que deja de llegar salida (más que lo que dura la búsqueda) y, si no volvió el indicador, se envía «q»
+            raw = conn.send_command_timing(cmd, last_read=12, read_timeout=60, strip_prompt=False)
+            tail = conn.strip_ansi_escape_codes(raw)[-300:]
+            if not re.search(r"\]\s*>\s*$", tail):
+                conn.write_channel("q")
+                try:
+                    raw += conn.read_until_prompt(read_timeout=15)
+                except Exception as e:  # noqa: BLE001
+                    log.info("RoMON: no volvió el indicador: %s", e)
+        else:
+            raw = conn.send_command(cmd, read_timeout=60)
     finally:
         conn.ansi_escape_codes = keep
     from . import topology

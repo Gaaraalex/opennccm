@@ -265,5 +265,20 @@ check("vecinos LLDP/MNDP: la «ñ» resaltada también", [n["remote_name"] for n
 check("vecinos: «\\F1» (export/terse) y UTF-8 «\\C3\\B1»", _ros_text("Caba\\F1as") == "Cabañas"
       and _ros_text("Caba\\C3\\B1as") == "Cabañas")
 
+# Salida REAL de «/ip neighbor print detail» (sin terse) en un CHR 7.23.8 de la CI: valores entre comillas, cortados en
+# varias líneas, y la «ñ» como «\F1». En 7.x «terse» la escribía «CabaF1as» sin barra.
+DET = (' 0 interface=ether2 address=fe80::5054:ff:fe00:202 \r\n   address6=fe80::5054:ff:fe00:202 mac-address=52:54:00:00:02:02 '
+       '\r\n   identity="Caba\\F1as" platform="MikroTik" \r\n   version="7.23.8 (long-term) 2026-10-08 09:46:16" unpack=none '
+       'age=1s \r\n   uptime=1m38s software-id="5fYNfjQrKiN" board="CHR" ipv6=yes \r\n   interface-name="ether2" \r\n'
+       '   system-description="MikroTik RouterOS 7.23.8 (long-term) 2026-10-08 \r\n                   09:46:16 CHR" \r\n'
+       '   system-caps=bridge,router system-caps-enabled=router \r\n   discovered-by=cdp,lldp,mndp \r\n\r\n')
+d = parse(MARK + "/ip neighbor print detail without-paging\n" + DET, "mikrotik_routeros")
+check("vecinos MikroTik sin «terse»: nombre, puerto, MAC y modelo", len(d) == 1 and d[0]["remote_name"] == "Cabañas"
+      and d[0]["local_port"] == "ether2" and d[0]["remote_port"] == "ether2" and d[0]["mac"] == "52:54:00:00:02:02"
+      and d[0]["platform"] == "MikroTik CHR", d)
+check("la «ñ» sin barra ni resaltado («CabaF1as», «PeF1a») se lee bien; lo demás no se toca",
+      [_ros_text(x) for x in ("CabaF1as", "PeF1alolen", "CaC3B1ete", "R-CORE F1", "SW-C9300", "ETH-E1", "mdF1")]
+      == ["Cabañas", "Peñalolen", "Cañete", "R-CORE F1", "SW-C9300", "ETH-E1", "mdF1"])
+
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)

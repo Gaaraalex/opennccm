@@ -255,8 +255,11 @@ if PORT2:
         time.sleep(3)
     print("VECINOS (a mano):", repr(nb[-600:]))
     out = ros(ROMON)
+    if "expected end of command" in out:  # RouterOS 6 no acepta «proplist»: OpenNCCM usa la orden sin él
+        from app.topology import ROMON_PLAIN
+        out = ros(ROMON_PLAIN)
     print("ROMON (a mano):", repr(out[-800:]))
-    check(f"RoMON: «{ROMON}» existe en RouterOS {VER}",
+    check(f"RoMON: la búsqueda existe en RouterOS {VER}",
           not any(x in out for x in ("bad command name", "expected end of command", "syntax error", "failure:")), out[-300:])
     from app import topology as _topo  # muestra lo que llega crudo de RouterOS (con los códigos de la terminal)
     _mark = _topo.mark_hex
