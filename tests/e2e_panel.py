@@ -200,9 +200,10 @@ check("«Reconocer todas» con 820 alarmas: responde y la cookie de la sesión s
 with SessionLocal() as db:
     left = db.query(Event).filter(Event.acknowledged.is_(False), Event.category.in_(["Prueba masiva", "Vulnerabilidad de firmware"])).count()
 check("…se reconocen todas, también las críticas de CVE (no piden un caso)", left == 0, left)
-r = adm.post(B + "/events/unack", data={"ids": "saved"}, headers={"Referer": B + "/events"})
-m = re.search(r"Se deshizo: (\d+) alarmas vuelven a estar pendientes", r.text)
-check("…y «Deshacer» las vuelve a dejar pendientes (todas las de esa vez)", m is not None and int(m.group(1)) >= 820, m.group(0) if m else "")
+adm.post(B + "/events/unack", data={"ids": "saved"}, headers={"Referer": B + "/events"})
+with SessionLocal() as db:
+    back = db.query(Event).filter(Event.acknowledged.is_(False), Event.category.in_(["Prueba masiva", "Vulnerabilidad de firmware"])).count()
+check("…y «Deshacer» las vuelve a dejar pendientes (todas las de esa vez)", back == 820, back)
 adm.post(B + "/events/ack", data={}, headers={"Referer": B + "/events"})
 check("una recarga con GET de /events/ack vuelve a la lista (no «Method Not Allowed»)",
       adm.get(B + "/events/ack", allow_redirects=False).status_code in (302, 303, 307))

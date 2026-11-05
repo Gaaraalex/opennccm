@@ -2661,7 +2661,7 @@ async def events_ack(request: Request):
         flash(request, _("Alarma reconocida") if len(ids) == 1 else _f("{0} alarmas reconocidas", len(ids)))
         # los ids de «Deshacer» quedan en el servidor: con cientos de alarmas no caben en la cookie de la sesión (nginx
         # rechazaba la respuesta con 502 y se veía «OpenNCCM se está reiniciando»)
-        set_setting(f"undo_events_{user.username}", ",".join(map(str, ids[:5000])))
+        set_setting(f"undo_events_{user.username}", ",".join(map(str, ids[:20000])))
         request.session["undo"] = {"url": "/events/unack", "ids": "saved"}
     return go(request.headers.get("referer") or "/events")
 
@@ -2683,18 +2683,18 @@ async def events_unack(request: Request):
     if raw == "saved":  # los de la última «Reconocer», guardados en el servidor
         raw = get_setting(f"undo_events_{user.username}", "")
         set_setting(f"undo_events_{user.username}", "")
-    ids = [int(x) for x in raw.split(",") if x.strip().isdigit()][:5000]
+    ids = [int(x) for x in raw.split(",") if x.strip().isdigit()][:20000]
     n = 0
+    scope = device_scope(user)
     with SessionLocal() as db:
-        if ids:
-            stmt = select(Event).where(Event.id.in_(ids), Event.acknowledged.is_(True))
-            scope = device_scope(user)
+        for k in range(0, len(ids), 500):  # de a 500: SQLite no acepta miles de valores en un mismo IN
+            stmt = select(Event).where(Event.id.in_(ids[k:k + 500]), Event.acknowledged.is_(True))
             if scope is not None:
                 stmt = stmt.where(Event.device_id.in_(scope))
             for e in db.scalars(stmt):
                 e.acknowledged = False
                 n += 1
-            db.commit()
+        db.commit()
     log_action(request, user, "events_unack", str(n))
     flash(request, _("Se deshizo: la alarma vuelve a estar pendiente") if n == 1
           else _f("Se deshizo: {0} alarmas vuelven a estar pendientes", n))
