@@ -224,7 +224,7 @@ def inv_table(data: dict) -> tuple[list, list, tuple]:
     head = [_("Equipo"), _("IP"), _("Plataforma"), _("Modelo"), _("Serie"), _("Firmware")] + ([_("Sitio")] if many else [])
     rows = [[r["name"], r["ip"], r["platform"], r["model"], r["serial"], r["version"]] + ([r["site"]] if many else [])
             for r in data["inv"]]
-    return head, rows, ((26, 20, 26, 24, 24, 24, 30) if many else (32, 22, 32, 30, 30, 28))
+    return head, rows, ((25, 19, 24, 25, 25, 26, 30) if many else (32, 22, 32, 30, 30, 28))
 
 
 def comp_table(data: dict) -> tuple[list, list, tuple, str]:
@@ -279,6 +279,7 @@ def _pdf(data: dict, opts: dict) -> tuple[bytes, int]:
         t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e9edf6")),
                                ("LINEBELOW", (0, 0), (-1, -1), 0.3, colors.HexColor("#d5dbe8")),
                                ("VALIGN", (0, 0), (-1, -1), "TOP"), ("TOPPADDING", (0, 0), (-1, -1), 3),
+                               ("LEFTPADDING", (0, 0), (-1, -1), 3), ("RIGHTPADDING", (0, 0), (-1, -1), 3),
                                ("BOTTOMPADDING", (0, 0), (-1, -1), 3)]))
         return t
 

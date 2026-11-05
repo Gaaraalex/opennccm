@@ -38,7 +38,7 @@
         <div class="row" style="gap:10px;margin-top:6px;flex-wrap:nowrap">
           <span class="nd-thumb" id="nd-thumb">{% if has_logo %}<img src="/reports/netdoc/logo?v={{ logo_v }}" alt="">{% else %}{{ icon('file', 's') }}{% endif %}</span>
           <span class="grow sm muted" id="nd-lname" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ _('Logo guardado') if has_logo else _('Sin logo') }}</span>
-          <label class="btn s" for="nd-lfile">{{ icon('dl', 's') }}{{ _('Subir logo') }}</label>
+          <label class="btn s" for="nd-lfile">{{ icon('plus', 's') }}{{ _('Subir logo') }}</label>
           <button type="button" class="btn s ghost" id="nd-lx"{% if not has_logo %} hidden{% endif %}>{{ _('Quitar') }}</button></div>
         <input type="file" name="logo" id="nd-lfile" accept="image/png,image/jpeg" class="vh"><input type="hidden" name="logo_remove" id="nd-lrm" value=""></div>
       <label class="swrow"><span>{{ _('Ocultar también las IP públicas') }}</span><input type="checkbox" class="sw" name="hide_public"></label>
