@@ -1577,6 +1577,37 @@ def topology_page(request: Request, group: int = 0):
                                                      "air": topology.is_wireless(pa, pb)})
     # RoMON: los MikroTik que alcanza cada uno, unidos al salto anterior del camino (o a él, si están a un salto) con una
     # línea punteada, salvo que ya haya un enlace LLDP/CDP entre los dos
+    # RoMON no informa IP: se toma la que anuncia el mismo equipo por MNDP/LLDP a otro (por MAC o por nombre) o, si no, la
+    # de las tablas ARP guardadas en los respaldos (app/macfind.py). No agrega consultas a los equipos.
+    nb_ip_mac, nb_ip_name = {}, {}
+    for d in devs:
+        for n in (json.loads(d.neighbors) if d.neighbors else []):
+            ip = (n.get("remote_ip") or "").strip()
+            if n.get("romon") or not re.fullmatch(r"\d+\.\d+\.\d+\.\d+", ip):
+                continue
+            src = (ip, (n.get("proto") or "lldp").upper(), d.name)
+            if n.get("mac"):
+                nb_ip_mac.setdefault(re.sub(r"[^0-9A-F]", "", n["mac"].upper()), src)
+            if topology.norm_name(n.get("remote_name")):
+                nb_ip_name.setdefault(topology.norm_name(n.get("remote_name")), src)
+    romon_macs = {re.sub(r"[^0-9A-F]", "", (n.get("mac") or "").upper()) for lst in romon.values() for n in lst} - {""}
+    arp_ip = {}
+    if romon_macs:
+        from .db import MacSeen
+        names = {d.id: d.name for d in devs}
+        with SessionLocal() as sdb:
+            for r in sdb.scalars(select(MacSeen).where(MacSeen.kind == "arp", MacSeen.mac.in_(list(romon_macs)),
+                                                       MacSeen.device_id.in_(list(names))).order_by(MacSeen.last_seen.desc())):
+                arp_ip.setdefault(r.mac, (r.ip, names[r.device_id]))
+
+    def romon_ip(x) -> tuple[str, str]:
+        mac = re.sub(r"[^0-9A-F]", "", (x.get("mac") or "").upper())
+        hit = nb_ip_mac.get(mac) or nb_ip_name.get(topology.norm_name(x.get("remote_name")))
+        if hit:
+            return hit[0], _f("La IP es la que anuncia por {0} a {1}.", "MNDP" if hit[1] == "MNDP" else hit[1], hit[2])
+        if mac in arp_ip:
+            return arp_ip[mac][0], _f("La IP sale de la tabla ARP de {0}.", arp_ip[mac][1])
+        return "", _("RoMON no informa la IP y no aparece en las tablas ARP ni en los vecinos MNDP/LLDP leídos.")
     for d in devs:
         by_mac = {n["mac"]: n for n in romon.get(d.id, []) if n.get("mac")}
         for n in romon.get(d.id, []):
@@ -1587,10 +1618,12 @@ def topology_page(request: Request, group: int = 0):
                 key = topology.norm_name(x.get("remote_name")) or x.get("mac")
                 nid = f"u:{key}"
                 if nid not in nodes:
-                    nodes[nid] = {"id": nid, "label": x.get("remote_name") or x.get("mac"), "kind": "new", "sub": x.get("mac") or "",
-                                  "platform": x.get("platform", ""), "ip": "", "name": (x.get("remote_name") or "").split(".")[0],
+                    ip, ip_how = romon_ip(x)
+                    nodes[nid] = {"id": nid, "label": x.get("remote_name") or x.get("mac"), "kind": "new", "sub": ip or x.get("mac") or "",
+                                  "platform": x.get("platform", ""), "ip": ip, "name": (x.get("remote_name") or "").split(".")[0],
                                   "fam": "mikrotik", "role": topology.role_why(x.get("platform") or "")[0],
-                                  "how": _("Encontrado por RoMON: no se sabe por qué puerto se conecta.")}
+                                  "how": _("Encontrado por RoMON: no se sabe por qué puerto se conecta.") + " "
+                                  + _f("ID RoMON: {0}.", x.get("mac") or "—") + " " + ip_how}
                 return nid
             other = node_of(n)
             prev = by_mac.get(n.get("via")) if n.get("via") else None

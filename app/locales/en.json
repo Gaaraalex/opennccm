@@ -4282,5 +4282,9 @@
 "«{0}» quedó en la lista de vecinos conocidos.": "“{0}” is now on the list of known neighbors.",
 "«{0}» se quitó del mapa.": "“{0}” was removed from the map.",
 "«{0}» ya no está en la lista de conocidos.": "“{0}” is no longer on the known list.",
-"¿Por qué en dos puertos?": "Why on two ports?"
+"¿Por qué en dos puertos?": "Why on two ports?",
+"ID RoMON: {0}.": "RoMON ID: {0}.",
+"La IP es la que anuncia por {0} a {1}.": "The IP is the one it advertises over {0} to {1}.",
+"La IP sale de la tabla ARP de {0}.": "The IP comes from the ARP table of {0}.",
+"RoMON no informa la IP y no aparece en las tablas ARP ni en los vecinos MNDP/LLDP leídos.": "RoMON doesn't report the IP, and it isn't in the ARP tables or in the MNDP/LLDP neighbors read."
 }
