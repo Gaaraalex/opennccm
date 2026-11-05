@@ -1,0 +1,125 @@
+{% extends "base.html" %}{% block title %}{{ _('Comandos favoritos') }}{% endblock %}
+{% block crumbs %}<a href="/console">{{ _('Consola') }}</a>{% endblock %}
+{% block content %}
+{# Comandos favoritos de la consola (app/favorites.py): pestañas por tipo de equipo, arrastrar para ordenar, editar,
+   quitar con «Deshacer» y compartir con todo el equipo (solo administradores). #}
+<style>
+.fv-t td{vertical-align:middle}.fv-h{cursor:grab;color:var(--muted);user-select:none;width:28px;text-align:center;font-size:16px}
+.fv-t tr.drag{opacity:.45}.fv-t tr.over td{box-shadow:inset 0 2px 0 var(--brand)}
+.fv-cmd{font-family:var(--f-mono);font-size:12.5px;white-space:pre-wrap;word-break:break-word}
+.fv-form{display:grid;gap:12px}.fv-form textarea{font-family:var(--f-mono);min-height:70px}
+.fv-warn[hidden]{display:none}
+</style>
+<div class="ph"><div class="grow"><h1>{{ _('Comandos favoritos') }}</h1>
+  <div class="sub">{{ _('Se muestran en la consola de los equipos del tipo elegido. Arrastra para cambiar el orden.') }}</div></div></div>
+<nav class="tabs" role="tablist" aria-label="{{ _('Tipo de equipo') }}" id="fv-tabs">
+  {% for t in tabs %}<button type="button" role="tab" data-fam="{{ t.family }}" aria-selected="{{ 'true' if t.family == cur else 'false' }}" class="{{ 'on' if t.family == cur }}">{{ t.label }} <span class="cnt2" data-n="{{ t.family }}">{{ t.n }}</span></button>{% endfor %}
+</nav>
+<section class="card flush">
+  <div class="tw"><table class="t fv-t"><thead><tr><th><span class="vh">{{ _('Orden') }}</span></th><th>{{ _('Nombre') }}</th><th>{{ _('Comando') }}</th><th>{{ _('Al hacer clic') }}</th><th>{{ _('Quién lo ve') }}</th><th><span class="vh">{{ _('Acciones') }}</span></th></tr></thead>
+    <tbody id="fv-body"></tbody></table></div>
+  <div class="card-f row" style="padding:12px 16px;gap:12px"><button type="button" class="btn s pri" id="fv-new">{{ icon('plus', 's') }}{{ _('Nuevo favorito') }}</button>
+    <span class="muted sm">{{ _('Los tuyos los ves solo tú; los compartidos los ve todo el equipo.') }}</span></div>
+</section>
+
+<dialog class="dlg" id="fv-dlg" aria-labelledby="fv-dlg-t"><form class="fv-form" id="fv-form">
+  <h2 id="fv-dlg-t"></h2>
+  <div class="field"><label for="fv-name">{{ _('Nombre') }}</label><div class="input"><input id="fv-name" maxlength="64" required></div></div>
+  <div class="field"><label for="fv-cmd">{{ _('Comando') }}</label><div class="input"><textarea id="fv-cmd" maxlength="2000" required spellcheck="false"></textarea></div></div>
+  <div class="field"><label for="fv-fam">{{ _('Para') }}</label><div class="input"><select id="fv-fam">{% for t in tabs %}<option value="{{ t.family }}">{{ t.label }}</option>{% endfor %}</select></div></div>
+  <div class="field"><span class="fl">{{ _('Al hacer clic') }}</span><div class="seg" role="group" id="fv-mode"><button type="button" data-m="send" class="on" aria-pressed="true">{{ _('Enviar') }}</button><button type="button" data-m="type" aria-pressed="false">{{ _('Solo escribir') }}</button></div></div>
+  <div class="banner warn fv-warn" id="fv-warn" hidden>{{ icon('alert') }}<span class="grow">{{ _('Este comando cambia la configuración. Siempre se escribe sin enviar, aunque elijas «Enviar»: lo confirmas tú con Enter.') }}</span></div>
+  {% if user.role == 'admin' %}<div class="row nowrap" style="gap:10px"><button type="button" class="switch" role="switch" aria-checked="false" id="fv-share" aria-labelledby="fv-share-l"></button><span id="fv-share-l">{{ _('Compartir con todo el equipo (solo administradores)') }}</span></div>{% endif %}
+  <div class="row end"><button type="button" class="btn ghost" data-close>{{ _('Cancelar') }}</button><button class="btn pri">{{ _('Guardar') }}</button></div>
+</form></dialog>
+
+<script>
+(function () {
+  var ITEMS = {{ items|tojson }}, CUR = {{ cur|tojson }}, EDIT = null;
+  var T = {{ {'send': _('Enviar'), 'type': _('Solo escribir'), 'me': _('Solo yo'), 'all': _('Todos'), 'edit': _('Editar'), 'del': _('Quitar'),
+             'empty': _('No hay favoritos para este tipo de equipo.'), 'removed': _('Favorito quitado.'), 'undo': _('Deshacer'),
+             'newt': _('Nuevo favorito'), 'editt': _('Editar «{0}»'), 'drag': _('Arrastra para cambiar el orden'), 'chg': _('Cambia la configuración: siempre se escribe sin enviar')}|tojson }};
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); };
+  function post(url, b) { return fetch(url, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(b || {})}).then(function (r) { return r.json(); }); }
+  function counts() { document.querySelectorAll('[data-n]').forEach(function (n) { n.textContent = ITEMS.filter(function (i) { return i.family === n.dataset.n; }).length; }); }
+  function paint() {
+    var rows = ITEMS.filter(function (i) { return i.family === CUR; });
+    $('fv-body').innerHTML = rows.length ? rows.map(function (f) {
+      return '<tr data-id="' + f.id + '"' + (f.can_edit ? ' draggable="true"' : '') + '><td class="fv-h" title="' + esc(T.drag) + '">' + (f.can_edit ? '⠿' : '') + '</td>' +
+        '<td><b>' + esc(f.name) + '</b></td><td class="fv-cmd">' + esc(f.command) + '</td>' +
+        '<td>' + (f.mode === 'type' || f.change ? '<span class="pill warn"' + (f.change ? ' title="' + esc(T.chg) + '"' : '') + '>' + esc(T.type) + '</span>' : '<span class="pill info">' + esc(T.send) + '</span>') + '</td>' +
+        '<td>' + esc(f.shared ? T.all : T.me) + '</td>' +
+        '<td><div class="acts">' + (f.can_edit ? '<button type="button" class="btn s" data-edit="' + f.id + '">' + esc(T.edit) + '</button><button type="button" class="btn s" data-del="' + f.id + '">' + esc(T.del) + '</button>' : '') + '</div></td></tr>';
+    }).join('') : '<tr><td colspan="6"><div class="empty"><p>' + esc(T.empty) + '</p></div></td></tr>';
+    counts();
+  }
+  document.querySelectorAll('#fv-tabs [data-fam]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      CUR = b.dataset.fam;
+      document.querySelectorAll('#fv-tabs [data-fam]').forEach(function (x) { var on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-selected', on ? 'true' : 'false'); });
+      history.replaceState(null, '', '?family=' + encodeURIComponent(CUR)); paint();
+    });
+  });
+  function setMode(m) { document.querySelectorAll('#fv-mode button').forEach(function (b) { var on = b.dataset.m === m; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }); }
+  document.querySelectorAll('#fv-mode button').forEach(function (b) { b.addEventListener('click', function () { setMode(b.dataset.m); }); });
+  var share = $('fv-share');
+  if (share) share.addEventListener('click', function () { share.setAttribute('aria-checked', share.getAttribute('aria-checked') === 'true' ? 'false' : 'true'); });
+  var ckT;
+  function check() {
+    clearTimeout(ckT);
+    ckT = setTimeout(function () {
+      fetch('/api/console/favorites/check?family=' + encodeURIComponent($('fv-fam').value) + '&command=' + encodeURIComponent($('fv-cmd').value), {credentials: 'same-origin'})
+        .then(function (r) { return r.json(); }).then(function (j) { $('fv-warn').hidden = !j.change; });
+    }, 250);
+  }
+  $('fv-cmd').addEventListener('input', check); $('fv-fam').addEventListener('change', check);
+  function open(f) {
+    EDIT = f;
+    $('fv-dlg-t').textContent = f ? T.editt.replace('{0}', f.name) : T.newt;
+    $('fv-name').value = f ? f.name : ''; $('fv-cmd').value = f ? f.command : ''; $('fv-fam').value = f ? f.family : CUR;
+    setMode(f ? f.mode : 'send'); if (share) share.setAttribute('aria-checked', f && f.shared ? 'true' : 'false');
+    $('fv-warn').hidden = !(f && f.change); $('fv-dlg').showModal(); $('fv-name').focus();
+  }
+  $('fv-new').addEventListener('click', function () { open(null); });
+  $('fv-dlg').addEventListener('click', function (e) { if (e.target.closest('[data-close]')) $('fv-dlg').close(); });
+  $('fv-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    post('/api/console/favorites', {id: EDIT ? EDIT.id : null, name: $('fv-name').value, command: $('fv-cmd').value, family: $('fv-fam').value,
+      mode: document.querySelector('#fv-mode .on').dataset.m, shared: share ? share.getAttribute('aria-checked') === 'true' : false}).then(function (j) {
+      if (j.error) { window.ocToast(j.error, 'error'); return; }
+      var i = ITEMS.findIndex(function (x) { return x.id === j.item.id; });
+      if (i >= 0) ITEMS[i] = j.item; else ITEMS.push(j.item);
+      $('fv-dlg').close(); paint();
+    });
+  });
+  $('fv-body').addEventListener('click', function (e) {
+    var ed = e.target.closest('[data-edit]'), dl = e.target.closest('[data-del]');
+    if (ed) open(ITEMS.find(function (x) { return x.id === +ed.dataset.edit; }));
+    if (dl) post('/api/console/favorites/' + dl.dataset.del + '/delete').then(function (j) {
+      if (j.error) { window.ocToast(j.error, 'error'); return; }
+      ITEMS = ITEMS.filter(function (x) { return x.id !== +dl.dataset.del; }); paint();
+      window.ocToast(T.removed, 'ok', '<button type="button" class="btn s fv-undo">' + esc(T.undo) + '</button>');
+      var b = document.querySelector('.toasts .fv-undo:not([data-on])');
+      if (b) { b.dataset.on = '1'; b.addEventListener('click', function () {
+        post('/api/console/favorites/restore', j.item).then(function () { return fetch('/api/console/favorites', {credentials: 'same-origin'}).then(function (r) { return r.json(); }); }).then(function (k) { ITEMS = k.items; paint(); var t = b.closest('.toast'); if (t) t.remove(); });
+      }); }
+    });
+  });
+  // arrastrar para ordenar (solo dentro de la pestaña)
+  var dragId = null;
+  $('fv-body').addEventListener('dragstart', function (e) { var tr = e.target.closest('tr[data-id]'); if (!tr) return; dragId = +tr.dataset.id; tr.classList.add('drag'); e.dataTransfer.effectAllowed = 'move'; });
+  $('fv-body').addEventListener('dragend', function () { dragId = null; document.querySelectorAll('#fv-body tr').forEach(function (t) { t.classList.remove('drag', 'over'); }); });
+  $('fv-body').addEventListener('dragover', function (e) { var tr = e.target.closest('tr[data-id]'); if (!tr || dragId === null) return; e.preventDefault(); document.querySelectorAll('#fv-body tr').forEach(function (t) { t.classList.toggle('over', t === tr); }); });
+  $('fv-body').addEventListener('drop', function (e) {
+    var tr = e.target.closest('tr[data-id]'); if (!tr || dragId === null) return; e.preventDefault();
+    var tab = ITEMS.filter(function (i) { return i.family === CUR; }), rest = ITEMS.filter(function (i) { return i.family !== CUR; });
+    var from = tab.findIndex(function (x) { return x.id === dragId; }), to = tab.findIndex(function (x) { return x.id === +tr.dataset.id; });
+    if (from < 0 || to < 0 || from === to) return;
+    tab.splice(to, 0, tab.splice(from, 1)[0]); ITEMS = rest.concat(tab); paint();
+    post('/api/console/favorites/order', {ids: tab.map(function (x) { return x.id; })});
+  });
+  paint();
+})();
+</script>
+{% endblock %}

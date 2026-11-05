@@ -497,6 +497,21 @@ class KbPending(Base):
     overdue_sent: Mapped[bool] = mapped_column(Boolean, default=False)  # ya se avisó al admin de los 5 días
 
 
+class ConsoleFavorite(Base):
+    """Comando favorito de la consola (app/favorites.py): de un usuario o compartido con todos (solo administradores).
+    family: familia de equipos (favorites.family_of) o «*» para todos los equipos."""
+    __tablename__ = "console_favorites"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner: Mapped[str] = mapped_column(String(64), index=True)
+    shared: Mapped[bool] = mapped_column(Boolean, default=False)
+    family: Mapped[str] = mapped_column(String(32), index=True)
+    name: Mapped[str] = mapped_column(String(64))
+    command: Mapped[str] = mapped_column(Text)
+    mode: Mapped[str] = mapped_column(String(8), default="send")  # send | type («Solo escribir»)
+    pos: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
 class Setting(Base):
     __tablename__ = "settings"
     key: Mapped[str] = mapped_column(String(64), primary_key=True)

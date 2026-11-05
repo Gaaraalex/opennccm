@@ -3,7 +3,8 @@
 {% block content %}
 <link rel="stylesheet" href="/static/console.css?v={{ VERSION }}-{{ CX_HASH }}">
 <link rel="stylesheet" href="/static/center.css?v={{ VERSION }}-{{ CX_HASH }}">
-<div class="ph"><div class="grow"><h1>{{ _('Consola') }}</h1><div class="sub" id="cc-open">{{ _('Todo queda grabado en Auditoría.') }}</div></div></div>
+<div class="ph"><div class="grow"><h1>{{ _('Consola') }}</h1><div class="sub" id="cc-open">{{ _('Todo queda grabado en Auditoría.') }}</div></div>
+  <a class="btn s ghost" href="/console/favorites">{{ icon('star', 's') }}{{ _('Administrar favoritos') }}</a></div>
 <nav class="tabs" role="tablist" aria-label="{{ _('Secciones de la consola') }}" id="cc-tabs">
   {% for k, l, i in [('sesiones', _('Sesiones'), 'term'), ('multi', _('Multi-equipo'), 'grid'), ('recetas', _('Recetas'), 'file'), ('grabaciones', _('Grabaciones'), 'play'), ('herramientas', _('Herramientas'), 'globe')] + ([('acceso', _('Acceso'), 'lock')] if user.role == 'admin' else []) %}
   <a href="#{{ k }}" role="tab" data-tab="{{ k }}">{{ icon(i, 's') }}{{ l }}{% if k == 'acceso' and n_pending %}<span class="cnt">{{ n_pending }}</span>{% endif %}</a>{% endfor %}

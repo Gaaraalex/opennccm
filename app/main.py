@@ -3235,6 +3235,9 @@ from . import impact, netreports  # noqa: E402  (análisis de impacto; puertos s
 
 app.include_router(impact.router)
 app.include_router(netreports.router)
+from . import favorites  # noqa: E402  (comandos favoritos de la consola)
+
+app.include_router(favorites.router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)
