@@ -12,7 +12,35 @@
   @media (prefers-color-scheme:dark){:root[data-theme="auto"] .topo-wrap,:root[data-theme="auto"] .topo-chips{--v-edge:transparent}}
   .topo-edge{stroke:var(--line-strong);stroke-width:1.6}.topo-edge.hl{stroke:var(--brand);stroke-width:2.4}
   .topo-edge.air{stroke-dasharray:7 5}.topo-edge.romon{stroke-dasharray:2 5;stroke-linecap:round}.topo-e.vdim{opacity:.2}
-  .topo-hit{stroke:transparent;stroke-width:12}
+  .topo-hit{stroke:transparent;stroke-width:12}.topo-edge,.topo-hit{fill:none}
+  .topo-edge.xtra{stroke-dasharray:3 5;opacity:.7}
+  /* distribución del mapa (static/topo-layouts.js) */
+  .lay-hide{display:none!important}
+  .lay-row,.lay-col{font:700 10.5px var(--f-sans);letter-spacing:.08em;fill:var(--muted)}
+  .lay-ring{fill:none;stroke:var(--line);stroke-dasharray:3 6;opacity:.8}
+  .lay-site{fill:color-mix(in srgb,var(--surface-2) 70%,transparent);stroke:var(--line-strong);stroke-width:1}
+  .lay-site-t{font:700 13px var(--f-sans);fill:var(--ink)}.lay-site-t.edit{cursor:pointer;text-decoration:underline dotted}
+  .lay-site-n{font:400 11.5px var(--f-sans);fill:var(--muted)}
+  .lay-agg{stroke:var(--brand);opacity:.55;stroke-linecap:round}
+  .lay-pill rect{fill:var(--surface);stroke:var(--brand);stroke-width:1}.lay-pill text{font:600 11px var(--f-sans);fill:var(--brand)}
+  .lay-plan{fill:var(--surface-2);stroke:var(--line-strong);stroke-dasharray:6 6}.lay-plan-t{font:500 14px var(--f-sans);fill:var(--muted)}
+  .lay-tray{fill:none;stroke:var(--muted);stroke-width:1.4;stroke-dasharray:6 5}
+  .topo-node .fold rect{fill:var(--surface);stroke:var(--brand);stroke-width:1.2}.topo-node .fold text{font:700 11px var(--f-sans);fill:var(--brand)}
+  .topo-node .fold{cursor:pointer}.topo-node .pin{fill:var(--warn);stroke:var(--surface);stroke-width:2}
+  .lay-btnw{position:absolute;left:56px;top:12px;z-index:3}
+  .lay-btn{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);color:var(--ink);font:500 13px var(--f-sans);cursor:pointer}
+  .lay-menu{position:absolute;left:0;top:40px;width:340px;max-height:calc(min(72vh,760px) - 66px);overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh-pop);padding:10px;display:flex;flex-direction:column;gap:2px}
+  .lay-menu hr{border:0;border-top:1px solid var(--line);margin:8px 0}
+  .lay-opt{display:grid;grid-template-columns:22px 1fr auto;gap:0 10px;align-items:center;text-align:left;padding:5px 10px;border:0;border-radius:var(--r-md);background:none;color:var(--ink);cursor:pointer;font:inherit}
+  .lay-opt:hover{background:var(--surface-2)}.lay-opt.on{background:var(--brand-soft);color:var(--brand-strong)}
+  .lay-opt b{font:600 13.5px var(--f-sans)}.lay-opt small{grid-column:2;color:var(--muted);font-size:12px}.lay-opt kbd{grid-row:1/3;grid-column:3;font:600 11px var(--f-mono);color:var(--muted)}
+  .lay-opt .ico{grid-row:1/3}
+  .lay-menu .field{display:flex;flex-direction:column;gap:4px;margin:4px 0}
+  .lay-bar{position:absolute;right:12px;top:12px;z-index:3;display:flex;align-items:center;gap:8px;flex-wrap:wrap;max-width:calc(100% - 420px);padding:8px 10px;background:var(--surface);border:1px solid var(--warn);border-radius:var(--r-md);box-shadow:var(--sh-1);font-size:13px}
+  .topo-wrap.side-open .lay-bar{right:332px}
+  .lay-foot{display:flex;align-items:center;gap:10px;margin-top:8px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);font-size:13px;color:var(--ink-2)}
+  .lay-foot b{color:var(--ink);white-space:nowrap}
+  .lay-pop{position:absolute;z-index:4;display:flex;gap:6px;padding:8px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--sh-pop)}
   .topo-port{pointer-events:none;display:none}.topo-port.show{display:inline}
   .topo-port rect{fill:var(--surface);stroke:var(--line);stroke-width:1}.topo-port text{font:500 11px var(--f-mono);fill:var(--ink-2)}
   .topo-node{cursor:pointer;color:var(--ink)}.topo-node:focus{outline:none}
@@ -92,6 +120,18 @@
     <button type="button" data-z="0.77" title="{{ _('Alejar') }}" aria-label="{{ _('Alejar') }}">−</button>
     <button type="button" id="tfit" title="{{ _('Ver todo el mapa') }}" aria-label="{{ _('Ver todo el mapa') }}">⤢</button>
     <button type="button" id="tfull" title="{{ _('Pantalla completa') }}" aria-label="{{ _('Pantalla completa') }}">⛶</button></div>
+  <div class="lay-btnw"><button type="button" class="lay-btn" id="tlay" aria-haspopup="true" aria-expanded="false" aria-controls="tlay-m"><span id="tlay-i"></span>{{ _('Distribución:') }} <b id="tlay-n"></b> ▾</button>
+    <div class="lay-menu" id="tlay-m" hidden role="menu" aria-label="{{ _('Cómo ordenar los equipos') }}">
+      <div class="topo-cap" style="padding:2px 10px 6px">{{ _('CÓMO ORDENAR LOS EQUIPOS') }}</div><div id="tlay-opts"></div><hr>
+      <div class="field" id="tlay-cw"><label for="tlay-c"><b>{{ _('Equipo central') }}</b></label><div class="input"><select id="tlay-c"><option value="">{{ _('Elegido solo: el que tiene más enlaces') }}</option></select></div></div>
+      <div class="field"><span class="fl"><b>{{ _('Debajo del nombre') }}</b></span><div class="seg" role="group" id="tlay-s"><button type="button" data-v="none">{{ _('Nada') }}</button><button type="button" data-v="ip">IP</button><button type="button" data-v="mac">MAC</button></div></div>
+      <label class="ck"><input type="checkbox" id="tlay-f"> {{ _('Ajustar a la pantalla al abrir el mapa') }}</label>
+      <label class="ck"><input type="checkbox" id="tlay-r"> {{ _('Recordar esta distribución la próxima vez') }}</label></div></div>
+  <div class="lay-bar" id="tlay-bar" hidden role="status"><span id="tlay-bt" class="grow"></span>
+    <button type="button" class="btn s ghost" id="tlay-auto">{{ _('Volver a la automática') }}</button>
+    <div class="input" style="width:auto"><select id="tlay-scope" aria-label="{{ _('Para quién') }}"><option value="me">{{ _('Solo para mí') }}</option>{% if user.role == 'admin' %}<option value="team">{{ _('Para todo el equipo') }}</option>{% endif %}</select></div>
+    <button type="button" class="btn s pri" id="tlay-save">{{ _('Guardar') }}</button></div>
+  <form class="lay-pop" id="tlay-ren" hidden><input id="tlay-ren-i" maxlength="80" aria-label="{{ _('Nombre del sitio') }}"><button class="btn s pri">{{ _('Guardar') }}</button><button type="button" class="btn s ghost" data-x>✕</button></form>
   <div class="topo-legend-f">
     <span><i style="border-color:var(--ok);background:var(--ok-soft)"></i>{{ _('Respaldo correcto') }}</span>
     <span><i style="border-color:var(--crit);background:var(--crit-soft)"></i>{{ _('Último respaldo con error') }}</span>
@@ -101,6 +141,8 @@
     <span class="nb-leg"><i style="border-color:var(--crit);border-style:dashed"></i>{{ _('Perdido: ya no se ve') }}</span>{% endif %}
     {% if links|selectattr('romon')|list %}<span><svg width="26" height="8" aria-hidden="true" style="margin-right:6px;vertical-align:1px"><line x1="0" y1="4" x2="26" y2="4" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2 5" stroke-linecap="round"/></svg>{{ _('Por RoMON (sin puerto)') }}</span>{% endif %}</div>
   <aside class="topo-side" id="tside" aria-label="{{ _('Detalle del equipo') }}" inert><div class="topo-side-in" id="tside-in"></div></aside></div>
+<div class="lay-foot" id="tlay-foot"><span id="tlay-fi"></span><b id="tlay-fn"></b><span class="grow" id="tlay-fx"></span>
+  {% if user.role == 'admin' %}<label class="btn s" id="tlay-up" hidden>{{ icon('ul', 's') }}{{ _('Subir plano') }}<input type="file" accept="image/png,image/jpeg" hidden></label>{% endif %}</div>
 <details style="margin-top:14px"><summary class="sm">{{ _f('Lista de enlaces ({0})', links|length) }}</summary>
   <div class="tw"><table class="t"><thead><tr><th>{{ _('Equipo') }}</th><th>{{ _('Puerto') }}</th><th>{{ _('Vecino') }}</th><th>{{ _('Puerto') }}</th></tr></thead><tbody data-pager>
   {% for e in links %}<tr><td>{{ labels[e.a] }}</td><td class="mono">{{ e.pa or '—' }}</td><td>{{ labels[e.b] }}</td><td class="mono">{{ e.pb or '—' }}</td></tr>{% endfor %}</tbody></table></div></details>
@@ -112,6 +154,7 @@
 {% if hidden %}<p class="muted sm" style="margin-top:12px">{{ _f('No se muestran {0} vecinos de otros tipos de equipo (se elige en Ajustes › Mapa de la red).', hidden|length) }} {{ hidden|join(', ') }}</p>{% endif %}
 {% if alone %}<p class="muted sm" style="margin-top:12px">{{ _f('Sin enlaces conocidos: {0}', alone|map(attribute='label')|join(', ')) }}</p>{% endif %}
 
+<script src="/static/topo-layouts.js?v={{ VERSION }}"></script>
 <script>
 (function () {
   const svg = document.getElementById('tsvg');
@@ -125,6 +168,25 @@
                        'new': _('No está en OpenNCCM')},
                 'roles': roles, 'fams': fam_names, 'net': _('Red de {0} ({1} equipos)')}|tojson }};
   const SPRITE = '/static/icons.svg?v={{ VERSION }}#';
+  const LAYD = {{ lay|tojson }};
+  const LT = {{ {'hop1': _('1 SALTO'), 'hops': _('{0} SALTOS'), 'cols': [_('ROUTERS'), _('SWITCHES'), _('INALÁMBRICOS'), _('OTROS')],
+                 'core': _('Núcleo'), 'dev1': _('1 equipo'), 'devs': _('{0} equipos'), 'link1': _('1 enlace'), 'links': _('{0} enlaces'),
+                 'tray': _('Sin ubicación · {0}'), 'tray_h': _('Arrástralos a su lugar en el plano'),
+                 'noplan': _('Todavía no hay un plano: un administrador lo sube abajo, en «Subir plano».'),
+                 'moved': _('Moviste {0} equipos'), 'moved1': _('Moviste 1 equipo'), 'saved_at': _('guardada por última vez {0}'),
+                 'saved': _('Distribución guardada.'), 'site': _('Sitio'), 'site_h': _('Mueve este equipo a otro sitio (vacío: el automático).'),
+                 'plan_err': _('No se pudo subir el plano.'), 'auto': _('Elegido solo: el que tiene más enlaces'), 'save': _('Guardar'), 'today': _('hoy {0}'), 'yday': _('ayer {0}')}|tojson }};
+  const MODES = {{ [
+    ('free', 'spark', _('Libre'), _('Se acomodan solos según sus enlaces'), _('Los equipos se acomodan solos: los que tienen enlace se acercan y el resto se separa. Es la vista que hay hoy.')),
+    ('down', 'down', _('Escalonada ↓'), _('Del central hacia abajo, un salto por fila'), _('El equipo central va arriba y cada fila es un salto más. Si una fila está apretada, los nombres se alternan arriba y abajo para no pisarse.')),
+    ('right', 'right', _('Escalonada →'), _('Igual, de izquierda a derecha'), _('Igual que la escalonada, pero de izquierda a derecha y con el nombre al lado del equipo. Caben más equipos por nivel.')),
+    ('radial', 'globe', _('Radial'), _('El central al medio, un anillo por salto'), _('El equipo central va al medio y cada anillo es un salto más. Cada rama ocupa su propio sector.')),
+    ('sites', 'grid', _('Por sitio'), _('Un recuadro por sitio o red'), _('Un recuadro por sitio, armado con la parte del nombre que se repite o con la red. Entre dos sitios hay una sola línea con la cantidad de enlaces.')),
+    ('roles', 'ul', _('Por función'), _('Columnas: routers, switches, inalámbricos'), _('Una columna por tipo de equipo. Los enlaces dentro de una misma columna van como arcos al costado.')),
+    ('circle', 'refresh', _('Circular'), _('Todos en un círculo'), _('Todos los equipos en un círculo, en el orden de sus ramas. El círculo de un equipo crece con la cantidad de enlaces que tiene.')),
+    ('fold', 'plus', _('Árbol plegable'), _('Abre y cierra cada rama'), _('Como la escalonada, pero cada rama se abre y se cierra. Toca un equipo con + para ver lo que cuelga de él.')),
+    ('plan', 'file', _('Sobre un plano'), _('Cada equipo en su lugar real'), _('Cada equipo en su lugar real, sobre un plano subido o sobre un mapa. Los que todavía no tienen ubicación esperan al costado.')),
+    ('mine', 'user', _('Mi distribución'), _('La que guardaste arrastrando equipos'), _('La posición en la que el usuario dejó los equipos al arrastrarlos. Se guarda para él o para todo el equipo.'))]|tojson }};
   const view = document.getElementById('tview'), side = document.getElementById('tside'), sideIn = document.getElementById('tside-in'), NS = 'http://www.w3.org/2000/svg';
   const wrap = document.getElementById('topo');
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
@@ -144,7 +206,7 @@
   // disposición por fuerzas en cada red (repulsión entre sus equipos, muelles en los enlaces, gravedad a su centro); luego
   // las redes se colocan en filas, juntas, en lugar de separarse sin límite unas de otras
   function layout() {
-    const k = Math.max(130, Math.sqrt(W * H / Math.max(NODES.length, 1)) * 0.75);  // separación ideal entre equipos
+    const k = Math.min(165, Math.max(120, Math.sqrt(W * H / Math.max(NODES.length, 1)) * 0.5));  // separación ideal entre equipos
     const boxes = COMPS.map(c => {
       const n = c.length, R = k * Math.sqrt(n) / 2, ids = new Set(c.map(x => x.id)), ls = LINKS.filter(e => ids.has(e.a));
       c.forEach((d, i) => { d.x = R * Math.cos(2 * Math.PI * i / n); d.y = R * Math.sin(2 * Math.PI * i / n); });
@@ -188,9 +250,10 @@
   }
   function draw() {
     view.textContent = ''; edgeEls.length = 0;
+    decorLayer = mk('g', {class: 'lay-decor'}, view);
     const edgeLayer = mk('g', {}, view), labLayer = mk('g', {}, view);
     LINKS.forEach(e => {
-      const g = mk('g', {class: 'topo-e' + (e.chg === 'lost' ? ' lost' : '')}, edgeLayer), hit = mk('line', {class: 'topo-hit'}, g), line = mk('line', {class: 'topo-edge' + (e.air ? ' air' : '') + (e.romon ? ' romon' : '') + (e.chg === 'lost' ? ' lost' : '')}, g);
+      const g = mk('g', {class: 'topo-e' + (e.chg === 'lost' ? ' lost' : '')}, edgeLayer), hit = mk('path', {class: 'topo-hit'}, g), line = mk('path', {class: 'topo-edge' + (e.air ? ' air' : '') + (e.romon ? ' romon' : '') + (e.chg === 'lost' ? ' lost' : '')}, g);
       if (e.chg === 'lost') { const xm = mk('text', {class: 'topo-x', 'text-anchor': 'middle', y: 4}, g); xm.textContent = '✕'; g.xm = xm; }
       const ta = plabel(labLayer, e.pa), tb = plabel(labLayer, e.pb);
       const t = mk('title', {}, g); t.textContent = (byId[e.a].label + ' ' + (e.pa || '') + ' ↔ ' + byId[e.b].label + ' ' + (e.pb || '')).trim();
@@ -202,16 +265,23 @@
     NODES.forEach(n => {
       // 48 px: anillo de estado, icono del tipo en el centro y distintivo del fabricante abajo a la derecha
       const g = mk('g', {class: 'topo-node ' + st(n) + (n.chg ? ' nb' + n.chg : ''), tabindex: 0, role: 'button', 'aria-label': aria(n)}, view);
-      mk('circle', {class: 'halo', r: 26.5}, g); mk('circle', {class: 'halo2', r: 30}, g);
-      mk('circle', {class: 'ring', r: 23}, g);
-      use(g, 't-' + (n.role || 'unknown'), -12, -12, 24);
-      mk('rect', {class: 'lgo-bg', x: 9, y: 7, width: 26, height: 26, rx: 8}, g);
-      use(g, 'v-' + (n.fam || 'other'), 11, 9, 22);
-      mk('rect', {class: 'lgo-edge', x: 11, y: 9, width: 22, height: 22, rx: 6}, g);
-      if (st(n) === 'error') { mk('circle', {class: 'eb', cx: -21, cy: -21, r: 10}, g);
-        const x = mk('text', {class: 'eb-t', x: -21, y: -17, 'text-anchor': 'middle'}, g); x.textContent = '!'; }
+      const ig = mk('g', {}, g); g.shapeEl = ig;
+      mk('circle', {class: 'halo', r: 26.5}, ig); mk('circle', {class: 'halo2', r: 30}, ig);
+      mk('circle', {class: 'ring', r: 23}, ig);
+      use(ig, 't-' + (n.role || 'unknown'), -12, -12, 24);
+      mk('rect', {class: 'lgo-bg', x: 9, y: 7, width: 26, height: 26, rx: 8}, ig);
+      use(ig, 'v-' + (n.fam || 'other'), 11, 9, 22);
+      mk('rect', {class: 'lgo-edge', x: 11, y: 9, width: 22, height: 22, rx: 6}, ig);
+      if (st(n) === 'error') { mk('circle', {class: 'eb', cx: -21, cy: -21, r: 10}, ig);
+        const x = mk('text', {class: 'eb-t', x: -21, y: -17, 'text-anchor': 'middle'}, ig); x.textContent = '!'; }
       const t = mk('text', {class: 'name', 'text-anchor': 'middle', dy: '44'}, g); t.textContent = n.label;
       const s = mk('text', {class: 'sub', 'text-anchor': 'middle', dy: '57'}, g); s.textContent = n.sub || '';
+      g.nameEl = t; g.subEl = s;
+      g.pinEl = mk('circle', {class: 'pin', cx: -20, cy: -20, r: 5, style: 'display:none'}, g);
+      const fp = mk('g', {class: 'fold', style: 'display:none'}, g), fr = mk('rect', {x: -64, y: -10, width: 34, height: 20, rx: 10}, fp);
+      const ft = mk('text', {x: -47, y: 4, 'text-anchor': 'middle'}, fp); g.foldEl = fp; g.foldR = fr; g.foldT = ft;
+      fp.addEventListener('pointerdown', ev => { ev.stopPropagation(); });
+      fp.addEventListener('click', ev => { ev.stopPropagation(); toggleFold(n.id); });
       if (n.chg === 'new') { const c = mk('text', {class: 'chg-t new', 'text-anchor': 'middle', dy: '-34'}, g); c.textContent = NL.new; }
       if (n.chg === 'lost') { const c = mk('text', {class: 'chg-t lost', 'text-anchor': 'middle', dy: '71'}, g); c.textContent = NL.lost.replace('{0}', (n.lost_ago || '').toUpperCase()); }
       g.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); select(n); } });
@@ -232,7 +302,10 @@
     const at = {};  // etiquetas visibles junto a cada equipo, para apartar las que se pisan
     edgeEls.forEach(x => {
       const {e, line, hit} = x, a = byId[e.a], b = byId[e.b];
-      for (const l of [line, hit]) { l.setAttribute('x1', a.x); l.setAttribute('y1', a.y); l.setAttribute('x2', b.x); l.setAttribute('y2', b.y); }
+      const dd = edgeD(e, a, b); line.setAttribute('d', dd); hit.setAttribute('d', dd);
+      const hid = LAY && (LAY.hideE.has(e.a + '|' + e.b) || LAY.hideN.has(e.a) || LAY.hideN.has(e.b));
+      x.g.classList.toggle('lay-hide', !!hid);
+      line.classList.toggle('xtra', !!(LAY && LAY.tree && !LAY.tree.has(e.a + '|' + e.b) && (LAY.route === 'down' || LAY.route === 'right')));
       if (x.g.xm) x.g.xm.setAttribute('transform', `translate(${(a.x + b.x) / 2},${(a.y + b.y) / 2})`);
       const dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1, ux = dx / d, uy = dy / d;
       [[x.ta, a, ux, uy, 'a'], [x.tb, b, -ux, -uy, 'b']].forEach(([lab, n, vx, vy, end]) => {
@@ -249,9 +322,156 @@
         lab.setAttribute('transform', `translate(${px},${py})`);
       });
     });
-    NODES.forEach(n => nodeEls[n.id].setAttribute('transform', `translate(${n.x},${n.y})`));
+    NODES.forEach(n => {
+      const g = nodeEls[n.id], sc = n.sc || 1;
+      g.setAttribute('transform', `translate(${n.x},${n.y})`);
+      if (sc !== 1) g.shapeEl.setAttribute('transform', `scale(${sc})`); else g.shapeEl.removeAttribute('transform');
+      g.classList.toggle('lay-hide', !!(LAY && LAY.hideN.has(n.id)));
+      const lab = n.lab || 'below', side = lab === 'right' || lab === 'left';
+      g.nameEl.setAttribute('text-anchor', side ? (lab === 'right' ? 'start' : 'end') : 'middle');
+      g.subEl.setAttribute('text-anchor', side ? (lab === 'right' ? 'start' : 'end') : 'middle');
+      const r = 38 * sc, nx = lab === 'right' ? r : lab === 'left' ? -r : 0, off = (sc - 1) * 26;
+      g.nameEl.setAttribute('x', nx); g.subEl.setAttribute('x', nx);
+      g.nameEl.setAttribute('dy', side ? '-1' : lab === 'above' ? String(-48 - off) : String(44 + off));
+      g.subEl.setAttribute('dy', side ? '13' : lab === 'above' ? String(-35 - off) : String(57 + off));
+      g.subEl.textContent = PREF.sub === 'none' ? '' : PREF.sub === 'ip' ? (n.ip || '') : (n.mac || n.sub || '');
+      g.pinEl.style.display = n.pin ? '' : 'none';
+      const f = LAY && LAY.fold && LAY.fold[n.id];
+      g.foldEl.style.display = f ? '' : 'none';
+      if (f) g.foldT.textContent = f.open ? '−' : '+' + f.n;
+    });
   }
-  let cur = null, refit = 0;
+  let cur = null, refit = 0, decorLayer = null, LAY = null;
+  /* ---------- distribución (menú «Distribución») ---------- */
+  const PREF = Object.assign({mode: 'free', center: '', sub: 'mac', fit: true, remember: true}, LAYD.prefs || {});
+  let SITES = LAYD.sites || {}, PLAN = LAYD.plan || {}, MINE = LAYD.mine || {}, MINE_AT = LAYD.mine_at || '', FOLD = null;
+  const movedSet = new Set(), REDUCE = matchMedia('(prefers-reduced-motion: reduce)').matches, MD = {};
+  MODES.forEach((m, i) => { MD[m[0]] = {k: m[0], icon: m[1], name: m[2], help: m[3], foot: m[4], n: i + 1}; });
+  if (!MD[PREF.mode]) PREF.mode = 'free';
+  if (PREF.mode === 'mine' && !Object.keys(MINE).length) PREF.mode = 'free';
+  const ic = n => `<svg class="ico s" aria-hidden="true"><use href="${SPRITE}i-${n}"/></svg>`;
+  function edgeD(e, a, b) {
+    const ctr = LAY && LAY.route === 'center' ? {x: 0, y: 0} : null;
+    return window.TopoLayouts.path(LAY ? LAY.route : 'line', a, b, !!(LAY && LAY.tree && LAY.tree.has(e.a + '|' + e.b)), ctr);
+  }
+  function opts() {
+    if (PREF.mode === 'fold' && FOLD === null) {  // al abrir: solo el central y su primer nivel
+      const c = window.TopoLayouts.compute('down', NODES, LINKS, {center: PREF.center, T: LT}).center;
+      FOLD = new Set([c]);
+    }
+    return {center: PREF.center, T: LT, sites: SITES, plan: PLAN, mine: MINE, foldOpen: FOLD};
+  }
+  function drawDecor() {
+    if (!decorLayer) return;
+    decorLayer.textContent = '';
+    (LAY.decor || []).forEach(d => {
+      if (d.t === 'text') { const t = mk('text', {class: d.cls + (d.site && ADMIN ? ' edit' : ''), x: d.x, y: d.y, 'text-anchor': d.anchor || 'start'}, decorLayer); t.textContent = d.txt;
+        if (d.site && ADMIN) t.addEventListener('click', ev => renameSite(d.site, d.txt, ev)); }
+      else if (d.t === 'ellipse') mk('ellipse', {class: d.cls, cx: d.cx, cy: d.cy, rx: d.rx, ry: d.ry}, decorLayer);
+      else if (d.t === 'rect') mk('rect', {class: d.cls, x: d.x, y: d.y, width: d.w, height: d.h, rx: d.rx || 0}, decorLayer);
+      else if (d.t === 'line') mk('line', {class: d.cls, x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2, 'stroke-width': d.w}, decorLayer);
+      else if (d.t === 'image') mk('image', {href: d.href, x: d.x, y: d.y, width: d.w, height: d.h, preserveAspectRatio: 'none'}, decorLayer);
+      else if (d.t === 'pill') { const g = mk('g', {class: 'lay-pill', transform: `translate(${d.x},${d.y})`}, decorLayer), w = d.txt.length * 6.6 + 16;
+        mk('rect', {x: -w / 2, y: -10, width: w, height: 20, rx: 10}, g); const t = mk('text', {'text-anchor': 'middle', y: 4}, g); t.textContent = d.txt; }
+    });
+  }
+  function applyLayout(animate) {
+    LAY = window.TopoLayouts.compute(PREF.mode, NODES.map(n => Object.assign(n, {fx: n.fx, fy: n.fy})), LINKS, opts());
+    const from = {}, to = {};
+    NODES.forEach(n => {
+      const p = LAY.pos[n.id] || {x: n.x, y: n.y};
+      from[n.id] = {x: n.x, y: n.y}; to[n.id] = p;
+      n.lab = p.lab || 'below'; n.sc = p.sc || 1; n.col = p.col; n.pin = !!p.pin || movedSet.has(n.id);
+    });
+    drawDecor();
+    const done = () => { NODES.forEach(n => { n.x = to[n.id].x; n.y = to[n.id].y; }); place(); };
+    if (!animate || REDUCE) { done(); return; }
+    const t0 = performance.now(), ms = 300, ease = t => 1 - Math.pow(1 - t, 3);
+    const stepf = now => { const t = Math.min(1, (now - t0) / ms), k = ease(t);
+      NODES.forEach(n => { n.x = from[n.id].x + (to[n.id].x - from[n.id].x) * k; n.y = from[n.id].y + (to[n.id].y - from[n.id].y) * k; });
+      place(); if (t < 1) requestAnimationFrame(stepf); };
+    requestAnimationFrame(stepf);
+    setTimeout(done, ms + 80);
+  }
+  function savePrefs() {
+    fetch('/api/topology/prefs', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(PREF)});
+  }
+  const layBtn = document.getElementById('tlay'), layM = document.getElementById('tlay-m'), cSel = document.getElementById('tlay-c');
+  function paintMenu() {
+    const m = MD[PREF.mode];
+    document.getElementById('tlay-i').innerHTML = ic(m.icon); document.getElementById('tlay-n').textContent = m.name;
+    document.getElementById('tlay-fi').innerHTML = ic(m.icon); document.getElementById('tlay-fn').textContent = m.name;
+    document.getElementById('tlay-fx').textContent = m.foot;
+    document.getElementById('tlay-opts').innerHTML = MODES.map(x => { const d = MD[x[0]];
+      return `<button type="button" role="menuitemradio" aria-checked="${d.k === PREF.mode}" class="lay-opt${d.k === PREF.mode ? ' on' : ''}" data-k="${d.k}">${ic(d.icon)}<b>${esc(d.name)}</b><small>${esc(d.help)}</small><kbd>${d.n}</kbd></button>`; }).join('');
+    document.getElementById('tlay-cw').hidden = !['down', 'right', 'radial', 'fold'].includes(PREF.mode);
+    cSel.value = PREF.center || '';
+    document.querySelectorAll('#tlay-s button').forEach(b => { const on = b.dataset.v === PREF.sub; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+    document.getElementById('tlay-f').checked = PREF.fit !== false; document.getElementById('tlay-r').checked = PREF.remember !== false;
+    const up = document.getElementById('tlay-up'); if (up) up.hidden = PREF.mode !== 'plan';
+  }
+  NODES.slice().sort((a, b) => String(a.label).localeCompare(b.label)).forEach(n => { const o = document.createElement('option'); o.value = n.id; o.textContent = n.label; cSel.appendChild(o); });
+  layBtn.addEventListener('click', () => { const open = layM.hidden; layM.hidden = !open; layBtn.setAttribute('aria-expanded', open); });
+  document.addEventListener('click', ev => { if (!layM.hidden && !ev.target.closest('.lay-btnw')) { layM.hidden = true; layBtn.setAttribute('aria-expanded', 'false'); } });
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && !layM.hidden) { layM.hidden = true; layBtn.focus(); } });
+  layM.addEventListener('click', ev => {
+    const b = ev.target.closest('.lay-opt'); if (!b) return;
+    PREF.mode = b.dataset.k; if (PREF.mode === 'fold') FOLD = null;
+    paintMenu(); applyLayout(true); setTimeout(fit, REDUCE ? 0 : 340); if (PREF.remember) savePrefs();
+    layM.hidden = true; layBtn.setAttribute('aria-expanded', 'false');
+  });
+  cSel.addEventListener('change', () => { PREF.center = cSel.value; FOLD = null; applyLayout(true); setTimeout(fit, REDUCE ? 0 : 340); if (PREF.remember) savePrefs(); });
+  document.querySelectorAll('#tlay-s button').forEach(b => b.addEventListener('click', () => { PREF.sub = b.dataset.v; paintMenu(); place(); if (PREF.remember) savePrefs(); }));
+  document.getElementById('tlay-f').addEventListener('change', ev => { PREF.fit = ev.target.checked; if (PREF.remember) savePrefs(); });
+  document.getElementById('tlay-r').addEventListener('change', ev => { PREF.remember = ev.target.checked; savePrefs(); });
+  function toggleFold(id) { if (!FOLD) FOLD = new Set(); FOLD.has(id) ? FOLD.delete(id) : FOLD.add(id); applyLayout(true); }
+  // «Mi distribución»: al arrastrar equipos aparece la barra para guardarla
+  const bar = document.getElementById('tlay-bar');
+  function when(at) {  // «2026-11-05 10:42» → «hoy 10:42», «ayer 10:42» o la fecha
+    const d = new Date(at.replace(' ', 'T')), t = new Date(), y = new Date(t - 86400000), hm = at.slice(11, 16);
+    const same = (a, b) => a.toDateString() === b.toDateString();
+    return isNaN(d) ? at : same(d, t) ? LT.today.replace('{0}', hm) : same(d, y) ? LT.yday.replace('{0}', hm) : at;
+  }
+  function paintBar() {
+    bar.hidden = !movedSet.size;
+    document.getElementById('tlay-bt').textContent = (movedSet.size === 1 ? LT.moved1 : LT.moved.replace('{0}', movedSet.size)) + (MINE_AT ? ' · ' + LT.saved_at.replace('{0}', when(MINE_AT)) : '');
+  }
+  document.getElementById('tlay-auto').addEventListener('click', () => { movedSet.clear(); paintBar(); if (PREF.mode === 'mine') PREF.mode = 'free'; paintMenu(); applyLayout(true); });
+  document.getElementById('tlay-save').addEventListener('click', () => {
+    const pos = {}; NODES.forEach(n => { pos[n.id] = [Math.round(n.x), Math.round(n.y)]; });
+    fetch('/api/topology/positions', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({scope: document.getElementById('tlay-scope').value, pos})}).then(r => r.json()).then(j => {
+      MINE = pos; MINE_AT = j.at || ''; movedSet.clear(); PREF.mode = 'mine'; paintMenu(); paintBar(); applyLayout(false); if (PREF.remember) savePrefs();
+      if (window.ocToast) window.ocToast(LT.saved);
+    });
+  });
+  // sitios: el administrador los renombra (clic en el título) y mueve equipos (panel del equipo)
+  const ren = document.getElementById('tlay-ren');
+  function renameSite(key, name, ev) {
+    const r = wrap.getBoundingClientRect();
+    ren.style.left = (ev.clientX - r.left) + 'px'; ren.style.top = (ev.clientY - r.top + 8) + 'px';
+    ren.hidden = false; ren.dataset.k = key; const i = document.getElementById('tlay-ren-i'); i.value = name; i.focus(); i.select();
+  }
+  ren.querySelector('[data-x]').addEventListener('click', () => { ren.hidden = true; });
+  ren.addEventListener('submit', ev => {
+    ev.preventDefault();
+    postSites({rename: [ren.dataset.k, document.getElementById('tlay-ren-i').value]}); ren.hidden = true;
+  });
+  function postSites(b) {
+    fetch('/api/topology/sites', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(b)})
+      .then(r => r.json()).then(j => { if (j.sites) { SITES = j.sites; applyLayout(true); } });
+  }
+  // plano: subirlo (administradores)
+  const upIn = document.querySelector('#tlay-up input');
+  if (upIn) upIn.addEventListener('change', () => {
+    const f = upIn.files[0]; if (!f) return;
+    const fd = new FormData(); fd.append('file', f);
+    fetch('/topology/plan', {method: 'POST', credentials: 'same-origin', body: fd}).then(r => r.json()).then(j => {
+      if (j.error || !j.url) { if (window.ocToast) window.ocToast(j.error || LT.plan_err, 'error'); return; }
+      PLAN = Object.assign({}, PLAN, {url: j.url, w: j.w, h: j.h}); applyLayout(false); fit();
+    });
+    upIn.value = '';
+  });
   const reframe = () => { clearTimeout(refit); W = svg.clientWidth || W; H = svg.clientHeight || H; if (cur) reveal(cur); };
   // el panel abre y cierra en 200 ms; al terminar (o, si el navegador no anima, poco después) se vuelve a encuadrar
   side.addEventListener('transitionend', ev => { if (ev.target === side && /width|height/.test(ev.propertyName)) reframe(); });
@@ -308,7 +528,13 @@
     if (n.kind === 'new') h += ADMIN ? `<a class="btn pri" style="justify-content:center" href="/devices/new?name=${encodeURIComponent(n.name || '')}&host=${encodeURIComponent(n.ip || '')}" data-sheet data-title="${esc(L.add)}">${esc(L.add)}</a>` : '';
     else h += `<a class="btn pri" style="justify-content:center" href="${esc(n.href)}">${esc(L.open)}</a>`
       + `<button type="button" class="btn" style="justify-content:center" data-falls>${esc(L.falls)}</button><div class="topo-imp" data-imp hidden></div>`;
+    if (ADMIN && PREF.mode === 'sites' && LAY && LAY.site) {
+      const names = [...new Set(Object.values(LAY.site.disp))].sort();
+      h += `<form class="stack" data-site><label class="topo-cap" for="tsite">${esc(LT.site)}</label><div class="row nowrap" style="gap:6px"><div class="input grow"><input id="tsite" list="tsite-l" value="${esc(LAY.site.disp[LAY.site.of[n.id]] || '')}"><datalist id="tsite-l">${names.map(x => `<option value="${esc(x)}">`).join('')}</datalist></div><button class="btn s">${esc(LT.save)}</button></div><div class="muted sm">${esc(LT.site_h)}</div></form>`;
+    }
     sideIn.innerHTML = h; panel(true);
+    const sf = sideIn.querySelector('[data-site]');
+    if (sf) sf.addEventListener('submit', ev => { ev.preventDefault(); postSites({move: [n.id, sideIn.querySelector('#tsite').value]}); });
     sideIn.querySelector('[data-x]').addEventListener('click', unselect);
     const fb = sideIn.querySelector('[data-falls]');
     if (fb) fb.addEventListener('click', () => {  // qué queda sin servicio si este equipo se reinicia o se cae
@@ -328,11 +554,23 @@
   // arrastrar equipos, mover y hacer zoom en el lienzo
   let tf = {x: 0, y: 0, k: 1}, drag = null, pan = null, moved = false, net = -1;
   const apply = () => view.setAttribute('transform', `translate(${tf.x},${tf.y}) scale(${tf.k})`);
-  function fit() {  // que todo el mapa quepa en el recuadro
-    const vis = NODES.filter(n => net < 0 || n.comp === net), xs = vis.map(n => n.x), ys = vis.map(n => n.y), pad = 70;
+  function fit() {  // que todo el mapa quepa en el recuadro, con los nombres y los dibujos de fondo de la distribución
+    const vis = NODES.filter(n => (net < 0 || n.comp === net) && !(LAY && LAY.hideN.has(n.id))), xs = [], ys = [], pad = 24;
+    vis.forEach(n => {
+      const w = window.TopoLayouts.LW(n), sc = n.sc || 1, lab = n.lab || 'below';
+      xs.push(lab === 'left' ? n.x - 40 * sc - w : n.x - Math.max(30 * sc, w / 2), lab === 'right' ? n.x + 40 * sc + w : n.x + Math.max(30 * sc, w / 2));
+      ys.push(n.y - (lab === 'above' ? 56 + 26 * sc : 36 * sc), n.y + (lab === 'below' ? 40 + 26 * sc : 36 * sc));
+    });
+    if (LAY && net < 0) (LAY.decor || []).forEach(d => {
+      if (d.t === 'text') { const w = String(d.txt).length * 7.5; xs.push(d.anchor === 'end' ? d.x - w : d.anchor === 'middle' ? d.x - w / 2 : d.x, d.anchor === 'end' ? d.x : d.x + w); ys.push(d.y - 14, d.y + 4); }
+      else if (d.t === 'rect' || d.t === 'image') { xs.push(d.x, d.x + d.w); ys.push(d.y, d.y + d.h); }
+      else if (d.t === 'ellipse') { xs.push(d.cx - d.rx, d.cx + d.rx); ys.push(d.cy - d.ry, d.cy + d.ry); }
+    });
+    if (!xs.length) return;
     const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
-    const k = Math.min(1.4, (W - 2 * pad) / Math.max(x1 - x0, 1), (H - 2 * pad - 30) / Math.max(y1 - y0, 1));
-    tf = {k, x: W / 2 - (x0 + x1) / 2 * k, y: (H - 30) / 2 - (y0 + y1) / 2 * k + 10};
+    const L0 = 60, T0 = 56, B0 = 64;  // botones de zoom y «Distribución» arriba a la izquierda; leyenda abajo
+    const k = Math.min(1.4, (W - L0 - pad) / Math.max(x1 - x0, 1), (H - T0 - B0) / Math.max(y1 - y0, 1));
+    tf = {k, x: L0 + (W - L0 - pad) / 2 - (x0 + x1) / 2 * k, y: T0 + (H - T0 - B0) / 2 - (y0 + y1) / 2 * k};
     apply();
   }
   function reveal(n) {
@@ -365,10 +603,23 @@
     if (!drag && !pan) return;
     if (!moved && down && Math.hypot(ev.clientX - down.x, ev.clientY - down.y) < 4) return;
     moved = true;
-    if (drag) { const p = pt(ev); drag.x = p.x; drag.y = p.y; place(); }
+    if (drag) { const p = pt(ev); drag.x = p.x; drag.y = p.y; if (PREF.mode !== 'plan') { movedSet.add(drag.id); drag.pin = true; paintBar(); } place(); }
     else { tf.x = ev.clientX - pan.x; tf.y = ev.clientY - pan.y; apply(); }
   });
-  const stop = ev => { const n = drag; drag = null; pan = null; svg.classList.remove('drag'); if (n && !moved && ev.type === 'pointerup') select(n); };
+  const stop = ev => {
+    const n = drag; drag = null; pan = null; svg.classList.remove('drag');
+    if (n && !moved && ev.type === 'pointerup') select(n);
+    if (n && moved && PREF.mode === 'plan' && LAY && LAY.plan) {
+      const P = LAY.plan, inside = n.x >= 0 && n.y >= 0 && n.x <= P.w && n.y <= P.h;
+      if (ADMIN) {
+        PLAN.pos = PLAN.pos || {};
+        if (inside) PLAN.pos[n.id] = [n.x / P.w, n.y / P.h]; else delete PLAN.pos[n.id];
+        fetch('/api/topology/plan-pos', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(inside ? {id: n.id, x: n.x / P.w, y: n.y / P.h} : {id: n.id})});
+      }
+      applyLayout(true);
+    }
+  };
   svg.addEventListener('pointerup', stop); svg.addEventListener('pointercancel', stop);
   function zoom(f, mx, my) {  // zoom alrededor de un punto del recuadro (por omisión, el centro)
     const r = svg.getBoundingClientRect(); mx = mx == null ? r.width / 2 : mx; my = my == null ? r.height / 2 : my;
@@ -413,7 +664,7 @@
     edgeEls.forEach(x => { x.g.style.display = net < 0 || byId[x.e.a].comp === net ? '' : 'none'; });
     fit();
   });
-  document.getElementById('treset').addEventListener('click', () => { W = svg.clientWidth || W; H = svg.clientHeight || H; layout(); place(); fit(); });
+  document.getElementById('treset').addEventListener('click', () => { W = svg.clientWidth || W; H = svg.clientHeight || H; layout(); NODES.forEach(n => { n.fx = n.x; n.fy = n.y; }); movedSet.clear(); paintBar(); applyLayout(false); fit(); });
   if (netSel) {
     const deg = {}; LINKS.forEach(e => { deg[e.a] = (deg[e.a] || 0) + 1; deg[e.b] = (deg[e.b] || 0) + 1; });
     COMPS.forEach((c, i) => {
@@ -423,7 +674,10 @@
     });
     netSel.closest('.input').hidden = COMPS.length < 2;
   }
-  layout(); draw(); fit();
+  layout(); NODES.forEach(n => { n.fx = n.x; n.fy = n.y; });
+  draw(); paintMenu(); applyLayout(false);
+  if (PREF.fit !== false) fit();
+  else { const c = NODES.find(n => n.id === (LAY && LAY.center)) || NODES[0]; tf = {k: 1, x: W / 2 - c.x, y: H / 2 - c.y}; apply(); }
   if (FEED.length && nbOn()) feed();
   const focus = new URLSearchParams(location.search).get('focus');  // «Ver en el mapa» desde una alarma de vecinos
   if (focus) { const f = focus.toLowerCase(), n = NODES.find(m => (m.label || '').toLowerCase() === f) || NODES.find(m => (m.label || '').toLowerCase().includes(f));

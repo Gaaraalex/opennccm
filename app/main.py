@@ -1510,7 +1510,7 @@ def topology_page(request: Request, group: int = 0):
         by_ip = {d.host.lower(): d for d in devs if hosts.count(d.host.lower()) == 1}  # solo IP que no se repiten
         by_name = {topology.norm_name(d.name): d for d in devs}
         nodes = {f"d{d.id}": {"id": f"d{d.id}", "label": d.name, "kind": "dev", "status": d.last_status,
-                              "href": f"/devices/{d.id}", "sub": d.host,
+                              "href": f"/devices/{d.id}", "sub": d.host, "ip": d.host,
                               "fam": topology.VENDOR_FAMILY.get(get_profile(d.device_type).vendor, "other")}
                  for d in devs}
         edges: dict = {}
@@ -1558,7 +1558,7 @@ def topology_page(request: Request, group: int = 0):
                         w = why.get(key, {})
                         role, rby, rn = w.get("role") or ("unknown", "", n)
                         nodes[other] = {"id": other, "label": n.get("remote_name") or n.get("remote_ip"),
-                                        "kind": "new", "sub": n.get("remote_ip") or "", "platform": n.get("platform", ""),
+                                        "kind": "new", "sub": n.get("remote_ip") or "", "platform": n.get("platform", ""), "mac": n.get("mac") or "",
                                         "ip": n.get("remote_ip") or "", "name": (n.get("remote_name") or "").split(".")[0],
                                         "fam": fams.get(key, "other"), "role": role,
                                         "how": _topo_how(*(w.get("fam") or ("", n)), rby, rn)}
@@ -1619,7 +1619,7 @@ def topology_page(request: Request, group: int = 0):
                 nid = f"u:{key}"
                 if nid not in nodes:
                     ip, ip_how = romon_ip(x)
-                    nodes[nid] = {"id": nid, "label": x.get("remote_name") or x.get("mac"), "kind": "new", "sub": ip or x.get("mac") or "",
+                    nodes[nid] = {"id": nid, "label": x.get("remote_name") or x.get("mac"), "kind": "new", "sub": ip or x.get("mac") or "", "mac": x.get("mac") or "",
                                   "platform": x.get("platform", ""), "ip": ip, "name": (x.get("remote_name") or "").split(".")[0],
                                   "fam": "mikrotik", "role": topology.role_why(x.get("platform") or "")[0],
                                   "how": _("Encontrado por RoMON: no se sabe por qué puerto se conecta.") + " "
@@ -1683,7 +1683,7 @@ def topology_page(request: Request, group: int = 0):
                   fam_names={k: _(v) for k, v in topology.FAMILIES},
                   labels={n["id"]: n["label"] for n in show},
                   group=group, with_data=with_data, clients=clients, hidden=sorted(hidden.values(), key=str.lower), total=len(devs), enabled=get_setting("topology_enabled", "1") == "1",
-                  nb_feed=nbm["feed"][:50])
+                  nb_feed=nbm["feed"][:50], lay=__import__("app.topolayout", fromlist=["x"]).page_data(user))
 
 
 # --------------------------------------------------------------------------- inventario de IP y VLAN
@@ -3326,6 +3326,9 @@ app.include_router(nbwatch.router)
 from . import refconfig  # noqa: E402  (configuración de referencia por modelo)
 
 app.include_router(refconfig.router)
+from . import topolayout  # noqa: E402  (distribución del mapa de la red)
+
+app.include_router(topolayout.router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)
