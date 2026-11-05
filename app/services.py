@@ -434,14 +434,31 @@ def _read_neighbors(conn, device_type: str) -> str | None:
     if not cmds or get_setting("topology_enabled", "1") != "1":
         return None
     out = []
-    if device_type == "mikrotik_routeros" and get_setting("topology_romon", "0") == "1":
+    ros = device_type == "mikrotik_routeros"
+    if ros and get_setting("topology_romon", "0") == "1":
         cmds = list(cmds) + [topology.ROMON]  # los MikroTik alcanzables por RoMON (unos segundos más)
     for c in cmds:
         try:
-            out.append(topology.MARK + c + "\n" + conn.send_command(c, read_timeout=30))
+            text = _ros_read(conn, c) if ros else conn.send_command(c, read_timeout=30)
+            if c == topology.ROMON and re.search(r"expected end of command|bad command name|syntax error", text[:400]):
+                c, text = topology.ROMON_PLAIN, _ros_read(conn, topology.ROMON_PLAIN)  # versión sin «proplist»
+            out.append(topology.MARK + c + "\n" + text)
         except Exception as e:  # noqa: BLE001 - sin LLDP/CDP o la orden no existe: sin vecinos
             log.info("vecinos (%s): %s", c, e)
     return "\n".join(out)
+
+
+def _ros_read(conn, cmd: str) -> str:
+    """RouterOS muestra los caracteres no ASCII como su byte resaltado («Caba» F1 «as»). netmiko quita los códigos de la
+    terminal y quedaría «CabaF1as»: se leen con los códigos, se marcan los bytes resaltados y después se quitan."""
+    keep = getattr(conn, "ansi_escape_codes", False)
+    conn.ansi_escape_codes = False
+    try:
+        raw = conn.send_command(cmd, read_timeout=60)
+    finally:
+        conn.ansi_escape_codes = keep
+    from . import topology
+    return conn.strip_ansi_escape_codes(topology.mark_hex(raw))
 
 
 def device_error(text: str) -> bool:

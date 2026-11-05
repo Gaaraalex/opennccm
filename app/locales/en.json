@@ -4053,7 +4053,7 @@
 "DE OTRAS UBICACIONES · {0}": "FROM OTHER LOCATIONS · {0}",
 "De otra ubicación: pierde la conexión": "From another location: loses its connection",
 "El paso que más corta: {0} ({1} sin servicio)": "The step that cuts the most: {0} ({1} without service)",
-"En los MikroTik con RoMON activado, «/tool romon discover» encuentra los que están a varios saltos o sin dirección IP. No dice por qué puerto se conectan: el mapa los une con una línea punteada. Suma unos 5 segundos al respaldo de cada MikroTik.": "On MikroTiks with RoMON enabled, “/tool romon discover” finds those several hops away or with no IP address. It does not tell which port they connect through: the map joins them with a dotted line. It adds about 5 seconds to each MikroTik's backup.",
+"En los MikroTik con RoMON activado, «/tool romon discover» encuentra los que están a varios saltos o sin dirección IP. No dice por qué puerto se conectan: el mapa los une con una línea punteada. Suma unos 10 segundos al respaldo de cada MikroTik.": "On MikroTiks with RoMON enabled, “/tool romon discover” finds those several hops away or with no IP address. It does not tell which port they connect through: the map joins them with a dotted line. It adds about 10 seconds to each MikroTik's backup.",
 "Encontrado por RoMON: no se sabe por qué puerto se conecta.": "Found through RoMON: it is not known which port it connects through.",
 "Logo guardado": "Saved logo",
 "Por RoMON (sin puerto)": "Through RoMON (no port)",

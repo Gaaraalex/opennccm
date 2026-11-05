@@ -1063,10 +1063,10 @@ HP/Aruba, Dell, Ruckus, Allied, MikroTik, EdgeSwitch, UniFi Switch y EXOS, si ti
   + y − para el zoom, «Ver todo el mapa» y «Pantalla completa». Debajo, la lista de enlaces.</li>
   <li>Se desactiva en <b>Ajustes › Mapa de la red</b> (entonces los respaldos no leen vecinos).</li>
   <li><b>RoMON</b> (MikroTik, desactivado de fábrica): con <b>Buscar también los MikroTik por RoMON</b> en Ajustes › Mapa de la
-  red, el respaldo de cada MikroTik con RoMON activado ejecuta además <code>/tool romon discover duration=5</code> y el mapa
+  red, el respaldo de cada MikroTik con RoMON activado ejecuta además <code>/tool romon discover duration=10 proplist=address,hops,path,identity,version,board</code> y el mapa
   muestra los MikroTik que alcanza, aunque estén a varios saltos o sin dirección IP. RoMON no dice por qué puerto se conectan:
   se unen al salto anterior del camino con una <b>línea punteada</b> («Por RoMON (sin puerto)»), salvo que ya haya un enlace
-  LLDP/CDP entre los dos. No cuentan para el análisis de impacto ni para Puertos sin uso. Suma unos 5 segundos al respaldo de
+  LLDP/CDP entre los dos. No cuentan para el análisis de impacto ni para Puertos sin uso. Suma unos 10 segundos al respaldo de
   cada MikroTik.</li>
 </ul>
 </section>
