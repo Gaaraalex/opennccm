@@ -25,6 +25,7 @@ COMMANDS = {
     "mikrotik_routeros": ["/ip neighbor print detail without-paging"],
     "ubiquiti_edgeswitch": ["show lldp remote-device all"],
     "extreme_exos": ["show lldp neighbors detailed"],
+    "extreme_vsp": ["show lldp neighbor"],  # VOSS / Fabric Engine: LLDP viene activado de fábrica
 }
 MARK = "### vecinos: "  # separa la salida de cada orden en el texto guardado
 # MikroTik con RoMON (Ajustes › Mapa de la red, desactivado de fábrica): los MikroTik que se alcanzan por RoMON, aunque
@@ -66,6 +67,30 @@ def _with_caps(n: dict, text: str | None) -> dict:
     if c:
         n["caps"] = c
     return n
+
+
+_VOSS_CAP = {"B": "bridge", "r": "router", "W": "wlan", "T": "telephone", "S": "station", "R": "repeater", "O": "other"}
+
+
+def _voss_lldp(text: str) -> list[dict]:
+    """«show lldp neighbor» de Extreme VOSS / Fabric Engine: un bloque por vecino que empieza con «Port: 1/1» (salida real
+    de un 5520 con VOSS 9.3: ChassisId, PortId «IfName 1/1», SysName, SysCap «Br / Br», SysDescr y Address)."""
+    out = []
+    for blk in re.split(r"(?m)^Port:\s*", text or "")[1:]:
+        local = blk.split()[0] if blk.split() else ""
+
+        def g(k):
+            m = re.search(rf"(?m)^\s*{k}\s*:\s*(.*?)\s*$", blk)
+            return m.group(1) if m else ""
+        mac = re.search(r"(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}", g("ChassisId"))
+        pid = g("PortId").split()
+        caps = g("SysCap").split("/")[-1].strip()
+        ip = g("Address")
+        n = {"local_port": local, "remote_name": g("SysName"), "remote_port": pid[-1] if pid else "",
+             "remote_ip": ip if re.fullmatch(r"[\d.]+", ip) and ip != "0.0.0.0" else "",
+             "mac": mac.group(0).upper().replace("-", ":") if mac else "", "platform": g("SysDescr")[:80]}
+        out.append(_with_caps(n, ",".join(_VOSS_CAP[c] for c in caps if c in _VOSS_CAP)))
+    return out
 
 
 def _cdp(text: str) -> list[dict]:
@@ -260,6 +285,8 @@ def parse(text: str, device_type: str) -> list[dict]:
             found += _cdp(out)
         elif device_type == "mikrotik_routeros":
             found += _mikrotik(out)
+        elif device_type == "extreme_vsp":
+            found += _voss_lldp(out)
         elif device_type in ("huawei", "huawei_vrpv8"):
             found += _table(out, {"local": 0, "name": 1, "port": 2}, r"Local Intf\s+Neighbor Dev")
         elif device_type == "ubiquiti_edgeswitch":
