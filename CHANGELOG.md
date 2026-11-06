@@ -1,5 +1,26 @@
 # Historial de versiones
 
+## 2.27.0
+- [nuevo] **Distribución del mapa:** Un menú sobre el mapa con 10 formas de ordenar los equipos: libre, escalonada hacia abajo o
+  hacia la derecha, radial, por sitio, por función, circular, árbol plegable, sobre un plano y «Mi distribución», que se guarda
+  arrastrando equipos, solo para ti o para todo el equipo.
+- [nuevo] **Nodos:** Agrupa los equipos por lugar (sucursal, torre, edificio). Se crean en Administración › Nodos o al crear o
+  editar un equipo, como las credenciales, y el filtro «Nodo» del mapa muestra solo los equipos de ese nodo, o todos.
+- [mejora] **IP de los MikroTik encontrados por RoMON:** El mapa toma su IP de los vecinos MNDP/LLDP o de las tablas ARP, así ya no
+  salen solo con la MAC.
+- [nuevo] **Receta VOSS para cambiar el usuario y la contraseña:** En Recetas, «Cambiar el usuario y la contraseña de la CLI» de
+  Extreme VOSS / Fabric Engine, con admin por defecto, y guarda la configuración al terminar.
+- [mejora] **Puertos y parte de atrás en Extreme VOSS:** La ficha de los VSP / Fabric Engine muestra qué puertos tienen enlace y
+  las fuentes y los ventiladores.
+- [mejora] **Extreme VOSS en el mapa y en syslog:** El mapa lee sus vecinos LLDP, y syslog detecta sus cambios de configuración y
+  cada «save config».
+- [arreglo] **Cambios que renombran el equipo:** Una solicitud que cambiaba el nombre del equipo (y su prompt) se quedaba esperando
+  y no guardaba la configuración. Ahora se relee el prompt antes de salir y guardar.
+- [arreglo] **Referencia y tabla MAC en VOSS:** La configuración de referencia respeta los bloques que terminan en «exit», y la
+  búsqueda de MAC reconoce los puertos «Port-1/2».
+- [arreglo] **Equipos del mapa marcados como perdidos:** Un equipo de OpenNCCM ya no se pinta entero como nuevo o perdido: el enlace
+  perdido se dibuja aparte, en su puerto.
+
 ## 2.26.0
 - [nuevo] **Buscar una MAC o una IP:** Escribe una MAC o una IP en el buscador de la barra superior y OpenNCCM dice en qué switch
   y en qué puerto está conectado, con su VLAN, la descripción del puerto, cuándo se vio y el camino. Las tablas MAC y ARP se
