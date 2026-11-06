@@ -2,8 +2,10 @@
 {% block content %}
 {% set can_run = ROLES[user.role] >= 1 %}
 {% set trig = {'manual': _('manual'), 'scheduled': _('programado'), 'syslog': 'syslog', 'push': 'push', 'console': _('consola')} %}
-{% set qs = ('&q=' ~ q|urlencode if q else '') ~ ('&group=' ~ group if group else '') ~ ('&brand=' ~ brand if brand else '') %}
-{% set qb = ('&q=' ~ q|urlencode if q else '') ~ ('&group=' ~ group if group else '') ~ ('&status=' ~ status if status else '') %}
+{% set qn = ('&node=' ~ node if node else '') %}
+{% set qs = ('&q=' ~ q|urlencode if q else '') ~ ('&group=' ~ group if group else '') ~ ('&brand=' ~ brand if brand else '') ~ qn %}
+{% set qb = ('&q=' ~ q|urlencode if q else '') ~ ('&group=' ~ group if group else '') ~ ('&status=' ~ status if status else '') ~ qn %}
+{% set qg = ('&q=' ~ q|urlencode if q else '') ~ ('&group=' ~ group if group else '') ~ ('&status=' ~ status if status else '') ~ ('&brand=' ~ brand if brand else '') %}
 <div class="ph"><div class="grow"><h1>Dispositivos</h1>
   <div class="sub">{{ _f('{0} equipos en {1} grupos', counts[''], n_groups) }}{% if last_global %} · {{ _f('último respaldo global {0}', last_global|ago) }}{% endif %}</div></div>
   <a class="btn" href="/config-reference">{{ icon('star', 's') }}{{ _('Configuración de referencia') }}</a>
@@ -20,7 +22,7 @@
 
 <form class="row" method="get" role="search" id="devf">
   <label class="input" style="width:min(320px,100%)" for="devq">{{ icon('search', 's') }}<input id="devq" name="q" value="{{ q }}" placeholder="Nombre, IP, modelo, serie o ubicación" aria-label="Buscar equipos"></label>
-  {% if group %}<input type="hidden" name="group" value="{{ group }}">{% endif %}{% if brand %}<input type="hidden" name="brand" value="{{ brand }}">{% endif %}{% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+  {% if group %}<input type="hidden" name="group" value="{{ group }}">{% endif %}{% if brand %}<input type="hidden" name="brand" value="{{ brand }}">{% endif %}{% if node %}<input type="hidden" name="node" value="{{ node }}">{% endif %}{% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
   {% for st, label in [('', _('Todos')), ('error', _('Con error')), ('drift', _('Difieren de la base')), ('pending', _('Pendientes')), ('eol', _('Sin soporte'))] %}
   <a class="chip {{ 'on' if status == st }}" href="?status={{ st }}{{ qs }}" {{ 'aria-current="true"'|safe if status == st }}>{{ label }} <span class="n">{{ counts[st] }}</span></a>
   {% endfor %}
@@ -29,6 +31,11 @@
       <a href="?status={{ status }}{{ '&q=' ~ q|urlencode if q }}">{{ icon('folder', 's') }}Todos los grupos{% if not group %}<span style="margin-left:auto">{{ icon('check', 's') }}</span>{% endif %}</a>
       {% for g in groups %}<a href="?status={{ status }}&group={{ g.id }}{{ '&q=' ~ q|urlencode if q }}">{{ icon('folder', 's') }}{{ g.name }}{% if g.id == group %}<span style="margin-left:auto">{{ icon('check', 's') }}</span>{% endif %}</a>{% endfor %}
     </div></span>
+  {% if net_nodes %}<span class="dropw"><button type="button" class="chip {{ 'on' if node }}" data-drop="node-menu" aria-haspopup="true" aria-expanded="false">{{ icon('pin', 's') }}{% if node %}{{ _f('Nodo: {0}', node_names.get(node, '')) }}{% else %}{{ _('Nodo') }}{% endif %} {{ icon('down', 's') }}</button>
+    <div class="drop left" id="node-menu" hidden>
+      <a href="?{{ qg[1:] }}">{{ icon('pin', 's') }}{{ _('Todos los nodos') }}{% if not node %}<span style="margin-left:auto">{{ icon('check', 's') }}</span>{% endif %}</a>
+      {% for nd in net_nodes %}<a href="?node={{ nd.id }}{{ qg }}">{{ icon('pin', 's') }}<span class="grow">{{ nd.name }}</span>{% if nd.id == node %}{{ icon('check', 's') }}{% endif %}</a>{% endfor %}
+    </div></span>{% endif %}
   {% if brands|length > 1 or brand %}<span class="dropw"><button type="button" class="chip {{ 'on' if brand }}" data-drop="brand-menu" aria-haspopup="true" aria-expanded="false">{% if brand %}{{ vlk(brand, 18) }}{{ _f('Marca: {0}', brand_names[brand]) }}{% else %}{{ _('Marca') }}{% endif %} {{ icon('down', 's') }}</button>
     <div class="drop left" id="brand-menu" hidden>
       <a href="?{{ qb[1:] }}">{{ icon('grid', 's') }}{{ _('Todas las marcas') }}{% if not brand %}<span style="margin-left:auto">{{ icon('check', 's') }}</span>{% endif %}</a>
@@ -38,6 +45,7 @@
 {% if brands|length > 1 %}<div class="row brand-chips" role="group" aria-label="{{ _('Filtrar por marca') }}"><span class="topo-cap">{{ _('MARCA') }}</span>
   {% for k, n in brands %}<a class="chip {{ 'on' if k == brand }}" href="?{{ 'brand=' ~ k if k != brand }}{{ qb }}" {{ 'aria-current="true"'|safe if k == brand }}>{{ vlk(k, 20) }}{{ brand_names[k] }} <span class="n">{{ n }}</span></a>{% endfor %}</div>{% endif %}
 
+{% if assign and node_names.get(assign) %}<div class="banner info">{{ icon('pin') }}<span class="grow">{{ _f('Marca los equipos de «{0}» y pulsa «Asignar al nodo» en la barra de abajo.', node_names[assign]) }}</span><a class="btn s ghost" href="/nodes">{{ _('Volver a Nodos') }}</a></div>{% endif %}
 <section class="card flush"><div class="tw"><table class="t" id="devtable"><thead><tr>
   {% if can_run %}<th style="width:44px"><input type="checkbox" id="selall" aria-label="Seleccionar todos"></th>{% endif %}
   <th>Equipo</th><th>Dirección</th><th>Modelo · firmware</th><th>Grupo</th><th>Último respaldo</th><th>Estado</th><th><span class="vh">Acciones</span></th></tr></thead><tbody data-pager>
@@ -79,6 +87,8 @@
   <span id="bulk-n">0</span>
   <button class="btn s" name="action" value="audit">Auditar</button>
   <button class="btn s" name="action" value="cve">Buscar CVE</button>
+  {% if user.role == 'admin' and net_nodes %}<select name="node_id" aria-label="{{ _('Nodo de destino') }}"><option value="0">{{ _('— Sin nodo —') }}</option>{% for nd in net_nodes %}<option value="{{ nd.id }}" {{ 'selected' if nd.id == assign }}>{{ nd.name }}</option>{% endfor %}</select>
+  <button class="btn s {{ 'pri' if assign }}" name="action" value="node">{{ icon('pin', 's') }}{{ _('Asignar al nodo') }}</button>{% endif %}
   {% if user.role == 'admin' %}<select name="group_id" aria-label="Grupo de destino"><option value="0">Sin grupo</option>{% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}</select>
   <button class="btn s" name="action" value="move">{{ icon('folder', 's') }}Mover</button>{% endif %}
   <button class="btn s sig" name="action" value="backup">Respaldar</button>

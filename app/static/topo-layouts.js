@@ -194,15 +194,19 @@
     const groups = [[], [], [], []];
     nodes.forEach(n => groups[col(n)].push(n.id));
     const used = groups.map((g, i) => [g, i]).filter(([g]) => g.length);
-    const pos = {}, decor = [];
+    const pos = {}, decor = [], RH = 68, maxRows = Math.max(4, Math.floor(((opt.H || 700) - 56 - 12 - 110) / (opt.kmin || 1) / RH));
     let x = 0;
     used.forEach(([g, i], ci) => {
       g.sort((a, b) => order[a] - order[b]);
-      const w = Math.max(...g.map(id => LW(byId[id])));
+      const w = Math.max(...g.map(id => LW(byId[id]))), parts = Math.ceil(g.length / maxRows), rows = Math.ceil(g.length / parts);
       if (i === 0) x += w + 40;  // el nombre de los routers va a la izquierda
-      g.forEach((id, j) => { pos[id] = {x, y: j * 68, lab: i === 0 ? 'left' : 'right', sc: 1, col: ci}; });
-      decor.push({t: 'text', cls: 'lay-col', x: i === 0 ? x : x - 24, y: -50, txt: opt.T.cols[i] + ' · ' + g.length, anchor: i === 0 ? 'end' : 'start'});
-      x += (i === 0 ? 260 : w + 300);
+      const x0 = x;
+      g.forEach((id, j) => {
+        const p = Math.floor(j / rows), px = i === 0 ? x0 + p * (w + 90) : x0 + p * (w + 90);
+        pos[id] = {x: px, y: (j % rows) * RH, lab: i === 0 ? 'left' : 'right', sc: 1, col: ci * 10 + p};
+      });
+      decor.push({t: 'text', cls: 'lay-col', x: i === 0 ? x0 : x0 - 24, y: -50, txt: opt.T.cols[i] + ' · ' + g.length, anchor: i === 0 ? 'end' : 'start'});
+      x = x0 + (parts - 1) * (w + 90) + (i === 0 ? 260 : w + 300);
     });
     return {pos, decor, route: 'cols', tree: null, hideN: new Set(), hideE: new Set()};
   }
@@ -214,7 +218,7 @@
       const root = i === 0 && opt.center && c.includes(opt.center) ? opt.center : central(c, G.deg, byId), t = bfs(root, G.adj, new Set(c));
       (function dfs(x) { ord.push(x); t.kids[x].forEach(dfs); })(root);
     });
-    const N = ord.length, R = Math.max(260, N * 100 / (2 * Math.PI)), pos = {};
+    const N = ord.length, R = Math.max(260, N * 125 / (2 * Math.PI)), pos = {};
     ord.forEach((id, i) => {
       const a = 2 * Math.PI * i / N - Math.PI / 2, c = Math.cos(a), s = Math.sin(a);
       pos[id] = {x: c * R, y: s * R, sc: 1 + Math.min(G.deg[id], 10) * 0.05,
@@ -260,19 +264,37 @@
     const s = siteOf(nodes, G, byId, opt), groups = {};
     nodes.forEach(n => { (groups[s.of[n.id]] = groups[s.of[n.id]] || []).push(n.id); });
     const keys = Object.keys(groups).sort((a, b) => groups[b].length - groups[a].length || String(s.disp[a]).localeCompare(s.disp[b]));
+    const MAXW = Math.max(700, ((opt.W || 1500) - 90) / (opt.kmin || 1)), MAXH = Math.max(400, ((opt.H || 700) - 80) / (opt.kmin || 1));
+    // de más holgado a más apretado: espacio por equipo en el anillo y ancho del anillo
+    // la primera que entra; si ninguna entra, la que menos se pasa
+    const tries = [[150, 1.25], [130, 1.5], [115, 1.8], [100, 2.1], [92, 2.4], [86, 2.8], [80, 3.2]];
+    let out = null, best = Infinity;
+    for (const [sp, ar] of tries) {
+      const o = placeSites(sp, ar), over = Math.max(o.w / MAXW, o.h / MAXH);
+      if (over < best) { best = over; out = o; }
+      if (over <= 1) break;
+    }
+    const {pos, decor, box} = out;
+    function placeSites(SP, AR) {
     const pos = {}, decor = [], box = {};
-    let x = 0, y = 0, rowH = 0;
-    const MAXW = Math.max(900, (opt.W || 1500) - 80);
+    let x = 0, y = 0, rowH = 0, W = 0;
+    const cols = [];  // columnas de la fila actual: un sitio chico se apila debajo de otro si cabe en el alto de la fila
     keys.forEach(k => {
       const ids = groups[k], hub = central(ids, G.deg, byId);
       // el central al medio y los demás en un anillo (en el orden del árbol, para que los enlazados queden juntos); cada
       // uno necesita unos 150 px de anillo
       const t = bfs(hub, G.adj, new Set(ids)), ring = t.order.concat(ids.filter(i => !t.order.includes(i))).filter(i => i !== hub);
       // con 1 o 2 alrededor van a los lados del central (en fila); con más, en un anillo
-      const n = ring.length, flat = n <= 2, R = flat ? 0 : Math.max(105, n * 150 / (2 * Math.PI)), RX = flat ? 170 : R * 1.25;
-      const w = Math.max(220, 2 * RX + 190), h = n && !flat ? 2 * R + 170 : 150;
-      if (x > 0 && x + w > MAXW) { x = 0; y += rowH + 70; rowH = 0; }
-      const cx = x + w / 2, cy = y + 60 + (h - 60) / 2 - 10;
+      const n = ring.length, flat = n <= 2, R = flat ? 0 : Math.max(95, n * SP / (Math.PI * (1 + AR))), RX = flat ? (SP < 120 ? 140 : 170) : R * AR;
+      const w = Math.max(220, (n === 1 ? RX : 2 * RX) + 190), h = n && !flat ? 2 * R + 160 : 150;
+      let bx = x, by = y;
+      const col = cols.find(c => c.w >= w && c.used + 14 + h <= rowH);
+      if (col) { bx = col.x; by = y + col.used + 14; col.used += 14 + h; }
+      else {
+        if (x > 0 && x + w > MAXW) { x = 0; y += rowH + 50; rowH = 0; cols.length = 0; }
+        bx = x; by = y; cols.push({x, w, used: h});
+      }
+      const cx = bx + w / 2, cy = by + 60 + (h - 60) / 2 - 10;
       if (n === 1) {  // dos equipos: uno al lado del otro
         pos[hub] = {x: cx - RX / 2, y: cy, lab: 'below', sc: 1}; pos[ring[0]] = {x: cx + RX / 2, y: cy, lab: 'below', sc: 1};
       } else if (n === 2) {  // tres: el central entre los otros dos
@@ -282,12 +304,14 @@
         pos[hub] = {x: cx, y: cy, lab: 'below', sc: n ? 1.15 : 1};
         ring.forEach((id, i) => { const a = 2 * Math.PI * i / n - Math.PI / 2; pos[id] = {x: cx + Math.cos(a) * RX, y: cy + Math.sin(a) * R, lab: 'below', sc: 1}; });
       }
-      box[k] = {x, y, w, h};
-      decor.push({t: 'rect', cls: 'lay-site', x, y, w, h, rx: 14});
-      decor.push({t: 'text', cls: 'lay-site-t', x: x + 16, y: y + 24, txt: s.disp[k], site: k});
-      decor.push({t: 'text', cls: 'lay-site-n', x: x + 16, y: y + 41, txt: ids.length === 1 ? opt.T.dev1 : opt.T.devs.replace('{0}', ids.length)});
-      x += w + 60; rowH = Math.max(rowH, h);
+      box[k] = {x: bx, y: by, w, h};
+      decor.push({t: 'rect', cls: 'lay-site', x: bx, y: by, w, h, rx: 14});
+      decor.push({t: 'text', cls: 'lay-site-t', x: bx + 16, y: by + 24, txt: s.disp[k], site: k});
+      decor.push({t: 'text', cls: 'lay-site-n', x: bx + 16, y: by + 41, txt: ids.length === 1 ? opt.T.dev1 : opt.T.devs.replace('{0}', ids.length)});
+      if (!col) { W = Math.max(W, x + w); x += w + 50; rowH = Math.max(rowH, h); }
     });
+    return {pos, decor, box, w: W, h: y + rowH};
+    }
     const hideE = new Set(), agg = {};
     links.forEach(e => {
       const sa = s.of[e.a], sb = s.of[e.b];
@@ -357,16 +381,32 @@
       if (p) pos[n.id] = {x: p[0] * PW, y: p[1] * PH, lab: 'below', sc: 1}; else tray.push(n.id);
     });
     const hideE = new Set();
+    const hideN = new Set();
+    let trayBox = null;
     if (tray.length) {
-      const TX = PW + 60, cols = 2, CW = 170, CH = 104, th = Math.ceil(tray.length / cols) * CH + 70;
+      const TX = PW + 60, cols = 2, CW = 170, CH = 104, TH = Math.max(PH, 300), rowsAll = Math.ceil(tray.length / cols);
+      const vis = Math.max(1, Math.floor((TH - 70 - 26) / CH)), more = rowsAll > vis, off = more ? Math.max(0, Math.min(opt.trayOff || 0, rowsAll - vis)) : 0;
+      const th = more ? TH : rowsAll * CH + 70;
       decor.push({t: 'rect', cls: 'lay-tray', x: TX, y: 0, w: cols * CW + 30, h: th, rx: 12});
       decor.push({t: 'text', cls: 'lay-site-t', x: TX + 16, y: 24, txt: opt.T.tray.replace('{0}', tray.length)});
       decor.push({t: 'text', cls: 'lay-site-n', x: TX + 16, y: 41, txt: opt.T.tray_h});
-      tray.forEach((id, i) => { pos[id] = {x: TX + 15 + CW / 2 + (i % cols) * CW, y: 70 + Math.floor(i / cols) * CH, lab: 'below', sc: 1, tray: true}; });
+      tray.forEach((id, i) => {
+        const r = Math.floor(i / cols);
+        pos[id] = {x: TX + 15 + CW / 2 + (i % cols) * CW, y: 70 + (r - off) * CH, lab: 'below', sc: 1, tray: true};
+        if (r < off || r >= off + vis) hideN.add(id);
+      });
+      if (more) {  // barra propia: guía, posición y cuántos quedan abajo
+        const tx = TX + cols * CW + 18, ty = 64, tl = th - 64 - 34, tlen = Math.max(24, tl * vis / rowsAll);
+        decor.push({t: 'rect', cls: 'lay-tray-bar', x: tx, y: ty, w: 5, h: tl, rx: 2.5});
+        decor.push({t: 'rect', cls: 'lay-tray-thumb', x: tx, y: ty + (tl - tlen) * off / (rowsAll - vis), w: 5, h: tlen, rx: 2.5});
+        const below = tray.length - Math.min(tray.length, (off + vis) * cols);
+        if (below > 0) decor.push({t: 'text', cls: 'lay-tray-more', x: TX + (cols * CW + 30) / 2, y: th - 12, txt: opt.T.more.replace('{0}', below), anchor: 'middle', act: 'tray-down'});
+      }
+      trayBox = {x: TX, y: 0, w: cols * CW + 30, h: th, rows: rowsAll, vis};
       const ts = new Set(tray);
       links.forEach(e => { if (ts.has(e.a) || ts.has(e.b)) hideE.add(ek(e)); });
     }
-    return {pos, decor, route: 'line', tree: null, hideN: new Set(), hideE, plan: {w: PW, h: PH, tray: tray.length, none: !P.url}};
+    return {pos, decor, route: 'line', tree: null, hideN, hideE, plan: {w: PW, h: PH, tray: tray.length, none: !P.url, trayBox}};
   }
 
   function compute(mode, nodes, links, opt) {
