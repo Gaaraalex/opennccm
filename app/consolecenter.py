@@ -54,7 +54,7 @@ def _devices(user) -> list[dict]:
             if scope is not None and d.id not in scope:
                 continue
             prof = get_profile(d.device_type)
-            out.append({"id": d.id, "name": d.name, "host": d.host, "vend": prof.vendor[:3].upper(), "vendor": prof.vendor,
+            out.append({"id": d.id, "name": d.name, "host": d.host, "vend": prof.vendor[:3].upper(), "vl": __import__("app.vendorlogos", fromlist=["x"]).key(d.device_type), "vendor": prof.vendor,
                         "os": cc.os_of(d.device_type), "label": prof.label, "group": d.group.name if d.group else "",
                         "gid": d.group_id or 0, "status": d.last_status})
         return out

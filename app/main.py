@@ -562,8 +562,7 @@ def dashboard(request: Request):
     peak = max(days, key=lambda dv: dv[1]) if days else ("", 0)
     vend = {}
     for v in recent:
-        prof = PROFILE_MAP.get(v.device.device_type)
-        vend[v.device_id] = (prof.vendor if prof else v.device.device_type)[:3].upper()
+        vend[v.device_id] = v.device.device_type
     return render(request, "dashboard.html", user, total=total, ok=ok, err=err, conflicts=conflicts,
                   changes24=changes24, comp=comp, alarms=alarms, vcrit=vcrit, pending=pending, drift=drift,
                   events=events, recent=recent, h=health.summary(scope, user.role == "admin", server),
@@ -614,7 +613,7 @@ def _server_panel() -> dict:
 
 # --------------------------------------------------------------------------- dispositivos
 @app.get("/devices")
-def devices(request: Request, q: str = "", group: int = 0, status: str = ""):
+def devices(request: Request, q: str = "", group: int = 0, status: str = "", brand: str = ""):
     user = require(request)
     with SessionLocal() as db:
         stmt = select(Device).order_by(Device.name)
@@ -640,6 +639,16 @@ def devices(request: Request, q: str = "", group: int = 0, status: str = ""):
         if scope is not None:
             stmt = stmt.where(Device.id.in_(scope))
         devs = db.scalars(stmt).all()
+        from . import vendorlogos
+        # marcas de los equipos de la lista (con los demás filtros, sin el de marca), de la que más tiene a la que menos
+        bcount: dict[str, int] = {}
+        for d in devs:
+            k = vendorlogos.key(d.device_type)
+            bcount[k] = bcount.get(k, 0) + 1
+        brands = sorted(bcount.items(), key=lambda kv: (-kv[1], vendorlogos.name(kv[0]).lower()))
+        brand = brand if brand in vendorlogos.BRANDS else ""
+        if brand:
+            devs = [d for d in devs if vendorlogos.key(d.device_type) == brand]
         for d in devs:
             d.group.name if d.group else None  # carga la relación antes de cerrar la sesión
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
@@ -663,7 +672,7 @@ def devices(request: Request, q: str = "", group: int = 0, status: str = ""):
         n_groups = len({d.group_id for d in every if d.group_id})
     from .console import console_allowed
     return render(request, "devices.html", user, devices=devs, groups=groups, q=q, group=group, status=status,
-                  counts=counts, can_console=console_allowed(user), src=src, last_global=last_global, n_groups=n_groups)
+                  brand=brand, brands=brands, brand_names={k: vendorlogos.name(k) for k in vendorlogos.BRANDS}, counts=counts, can_console=console_allowed(user), src=src, last_global=last_global, n_groups=n_groups)
 
 
 @app.post("/devices/bulk")
@@ -1721,6 +1730,15 @@ def topology_page(request: Request, group: int = 0, node: int = 0):
             a_, b_ = me, nid
             links.append({"a": a_, "b": b_, "pa": x["port"] if not x["romon"] else "", "pb": x.get("remote_port") or "",
                           "k": f"{a_}|{b_}|lost|{x['port']}", "air": False, "romon": x["romon"], "chg": "lost"})
+    from . import vendorlogos
+    dtype = {f"d{d.id}": d.device_type for d in devs}
+    for n in nodes.values():
+        if n["id"] in dtype:
+            n["vl"] = vendorlogos.key(dtype[n["id"]])
+            n["brand"] = vendorlogos.name(n["vl"])
+        else:
+            n["vl"] = vendorlogos.FAMILY.get(n.get("fam") or "other", "other")
+            n["brand"] = vendorlogos.name(n["vl"]) if n["vl"] != "other" else ""
     linked = {e["a"] for e in links} | {e["b"] for e in links}
     show = [n for n in nodes.values() if n["id"] in linked]
     alone = [n for n in nodes.values() if n["id"] not in linked and n["kind"] == "dev"]
@@ -1829,9 +1847,8 @@ def search(request: Request, q: str = "", regex: int = 0, cs: int = 0, group: in
                     if hits:
                         n = db.scalar(select(func.count(ConfigVersion.id)).where(ConfigVersion.device_id == dev.id,
                                                                                   ConfigVersion.id <= v.id))
-                        prof = PROFILE_MAP.get(dev.device_type)
                         results.append({"dev": dev, "v": v, "n": n, "lines": lines, "hits": hits[:50],
-                                        "total": len(hits), "vend": (prof.vendor if prof else dev.device_type)[:3].upper()})
+                                        "total": len(hits), "vend": dev.device_type})
                         break
     return render(request, "search.html", user, q=q, regex=regex, cs=cs, group=group, latest=latest, groups=groups,
                   results=results, err=err, total=sum(r["total"] for r in results))
@@ -2057,7 +2074,7 @@ async def configlet_run(request: Request, cid: int):
                 except Exception as e:  # noqa: BLE001
                     outputs.append((name, f"ERROR: {e}"))
             log_action(request, user, "configlet_exec", f"{c.name} en {len(ids)} equipos")
-            vend = {d.name: (PROFILE_MAP[d.device_type].vendor if d.device_type in PROFILE_MAP else d.device_type)[:3].upper()
+            vend = {d.name: d.device_type
                     for d in devs}
             return render(request, "exec_result.html", user, c=c, outputs=outputs, vend=vend)
         title, body = c.name, c.body
@@ -2183,7 +2200,7 @@ def change_detail(request: Request, cr_id: int):
         cr.requested_by != user.username or get_setting("allow_self_approval", "1") == "1")
     kind_label = (_("Firmware") if cr.kind == "firmware" else _("Reversión") if cr.is_rollback
                   else _("Corrección de cumplimiento") if cr.title.startswith(("Corrección", "Corregir")) else _("Configlet"))
-    vend = {d.id: (get_profile(d.device_type).vendor if d.device_type in PROFILE_MAP else d.device_type)[:3].upper() for d in devs}
+    vend = {d.id: d.device_type for d in devs}
     from . import impact
     try:  # qué queda sin servicio si se reinicia o se apagan puertos (mapa LLDP/CDP); nunca impide ver la solicitud
         imp = impact.for_change(cr, user)
@@ -2309,7 +2326,7 @@ def compliance(request: Request):
         matrix = [(devs[d], [round(100 * cell[(d, p.id)][0] / cell[(d, p.id)][1]) if (d, p.id) in cell else None
                              for p in policies]) for d in dev_ids if d in devs]
         matrix.sort(key=lambda row: row[0].name)
-        vend = {d.id: (PROFILE_MAP[d.device_type].vendor if d.device_type in PROFILE_MAP else d.device_type)[:3].upper()
+        vend = {d.id: d.device_type
                 for d in devs.values()}
         last_audit = db.scalar(select(func.max(ComplianceResult.checked_at)))
     total_r = len(results)
@@ -3226,6 +3243,7 @@ def api_devices(request: Request):
         return [{"id": d.id, "name": d.name, "host": d.host, "type": d.device_type, "model": d.model,
                  "serial": d.serial, "version": d.os_version, "status": d.last_status,
                  "platform": PROFILE_MAP[d.device_type].label if d.device_type in PROFILE_MAP else d.device_type,
+                 "brand": __import__("app.vendorlogos", fromlist=["x"]).key(d.device_type),
                  "last_backup": d.last_backup_at.isoformat() if d.last_backup_at else None}
                 for d in db.scalars(select(Device).order_by(Device.name)) if scope is None or d.id in scope]
 

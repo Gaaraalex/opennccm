@@ -18,7 +18,7 @@ from .web import log_action
 
 router = APIRouter()
 MODES = ("free", "down", "right", "radial", "sites", "roles", "circle", "fold", "plan", "mine")
-SUBS = ("none", "ip", "mac")
+SUBS = ("none", "brand", "ip", "mac")
 PLAN_MAX = 8 * 1024 * 1024
 
 

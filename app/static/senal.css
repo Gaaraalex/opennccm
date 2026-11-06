@@ -67,6 +67,7 @@
 :root[data-density="compact"] #devtable td{padding-top:2px;padding-bottom:2px}
 :root[data-density="compact"] #devtable th{padding-top:7px;padding-bottom:7px}
 :root[data-density="compact"] #devtable .vend,:root[data-density="compact"] .dens-prev .vend{width:24px;height:24px;font-size:9px}
+:root[data-density="compact"] #devtable .vlg,:root[data-density="compact"] .dens-prev .vlg{width:24px;height:24px}
 :root[data-density="compact"] #devtable .dev,:root[data-density="compact"] .dens-prev .dev{gap:8px}
 :root[data-density="compact"] #devtable .dev .sm,:root[data-density="compact"] .dens-prev .dev .sm{font-size:11.5px;line-height:1.25}
 :root[data-density="compact"] .dens-prev td{padding-top:2px;padding-bottom:2px}
@@ -298,6 +299,9 @@ table.t{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px;ma
 .t tr.sel td{background:var(--brand-soft)!important}
 .t tr.click{cursor:pointer}
 .dev{display:flex;align-items:center;gap:12px;font-weight:600;white-space:nowrap}
+.vlg{flex:none;display:block;border-radius:7px}
+.brand-chips{gap:8px;flex-wrap:wrap;margin:-4px 0 14px}.brand-chips .topo-cap{font:700 10.5px var(--f-sans);letter-spacing:.08em;color:var(--muted);margin-right:2px}
+.chip .vlg{margin-left:-6px}.drop .vlg{border-radius:6px}
 .vend{width:32px;height:32px;border-radius:var(--r-sm);background:var(--surface-3);display:grid;place-items:center;font:700 10.5px var(--f-mono);color:var(--ink-2);flex:none}
 .acts{display:flex;gap:4px;justify-content:flex-end;opacity:0;transition:opacity .12s}
 .acts form{margin:0;display:inline-flex}

@@ -2,7 +2,8 @@
 {% block content %}
 {% set can_run = ROLES[user.role] >= 1 %}
 {% set trig = {'manual': _('manual'), 'scheduled': _('programado'), 'syslog': 'syslog', 'push': 'push', 'console': _('consola')} %}
-{% set qs = ('&q=' ~ q|urlencode if q else '') ~ ('&group=' ~ group if group else '') %}
+{% set qs = ('&q=' ~ q|urlencode if q else '') ~ ('&group=' ~ group if group else '') ~ ('&brand=' ~ brand if brand else '') %}
+{% set qb = ('&q=' ~ q|urlencode if q else '') ~ ('&group=' ~ group if group else '') ~ ('&status=' ~ status if status else '') %}
 <div class="ph"><div class="grow"><h1>Dispositivos</h1>
   <div class="sub">{{ _f('{0} equipos en {1} grupos', counts[''], n_groups) }}{% if last_global %} · {{ _f('último respaldo global {0}', last_global|ago) }}{% endif %}</div></div>
   <a class="btn" href="/config-reference">{{ icon('star', 's') }}{{ _('Configuración de referencia') }}</a>
@@ -19,7 +20,7 @@
 
 <form class="row" method="get" role="search" id="devf">
   <label class="input" style="width:min(320px,100%)" for="devq">{{ icon('search', 's') }}<input id="devq" name="q" value="{{ q }}" placeholder="Nombre, IP, modelo, serie o ubicación" aria-label="Buscar equipos"></label>
-  {% if group %}<input type="hidden" name="group" value="{{ group }}">{% endif %}{% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+  {% if group %}<input type="hidden" name="group" value="{{ group }}">{% endif %}{% if brand %}<input type="hidden" name="brand" value="{{ brand }}">{% endif %}{% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
   {% for st, label in [('', _('Todos')), ('error', _('Con error')), ('drift', _('Difieren de la base')), ('pending', _('Pendientes')), ('eol', _('Sin soporte'))] %}
   <a class="chip {{ 'on' if status == st }}" href="?status={{ st }}{{ qs }}" {{ 'aria-current="true"'|safe if status == st }}>{{ label }} <span class="n">{{ counts[st] }}</span></a>
   {% endfor %}
@@ -28,7 +29,14 @@
       <a href="?status={{ status }}{{ '&q=' ~ q|urlencode if q }}">{{ icon('folder', 's') }}Todos los grupos{% if not group %}<span style="margin-left:auto">{{ icon('check', 's') }}</span>{% endif %}</a>
       {% for g in groups %}<a href="?status={{ status }}&group={{ g.id }}{{ '&q=' ~ q|urlencode if q }}">{{ icon('folder', 's') }}{{ g.name }}{% if g.id == group %}<span style="margin-left:auto">{{ icon('check', 's') }}</span>{% endif %}</a>{% endfor %}
     </div></span>
+  {% if brands|length > 1 or brand %}<span class="dropw"><button type="button" class="chip {{ 'on' if brand }}" data-drop="brand-menu" aria-haspopup="true" aria-expanded="false">{% if brand %}{{ vlk(brand, 18) }}{{ _f('Marca: {0}', brand_names[brand]) }}{% else %}{{ _('Marca') }}{% endif %} {{ icon('down', 's') }}</button>
+    <div class="drop left" id="brand-menu" hidden>
+      <a href="?{{ qb[1:] }}">{{ icon('grid', 's') }}{{ _('Todas las marcas') }}{% if not brand %}<span style="margin-left:auto">{{ icon('check', 's') }}</span>{% endif %}</a>
+      {% for k, n in brands %}<a href="?brand={{ k }}{{ qb }}">{{ vlk(k, 20) }}<span class="grow">{{ brand_names[k] }}</span><span class="muted sm">{{ n }}</span>{% if k == brand %}{{ icon('check', 's') }}{% endif %}</a>{% endfor %}
+    </div></span>{% endif %}
 </form>
+{% if brands|length > 1 %}<div class="row brand-chips" role="group" aria-label="{{ _('Filtrar por marca') }}"><span class="topo-cap">{{ _('MARCA') }}</span>
+  {% for k, n in brands %}<a class="chip {{ 'on' if k == brand }}" href="?{{ 'brand=' ~ k if k != brand }}{{ qb }}" {{ 'aria-current="true"'|safe if k == brand }}>{{ vlk(k, 20) }}{{ brand_names[k] }} <span class="n">{{ n }}</span></a>{% endfor %}</div>{% endif %}
 
 <section class="card flush"><div class="tw"><table class="t" id="devtable"><thead><tr>
   {% if can_run %}<th style="width:44px"><input type="checkbox" id="selall" aria-label="Seleccionar todos"></th>{% endif %}
@@ -37,7 +45,7 @@
 {% set prof = profile_map[d.device_type] if d.device_type in profile_map else none %}
 <tr class="click" data-href="/devices/{{ d.id }}" data-text="{{ [d.name, d.host, d.model or '', d.serial or '', d.os_version or '', d.location or '', prof.label if prof else d.device_type]|join(' ')|lower }}">
   {% if can_run %}<td data-stop><input type="checkbox" name="ids" value="{{ d.id }}" form="bulk" aria-label="{{ _f('Seleccionar {0}', d.name) }}"></td>{% endif %}
-  <td><div class="dev"><span class="vend">{{ (prof.vendor if prof else d.device_type)[:3]|upper }}</span><div><a href="/devices/{{ d.id }}" style="color:var(--ink)">{{ d.name }}</a>{% if not d.enabled %} <span class="tag">deshabilitado</span>{% endif %}
+  <td><div class="dev">{{ vlogo(d.device_type, 30) }}<div><a href="/devices/{{ d.id }}" style="color:var(--ink)">{{ d.name }}</a>{% if not d.enabled %} <span class="tag">deshabilitado</span>{% endif %}
     <div class="muted sm" style="font-weight:400">{{ prof.label if prof else d.device_type }}</div></div></div></td>
   <td class="mono" style="white-space:nowrap">{{ d.host }}{% if d.port != (23 if d.protocol == 'telnet' else 22) %}<span class="muted">:{{ d.port }}</span>{% endif %}{% if d.protocol == 'telnet' %} <span class="tag crit">telnet</span>{% endif %}</td>
   <td style="white-space:nowrap">{{ d.model or '—' }} <span class="mono muted">{{ d.os_version or '—' }}</span></td>
@@ -52,7 +60,7 @@
   <td data-stop><div class="acts">
     {% if d.last_status == 'error' and can_run %}<form method="post" action="/devices/{{ d.id }}/backup"><button class="btn s">Reintentar</button></form>
     {% else %}
-    {% if can_console and d.protocol == 'ssh' %}<a class="btn icon s" href="/devices/{{ d.id }}/console" target="_blank" rel="noopener" data-console="{{ d.id }}" data-name="{{ d.name }}" data-vend="{{ (prof.vendor if prof else d.device_type)[:3]|upper }}" title="Consola SSH" aria-label="{{ _f('Consola SSH de {0}', d.name) }}">{{ icon('term', 's') }}</a>{% endif %}
+    {% if can_console and d.protocol == 'ssh' %}<a class="btn icon s" href="/devices/{{ d.id }}/console" target="_blank" rel="noopener" data-console="{{ d.id }}" data-name="{{ d.name }}" data-vl="{{ vkey(d.device_type) }}" title="Consola SSH" aria-label="{{ _f('Consola SSH de {0}', d.name) }}">{{ icon('term', 's') }}</a>{% endif %}
     {% if d.web_enabled != false %}<a class="btn icon s" href="{{ d.web_url or 'https://' ~ d.host ~ '/' }}" target="_blank" rel="noopener noreferrer" onclick="return abrirVentana(this.href, 'web-{{ d.id }}', 1280, 820)" title="Interfaz web" aria-label="{{ _f('Interfaz web de {0}', d.name) }}">{{ icon('globe', 's') }}</a>{% endif %}
     {% if can_run %}<form method="post" action="/devices/{{ d.id }}/backup"><button class="btn icon s" title="Respaldar ahora" aria-label="{{ _f('Respaldar {0} ahora', d.name) }}">{{ icon('backup', 's') }}</button></form>{% endif %}
     {% endif %}</div></td>

@@ -55,7 +55,7 @@
   </section>
 
   <section class="card c5"><div class="card-h"><h2>Últimos cambios</h2><a href="/reports/view/changes" class="sm">Ver todos</a></div>
-    {% if recent %}<div class="stack t">{% for v in recent[:4] %}<a class="row nowrap" href="/devices/{{ v.device_id }}#versions" style="color:var(--ink)"><span class="vend">{{ vend[v.device_id] }}</span>
+    {% if recent %}<div class="stack t">{% for v in recent[:4] %}<a class="row nowrap" href="/devices/{{ v.device_id }}#versions" style="color:var(--ink)">{{ vlogo(vend[v.device_id], 30) }}
       <div class="grow sm"><b>{{ v.device.name }}</b> <span class="muted">· {{ v.trigger }}{% if v.username %} · {{ v.username }}{% endif %}</span></div>
       <span class="delta"><span class="a">+{{ v.added }}</span> <span class="d">−{{ v.removed }}</span></span><span class="muted sm" style="width:72px;text-align:right" title="{{ v.created_at|dt }}">{{ v.created_at|ago }}</span></a>{% endfor %}</div>
     {% else %}<p class="muted sm">Sin respaldos todavía. {% if user.role == 'admin' %}<a href="/devices/new" data-sheet data-title="Agregar equipo">Agrega un dispositivo</a>.{% endif %}</p>{% endif %}

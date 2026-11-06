@@ -5,7 +5,7 @@
 <section class="card"><div class="card-h"><h2>{{ _f('{0} plataformas soportadas', rows|length) }}</h2>
   <label class="input" style="width:min(260px,100%)" for="q">{{ icon('search', 's') }}<input id="q" type="search" placeholder="{{ _('Buscar fabricante o sistema') }}"></label></div>
   <div class="vgrid" id="vgrid">{% for p in rows %}{% set ver = verified.get(p.key) %}
-    <div class="vtile" data-vt="{{ p.vendor }}" data-mine="{{ 1 if ver else 0 }}" title="{{ p.key }}"><span class="vend">{{ ((p.vendor ~ p.label)|replace(' ', '')|replace('-', ''))[:3]|upper }}</span><span class="grow">{{ p.label }}</span>{% if ver %}<span class="pill ok" title="{{ _('Comprobado en tu red') }}">{{ icon('check', 's') }}</span>{% endif %}</div>{% endfor %}</div>
+    <div class="vtile" data-vt="{{ p.vendor }}" data-mine="{{ 1 if ver else 0 }}" title="{{ p.key }}">{{ vlogo(p.key, 30) }}<span class="grow">{{ p.label }}</span>{% if ver %}<span class="pill ok" title="{{ _('Comprobado en tu red') }}">{{ icon('check', 's') }}</span>{% endif %}</div>{% endfor %}</div>
   <div class="row" style="margin-top:14px"><span class="muted sm grow" id="count"></span>
     <div class="input" style="width:auto;min-height:32px"><select id="v" aria-label="{{ _('Fabricante') }}"><option value="">Todos los fabricantes</option>{% for v in vendors %}<option>{{ v }}</option>{% endfor %}</select></div>
     <label class="ck"><input type="checkbox" id="mine"> Solo las de mi red</label></div></section>

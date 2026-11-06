@@ -55,7 +55,7 @@
   .topo-node .lgo-bg{fill:var(--surface)}.topo-node .lgo-edge{fill:none;stroke:var(--v-edge);stroke-width:1}
   .topo-node .eb{fill:var(--crit);stroke:var(--surface);stroke-width:2}.topo-node .eb-t{font:700 11px var(--f-sans);fill:var(--on-crit)}
   .topo-node .name{font:600 12px var(--f-sans);fill:var(--ink);pointer-events:none;paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round}
-  .topo-node .lbg{fill:var(--surface);opacity:.92;pointer-events:none}
+  .topo-node .lbg{fill:var(--surface);opacity:.92;pointer-events:none}.topo-node .sub.brand{font-family:var(--f-sans);font-weight:500}
   .topo-node .sub{font:400 11.5px var(--f-mono);fill:var(--muted);pointer-events:none;paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round}
   .topo-node.dim,.topo-node.vdim{opacity:.25}.topo-node.hit .ring{stroke-width:4}
   /* «¿Qué se cae?» (app/impact.py): rojo aislado, ámbar router o sucursal, verde sigue por otro camino */
@@ -117,7 +117,7 @@
 {% if nodes %}
 <section class="topo-chips" aria-label="{{ _('Filtrar por fabricante') }}">
   <span class="topo-cap" style="margin-right:4px">{{ _('Fabricante') }}</span>
-  {% for f, label in families if fam_count.get(f) %}<button type="button" class="chip" data-fam="{{ f }}" aria-pressed="false"><svg class="vlogo" width="20" height="20" aria-hidden="true"><use href="/static/icons.svg?v={{ VERSION }}#v-{{ f }}"/></svg>{{ _(label) }} <span class="n">{{ fam_count[f] }}</span></button>{% endfor %}
+  {% for f, label in families if fam_count.get(f) %}<button type="button" class="chip" data-fam="{{ f }}" aria-pressed="false">{{ vlk(f, 18) }}{{ _(label) }} <span class="n">{{ fam_count[f] }}</span></button>{% endfor %}
   <span class="grow"></span><div class="input" style="max-width:280px"><select id="tnet" aria-label="{{ _('Red') }}"><option value="-1">{{ _('Todas las redes') }}</option></select></div>
   <div class="input" style="max-width:260px"><input type="search" id="tq" placeholder="{{ _('Buscar en el mapa') }}" aria-label="{{ _('Buscar en el mapa') }}"></div>
   <label class="ck" title="{{ _('Nuevos y perdidos de las últimas 24 h') }}"><input type="checkbox" id="tnb" checked> {{ _('Resaltar cambios de vecinos') }}</label>
@@ -131,7 +131,7 @@
     <div class="lay-menu" id="tlay-m" hidden role="menu" aria-label="{{ _('Cómo ordenar los equipos') }}">
       <div class="topo-cap" style="padding:2px 10px 6px">{{ _('CÓMO ORDENAR LOS EQUIPOS') }}</div><div id="tlay-opts"></div><hr>
       <div class="field" id="tlay-cw"><label for="tlay-c"><b>{{ _('Equipo central') }}</b></label><div class="input"><select id="tlay-c"><option value="">{{ _('Elegido solo: el que tiene más enlaces') }}</option></select></div></div>
-      <div class="field"><span class="fl"><b>{{ _('Debajo del nombre') }}</b></span><div class="seg" role="group" id="tlay-s"><button type="button" data-v="none">{{ _('Nada') }}</button><button type="button" data-v="ip">IP</button><button type="button" data-v="mac">MAC</button></div></div>
+      <div class="field"><span class="fl"><b>{{ _('Debajo del nombre') }}</b></span><div class="seg" role="group" id="tlay-s"><button type="button" data-v="none">{{ _('Nada') }}</button><button type="button" data-v="brand">{{ _('Marca') }}</button><button type="button" data-v="ip">IP</button><button type="button" data-v="mac">MAC</button></div></div>
       <label class="ck"><input type="checkbox" id="tlay-f"> {{ _('Ajustar a la pantalla al abrir el mapa') }}</label>
       <label class="ck"><input type="checkbox" id="tlay-r"> {{ _('Recordar esta distribución la próxima vez') }}</label></div></div>
   <div class="lay-bar" id="tlay-bar" hidden role="status"><span id="tlay-bt" class="grow"></span>
@@ -176,7 +176,7 @@
                 'st': {'ok': _('Respaldo correcto'), 'error': _('Último respaldo con error'), 'pending': _('Sin respaldo todavía'),
                        'new': _('No está en OpenNCCM')},
                 'roles': roles, 'fams': fam_names, 'net': _('Red de {0} ({1} equipos)')}|tojson }};
-  const SPRITE = '/static/icons.svg?v={{ VERSION }}#';
+  const SPRITE = '/static/icons.svg?v={{ VERSION }}#', VLS = {{ VL_SPRITE|tojson }};
   const LAYD = {{ lay|tojson }};
   const LT = {{ {'hop1': _('1 SALTO'), 'hops': _('{0} SALTOS'), 'cols': [_('ROUTERS'), _('SWITCHES'), _('INALÁMBRICOS'), _('OTROS')],
                  'core': _('Núcleo'), 'dev1': _('1 equipo'), 'devs': _('{0} equipos'), 'link1': _('1 enlace'), 'links': _('{0} enlaces'),
@@ -279,7 +279,7 @@
       mk('circle', {class: 'ring', r: 23}, ig);
       use(ig, 't-' + (n.role || 'unknown'), -12, -12, 24);
       mk('rect', {class: 'lgo-bg', x: 9, y: 7, width: 26, height: 26, rx: 8}, ig);
-      use(ig, 'v-' + (n.fam || 'other'), 11, 9, 22);
+      mk('use', {href: VLS + '#vl-' + (n.vl || n.fam || 'other'), x: 11, y: 9, width: 22, height: 22}, ig);
       mk('rect', {class: 'lgo-edge', x: 11, y: 9, width: 22, height: 22, rx: 6}, ig);
       if (st(n) === 'error') { mk('circle', {class: 'eb', cx: -21, cy: -21, r: 10}, ig);
         const x = mk('text', {class: 'eb-t', x: -21, y: -17, 'text-anchor': 'middle'}, ig); x.textContent = '!'; }
@@ -346,7 +346,8 @@
       g.nameEl.setAttribute('x', nx); g.subEl.setAttribute('x', nx);
       g.nameEl.setAttribute('dy', side ? '-2' : lab === 'above' ? String(-50 - off) : String(44 + off));
       g.subEl.setAttribute('dy', side ? '14' : lab === 'above' ? String(-35 - off) : String(59 + off));
-      g.subEl.textContent = PREF.sub === 'none' ? '' : PREF.sub === 'ip' ? (n.ip || '') : (n.mac || n.sub || '');
+      g.subEl.textContent = PREF.sub === 'none' ? '' : PREF.sub === 'brand' ? (n.brand || '') : PREF.sub === 'ip' ? (n.ip || '') : (n.mac || n.sub || '');
+      g.subEl.classList.toggle('brand', PREF.sub === 'brand');
       const sl = g.subEl.textContent.length, bw = Math.max(String(n.label || '').length * 7.2, sl * 7) + 8;
       const ny = side ? -15 : lab === 'above' ? -63 - off : 31 + off, bh = sl ? 37 : 18;
       g.lbg.setAttribute('x', side ? (lab === 'right' ? nx - 4 : nx - bw + 4) : -bw / 2);
@@ -540,7 +541,7 @@
     NODES.forEach(m => nodeEls[m.id].classList.toggle('sel', m.id === n.id));
     cur = n; place(); ports();
     const s = st(n);
-    let h = `<div class="row nowrap" style="align-items:flex-start;gap:12px"><svg class="vlogo" width="44" height="44" style="border-radius:12px" aria-hidden="true"><use href="${SPRITE}v-${esc(n.fam || 'other')}"/></svg>`
+    let h = `<div class="row nowrap" style="align-items:flex-start;gap:12px"><svg class="vlg" width="44" height="44" viewBox="0 0 24 24" aria-hidden="true"><use href="${VLS}#vl-${esc(n.vl || n.fam || 'other')}"/></svg>`
       + `<div class="grow" style="min-width:0"><div class="b" style="font-size:15px;line-height:20px;overflow-wrap:anywhere">${esc(n.label)}</div><div class="muted sm mono">${esc(n.sub)}</div></div>`
       + `<button type="button" class="tbtn" data-x aria-label="${esc(L.close)}">✕</button></div>`;
     h += `<div class="row" style="gap:6px;flex-wrap:wrap"><span class="topo-pill">${esc(L.fams[n.fam] || '')}</span><span class="topo-pill">${esc(L.roles[n.role] || '')}</span><span class="topo-pill ${s}">${esc(L.st[s] || '')}</span></div>`;

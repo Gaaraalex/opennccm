@@ -64,6 +64,9 @@ def ago(d) -> str:
 
 
 templates.env.globals["icon"] = icon
+# logos de marca de los equipos (app/vendorlogos.py): vlogo(device_type, px), vlk(clave, px), vbrand(device_type)
+from . import vendorlogos as _vl  # noqa: E402
+templates.env.globals.update(vlogo=_vl.logo, vlk=_vl.svg, vbrand=_vl.brand, vkey=_vl.key, VL_SPRITE=_vl.SPRITE)
 
 
 def _ai_logo(provider: str, size: int = 44):

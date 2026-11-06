@@ -14,7 +14,7 @@
     background:linear-gradient(to right,transparent,var(--p-face));opacity:0;transition:opacity .15s}
   .pface-w.more::after{opacity:1}
   .pface-id{display:flex;flex-direction:column;gap:6px;padding-right:14px;border-right:1px solid var(--p-face-e);flex:none}
-  .pface-id .m{font:700 12px var(--f-mono);color:var(--ink)}.pface-id .c{font:500 10px var(--f-mono);color:var(--muted)}
+  .pface-id .m{font:700 12px var(--f-mono);color:var(--ink);display:flex;align-items:center;gap:6px}.pface-id .c{font:500 10px var(--f-mono);color:var(--muted)}
   .pface-id .pwr{display:inline-flex;align-items:center;gap:4px;font:500 9.5px var(--f-mono);color:var(--muted)}
   .pface-id .pwr i{width:6px;height:6px;border-radius:99px;background:var(--line-strong)}.pface-id .pwr.on i{background:var(--p-up);box-shadow:0 0 6px var(--p-up)}
   .pfp{position:relative;flex:none}
@@ -100,7 +100,7 @@
   <div style="min-width:0;max-width:100%">
   <div class="pview" role="group" aria-label="{{ _('Vista del equipo') }}"><button type="button" data-view="front" aria-pressed="true">{{ _('Frente') }}</button><button type="button" data-view="rear" aria-pressed="false">{{ _('Atrás') }}{% if ports.rear.psu|selectattr('s', 'ne', 'ok')|list or ports.rear.fan|selectattr('s', 'ne', 'ok')|list %}<i class="bad" title="{{ _('Hay una fuente o un ventilador que no funciona') }}"></i>{% endif %}</button></div>
   <div class="pface-w" id="pface-w"><div class="pface" id="pface">
-    <div class="pface-id"><span class="m">{{ device.model or profile.vendor }}</span><span class="c">{{ device.os_version or profile.label }}</span>
+    <div class="pface-id"><span class="m">{{ vlogo(device.device_type, 18, label=vbrand(device.device_type)) }}{{ device.model or profile.vendor }}</span><span class="c">{{ device.os_version or profile.label }}</span>
       <span class="pwr {{ 'on' if device.last_status == 'ok' }}"><i></i>PWR</span></div>
     <div class="pfp" id="pfp"></div>
     <div class="prear" id="prear" hidden></div>

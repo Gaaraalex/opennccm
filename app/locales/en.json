@@ -1712,7 +1712,7 @@
 "Mapa de la red": "Network map",
 "Mapa de la red: {0} equipos y {1} enlaces": "Network map: {0} devices and {1} links",
 "Mapa: equipo × política": "Map: device × policy",
-"Marca": "Select",
+"Marca": "Brand",
 "Marca al menos un equipo con corrección pendiente": "Select at least one device with a pending fix",
 "Marca al menos un grupo de Zabbix": "Tick at least one Zabbix group",
 "Marca los grupos que quieres migrar: en el paso siguiente salen solo sus equipos.": "Tick the groups you want to migrate: the next step shows only their devices.",
@@ -4384,5 +4384,9 @@
 "Inalámbrico: tiene una interfaz wlan o wifi activa.": "Wireless: it has an active wlan or wifi interface.",
 "Leyenda": "Legend",
 "Tipo elegido a mano por un administrador.": "Type chosen by hand by an administrator.",
-"Tipo en el mapa": "Type on the map"
+"Tipo en el mapa": "Type on the map",
+"Filtrar por marca": "Filter by brand",
+"MARCA": "BRAND",
+"Marca: {0}": "Brand: {0}",
+"Todas las marcas": "All brands"
 }
