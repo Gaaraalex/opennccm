@@ -192,7 +192,7 @@ def parse_mac(text: str) -> list[tuple[str, str, str]]:
             continue
         vl = next((t for t in before if re.fullmatch(r"\d{1,4}", t) and 0 < int(t) < 4095), "") or \
             next((re.match(r"(\d{1,4})", t).group(1) for t in after if re.match(r"\d{1,4}(?:/|$)", t) and 0 < int(re.match(r"(\d{1,4})", t).group(1)) < 4095), "")
-        rows.append((mac, vl, ports[-1]))
+        rows.append((mac, vl, re.sub(r"^Port-", "", ports[-1])))  # VOSS: «Port-1/2» en la tabla MAC, «1/2» en LLDP
     return rows
 
 

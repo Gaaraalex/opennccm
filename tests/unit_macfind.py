@@ -59,5 +59,10 @@ check("Huawei: tabla MAC", parse_mac(HW) == [("F439091A2B3C", "10", "GE0/0/3")],
 LNX = "10.10.9.200 dev eth0 lladdr f4:39:09:1a:2b:3c REACHABLE\n10.10.9.9 dev eth0 FAILED\n"
 check("Linux: ip neigh", parse_arp(LNX) == [("10.10.9.200", "F439091A2B3C", "eth0")], parse_arp(LNX))
 
+VOSS = """4052 self       0c:39:e4:6b:00:84  Port-1/2           false    -
+4052 self       0c:1f:b6:ba:00:84  Port-cpp           false    -
+"""
+check("VOSS: «Port-1/2» se guarda como 1/2 (igual que en LLDP) y la CPU no cuenta", parse_mac(VOSS) == [("0C39E46B0084", "4052", "1/2")], parse_mac(VOSS))
+
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)
