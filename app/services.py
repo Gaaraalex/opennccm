@@ -948,8 +948,11 @@ def _refresh_prompt(conn) -> None:
         return
     if not prompt or prompt[-1] not in "#>" or prompt.startswith("["):  # RouterOS («[admin@x] >») no lo necesita
         return
-    base = re.sub(r"\((?:config|conf)[^)]*\)$", "", prompt[:-1].strip()).strip()
-    if base and base != getattr(conn, "base_prompt", base):
+    old = getattr(conn, "base_prompt", "") or ""
+    if old and prompt.startswith(old):  # sigue el mismo nombre (con o sin el modo: «(SW) (Config)#», «R1(config-if)#»)
+        return
+    base = re.sub(r"(\s*\((?:config|conf|interface|if|vlan|line|router)[^)]*\))+$", "", prompt[:-1].strip(), flags=re.I).strip()
+    if base and base != old:
         log.info("El prompt cambió de %r a %r (nombre del equipo nuevo)", conn.base_prompt, base)
         conn.base_prompt = base
 
