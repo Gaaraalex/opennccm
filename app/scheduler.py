@@ -103,6 +103,12 @@ CHANGE_PATTERNS = re.compile("|".join([
     r"SHELL_CMD_CONFIG", r"SYSTEM-\d-CONFIG",
     r"Startup configuration (?:saved|changed)",
     r"Running Config Change",     # Aruba/HP
+    # Extreme VOSS / Fabric Engine: no avisa «configuración cambiada»; registra cada comando de la CLI («CLILOG») y el
+    # guardado. Cuenta un comando que no sea de consulta (salida real de un 5520 con VOSS 9.3:
+    # «… GlobalRouter CLILOG INFO   137 SSH:10.0.0.5 admin vlan create 998 name X type port-mstprstp 0»)
+    r"CLILOG\s+\w+\s+\d+\s+\S+\s+\S+\s+(?!(?:show|terminal|enable|disable|exit|end|configure|ping|traceroute|telnet|"
+    r"ssh|help|history|more|logout|quit|clear|copy|dir|ls|pwd|cd|cat|save)\b)\w",
+    r"Save config to file \S+ successful",
 ]), re.IGNORECASE)
 
 _last_trigger: dict[int, float] = {}

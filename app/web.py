@@ -171,12 +171,13 @@ def admin_counts() -> dict:
     """Recuentos de las pestañas de Administración (prototipo)."""
     from sqlalchemy import func, select
 
-    from .db import Credential, DeviceGroup, SessionLocal, User
+    from .db import Credential, DeviceGroup, NetNode, SessionLocal, User
     from .drivers import PROFILES
     with SessionLocal() as db:
         return {"users": db.scalar(select(func.count(User.id))) or 0,
                 "creds": db.scalar(select(func.count(Credential.id))) or 0,
-                "groups": db.scalar(select(func.count(DeviceGroup.id))) or 0, "platforms": len(PROFILES)}
+                "groups": db.scalar(select(func.count(DeviceGroup.id))) or 0, "platforms": len(PROFILES),
+                "nodes": db.scalar(select(func.count(NetNode.id))) or 0}
 
 
 templates.env.globals["admin_counts"] = admin_counts

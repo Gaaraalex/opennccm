@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.26.0<br>Para administradores y operadores de red<br>Noviembre de 2026</div>
+  <div class="meta">Versión del software: 2.27.0<br>Para administradores y operadores de red<br>Noviembre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -243,6 +243,7 @@ de hace…»), con la orden de cada plataforma:</p>
   <tr><td>HPE ProCurve / Aruba OS-Switch · Aruba AOS-CX</td><td><code>show interfaces brief</code> · <code>show interface brief</code></td></tr>
   <tr><td>Cisco NX-OS · ASA/FTD · WLC</td><td><code>show interface status</code> · <code>show interface ip brief</code> · <code>show port summary</code></td></tr>
   <tr><td>Juniper · Extreme EXOS · Nokia SR OS</td><td><code>show interfaces terse</code> · <code>show ports no-refresh</code> · <code>show port</code></td></tr>
+  <tr><td>Extreme VOSS / Fabric Engine (VSP)</td><td><code>show interfaces gigabitEthernet</code> (columna OPERATE de STATUS)</td></tr>
   <tr><td>EdgeRouter, USG, VyOS</td><td><code>show interfaces</code> (columna S/L)</td></tr>
   <tr><td>FortiGate · Palo Alto · Check Point</td><td><code>get system interface physical</code> · <code>show interface all</code> · <code>show interfaces all</code></td></tr>
   <tr><td>Linux, Ubuntu, airOS, airFiber, UniFi AP · pfSense, OPNsense</td><td><code>/sys/class/net</code> · <code>ifconfig -a</code></td></tr>
@@ -257,7 +258,8 @@ falla, la franja lo avisa también desde el frente («Sin corriente o con fallo:
 Atrás lleva un punto rojo. Se lee en el respaldo con la orden de cada fabricante: MikroTik <code>/system health print</code>,
 Cisco <code>show environment all</code>, Juniper <code>show chassis environment</code>, Huawei <code>display power</code> y
 <code>display fan</code>, HPE <code>show system fans/power-supply</code>, Aruba AOS-CX y Arista <code>show environment …</code>,
-FastPath <code>show environment</code>, Extreme <code>show fans/power</code> y FortiGate <code>execute sensor list</code>. Los
+FastPath <code>show environment</code>, Extreme EXOS <code>show fans/power</code>, Extreme VOSS / Fabric Engine
+<code>show sys-info</code> (secciones «Power Supply Info» y «Fan Info») y FortiGate <code>execute sensor list</code>. Los
 equipos que no informan de ello por SSH (por ejemplo, los routers pequeños sin ventiladores) lo indican en la vista Atrás.</p>
 <p>En los equipos que tienen los puertos detrás, como el WatchGuard Firebox T40, la ficha se abre por <b>Atrás</b> y muestra el
 equipo como es: consola serie, los dos USB, los puertos con su rótulo (0/WAN, 1/LAN, 2, 3, 4-PoE), Reset, el interruptor y la
@@ -1070,7 +1072,8 @@ interfaces) y de las <b>VLAN con nombres distintos</b> según el equipo. Se pued
 <p><b>Mapa de la red</b> (menú lateral) dibuja los equipos y los enlaces entre ellos, con el puerto de cada extremo. Los enlaces salen de
 los vecinos <b>LLDP o CDP</b> que cada equipo anuncia, leídos en cada respaldo con una orden de solo lectura (por ejemplo
 <code>show cdp neighbors detail</code> en Cisco o <code>/ip neighbor print</code> en MikroTik). Lo admiten Cisco, Arista, Juniper, Huawei,
-HP/Aruba, Dell, Ruckus, Allied, MikroTik, EdgeSwitch, UniFi Switch y EXOS, si tienen LLDP o CDP activado.</p>
+HP/Aruba, Dell, Ruckus, Allied, MikroTik, EdgeSwitch, UniFi Switch, EXOS y VOSS / Fabric Engine (<code>show lldp neighbor</code>), si
+tienen LLDP o CDP activado.</p>
 <ul>
   <li>Cada equipo tiene tres capas: el <b>anillo</b> dice el estado, el <b>icono</b> del centro qué es (router, switch, antena,
   firewall o desconocido) y el <b>distintivo</b> de la esquina su fabricante (marcas propias de OpenNCCM, no los logotipos de las
@@ -1104,7 +1107,29 @@ HP/Aruba, Dell, Ruckus, Allied, MikroTik, EdgeSwitch, UniFi Switch y EXOS, si ti
   se unen al salto anterior del camino con una <b>línea punteada</b> («Por RoMON (sin puerto)»), salvo que ya haya un enlace
   LLDP/CDP entre los dos. No cuentan para el análisis de impacto ni para Puertos sin uso. Suma unos 10 segundos al respaldo de
   cada MikroTik.</li>
+  <li>Los MikroTik encontrados por RoMON toman su <b>IP</b> de los vecinos MNDP/LLDP o de las tablas ARP, si alguno la conoce.</li>
 </ul>
+<h3>Distribución: cómo ordenar los equipos</h3>
+<p>El menú <b>Distribución</b> de la barra del mapa elige cómo se colocan los equipos:</p>
+<table>
+  <tr><th>Distribución</th><th>Cómo quedan</th></tr>
+  <tr><td>Libre</td><td>Se acomodan solos según sus enlaces (la de siempre).</td></tr>
+  <tr><td>Escalonada ↓ · Escalonada →</td><td>Del equipo central hacia abajo (o hacia la derecha), un salto por fila.</td></tr>
+  <tr><td>Radial</td><td>El central al medio y un anillo por salto.</td></tr>
+  <tr><td>Por sitio</td><td>Un recuadro por sitio o red; el sitio de cada equipo se cambia desde su panel.</td></tr>
+  <tr><td>Por función</td><td>Columnas: núcleo, routers, switches, inalámbricos y otros.</td></tr>
+  <tr><td>Circular</td><td>Todos en un círculo.</td></tr>
+  <tr><td>Árbol plegable</td><td>Abre y cierra cada rama desde el central.</td></tr>
+  <tr><td>Sobre un plano</td><td>Cada equipo en su lugar real sobre un plano o mapa que sube un administrador («Subir plano»).</td></tr>
+  <tr><td>Mi distribución</td><td>La que guardaste arrastrando equipos: <b>Guardar</b> la deja solo para ti o, los administradores, para
+  todo el equipo; «Volver a la automática» la descarta.</td></tr>
+</table>
+<p>En las que parten de un <b>equipo central</b> se elige cuál (por defecto, el que tiene más enlaces). Con «Recordar esta
+distribución la próxima vez» el mapa vuelve a abrirse igual.</p>
+<h3>Nodos</h3>
+<p>Un <b>nodo</b> agrupa los equipos de un mismo lugar (una sucursal, una torre, un edificio). Se crean en <b>Administración ›
+Nodos</b> o al crear o editar un equipo, con el campo <b>Nodo</b> (como las credenciales: se elige uno de la lista o «+ Crear nodo
+nuevo…»). Sobre el mapa, el filtro <b>Nodo</b> muestra solo los equipos asignados a ese nodo; «Todos» los vuelve a mostrar.</p>
 <h2 id="vecinos">Aviso de vecino nuevo o perdido</h2>
 <p>Con <b>Avisar cuando cambian los vecinos</b> (Ajustes › Mapa de la red, apagado de fábrica) OpenNCCM crea una alarma cuando
 aparece un equipo que antes no estaba o deja de verse uno que sí estaba. Usa las lecturas de LLDP, CDP, MNDP y RoMON que ya hace

@@ -365,5 +365,36 @@ check("EdgeSwitch X: activos y sin enlace", [p["s"] for p in esx] == ["up", "up"
 check("EdgeSwitch X: los de fibra son SFP", [p["k"] for p in esx] == ["cu", "cu", "cu", "cu", "sfp", "sfp"])
 check("EdgeSwitch X: «Invalid port id» no da puertos", ports._esx("Invalid port id") == [])
 
+# Extreme VOSS / Fabric Engine 9.3 (5520 en GNS3): «show interfaces gigabitEthernet», OPERATE STATUS
+VSP = """************************************************************************************
+		Command Execution Time: Fri Nov 06 12:17:08 2026 UTC
+************************************************************************************
+
+==========================================================================================
+                                      Port Interface
+==========================================================================================
+PORT                               LINK  PORT           PHYSICAL          STATUS
+NUM      INDEX DESCRIPTION         TRAP  LOCK     MTU   ADDRESS           ADMIN  OPERATE
+------------------------------------------------------------------------------------------
+1/1      192   1000BaseTX          true  false    1950  0c:1f:b6:ba:00:00 up     up     
+1/2      193   1000BaseTX          true  false    1950  0c:1f:b6:ba:00:01 up     up     
+1/3      194   1000BaseTX          true  false    1950  0c:1f:b6:ba:00:02 up     down   
+
+
+==============================================================================================================
+                                                  Port Name
+==============================================================================================================
+PORT                                                        OPERATE  OPERATE  OPERATE        
+NUM      NAME                           DESCRIPTION         STATUS   DUPLEX   SPEED    VLAN  
+--------------------------------------------------------------------------------------------------------------
+1/1                                     1000BaseTX          up       full     1000     Tagged
+1/2                                     1000BaseTX          up       full     1000     Tagged
+1/3                                     1000BaseTX          down     half     0        Access
+"""
+by, st = states("extreme_vsp", "show interfaces gigabitEthernet", VSP)
+check("VOSS: estado de enlace por puerto", st and by["1/1"]["s"] == "up" and by["1/2"]["s"] == "up" and by["1/3"]["s"] == "down",
+      {k: v["s"] for k, v in by.items()})
+check("VOSS: orden", ports.commands("extreme_vsp")[0] == "show interfaces gigabitEthernet")
+
 print("TODO OK" if not fails else f"{len(fails)} FALLOS")
 sys.exit(1 if fails else 0)

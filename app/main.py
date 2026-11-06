@@ -711,7 +711,9 @@ async def devices_bulk(request: Request):
 
 def _device_form_ctx(db):
     from .rollback import rollback_supported
+    from .db import NetNode
     return {"groups": db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all(),
+            "nodes": db.scalars(select(NetNode).order_by(NetNode.name)).all(),
             "credentials": db.scalars(select(Credential).order_by(Credential.name)).all(),
             "no_rollback": sorted(k for k, p in PROFILE_MAP.items() if not rollback_supported(p))}
 
@@ -742,6 +744,8 @@ def _apply_device_form(dev: Device, form):
         dev.port = 80 if dev.port in (22, 23) else dev.port
     dev.credential_id = int(form["credential_id"]) if form.get("credential_id") else None
     dev.group_id = int(form["group_id"]) if form.get("group_id") else None
+    if "node_id" in form:  # formularios sin el campo (importar…) no lo tocan
+        dev.node_id = int(form["node_id"]) if (form.get("node_id") or "").isdigit() else None
     dev.location = form.get("location") or None
     dev.notes = form.get("notes") or None
     dev.enabled = form.get("enabled") == "on"
@@ -772,6 +776,15 @@ async def device_save(request: Request, dev_id: int | None = None):
                 db.add(g)
                 db.flush()
             dev.group_id = g.id
+        new_node = (form.get("new_node") or "").strip()[:100]
+        if new_node:  # escribir un nodo nuevo desde el propio formulario (o reutilizar uno con ese nombre)
+            from .db import NetNode
+            nd = next((x for x in db.scalars(select(NetNode)) if x.name.lower() == new_node.lower()), None)
+            if nd is None:
+                nd = NetNode(name=new_node)
+                db.add(nd)
+                db.flush()
+            dev.node_id = nd.id
         if not dev_id:
             db.add(dev)
         try:
@@ -1497,20 +1510,22 @@ def _topo_how(fby: str, n: dict, rby: str, rn: dict) -> str:
 
 
 @app.get("/topology")
-def topology_page(request: Request, group: int = 0):
+def topology_page(request: Request, group: int = 0, node: int = 0):
     """Equipos y enlaces descubiertos por LLDP/CDP. Los vecinos que no están en OpenNCCM se muestran aparte."""
     user = require(request)
     from . import topology
     scope = device_scope(user)
     with SessionLocal() as db:
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
+        from .db import NetNode
+        net_nodes = db.scalars(select(NetNode).order_by(NetNode.name)).all()
         devs = [d for d in db.scalars(select(Device).order_by(Device.name))
-                if (scope is None or d.id in scope) and (not group or d.group_id == group)]
+                if (scope is None or d.id in scope) and (not group or d.group_id == group) and (not node or d.node_id == node)]
         hosts = [d.host.lower() for d in devs]
         by_ip = {d.host.lower(): d for d in devs if hosts.count(d.host.lower()) == 1}  # solo IP que no se repiten
         by_name = {topology.norm_name(d.name): d for d in devs}
         nodes = {f"d{d.id}": {"id": f"d{d.id}", "label": d.name, "kind": "dev", "status": d.last_status,
-                              "href": f"/devices/{d.id}", "sub": d.host,
+                              "href": f"/devices/{d.id}", "sub": d.host, "ip": d.host,
                               "fam": topology.VENDOR_FAMILY.get(get_profile(d.device_type).vendor, "other")}
                  for d in devs}
         edges: dict = {}
@@ -1558,7 +1573,7 @@ def topology_page(request: Request, group: int = 0):
                         w = why.get(key, {})
                         role, rby, rn = w.get("role") or ("unknown", "", n)
                         nodes[other] = {"id": other, "label": n.get("remote_name") or n.get("remote_ip"),
-                                        "kind": "new", "sub": n.get("remote_ip") or "", "platform": n.get("platform", ""),
+                                        "kind": "new", "sub": n.get("remote_ip") or "", "platform": n.get("platform", ""), "mac": n.get("mac") or "",
                                         "ip": n.get("remote_ip") or "", "name": (n.get("remote_name") or "").split(".")[0],
                                         "fam": fams.get(key, "other"), "role": role,
                                         "how": _topo_how(*(w.get("fam") or ("", n)), rby, rn)}
@@ -1577,6 +1592,37 @@ def topology_page(request: Request, group: int = 0):
                                                      "air": topology.is_wireless(pa, pb)})
     # RoMON: los MikroTik que alcanza cada uno, unidos al salto anterior del camino (o a él, si están a un salto) con una
     # línea punteada, salvo que ya haya un enlace LLDP/CDP entre los dos
+    # RoMON no informa IP: se toma la que anuncia el mismo equipo por MNDP/LLDP a otro (por MAC o por nombre) o, si no, la
+    # de las tablas ARP guardadas en los respaldos (app/macfind.py). No agrega consultas a los equipos.
+    nb_ip_mac, nb_ip_name = {}, {}
+    for d in devs:
+        for n in (json.loads(d.neighbors) if d.neighbors else []):
+            ip = (n.get("remote_ip") or "").strip()
+            if n.get("romon") or not re.fullmatch(r"\d+\.\d+\.\d+\.\d+", ip):
+                continue
+            src = (ip, (n.get("proto") or "lldp").upper(), d.name)
+            if n.get("mac"):
+                nb_ip_mac.setdefault(re.sub(r"[^0-9A-F]", "", n["mac"].upper()), src)
+            if topology.norm_name(n.get("remote_name")):
+                nb_ip_name.setdefault(topology.norm_name(n.get("remote_name")), src)
+    romon_macs = {re.sub(r"[^0-9A-F]", "", (n.get("mac") or "").upper()) for lst in romon.values() for n in lst} - {""}
+    arp_ip = {}
+    if romon_macs:
+        from .db import MacSeen
+        names = {d.id: d.name for d in devs}
+        with SessionLocal() as sdb:
+            for r in sdb.scalars(select(MacSeen).where(MacSeen.kind == "arp", MacSeen.mac.in_(list(romon_macs)),
+                                                       MacSeen.device_id.in_(list(names))).order_by(MacSeen.last_seen.desc())):
+                arp_ip.setdefault(r.mac, (r.ip, names[r.device_id]))
+
+    def romon_ip(x) -> tuple[str, str]:
+        mac = re.sub(r"[^0-9A-F]", "", (x.get("mac") or "").upper())
+        hit = nb_ip_mac.get(mac) or nb_ip_name.get(topology.norm_name(x.get("remote_name")))
+        if hit:
+            return hit[0], _f("La IP es la que anuncia por {0} a {1}.", "MNDP" if hit[1] == "MNDP" else hit[1], hit[2])
+        if mac in arp_ip:
+            return arp_ip[mac][0], _f("La IP sale de la tabla ARP de {0}.", arp_ip[mac][1])
+        return "", _("RoMON no informa la IP y no aparece en las tablas ARP ni en los vecinos MNDP/LLDP leídos.")
     for d in devs:
         by_mac = {n["mac"]: n for n in romon.get(d.id, []) if n.get("mac")}
         for n in romon.get(d.id, []):
@@ -1587,10 +1633,12 @@ def topology_page(request: Request, group: int = 0):
                 key = topology.norm_name(x.get("remote_name")) or x.get("mac")
                 nid = f"u:{key}"
                 if nid not in nodes:
-                    nodes[nid] = {"id": nid, "label": x.get("remote_name") or x.get("mac"), "kind": "new", "sub": x.get("mac") or "",
-                                  "platform": x.get("platform", ""), "ip": "", "name": (x.get("remote_name") or "").split(".")[0],
+                    ip, ip_how = romon_ip(x)
+                    nodes[nid] = {"id": nid, "label": x.get("remote_name") or x.get("mac"), "kind": "new", "sub": ip or x.get("mac") or "", "mac": x.get("mac") or "",
+                                  "platform": x.get("platform", ""), "ip": ip, "name": (x.get("remote_name") or "").split(".")[0],
                                   "fam": "mikrotik", "role": topology.role_why(x.get("platform") or "")[0],
-                                  "how": _("Encontrado por RoMON: no se sabe por qué puerto se conecta.")}
+                                  "how": _("Encontrado por RoMON: no se sabe por qué puerto se conecta.") + " "
+                                  + _f("ID RoMON: {0}.", x.get("mac") or "—") + " " + ip_how}
                 return nid
             other = node_of(n)
             prev = by_mac.get(n.get("via")) if n.get("via") else None
@@ -1614,30 +1662,40 @@ def topology_page(request: Request, group: int = 0):
     def nb_node(x):
         t = by_name.get(topology.norm_name(x["name"]))
         return f"d{t.id}" if t is not None else f"u:{x['key']}"
+    def same_port(e, dev_node, port):
+        """El enlace sale de ese equipo por ese puerto (o no se sabe el puerto)."""
+        mine = e["pa"] if e["a"] == dev_node else e["pb"]
+        return not port or not mine or topology.short_port(mine) == topology.short_port(port)
+    # Un equipo de OpenNCCM nunca se pinta entero como «nuevo» o «perdido» (sigue ahí, quizá con otro nombre o por otro
+    # puerto): solo se marca el enlace de ese puerto. Visto en un laboratorio con tres VOSS: al renombrar un switch, el
+    # vecino del nombre viejo «se pierde» y el del nombre nuevo «aparece».
     for x in nbm["new"]:
-        nid = nb_node(x)
-        if nid in nodes and nid != f"d{x['dev']}":
-            nodes[nid]["chg"] = "new"
+        nid, me = nb_node(x), f"d{x['dev']}"
+        if nid in nodes and nid != me:
+            if nodes[nid].get("kind") != "dev":
+                nodes[nid]["chg"] = "new"
             for e in links:
-                if {e["a"], e["b"]} == {nid, f"d{x['dev']}"}:
+                if {e["a"], e["b"]} == {nid, me} and same_port(e, me, x["port"]):
                     e["chg"] = "new"
     for x in nbm["lost"]:
-        nid = nb_node(x)
-        if nid == f"d{x['dev']}" or f"d{x['dev']}" not in nodes:
+        nid, me = nb_node(x), f"d{x['dev']}"
+        if nid == me or me not in nodes:
             continue
         if nid not in nodes:
             nid = f"x:{x['key']}"
             nodes[nid] = {"id": nid, "label": x["name"], "kind": "lost", "sub": x.get("ip") or x.get("mac") or "",
                           "fam": "mikrotik" if x["romon"] else "other", "role": "unknown", "how": ""}
-        nodes[nid]["chg"], nodes[nid]["lost_ago"] = "lost", x["ago"]
-        if not any({e["a"], e["b"]} == {nid, f"d{x['dev']}"} for e in links):
-            a_, b_ = f"d{x['dev']}", nid
+        if nodes[nid].get("kind") != "dev":
+            nodes[nid]["chg"], nodes[nid]["lost_ago"] = "lost", x["ago"]
+        live = [e for e in links if {e["a"], e["b"]} == {nid, me} and not e.get("chg")]
+        hit = [e for e in live if x["port"] and same_port(e, me, x["port"]) and (e["pa"] if e["a"] == me else e["pb"])]
+        if hit:  # el enlace de ese puerto todavía figura (no debería): se marca perdido
+            for e in hit:
+                e["chg"] = "lost"
+        else:  # se dibuja aparte, aunque los dos sigan unidos por otro puerto
+            a_, b_ = me, nid
             links.append({"a": a_, "b": b_, "pa": x["port"] if not x["romon"] else "", "pb": x.get("remote_port") or "",
-                          "k": f"{a_}|{b_}|lost", "air": False, "romon": x["romon"], "chg": "lost"})
-        else:
-            for e in links:
-                if {e["a"], e["b"]} == {nid, f"d{x['dev']}"}:
-                    e["chg"] = "lost"
+                          "k": f"{a_}|{b_}|lost|{x['port']}", "air": False, "romon": x["romon"], "chg": "lost"})
     linked = {e["a"] for e in links} | {e["b"] for e in links}
     show = [n for n in nodes.values() if n["id"] in linked]
     alone = [n for n in nodes.values() if n["id"] not in linked and n["kind"] == "dev"]
@@ -1650,7 +1708,7 @@ def topology_page(request: Request, group: int = 0):
                   fam_names={k: _(v) for k, v in topology.FAMILIES},
                   labels={n["id"]: n["label"] for n in show},
                   group=group, with_data=with_data, clients=clients, hidden=sorted(hidden.values(), key=str.lower), total=len(devs), enabled=get_setting("topology_enabled", "1") == "1",
-                  nb_feed=nbm["feed"][:50])
+                  nb_feed=nbm["feed"][:50], net_nodes=net_nodes, node=node, lay=__import__("app.topolayout", fromlist=["x"]).page_data(user))
 
 
 # --------------------------------------------------------------------------- inventario de IP y VLAN
@@ -3293,6 +3351,12 @@ app.include_router(nbwatch.router)
 from . import refconfig  # noqa: E402  (configuración de referencia por modelo)
 
 app.include_router(refconfig.router)
+from . import topolayout  # noqa: E402  (distribución del mapa de la red)
+
+app.include_router(topolayout.router)
+from . import nodes as net_nodes_mod  # noqa: E402  (nodos de la red)
+
+app.include_router(net_nodes_mod.router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)

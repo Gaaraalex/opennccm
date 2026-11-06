@@ -288,5 +288,38 @@ check("vecinos 7.25 con colores: «\\F1» resaltado", [n["remote_name"] for n in
     MARK + "/ip neighbor print detail without-paging\n" + re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", c725), "mikrotik_routeros")]
       == ["Cabañas"])
 
+# Extreme VOSS / Fabric Engine: «show lldp neighbor» real de un 5520 con VOSS 9.3 (laboratorio en GNS3)
+VOSS = """==========================================================================================
+                                      LLDP Neighbor
+==========================================================================================
+
+Port: 1/1       Index    : 1
+                Protocol : LLDP
+                ChassisId: MAC Address        0c:bc:cb:05:00:00
+                PortId   : IfName             1/1
+                SysName  : VSP-2
+                SysCap   : Br / Br
+                PortDescr: Extreme Networks 5520-24T-FabricEngine - 1000BaseTX Port 1/1
+                SysDescr : 5520-24T-FabricEngine (9.3.0.0)
+                Address  : 10.0.0.225
+           IPv6 Address  : 0:0:0:0:0:0:0:0
+
+Port: 1/2       Index    : 2
+                Protocol : LLDP
+                ChassisId: MAC Address        0c:39:e4:6b:00:00
+                PortId   : IfName             1/2
+                SysName  : 5520-24T-FabricEngine
+                SysCap   : Br / Br
+                SysDescr : 5520-24T-FabricEngine (9.3.0.0)
+                Address  : 10.0.0.226
+------------------------------------------------------------------------------------------
+Total Neighbors : 2
+"""
+v = parse(MARK + "show lldp neighbor\n" + VOSS, "extreme_vsp")
+check("VOSS: vecinos LLDP con puerto, nombre, IP, MAC y modelo", len(v) == 2 and v[0]["local_port"] == "1/1"
+      and v[0]["remote_name"] == "VSP-2" and v[0]["remote_port"] == "1/1" and v[0]["remote_ip"] == "10.0.0.225"
+      and v[0]["mac"] == "0C:BC:CB:05:00:00" and v[0]["platform"].startswith("5520-24T") and v[0].get("caps") == ["bridge", "router"], v)
+check("VOSS: «show lldp neighbor» se lee en cada respaldo", "show lldp neighbor" in __import__("app.topology", fromlist=["x"]).commands("extreme_vsp"))
+
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)

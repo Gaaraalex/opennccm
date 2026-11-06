@@ -99,6 +99,27 @@ def _mask(line: str, hosts: list[str]) -> str:
     return line
 
 
+# Plataformas cuyos bloques no van sangrados y terminan en «exit» (Extreme VOSS: «interface GigabitEthernet 1/5»,
+# «name "Puesto-1"», «exit», todo en la columna 0)
+EXIT_BLOCKS = {"extreme_vsp", "extreme_ers"}
+_OPENER = re.compile(r"^(interface|router|route-map|mgmt|application|i-sid|logical-intf|vrf|ip ospf area|ipv6 interface)\b", re.I)
+
+
+def _indent_exit_blocks(raw: list[str]) -> list[str]:
+    out, inside = [], False
+    for ln in raw:
+        s = ln.strip()
+        if inside and s == "exit":
+            inside = False
+            continue
+        if inside and s and not _OPENER.match(s):
+            out.append(" " + s)
+            continue
+        inside = bool(_OPENER.match(s)) and not ln.startswith((" ", "\t"))
+        out.append(ln)
+    return out
+
+
 def lines_of(text: str, device_type: str, hosts: list[str]) -> list[tuple[str, str]]:
     """(sección, línea normalizada) de una configuración, sin lo que no se compara. Las líneas de un bloque llevan su
     cabecera delante («interface Gi1/0/1 ⟩ switchport mode access»)."""
@@ -149,6 +170,8 @@ def lines_of(text: str, device_type: str, hosts: list[str]) -> list[tuple[str, s
             w = s.split()
             out.append((_section(w[1] if len(w) > 1 else "", " ".join(w[2:])), _mask(s, hosts)))
         return out
+    if device_type in EXIT_BLOCKS:
+        raw = _indent_exit_blocks(raw)
     parent, psec, skip_block = "", "", False
     for ln in raw:
         if not ln.strip() or ln.strip().startswith(("!", "#")) or ln.strip() in ("end", "exit", "quit", "return"):
@@ -274,6 +297,8 @@ def commands(device_type: str, c: dict) -> tuple[str, int]:
         lines += [" " + x for x in ch]
         if os_key in ("vrp",):
             lines.append(" quit")
+        elif device_type in EXIT_BLOCKS:
+            lines.append("exit")
     return "\n".join(lines), skipped
 
 

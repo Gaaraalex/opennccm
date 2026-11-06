@@ -929,12 +929,32 @@ def _push_stepwise(conn, commands: list[str], prof) -> str:
             raise RuntimeError(
                 f"El equipo {problem} el comando «{cmd}» (n.º {i + 1} de {len(commands)}):\n{resp.strip()}\n\n"
                 f"Se detuvo ahí y {note} Comandos ya aplicados:\n{done}")
+    _refresh_prompt(conn)
     if not prof.commit:
         try:
             out += conn.exit_config_mode()
         except Exception:  # noqa: BLE001 - algunos comandos dejan el equipo fuera del modo configuración
             pass
     return out
+
+
+def _refresh_prompt(conn) -> None:
+    """Si un comando cambió el nombre del equipo («hostname», «sys name»…), el prompt ya no es el de la conexión y netmiko
+    esperaría el viejo al salir del modo configuración y al guardar: la solicitud fallaba y la configuración quedaba sin
+    guardar (visto en un VOSS 5520: «5520-24T-FabricEngine:1#» pasó a «VSP-LAB-1:1#»). Se vuelve a leer el prompt."""
+    try:
+        prompt = conn.find_prompt(pattern=r"[#>]\s*$").strip()
+    except Exception:  # noqa: BLE001
+        return
+    if not prompt or prompt[-1] not in "#>" or prompt.startswith("["):  # RouterOS («[admin@x] >») no lo necesita
+        return
+    old = getattr(conn, "base_prompt", "") or ""
+    if old and prompt.startswith(old):  # sigue el mismo nombre (con o sin el modo: «(SW) (Config)#», «R1(config-if)#»)
+        return
+    base = re.sub(r"(\s*\((?:config|conf|interface|if|vlan|line|router)[^)]*\))+$", "", prompt[:-1].strip(), flags=re.I).strip()
+    if base and base != old:
+        log.info("El prompt cambió de %r a %r (nombre del equipo nuevo)", conn.base_prompt, base)
+        conn.base_prompt = base
 
 
 def _push(device_id: int, commands: list[str], exec_mode: bool) -> str:

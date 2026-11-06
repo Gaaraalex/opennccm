@@ -133,8 +133,11 @@ s.post(f"{B}/changes/{cr}/review", data={"decision": "approve"})
 st, t = wait_cr(cr, 120)
 check("actualización de firmware ejecutada", st == "done", re.findall(r"<pre[^>]*>([\s\S]*?)</pre>", t)[-1:])
 check("transferido y MD5 verificado", "transferida=True, MD5 verificado=True" in t)
-time.sleep(5)
-cfg = re.sub(r"<[^>]+>", "", s.get(B + "/search", params={"q": "boot system"}).text)
+for _ in range(30):  # el respaldo de después del cambio corre aparte (y lee también vecinos y tablas MAC/ARP)
+    time.sleep(2)
+    cfg = re.sub(r"<[^>]+>", "", s.get(B + "/search", params={"q": "boot system"}).text)
+    if "boot system flash:c2900-test.bin" in cfg:
+        break
 check("arranque configurado (boot system flash:c2900-test.bin)", "boot system flash:c2900-test.bin" in cfg)
 r = s.post(B + "/firmware/upgrade", data={"image_id": img_id, "device_ids": "1", "reload": "on"})
 cr = re.search(r"/changes/(\d+)", r.url).group(1)

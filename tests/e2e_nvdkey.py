@@ -7,6 +7,7 @@ import sys
 import requests
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # e2e_remember (el Python embebido no agrega esta carpeta)
 from app.db import SessionLocal, Setting, get_setting, set_setting  # noqa: E402
 from e2e_remember import settings_form  # noqa: E402  (todos los valores actuales del formulario de Ajustes)
 
