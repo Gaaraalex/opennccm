@@ -50,12 +50,17 @@ form = {"name": "R-NODO-A", "host": "192.0.2.71", "device_type": "mikrotik_route
 adm.post(B + "/devices/new", data=form)
 adm.post(B + "/devices/new", data=dict(form, name="R-NODO-B", host="192.0.2.72", node_id="__new", new_node="Nodo Angelina"))
 adm.post(B + "/devices/new", data=dict(form, name="R-SIN-NODO", host="192.0.2.73", node_id=""))
+adm.post(B + "/devices/new", data=dict(form, name="R-NODO-C", host="192.0.2.74"))  # mismo nodo que R-NODO-A
 with SessionLocal() as db:
-    devs = {d.name: d for d in db.scalars(select(Device).where(Device.name.in_(["R-NODO-A", "R-NODO-B", "R-SIN-NODO"])))}
+    devs = {d.name: d for d in db.scalars(select(Device).where(Device.name.in_(["R-NODO-A", "R-NODO-B", "R-SIN-NODO", "R-NODO-C"])))}
     na = db.scalar(select(NetNode.id).where(NetNode.name == "Nodo Angelina"))
-    a, b_ = devs["R-NODO-A"], devs["R-NODO-B"]
+    a, b_, c_ = devs["R-NODO-A"], devs["R-NODO-B"], devs["R-NODO-C"]
     a.neighbors = json.dumps([{"local_port": "ether1", "remote_name": "R-NODO-B", "remote_port": "ether1", "remote_ip": "", "mac": "",
+                               "platform": "MikroTik", "caps": ["router"]},
+                              {"local_port": "ether2", "remote_name": "R-NODO-C", "remote_port": "ether1", "remote_ip": "", "mac": "",
                                "platform": "MikroTik", "caps": ["router"]}])
+    c_.neighbors = json.dumps([{"local_port": "ether1", "remote_name": "R-NODO-A", "remote_port": "ether2", "remote_ip": "", "mac": "",
+                                "platform": "MikroTik", "caps": ["router"]}])
     b_.neighbors = json.dumps([{"local_port": "ether1", "remote_name": "R-NODO-A", "remote_port": "ether1", "remote_ip": "", "mac": "",
                                 "platform": "MikroTik", "caps": ["router"]}])
     db.commit()
@@ -70,7 +75,14 @@ check("mapa: filtro «Nodo» con «Todos»", "Nodo: Todos" in t and "Nodo: Nodo 
 t = adm.get(B + f"/topology?node={nq}").text
 m = re.search(r"const NODES = (\[.*?\]), LINKS", t, re.S)
 labels = {n["label"] for n in json.loads(m.group(1))} if m else set()
-check("mapa con un nodo: solo sus equipos (y sus vecinos)", "R-NODO-A" in labels and "R-SIN-NODO" not in labels, labels)
+check("mapa con un nodo: solo sus equipos", {"R-NODO-A", "R-NODO-C"} <= labels and "R-SIN-NODO" not in labels, labels)
+# R-NODO-B es vecino de R-NODO-A pero está en otro nodo: antes salía como vecino «que no está en OpenNCCM»
+check("mapa con un nodo: el vecino de OpenNCCM de otro nodo no sale", "R-NODO-B" not in labels, labels)
+
+t = adm.get(B + "/topology").text
+m = re.search(r"const NODES = (\[.*?\]), LINKS", t, re.S)
+labels = {n["label"] for n in json.loads(m.group(1))} if m else set()
+check("mapa con «Todos»: también el del otro nodo", {"R-NODO-A", "R-NODO-B", "R-NODO-C"} <= labels, labels)
 
 # ---------------------------------------------------------------- distribución
 mm = re.search(r"const MODES = (\[.*?\]);", t, re.S)

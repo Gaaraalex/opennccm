@@ -1524,6 +1524,18 @@ def topology_page(request: Request, group: int = 0, node: int = 0):
         hosts = [d.host.lower() for d in devs]
         by_ip = {d.host.lower(): d for d in devs if hosts.count(d.host.lower()) == 1}  # solo IP que no se repiten
         by_name = {topology.norm_name(d.name): d for d in devs}
+        # Con el filtro de nodo, los equipos de OpenNCCM de otros nodos no salen: antes aparecían como vecinos «que no
+        # están en OpenNCCM» (con «Agregar a OpenNCCM»).
+        out_name, out_ip = set(), set()
+        if node:
+            mine = {d.id for d in devs}
+            for d in db.scalars(select(Device)):
+                if d.id not in mine and (scope is None or d.id in scope):
+                    out_name.add(topology.norm_name(d.name))
+                    out_ip.add(d.host.lower())
+
+        def outside(name, ip=""):
+            return bool(node) and ((bool(name) and topology.norm_name(name) in out_name) or (bool(ip) and ip.lower() in out_ip))
         nodes = {f"d{d.id}": {"id": f"d{d.id}", "label": d.name, "kind": "dev", "status": d.last_status,
                               "href": f"/devices/{d.id}", "sub": d.host, "ip": d.host,
                               "fam": topology.VENDOR_FAMILY.get(get_profile(d.device_type).vendor, "other")}
@@ -1559,6 +1571,8 @@ def topology_page(request: Request, group: int = 0, node: int = 0):
                 # primero por nombre (el que anuncia el vecino), luego por IP
                 t = by_name.get(topology.norm_name(n.get("remote_name"))) or by_ip.get((n.get("remote_ip") or "").lower())
                 if t is not None and t.id == d.id:
+                    continue
+                if t is None and outside(n.get("remote_name"), n.get("remote_ip") or ""):
                     continue
                 if t is not None:
                     other = f"d{t.id}"
@@ -1630,6 +1644,8 @@ def topology_page(request: Request, group: int = 0, node: int = 0):
                 t = by_name.get(topology.norm_name(x.get("remote_name")))
                 if t is not None:
                     return f"d{t.id}"
+                if outside(x.get("remote_name")):
+                    return None
                 key = topology.norm_name(x.get("remote_name")) or x.get("mac")
                 nid = f"u:{key}"
                 if nid not in nodes:
@@ -1643,7 +1659,7 @@ def topology_page(request: Request, group: int = 0, node: int = 0):
             other = node_of(n)
             prev = by_mac.get(n.get("via")) if n.get("via") else None
             src = node_of(prev) if prev else f"d{d.id}"
-            if src == other:
+            if other is None or src is None or src == other:
                 continue
             a, b = sorted([src, other])
             if (a, b) in edges:  # ya hay un enlace con puertos (LLDP/CDP) o RoMON visto desde otro equipo
@@ -1682,6 +1698,8 @@ def topology_page(request: Request, group: int = 0, node: int = 0):
         if nid == me or me not in nodes:
             continue
         if nid not in nodes:
+            if outside(x["name"], x.get("ip") or ""):  # equipo de OpenNCCM de otro nodo
+                continue
             nid = f"x:{x['key']}"
             nodes[nid] = {"id": nid, "label": x["name"], "kind": "lost", "sub": x.get("ip") or x.get("mac") or "",
                           "fam": "mikrotik" if x["romon"] else "other", "role": "unknown", "how": ""}
