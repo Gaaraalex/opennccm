@@ -85,7 +85,7 @@ class Graph:
                 self.adj.setdefault(a, set()).add(b)
                 self.adj.setdefault(b, set()).add(a)
         for d in devs:
-            self.nodes[f"d{d.id}"]["role"] = topology.device_role(d.device_type, d.model, caps.get(d.id))[0]
+            self.nodes[f"d{d.id}"]["role"] = topology.device_role(d.device_type, d.model, caps.get(d.id), d.ports, d.map_role)[0]
         self.age: datetime | None = min(ages) if ages else None
 
     def _adj_without(self, cut: set[tuple[str, str]]) -> dict[str, set[str]]:

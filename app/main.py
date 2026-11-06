@@ -746,6 +746,9 @@ def _apply_device_form(dev: Device, form):
     dev.group_id = int(form["group_id"]) if form.get("group_id") else None
     if "node_id" in form:  # formularios sin el campo (importar…) no lo tocan
         dev.node_id = int(form["node_id"]) if (form.get("node_id") or "").isdigit() else None
+    if "map_role" in form:  # tipo en el mapa corregido a mano (vacío: el automático)
+        from .topology import MAP_ROLES
+        dev.map_role = form["map_role"] if form["map_role"] in MAP_ROLES else None
     dev.location = form.get("location") or None
     dev.notes = form.get("notes") or None
     dev.enabled = form.get("enabled") == "on"
@@ -1493,6 +1496,10 @@ def _topo_role_how(role: str, by: str, caps: list[str]) -> str:
         return _f("Capacidad anunciada: {0}.", ", ".join(caps))
     if by in ("model", "type"):
         return _("Tipo por su modelo o plataforma.")
+    if by == "manual":
+        return _("Tipo elegido a mano por un administrador.")
+    if by == "radio":
+        return _("Inalámbrico: tiene una interfaz wlan o wifi activa.")
     return _("No anuncia qué tipo de equipo es.")
 
 
@@ -1666,7 +1673,7 @@ def topology_page(request: Request, group: int = 0, node: int = 0):
                 continue
             edges[(a, b)] = [{"a": a, "b": b, "pa": "", "pb": "", "k": f"{a}|{b}|romon", "air": False, "romon": True}]
     for d in devs:  # tipo de los equipos de OpenNCCM: modelo, perfil o lo que anuncian a sus vecinos
-        role, rby = topology.device_role(d.device_type, d.model, seen_caps.get(d.id))
+        role, rby = topology.device_role(d.device_type, d.model, seen_caps.get(d.id), d.ports, d.map_role)
         nodes[f"d{d.id}"].update(role=role, how=_f("Es un equipo de OpenNCCM: {0}{1}.", get_profile(d.device_type).label,
                                                    (", " + d.model) if d.model else "")
                                  + " " + _topo_role_how(role, rby, sorted(set(seen_caps.get(d.id) or []))))

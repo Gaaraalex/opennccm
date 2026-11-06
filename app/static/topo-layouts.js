@@ -67,6 +67,35 @@
     const xs = ids.map(i => pos[i].x), ys = ids.map(i => pos[i].y);
     return {x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys)};
   }
+  // que la distribución llene el recuadro del mapa: se separan las posiciones en el eje que sobra (hasta 3 veces), nunca se
+  // achica el texto. Los dibujos de fondo (filas, anillos) se mueven igual.
+  function fill(out, opt) {
+    const ids = Object.keys(out.pos).filter(id => !out.hideN.has(id));
+    if (ids.length < 2 || !opt.W) return out;
+    const b = bounds(ids, out.pos), w = Math.max(b.x1 - b.x0, 1), h = Math.max(b.y1 - b.y0, 1);
+    const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+    // espacio libre para los centros de los equipos: el recuadro menos botones, nombres y franja del pie
+    const AW = opt.W - 84 - 2 * 110, AH = opt.H - 56 - 12 - 2 * 62;
+    let fx = w < AW ? Math.min(3, AW / w) : 1, fy = h < AH ? Math.min(3, AH / h) : 1;
+    if (opt.shrink) {  // libre: las distancias son arbitrarias; cada eje se ajusta al recuadro (se acercan hasta 0,6)
+      const cl = v => Math.max(0.6, Math.min(1.6, v));
+      fx = w < 60 ? 1 : cl(AW / w); fy = h < 60 ? 1 : cl(AH / h);
+    }
+    // se mantiene la forma: el eje que ya llena el recuadro manda (el otro crece igual o hasta llenar el suyo)
+    const f = Math.min(fx, fy);
+    if (!opt.shrink && !(fx < 1)) fx = w >= AW ? 1 : (h < 60 ? fx : Math.max(f, Math.min(fx, f * 1.6)));
+    if (!opt.shrink && !(fy < 1)) fy = h >= AH ? 1 : (w < 60 || opt.rows ? fy : Math.max(f, Math.min(fy, f * 1.6)));  // los árboles por filas pueden separar sus filas
+    if (h < 60) fy = 1;  // una sola fila: no hay nada que separar en alto
+    if (w < 60) fx = 1;
+    if (fx === 1 && fy === 1) return out;
+    const X = x => cx + (x - cx) * fx, Y = y => cy + (y - cy) * fy;
+    Object.values(out.pos).forEach(p => { p.x = X(p.x); p.y = Y(p.y); });
+    (out.decor || []).forEach(d => {
+      if (d.t === 'text') { d.y = Y(d.y); if (d.anchor !== 'end') d.x = X(d.x); else d.x = X(d.x + 110) - 110; }
+      else if (d.t === 'ellipse') { d.cx = X(d.cx); d.cy = Y(d.cy); d.rx *= fx; d.ry *= fy; }
+    });
+    return out;
+  }
   // las redes sueltas (sin enlace con la principal) se ponen debajo, cada una como árbol pequeño
   function placeRest(rest, G, byId, pos, below, center) {
     let x = below.x0, y = below.y1 + 170, rowH = 0;
@@ -96,7 +125,7 @@
         t.kids[x] = foldOpen.has(x) ? full.kids[x].slice() : []; });
       allow = vis;
     }
-    const RH = 140, td = tidy(t, foldOpen ? 160 : 100), pos = {};
+    const RH = 140, td = tidy(t, foldOpen ? 132 : 100), pos = {};
     t.order.forEach(x => { pos[x] = {x: td.at[x], y: t.depth[x] * RH, lab: 'below', sc: 1}; });
     // fila apretada: los equipos en posición impar bajan para que los nombres no se pisen
     const rows = {};
@@ -233,14 +262,26 @@
     const keys = Object.keys(groups).sort((a, b) => groups[b].length - groups[a].length || String(s.disp[a]).localeCompare(s.disp[b]));
     const pos = {}, decor = [], box = {};
     let x = 0, y = 0, rowH = 0;
-    const MAXW = 1500, CW = 170, CH = 116;
+    const MAXW = Math.max(900, (opt.W || 1500) - 80);
     keys.forEach(k => {
-      const ids = groups[k], cols = Math.max(1, Math.min(4, Math.ceil(Math.sqrt(ids.length * 1.6)))), rows = Math.ceil(ids.length / cols);
-      const w = cols * CW + 40, h = rows * CH + 60;
+      const ids = groups[k], hub = central(ids, G.deg, byId);
+      // el central al medio y los demás en un anillo (en el orden del árbol, para que los enlazados queden juntos); cada
+      // uno necesita unos 150 px de anillo
+      const t = bfs(hub, G.adj, new Set(ids)), ring = t.order.concat(ids.filter(i => !t.order.includes(i))).filter(i => i !== hub);
+      // con 1 o 2 alrededor van a los lados del central (en fila); con más, en un anillo
+      const n = ring.length, flat = n <= 2, R = flat ? 0 : Math.max(105, n * 150 / (2 * Math.PI)), RX = flat ? 170 : R * 1.25;
+      const w = Math.max(220, 2 * RX + 190), h = n && !flat ? 2 * R + 170 : 150;
       if (x > 0 && x + w > MAXW) { x = 0; y += rowH + 70; rowH = 0; }
-      // dentro del sitio: el árbol por saltos ordena a los equipos para que los enlazados queden cerca
-      const t = bfs(central(ids, G.deg, byId), G.adj, new Set(ids)), ord = t.order.concat(ids.filter(i => !t.order.includes(i)));
-      ord.forEach((id, i) => { pos[id] = {x: x + 20 + CW / 2 + (i % cols) * CW, y: y + 64 + Math.floor(i / cols) * CH, lab: 'below', sc: 1}; });
+      const cx = x + w / 2, cy = y + 60 + (h - 60) / 2 - 10;
+      if (n === 1) {  // dos equipos: uno al lado del otro
+        pos[hub] = {x: cx - RX / 2, y: cy, lab: 'below', sc: 1}; pos[ring[0]] = {x: cx + RX / 2, y: cy, lab: 'below', sc: 1};
+      } else if (n === 2) {  // tres: el central entre los otros dos
+        pos[hub] = {x: cx, y: cy, lab: 'below', sc: 1.15};
+        pos[ring[0]] = {x: cx - RX, y: cy, lab: 'below', sc: 1}; pos[ring[1]] = {x: cx + RX, y: cy, lab: 'below', sc: 1};
+      } else {
+        pos[hub] = {x: cx, y: cy, lab: 'below', sc: n ? 1.15 : 1};
+        ring.forEach((id, i) => { const a = 2 * Math.PI * i / n - Math.PI / 2; pos[id] = {x: cx + Math.cos(a) * RX, y: cy + Math.sin(a) * R, lab: 'below', sc: 1}; });
+      }
       box[k] = {x, y, w, h};
       decor.push({t: 'rect', cls: 'lay-site', x, y, w, h, rx: 14});
       decor.push({t: 'text', cls: 'lay-site-t', x: x + 16, y: y + 24, txt: s.disp[k], site: k});
@@ -265,7 +306,25 @@
       decor.push({t: 'line', cls: 'lay-agg', x1: p[0], y1: p[1], x2: q[0], y2: q[1], w: 1.5 + Math.min(n, 8) * 0.9});
       decor.push({t: 'pill', x: (p[0] + q[0]) / 2, y: (p[1] + q[1]) / 2, txt: n === 1 ? opt.T.link1 : opt.T.links.replace('{0}', n)});
     });
-    return {pos, decor, route: 'line', tree: null, hideN: new Set(), hideE, site: s};
+    // dentro de un sitio, un enlace que pasaría por detrás de otro equipo va curvo, hacia el lado contrario a ese equipo
+    const bend = {};
+    links.forEach(e => {
+      if (hideE.has(ek(e)) || !pos[e.a] || !pos[e.b]) return;
+      const A = pos[e.a], B = pos[e.b], dx = B.x - A.x, dy = B.y - A.y, L2 = dx * dx + dy * dy || 1;
+      let hit = null;
+      nodes.forEach(m => {
+        if (m.id === e.a || m.id === e.b || !pos[m.id]) return;
+        const P = pos[m.id], u = ((P.x - A.x) * dx + (P.y - A.y) * dy) / L2;
+        if (u <= 0.05 || u >= 0.95) return;
+        const qx = A.x + u * dx - P.x, qy = A.y + u * dy - P.y;
+        if (Math.hypot(qx, qy) < 40 && !hit) hit = {qx, qy};
+      });
+      if (hit) {  // lado: el del vector que va del equipo tapado a la línea (si está justo encima, cualquiera)
+        const L = Math.sqrt(L2), nx = -dy / L, ny = dx / L, side = (hit.qx * nx + hit.qy * ny) >= 0 ? 1 : -1;
+        bend[ek(e)] = side * 70;
+      }
+    });
+    return {pos, decor, route: 'line', tree: null, hideN: new Set(), hideE, site: s, bend};
   }
 
   // 1: libre (fuerzas, la de siempre: la calcula topology.html) y un paso final que separa los nombres que se pisan
@@ -288,9 +347,11 @@
 
   // 9: sobre un plano (posiciones guardadas en fracciones del plano); los que no tienen esperan en una bandeja
   function plan(nodes, links, G, byId, opt) {
-    const P = opt.plan || {}, PW = 1600, PH = P.w && P.h ? PW * P.h / P.w : 1000, pos = {}, decor = [], tray = [];
+    const P = opt.plan || {}, VW = opt.W || 1500, VH = opt.H || 700, pos = {}, decor = [], tray = [];
+    const anyTray = nodes.some(n => !(P.pos || {})[n.id]), AW = Math.max(600, VW - 90 - (anyTray ? 400 : 0)), AH = Math.max(400, VH - 170);
+    let PW = AW, PH = P.w && P.h ? AW * P.h / P.w : AH;
+    if (PH > AH) { PW = PW * AH / PH; PH = AH; }
     decor.push(P.url ? {t: 'image', href: P.url, x: 0, y: 0, w: PW, h: PH} : {t: 'rect', cls: 'lay-plan', x: 0, y: 0, w: PW, h: PH, rx: 8});
-    if (!P.url) decor.push({t: 'text', cls: 'lay-plan-t', x: PW / 2, y: PH / 2, txt: opt.T.noplan, anchor: 'middle'});
     nodes.forEach(n => {
       const p = (P.pos || {})[n.id];
       if (p) pos[n.id] = {x: p[0] * PW, y: p[1] * PH, lab: 'below', sc: 1}; else tray.push(n.id);
@@ -305,7 +366,7 @@
       const ts = new Set(tray);
       links.forEach(e => { if (ts.has(e.a) || ts.has(e.b)) hideE.add(ek(e)); });
     }
-    return {pos, decor, route: 'line', tree: null, hideN: new Set(), hideE, plan: {w: PW, h: PH, tray: tray.length}};
+    return {pos, decor, route: 'line', tree: null, hideN: new Set(), hideE, plan: {w: PW, h: PH, tray: tray.length, none: !P.url}};
   }
 
   function compute(mode, nodes, links, opt) {
@@ -313,10 +374,11 @@
     nodes.forEach(n => { byId[n.id] = n; });
     const base = {decor: [], route: 'line', tree: null, hideN: new Set(), hideE: new Set()};
     if (!nodes.length) return Object.assign(base, {pos: {}});
-    if (mode === 'down') return down(nodes, links, G, byId, opt, null);
-    if (mode === 'fold') return down(nodes, links, G, byId, opt, opt.foldOpen || new Set());
+    const rows = Object.assign({}, opt, {rows: true});
+    if (mode === 'down') return fill(down(nodes, links, G, byId, opt, null), rows);
+    if (mode === 'fold') return fill(down(nodes, links, G, byId, opt, opt.foldOpen || new Set()), rows);
     if (mode === 'right') return right(nodes, links, G, byId, opt);
-    if (mode === 'radial') return radial(nodes, links, G, byId, opt);
+    if (mode === 'radial') return fill(radial(nodes, links, G, byId, opt), opt);
     if (mode === 'sites') return sites(nodes, links, G, byId, opt);
     if (mode === 'roles') return roles(nodes, links, G, byId, opt);
     if (mode === 'circle') return circle(nodes, links, G, byId, opt);
@@ -324,7 +386,7 @@
     // free y mine: posiciones que vienen de fuera (fuerzas o lo guardado)
     const pos = {};
     nodes.forEach(n => { pos[n.id] = {x: n.fx, y: n.fy, lab: 'below', sc: 1}; });
-    if (mode === 'free') separate(nodes, pos);
+    if (mode === 'free') { const o = fill(Object.assign(base, {pos}), Object.assign({}, opt, {shrink: true})); separate(nodes, o.pos); return o; }
     if (mode === 'mine') {
       const M = opt.mine || {};
       nodes.forEach(n => { const p = M[n.id]; if (p) { pos[n.id].x = p[0]; pos[n.id].y = p[1]; pos[n.id].pin = true; } });
@@ -333,7 +395,11 @@
   }
 
   // trazo de un enlace según la distribución (a y b con x, y, lab y el ancho del nombre)
-  function path(route, a, b, inTree, ctr) {
+  function path(route, a, b, inTree, ctr, bend) {
+    if (bend) {
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
+      return `M${a.x},${a.y}Q${mx - dy / d * bend * 2},${my + dx / d * bend * 2} ${b.x},${b.y}`;
+    }
     if (route === 'down' && inTree) {
       const [p, c] = a.y <= b.y ? [a, b] : [b, a], my = p.y + (c.y - p.y) / 2;
       return `M${p.x},${p.y}V${my}H${c.x}V${c.y}`;

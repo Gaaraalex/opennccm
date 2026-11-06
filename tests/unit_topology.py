@@ -321,5 +321,16 @@ check("VOSS: vecinos LLDP con puerto, nombre, IP, MAC y modelo", len(v) == 2 and
       and v[0]["mac"] == "0C:BC:CB:05:00:00" and v[0]["platform"].startswith("5520-24T") and v[0].get("caps") == ["bridge", "router"], v)
 check("VOSS: «show lldp neighbor» se lee en cada respaldo", "show lldp neighbor" in __import__("app.topology", fromlist=["x"]).commands("extreme_vsp"))
 
+# tipo en el mapa (Diseño UX): placas inalámbricas de MikroTik, wlan/wifi activa y el tipo elegido a mano
+import json as _json  # noqa: E402
+check("RB911 / RB912: antena, no router", role_why("MikroTik RB911G-5HPnD")[0] == "ap" and role_why("RB912UAG-5HPnD")[0] == "ap"
+      and role_why("MikroTik RB4011iGS+")[0] == "router")
+_wl = _json.dumps({"ports": [{"n": "ether1", "s": "up"}, {"n": "wlan1", "s": "up"}]})
+_off = _json.dumps({"ports": [{"n": "ether1", "s": "up"}, {"n": "wlan1", "s": "off"}]})
+check("MikroTik con wlan activa: inalámbrico", device_role("mikrotik_routeros", "RB4011iGS+", None, _wl) == ("ap", "radio"))
+check("MikroTik con la wlan apagada: sigue router", device_role("mikrotik_routeros", "RB4011iGS+", None, _off)[0] == "router")
+check("el tipo elegido a mano manda", device_role("mikrotik_routeros", "CRS326", None, _wl, "router") == ("router", "manual")
+      and device_role("cisco_ios", "", manual="nada")[1] != "manual")
+
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)

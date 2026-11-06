@@ -5,7 +5,7 @@
    discontinuo y se pueden agregar. La posición se calcula en el navegador (fuerzas) y se puede arrastrar; rueda = zoom. #}
 <style>
   .topo-wrap{position:relative;display:flex;height:min(72vh,760px);border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);overflow:hidden;touch-action:none}
-  #tsvg{flex:1;min-width:0;height:100%;display:block;cursor:grab}#tsvg.drag{cursor:grabbing}
+  #tsvg{flex:1;min-width:0;height:100%;display:block;cursor:grab;user-select:none;-webkit-user-select:none}#tsvg.drag{cursor:grabbing}
   .topo-wrap,.topo-chips{--v-mikrotik:#ff8f6b;--v-cisco:#4cc3f0;--v-ubiquiti:#d4dbe8;--v-juniper:#5fd3a3;--v-huawei:#ff6f86;
     --v-aruba:#f5b83d;--v-extreme:#b98cff;--v-other:#5b6782;--v-edge:var(--line)}
   :root[data-theme="oscuro"] .topo-wrap,:root[data-theme="oscuro"] .topo-chips{--v-edge:transparent}
@@ -16,10 +16,10 @@
   .topo-edge.xtra{stroke-dasharray:3 5;opacity:.7}
   /* distribución del mapa (static/topo-layouts.js) */
   .lay-hide{display:none!important}
-  .lay-row,.lay-col{font:700 10.5px var(--f-sans);letter-spacing:.08em;fill:var(--muted)}
+  .lay-row,.lay-col{font:700 11.5px var(--f-sans);letter-spacing:.08em;fill:var(--muted);paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round}
   .lay-ring{fill:none;stroke:var(--line);stroke-dasharray:3 6;opacity:.8}
   .lay-site{fill:color-mix(in srgb,var(--surface-2) 70%,transparent);stroke:var(--line-strong);stroke-width:1}
-  .lay-site-t{font:700 13px var(--f-sans);fill:var(--ink)}.lay-site-t.edit{cursor:pointer;text-decoration:underline dotted}
+  .lay-site-t{font:700 13px var(--f-sans);fill:var(--ink);paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round}.lay-site-t.edit{cursor:pointer;text-decoration:underline dotted}
   .lay-site-n{font:400 11.5px var(--f-sans);fill:var(--muted)}
   .lay-agg{stroke:var(--brand);opacity:.55;stroke-linecap:round}
   .lay-pill rect{fill:var(--surface);stroke:var(--brand);stroke-width:1}.lay-pill text{font:600 11px var(--f-sans);fill:var(--brand)}
@@ -31,15 +31,18 @@
   .lay-btn{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);color:var(--ink);font:500 13px var(--f-sans);cursor:pointer}
   .lay-menu{position:absolute;left:0;top:40px;width:340px;max-height:calc(min(72vh,760px) - 66px);overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh-pop);padding:10px;display:flex;flex-direction:column;gap:2px}
   .lay-menu hr{border:0;border-top:1px solid var(--line);margin:8px 0}
-  .lay-opt{display:grid;grid-template-columns:22px 1fr auto;gap:0 10px;align-items:center;text-align:left;padding:5px 10px;border:0;border-radius:var(--r-md);background:none;color:var(--ink);cursor:pointer;font:inherit}
+  .lay-opt{width:100%;box-sizing:border-box;display:grid;grid-template-columns:22px minmax(0,1fr) 22px;gap:0 10px;align-items:center;text-align:left;padding:5px 10px;border:0;border-radius:var(--r-md);background:none;color:var(--ink);cursor:pointer;font:inherit}
   .lay-opt:hover{background:var(--surface-2)}.lay-opt.on{background:var(--brand-soft);color:var(--brand-strong)}
-  .lay-opt b{font:600 13.5px var(--f-sans)}.lay-opt small{grid-column:2;color:var(--muted);font-size:12px}.lay-opt kbd{grid-row:1/3;grid-column:3;font:600 11px var(--f-mono);color:var(--muted)}
+  .lay-opt b{font:600 13.5px var(--f-sans)}.lay-opt small{grid-column:2;color:var(--muted);font-size:12px}.lay-opt kbd{grid-row:1/3;grid-column:3;justify-self:end;text-align:right;font:600 11px var(--f-mono);color:var(--muted)}
+  .lay-opt b{grid-column:2;grid-row:1}
   .lay-opt .ico{grid-row:1/3}
   .lay-menu .field{display:flex;flex-direction:column;gap:4px;margin:4px 0}
   .lay-bar{position:absolute;right:12px;top:12px;z-index:3;display:flex;align-items:center;gap:8px;flex-wrap:wrap;max-width:calc(100% - 420px);padding:8px 10px;background:var(--surface);border:1px solid var(--warn);border-radius:var(--r-md);box-shadow:var(--sh-1);font-size:13px}
   .topo-wrap.side-open .lay-bar{right:332px}
-  .lay-foot{display:flex;align-items:center;gap:10px;margin-top:8px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);font-size:13px;color:var(--ink-2)}
-  .lay-foot b{color:var(--ink);white-space:nowrap}
+  .lay-foot{position:absolute;left:0;right:0;bottom:0;z-index:2;display:flex;align-items:center;gap:10px;min-height:44px;box-sizing:border-box;padding:6px 12px;border-top:1px solid var(--line);background:var(--surface);font-size:13px;color:var(--ink-2)}
+  .lay-foot b{color:var(--ink);white-space:nowrap}.lay-foot #tlay-fx{min-width:0}
+  .topo-wrap.side-open .lay-foot{right:320px}
+  .lay-noplan{position:absolute;left:50%;top:45%;transform:translate(-50%,-50%);z-index:2;max-width:420px;padding:14px 18px;border:1px dashed var(--line-strong);border-radius:var(--r-lg);background:var(--surface);font-size:14px;line-height:20px;color:var(--ink-2);text-align:center}
   .lay-pop{position:absolute;z-index:4;display:flex;gap:6px;padding:8px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--sh-pop)}
   .topo-port{pointer-events:none;display:none}.topo-port.show{display:inline}
   .topo-port rect{fill:var(--surface);stroke:var(--line);stroke-width:1}.topo-port text{font:500 11px var(--f-mono);fill:var(--ink-2)}
@@ -51,8 +54,9 @@
   .topo-node.sel .halo,.topo-node.sel .halo2,.topo-node:focus-visible .halo2{display:inline}
   .topo-node .lgo-bg{fill:var(--surface)}.topo-node .lgo-edge{fill:none;stroke:var(--v-edge);stroke-width:1}
   .topo-node .eb{fill:var(--crit);stroke:var(--surface);stroke-width:2}.topo-node .eb-t{font:700 11px var(--f-sans);fill:var(--on-crit)}
-  .topo-node .name{font:600 12px var(--f-sans);fill:var(--ink);pointer-events:none;paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
-  .topo-node .sub{font:400 10.5px var(--f-mono);fill:var(--muted);pointer-events:none}
+  .topo-node .name{font:600 12px var(--f-sans);fill:var(--ink);pointer-events:none;paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round}
+  .topo-node .lbg{fill:var(--surface);opacity:.92;pointer-events:none}
+  .topo-node .sub{font:400 11.5px var(--f-mono);fill:var(--muted);pointer-events:none;paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round}
   .topo-node.dim,.topo-node.vdim{opacity:.25}.topo-node.hit .ring{stroke-width:4}
   /* «¿Qué se cae?» (app/impact.py): rojo aislado, ámbar router o sucursal, verde sigue por otro camino */
   .topo-node.imp-sub .ring{fill:var(--crit-soft);stroke:var(--crit);stroke-width:4}.topo-node.imp-red .ring{fill:var(--crit-soft);stroke:var(--crit);stroke-width:3}
@@ -75,7 +79,7 @@
   .nb-feed{display:flex;flex-direction:column;gap:2px;margin:0;padding:0;list-style:none}
   .nb-feed a{display:flex;gap:10px;align-items:flex-start;padding:8px;border-radius:var(--r-md);color:var(--ink);text-decoration:none}
   .nb-feed a:hover{background:var(--surface-2)}.nb-feed .t{font-size:12px;color:var(--muted)}
-  .topo-legend-f{position:absolute;left:12px;bottom:12px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;max-width:calc(100% - 24px);padding:8px 12px;border-radius:var(--r-md);background:color-mix(in srgb,var(--surface) 90%,transparent);border:1px solid var(--line);font-size:12px;color:var(--ink-2)}
+  .topo-legend-f{position:absolute;left:12px;bottom:56px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;max-width:calc(100% - 24px);padding:8px 12px;border-radius:var(--r-md);background:color-mix(in srgb,var(--surface) 90%,transparent);border:1px solid var(--line);font-size:12px;color:var(--ink-2)}
   .topo-legend-f i{display:inline-block;width:12px;height:12px;border-radius:50%;border:2px solid;vertical-align:-2px;margin-right:6px}
   .topo-pill{font:500 12px var(--f-sans);padding:3px 10px;border-radius:99px;background:var(--surface-2);color:var(--ink)}
   .topo-pill.ok{background:var(--ok-soft);color:var(--ok)}.topo-pill.error{background:var(--crit-soft);color:var(--crit)}.topo-pill.new{background:var(--brand-soft);color:var(--brand-strong)}
@@ -88,12 +92,13 @@
   .topo-wrap.side-open .topo-side{width:320px;border-left-color:var(--line)}
   .topo-side-in{width:320px;height:100%;box-sizing:border-box;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
   .topo-wrap.side-open .topo-legend-f{max-width:calc(100% - 344px)}
+  .topo-wrap.leg-off .topo-legend-f{display:none}
   @media (max-width:899px){
     .topo-wrap{flex-direction:column}
     .topo-side{width:auto;height:0;border-left:0;border-top:1px solid transparent;transition:height .2s ease,border-color .2s ease}
     .topo-wrap.side-open .topo-side{width:auto;height:46%;border-top-color:var(--line)}
     .topo-side-in{width:auto}
-    .topo-wrap.side-open .topo-legend-f{display:none}
+    .topo-wrap.side-open .topo-legend-f,.topo-wrap.side-open .lay-foot{display:none}
   }
   .topo-wrap:fullscreen{height:100vh;border-radius:0}
   .topo-ctl{position:absolute;left:12px;top:12px;display:flex;flex-direction:column;gap:4px}
@@ -142,9 +147,11 @@
     {% if nodes|selectattr('chg', 'defined')|list %}<span class="nb-leg"><i style="border-color:var(--warn);box-shadow:0 0 0 3px color-mix(in srgb,var(--warn) 30%,transparent)"></i>{{ _('Nuevo desde ayer') }}</span>
     <span class="nb-leg"><i style="border-color:var(--crit);border-style:dashed"></i>{{ _('Perdido: ya no se ve') }}</span>{% endif %}
     {% if links|selectattr('romon')|list %}<span><svg width="26" height="8" aria-hidden="true" style="margin-right:6px;vertical-align:1px"><line x1="0" y1="4" x2="26" y2="4" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2 5" stroke-linecap="round"/></svg>{{ _('Por RoMON (sin puerto)') }}</span>{% endif %}</div>
+  <div class="lay-noplan" id="tlay-np" hidden>{{ _('Todavía no hay un plano: un administrador lo sube abajo, en «Subir plano».') }}</div>
+  <div class="lay-foot" id="tlay-foot"><span id="tlay-fi"></span><b id="tlay-fn"></b><span class="grow" id="tlay-fx"></span>
+    {% if user.role == 'admin' %}<label class="btn s" id="tlay-up" hidden>{{ icon('ul', 's') }}{{ _('Subir plano') }}<input type="file" accept="image/png,image/jpeg" hidden></label>{% endif %}
+    <button type="button" class="btn s ghost" id="tleg" aria-pressed="true">{{ _('Leyenda') }}</button></div>
   <aside class="topo-side" id="tside" aria-label="{{ _('Detalle del equipo') }}" inert><div class="topo-side-in" id="tside-in"></div></aside></div>
-<div class="lay-foot" id="tlay-foot"><span id="tlay-fi"></span><b id="tlay-fn"></b><span class="grow" id="tlay-fx"></span>
-  {% if user.role == 'admin' %}<label class="btn s" id="tlay-up" hidden>{{ icon('ul', 's') }}{{ _('Subir plano') }}<input type="file" accept="image/png,image/jpeg" hidden></label>{% endif %}</div>
 <details style="margin-top:14px"><summary class="sm">{{ _f('Lista de enlaces ({0})', links|length) }}</summary>
   <div class="tw"><table class="t"><thead><tr><th>{{ _('Equipo') }}</th><th>{{ _('Puerto') }}</th><th>{{ _('Vecino') }}</th><th>{{ _('Puerto') }}</th></tr></thead><tbody data-pager>
   {% for e in links %}<tr><td>{{ labels[e.a] }}</td><td class="mono">{{ e.pa or '—' }}</td><td>{{ labels[e.b] }}</td><td class="mono">{{ e.pb or '—' }}</td></tr>{% endfor %}</tbody></table></div></details>
@@ -276,8 +283,9 @@
       mk('rect', {class: 'lgo-edge', x: 11, y: 9, width: 22, height: 22, rx: 6}, ig);
       if (st(n) === 'error') { mk('circle', {class: 'eb', cx: -21, cy: -21, r: 10}, ig);
         const x = mk('text', {class: 'eb-t', x: -21, y: -17, 'text-anchor': 'middle'}, ig); x.textContent = '!'; }
+      g.lbg = mk('rect', {class: 'lbg', rx: 4}, g);  // fondo del nombre y la IP: ninguna línea los cruza
       const t = mk('text', {class: 'name', 'text-anchor': 'middle', dy: '44'}, g); t.textContent = n.label;
-      const s = mk('text', {class: 'sub', 'text-anchor': 'middle', dy: '57'}, g); s.textContent = n.sub || '';
+      const s = mk('text', {class: 'sub', 'text-anchor': 'middle', dy: '59'}, g); s.textContent = n.sub || '';
       g.nameEl = t; g.subEl = s;
       g.pinEl = mk('circle', {class: 'pin', cx: -20, cy: -20, r: 5, style: 'display:none'}, g);
       const fp = mk('g', {class: 'fold', style: 'display:none'}, g), fr = mk('rect', {x: -64, y: -10, width: 34, height: 20, rx: 10}, fp);
@@ -336,9 +344,13 @@
       g.subEl.setAttribute('text-anchor', side ? (lab === 'right' ? 'start' : 'end') : 'middle');
       const r = 38 * sc, nx = lab === 'right' ? r : lab === 'left' ? -r : 0, off = (sc - 1) * 26;
       g.nameEl.setAttribute('x', nx); g.subEl.setAttribute('x', nx);
-      g.nameEl.setAttribute('dy', side ? '-1' : lab === 'above' ? String(-48 - off) : String(44 + off));
-      g.subEl.setAttribute('dy', side ? '13' : lab === 'above' ? String(-35 - off) : String(57 + off));
+      g.nameEl.setAttribute('dy', side ? '-2' : lab === 'above' ? String(-50 - off) : String(44 + off));
+      g.subEl.setAttribute('dy', side ? '14' : lab === 'above' ? String(-35 - off) : String(59 + off));
       g.subEl.textContent = PREF.sub === 'none' ? '' : PREF.sub === 'ip' ? (n.ip || '') : (n.mac || n.sub || '');
+      const sl = g.subEl.textContent.length, bw = Math.max(String(n.label || '').length * 7.2, sl * 7) + 8;
+      const ny = side ? -15 : lab === 'above' ? -63 - off : 31 + off, bh = sl ? 37 : 18;
+      g.lbg.setAttribute('x', side ? (lab === 'right' ? nx - 4 : nx - bw + 4) : -bw / 2);
+      g.lbg.setAttribute('y', lab === 'above' && !sl ? ny + 17 : ny); g.lbg.setAttribute('width', bw); g.lbg.setAttribute('height', bh);
       g.pinEl.style.display = n.pin ? '' : 'none';
       const f = LAY && LAY.fold && LAY.fold[n.id];
       g.foldEl.style.display = f ? '' : 'none';
@@ -358,14 +370,15 @@
     const ctr = LAY && LAY.route === 'center' ? {x: 0, y: 0} : null;
     // el enlace perdido va como curva aparte: los dos equipos pueden seguir unidos por otro puerto y no debe taparlo
     if (e.chg === 'lost') return window.TopoLayouts.path('down', a, b, false, ctr);
-    return window.TopoLayouts.path(LAY ? LAY.route : 'line', a, b, !!(LAY && LAY.tree && LAY.tree.has(e.a + '|' + e.b)), ctr);
+    const k = e.a + '|' + e.b;
+    return window.TopoLayouts.path(LAY ? LAY.route : 'line', a, b, !!(LAY && LAY.tree && LAY.tree.has(k)), ctr, LAY && LAY.bend && LAY.bend[k]);
   }
   function opts() {
     if (PREF.mode === 'fold' && FOLD === null) {  // al abrir: solo el central y su primer nivel
       const c = window.TopoLayouts.compute('down', NODES, LINKS, {center: PREF.center, T: LT}).center;
       FOLD = new Set([c]);
     }
-    return {center: PREF.center, T: LT, sites: SITES, plan: PLAN, mine: MINE, foldOpen: FOLD};
+    return {center: PREF.center, T: LT, sites: SITES, plan: PLAN, mine: MINE, foldOpen: FOLD, W, H: H - footH(), aspect: W / Math.max(H - footH() - 56, 200)};
   }
   function drawDecor() {
     if (!decorLayer) return;
@@ -415,6 +428,7 @@
     document.querySelectorAll('#tlay-s button').forEach(b => { const on = b.dataset.v === PREF.sub; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
     document.getElementById('tlay-f').checked = PREF.fit !== false; document.getElementById('tlay-r').checked = PREF.remember !== false;
     const up = document.getElementById('tlay-up'); if (up) up.hidden = PREF.mode !== 'plan';
+    document.getElementById('tlay-np').hidden = !(PREF.mode === 'plan' && !(PLAN && PLAN.url));
   }
   NODES.slice().sort((a, b) => String(a.label).localeCompare(b.label)).forEach(n => { const o = document.createElement('option'); o.value = n.id; o.textContent = n.label; cSel.appendChild(o); });
   layBtn.addEventListener('click', () => { const open = layM.hidden; layM.hidden = !open; layBtn.setAttribute('aria-expanded', open); });
@@ -430,6 +444,10 @@
   document.querySelectorAll('#tlay-s button').forEach(b => b.addEventListener('click', () => { PREF.sub = b.dataset.v; paintMenu(); place(); if (PREF.remember) savePrefs(); }));
   document.getElementById('tlay-f').addEventListener('change', ev => { PREF.fit = ev.target.checked; if (PREF.remember) savePrefs(); });
   document.getElementById('tlay-r').addEventListener('change', ev => { PREF.remember = ev.target.checked; savePrefs(); });
+  const legBtn = document.getElementById('tleg');
+  function legend(on) { wrap.classList.toggle('leg-off', !on); legBtn.setAttribute('aria-pressed', String(on)); }
+  try { legend(localStorage.getItem('oc-topo-leg') !== '0'); } catch (e) { legend(true); }
+  legBtn.addEventListener('click', () => { const on = wrap.classList.contains('leg-off'); legend(on); try { localStorage.setItem('oc-topo-leg', on ? '1' : '0'); } catch (e) {} fit(); });
   function toggleFold(id) { if (!FOLD) FOLD = new Set(); FOLD.has(id) ? FOLD.delete(id) : FOLD.add(id); applyLayout(true); }
   // «Mi distribución»: al arrastrar equipos aparece la barra para guardarla
   const bar = document.getElementById('tlay-bar');
@@ -474,7 +492,7 @@
     const fd = new FormData(); fd.append('file', f);
     fetch('/topology/plan', {method: 'POST', credentials: 'same-origin', body: fd}).then(r => r.json()).then(j => {
       if (j.error || !j.url) { if (window.ocToast) window.ocToast(j.error || LT.plan_err, 'error'); return; }
-      PLAN = Object.assign({}, PLAN, {url: j.url, w: j.w, h: j.h}); applyLayout(false); fit();
+      PLAN = Object.assign({}, PLAN, {url: j.url, w: j.w, h: j.h}); paintMenu(); applyLayout(false); fit();
     });
     upIn.value = '';
   });
@@ -559,6 +577,14 @@
   }
   // arrastrar equipos, mover y hacer zoom en el lienzo
   let tf = {x: 0, y: 0, k: 1}, drag = null, pan = null, moved = false, net = -1;
+  const KMIN = 11 / 11.5;  // la IP o MAC (11,5 px) y el nombre (12 px) nunca quedan por debajo de 11 px al ajustar
+  // alto que ocupan la franja del pie y la leyenda (si se ve) sobre el borde de abajo
+  function footH() {
+    const f = document.getElementById('tlay-foot'), l = wrap.querySelector('.topo-legend-f');
+    let h = f && f.offsetParent ? f.offsetHeight : 0;
+    if (l && l.offsetParent && !wrap.classList.contains('leg-off')) h += l.offsetHeight + 12;
+    return h;
+  }
   const apply = () => view.setAttribute('transform', `translate(${tf.x},${tf.y}) scale(${tf.k})`);
   function fit() {  // que todo el mapa quepa en el recuadro, con los nombres y los dibujos de fondo de la distribución
     const vis = NODES.filter(n => (net < 0 || n.comp === net) && !(LAY && LAY.hideN.has(n.id))), xs = [], ys = [], pad = 24;
@@ -574,9 +600,18 @@
     });
     if (!xs.length) return;
     const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
-    const L0 = 60, T0 = 56, B0 = 64;  // botones de zoom y «Distribución» arriba a la izquierda; leyenda abajo
-    const k = Math.min(1.4, (W - L0 - pad) / Math.max(x1 - x0, 1), (H - T0 - B0) / Math.max(y1 - y0, 1));
-    tf = {k, x: L0 + (W - L0 - pad) / 2 - (x0 + x1) / 2 * k, y: T0 + (H - T0 - B0) / 2 - (y0 + y1) / 2 * k};
+    const L0 = 60, T0 = 56, B0 = footH() + 12;  // botones de zoom y «Distribución» arriba a la izquierda; franja y leyenda abajo
+    const aw = W - L0 - pad, ah = H - T0 - B0;
+    const k = Math.max(KMIN, Math.min(1.4, aw / Math.max(x1 - x0, 1), ah / Math.max(y1 - y0, 1)));
+    // eje que no cabe: centrado en el equipo central (arriba en las escalonadas), sin dejar hueco en los bordes
+    const c = LAY && LAY.center && byId[LAY.center], top = LAY && ['down', 'fold'].includes(PREF.mode);
+    const axis = (lo, hi, a0, avail, focus) => {
+      if ((hi - lo) * k <= avail) return a0 + avail / 2 - (lo + hi) / 2 * k;
+      const want = a0 + avail / 2 - focus * k;
+      return Math.min(a0 - lo * k, Math.max(a0 + avail - hi * k, want));
+    };
+    // sin equipo central (por sitio, por función, plano…): se empieza por arriba a la izquierda
+    tf = {k, x: axis(x0, x1, L0, aw, c ? c.x : x0), y: axis(y0, y1, T0, ah, top || !c ? y0 : c.y)};
     apply();
   }
   function reveal(n) {

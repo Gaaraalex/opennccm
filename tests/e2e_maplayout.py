@@ -83,6 +83,14 @@ t = adm.get(B + "/topology").text
 m = re.search(r"const NODES = (\[.*?\]), LINKS", t, re.S)
 labels = {n["label"] for n in json.loads(m.group(1))} if m else set()
 check("mapa con «Todos»: también el del otro nodo", {"R-NODO-A", "R-NODO-B", "R-NODO-C"} <= labels, labels)
+# tipo en el mapa corregido a mano por el administrador (formulario del equipo)
+adm.post(B + f"/devices/{devs['R-NODO-A'].id}/edit", data=dict(form, node_id=str(nq), map_role="switch"))
+t = adm.get(B + "/topology").text
+m = re.search(r"const NODES = (\[.*?\]), LINKS", t, re.S)
+roles = {n["label"]: n.get("role") for n in json.loads(m.group(1))} if m else {}
+ed = adm.get(B + f"/devices/{devs['R-NODO-A'].id}/edit").text
+check("tipo en el mapa elegido a mano", roles.get("R-NODO-A") == "switch" and roles.get("R-NODO-C") == "router"
+      and 'name="map_role"' in ed and '<option value="switch" selected>' in ed, roles)
 
 # ---------------------------------------------------------------- distribución
 mm = re.search(r"const MODES = (\[.*?\]);", t, re.S)

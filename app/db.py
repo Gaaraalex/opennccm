@@ -103,6 +103,7 @@ class Device(Base):
     credential_id: Mapped[int | None] = mapped_column(ForeignKey("credentials.id", ondelete="SET NULL"))
     group_id: Mapped[int | None] = mapped_column(ForeignKey("device_groups.id", ondelete="SET NULL"))
     node_id: Mapped[int | None] = mapped_column(ForeignKey("net_nodes.id", ondelete="SET NULL"))  # nodo de la red
+    map_role: Mapped[str | None] = mapped_column(String(16))  # tipo en el mapa elegido por un administrador (vacío: automático)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     auto_rollback: Mapped[bool] = mapped_column(Boolean, default=False)
     location: Mapped[str | None] = mapped_column(String(255))
