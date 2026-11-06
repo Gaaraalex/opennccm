@@ -402,7 +402,9 @@ _ROLE_MODEL = [
     ("firewall", r"\bsrx\d|fortigate|fortinet|\basa ?\d|palo ?alto|\bpa-\d{3}|sophos|watchguard|pfsense|opnsense|check ?point|"
                  r"\bfirewall"),
     ("ap", CPE_MODELS.pattern.replace("(?i)", "") + r"|rocket|prism|powerbeam|airfiber|\baf-?\d|\bltu|airmax|\buap|unifi ?ap|"
-                                                    r"nanohd|\bcap ?(?:ac|ax|xl)|\bwap|aironet|air-ap|\bgwn76|access point"),
+                                                    r"nanohd|\bcap ?(?:ac|ax|xl)|\bwap|aironet|air-ap|\bgwn76|access point|"
+                                                    r"\brb9(?:1[12]|2[12]|53)|\bmantbox|\bbasebox|\bnetbox|\bqrt\b|\bnetmetal|"
+                                                    r"\bwap ?ac|\bdynadish|\bgroove"),
     ("switch", r"\bcrs\d|\bcss\d|catalyst|ws-c|\bc9[23]00|\bex\d{4}|\bqfx|edge ?switch|\busw|\busl\d|\bus-?(?:8|16|24|48|xg)\b|"
                r"\bes-\d+|unifi ?switch|nexus|procurve|"
                r"\bswitch"),
@@ -436,9 +438,29 @@ def role_why(text: str, caps: list[str] | None = None) -> tuple[str, str]:
     return "unknown", ""
 
 
-def device_role(device_type: str, model: str | None, caps: list[str] | None = None) -> tuple[str, str]:
-    """Tipo de un equipo de OpenNCCM: por su modelo; si no, por su perfil; si no, por lo que anuncia a sus vecinos."""
+MAP_ROLES = ("router", "switch", "ap", "firewall")
+_RADIO_IF = re.compile(r"(?i)^(?:wlan|wifi)\d")
+
+
+def radio_up(ports_json: str | None) -> bool:
+    """El equipo tiene una interfaz inalámbrica (wlan1, wifi1…) que no está apagada, según el último respaldo."""
+    import json
+    try:
+        ps = (json.loads(ports_json or "{}") or {}).get("ports") or []
+    except (ValueError, AttributeError):
+        return False
+    return any(_RADIO_IF.match(str(p.get("n") or "")) and p.get("s") != "off" for p in ps if isinstance(p, dict))
+
+
+def device_role(device_type: str, model: str | None, caps: list[str] | None = None, ports: str | None = None,
+                manual: str | None = None) -> tuple[str, str]:
+    """Tipo de un equipo de OpenNCCM: el que puso el administrador; si no, por su modelo; si no, por su perfil; si no, por
+    lo que anuncia a sus vecinos. Un MikroTik que sale como router pero tiene una wlan o wifi activa es inalámbrico."""
+    if manual in MAP_ROLES:
+        return manual, "manual"
     role, by = role_why(model or "")
+    if role == "router" and device_type == "mikrotik_routeros" and radio_up(ports):
+        return "ap", "radio"
     if by:
         return role, by
     if device_type in DTYPE_ROLE:

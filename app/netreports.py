@@ -86,7 +86,7 @@ def _exceptions() -> set[str]:
 
 # --------------------------------------------------------------------------- informe
 def _sw(d: Device) -> bool:
-    return topology.device_role(d.device_type, d.model)[0] == "switch"
+    return topology.device_role(d.device_type, d.model, manual=d.map_role)[0] == "switch"
 
 
 def unused(user, days: int = 30, site: str = "", vlan: str = "") -> dict:

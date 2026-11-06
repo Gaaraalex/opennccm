@@ -9,6 +9,11 @@
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]; }); };
+  // logo de marca de un equipo (app/vendorlogos.py): clave «extreme», «mikrotik»… del sprite static/vendor-logos.svg
+  var vlogo = function (k, px) {
+    return '<svg class="vlg" width="' + px + '" height="' + px + '" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="'
+      + esc(((window.OC && OC.vl) || '/static/vendor-logos.svg') + '#vl-' + (k || 'other')) + '"/></svg>';
+  };
   var icon = function (n, c) { return '<svg class="ico ' + (c || '') + '" aria-hidden="true"><use href="/static/icons.svg#i-' + n + '"/></svg>'; };
   var RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
   window.ocIcon = icon; window.ocEsc = esc;
@@ -115,7 +120,7 @@
     var d = document.createElement('dialog'), href = a.getAttribute('href');
     d.className = 'dlg wide console-dlg';
     d.setAttribute('aria-label', (T.console || '{0}').replace('{0}', a.dataset.name || ''));
-    d.innerHTML = '<div class="row nowrap"><span class="vend">' + esc(a.dataset.vend || '') + '</span>' +
+    d.innerHTML = '<div class="row nowrap">' + vlogo(a.dataset.vl, 30) +
       '<h2 class="grow">' + esc((T.console || '{0}').replace('{0}', a.dataset.name || '')) + '</h2>' +
       '<button type="button" class="btn s ghost" data-c="reconnect">' + icon('refresh', 's') + esc(T.reconnect || '') + '</button>' +
       '<button type="button" class="btn s ghost" data-c="full">' + icon('expand', 's') + esc(T.fullscreen || '') + '</button>' +
@@ -402,7 +407,7 @@
     devices = [];
     fetch('/api/devices', {credentials: 'same-origin'}).then(function (r) { return r.ok ? r.json() : []; }).then(function (list) {
       devices = list.map(function (d) {
-        return {i: 'server', t: d.name, sub: [d.host, d.platform || d.device_type].filter(Boolean).join(' · '), r: T.device, href: '/devices/' + d.id,
+        return {i: 'server', vl: d.brand, t: d.name, sub: [d.host, d.platform || d.device_type].filter(Boolean).join(' · '), r: T.device, href: '/devices/' + d.id,
                 key: norm([d.name, d.host, d.model, d.serial, d.version, d.device_type].join(' '))};
       });
       if (overlay && overlay.classList.contains('palw')) palFill();
@@ -527,7 +532,7 @@
     $('#palres').innerHTML = wb.html + (palItems.length > wb.items.length ? groups.map(function (g) {
       return '<div class="gl label">' + esc(g[0]) + '</div>' + g[1].map(function (it) {
         var k = n++;
-        return '<div class="it ' + (k === palIdx ? 'on' : '') + '" role="option" id="pi' + k + '" data-pi="' + k + '">' + icon(it.i, 's') + '<span>' + hl(it.t, q) +
+        return '<div class="it ' + (k === palIdx ? 'on' : '') + '" role="option" id="pi' + k + '" data-pi="' + k + '">' + (it.vl ? vlogo(it.vl, 20) : icon(it.i, 's')) + '<span>' + hl(it.t, q) +
           (it.sub ? ' <span class="muted sm">· ' + hl(it.sub, q) + '</span>' : '') + '</span><span class="r">' + esc(it.r || '') + '</span></div>';
       }).join('');
     }).join('') : (wb.html ? '' : '<div class="empty" style="padding:28px"><p>' + esc((T.none || '{0}').replace('{0}', raw)) + '</p></div>'));

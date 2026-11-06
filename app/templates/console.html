@@ -21,7 +21,7 @@
 <div class="cx {{ 'embed' if embed }} {{ 'bare' if bare }} {{ 'watching' if watch }}" id="cx" data-theme="0">
   <div class="cx-col">
     <header class="cx-head">
-      <span class="vend">{{ dev.vend }}</span>
+      {{ vlogo(dev.vend, 30) }}
       <div class="grow cx-title"><b>{{ _f('Consola · {0}', dev.name) }}</b><span class="mono">{{ dev.host }}:{{ dev.port }}{% if dev.model %} · {{ dev.model }}{% endif %} · {{ dev.os }}</span></div>
       <span class="pill cx-watch" id="cx-watch" hidden></span>
       <div class="cx-tools" role="toolbar" aria-label="{{ _('Herramientas de la consola') }}">

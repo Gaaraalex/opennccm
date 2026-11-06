@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.27.0<br>Para administradores y operadores de red<br>Noviembre de 2026</div>
+  <div class="meta">Versión del software: 2.28.0<br>Para administradores y operadores de red<br>Noviembre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -155,11 +155,13 @@ grupo.</p>
 <figure><img src="img/03-dispositivos.png"><figcaption>Lista de dispositivos con filtros por estado. Las etiquetas «Sin guardar» y «Difiere de la base» señalan conflictos.</figcaption></figure>
 <h2>Cómo usarlo</h2>
 <ul>
-  <li><b>Buscar y filtrar:</b> por nombre, IP, modelo, serie, versión o ubicación; por grupo; y por estado (ok, error, pendiente,
-  startup ≠ running, fuera de línea base).</li>
+  <li><b>Buscar y filtrar:</b> por nombre, IP, modelo, serie, versión o ubicación; por grupo, <b>nodo</b> y <b>marca</b>; y por
+  estado (ok, error, pendiente, startup ≠ running, fuera de línea base). Cada equipo lleva el <b>logo de su marca</b>; la fila
+  <b>MARCA</b> muestra cuántos hay de cada una y filtra con un toque.</li>
   <li><b>Respaldar todos:</b> lanza en segundo plano el respaldo de todos los equipos (o del grupo filtrado).</li>
   <li><b>Acciones de la fila:</b> al pasar el ratón aparecen respaldar, consola e interfaz web del equipo.</li>
-  <li><b>Acciones masivas:</b> marque varias filas y use la barra inferior para respaldarlas, auditarlas o moverlas a un grupo.</li>
+  <li><b>Acciones masivas:</b> marque varias filas y use la barra inferior para respaldarlas, auditarlas, moverlas a un grupo o
+  <b>asignarlas a un nodo</b> (administradores).</li>
   <li><b>+ Agregar</b> (admin): <b>Agregar un equipo</b> abre el formulario de alta en un panel lateral; <b>Importar CSV</b>
   abre la importación masiva; <b>Importar desde Zabbix</b> trae los hosts de Zabbix.</li>
 </ul>
@@ -202,6 +204,9 @@ añade los hosts nuevos.</p>
   indicar su dirección si no es <code>https://IP/</code>. <b>No</b> oculta el botón para los equipos sin página de administración
   (muchos switches de acceso, servidores Linux…). Se puede cambiar después en <b>Editar</b>.</td></tr>
   <tr><td>Comando de respaldo personalizado</td><td>Opcional: sustituye al comando del perfil (útil con el perfil «Genérico SSH» o versiones con otra sintaxis).</td></tr>
+  <tr><td>Nodo</td><td>Lugar del equipo (torre, sucursal, centro de datos). Se elige de la lista o con «+ Crear nodo nuevo…».</td></tr>
+  <tr><td>Tipo en el mapa</td><td>(Administradores) Router, switch, antena / AP o firewall, si el mapa lo pone en la columna
+  equivocada. «Automático» lo deduce del modelo; un MikroTik con una wlan o wifi activa cuenta como inalámbrico.</td></tr>
   <tr><td>Habilitado</td><td>Si se desmarca, el equipo no entra en tareas programadas ni respaldos masivos.</td></tr>
   <tr><td>Revertir automáticamente</td><td>Deshace los cambios no autorizados que se detecten (sección 12).</td></tr>
 </table>
@@ -1125,11 +1130,16 @@ tienen LLDP o CDP activado.</p>
   todo el equipo; «Volver a la automática» la descarta.</td></tr>
 </table>
 <p>En las que parten de un <b>equipo central</b> se elige cuál (por defecto, el que tiene más enlaces). Con «Recordar esta
-distribución la próxima vez» el mapa vuelve a abrirse igual.</p>
+distribución la próxima vez» el mapa vuelve a abrirse igual. Cada distribución usa todo el recuadro y «Ajustar a la pantalla»
+nunca deja los nombres por debajo de 11 px: si no caben, el mapa queda más grande y se mueve. Debajo del mapa, la franja dice
+qué distribución está elegida y cómo funciona; la leyenda se pliega con <b>Leyenda</b>. «Debajo del nombre» muestra la IP, la
+MAC, la marca o nada. En «Sobre un plano», la bandeja «Sin ubicación» baja con la rueda o con «+N más».</p>
 <h3>Nodos</h3>
 <p>Un <b>nodo</b> agrupa los equipos de un mismo lugar (una sucursal, una torre, un edificio). Se crean en <b>Administración ›
 Nodos</b> o al crear o editar un equipo, con el campo <b>Nodo</b> (como las credenciales: se elige uno de la lista o «+ Crear nodo
-nuevo…»). Sobre el mapa, el filtro <b>Nodo</b> muestra solo los equipos asignados a ese nodo; «Todos» los vuelve a mostrar.</p>
+nuevo…»), o en bloque desde Dispositivos con <b>Asignar al nodo</b>. Sobre el mapa, el filtro <b>Nodo</b> muestra los
+equipos de ese nodo y, atenuados, los vecinos de otros nodos («en otro nodo: …»); «Todos» los vuelve a mostrar. En la lista de
+nodos, «N equipos» abre Dispositivos filtrado por ese nodo.</p>
 <h2 id="vecinos">Aviso de vecino nuevo o perdido</h2>
 <p>Con <b>Avisar cuando cambian los vecinos</b> (Ajustes › Mapa de la red, apagado de fábrica) OpenNCCM crea una alarma cuando
 aparece un equipo que antes no estaba o deja de verse uno que sí estaba. Usa las lecturas de LLDP, CDP, MNDP y RoMON que ya hace

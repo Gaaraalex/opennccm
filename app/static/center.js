@@ -6,6 +6,11 @@
   var D = JSON.parse(document.getElementById('cc-data').textContent), T = D.t;
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); };
+  // logo de marca de un equipo (app/vendorlogos.py): clave «extreme», «mikrotik»… del sprite static/vendor-logos.svg
+  var vlogo = function (k, px) {
+    return '<svg class="vlg" width="' + px + '" height="' + px + '" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="'
+      + esc(((window.OC && OC.vl) || '/static/vendor-logos.svg') + '#vl-' + (k || 'other')) + '"/></svg>';
+  };
   var post = function (url, body) { return fetch(url, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)}).then(function (r) { return r.json(); }); };
   var store = function (k, v) { try { if (v === undefined) return localStorage.getItem('oc-cc-' + k); localStorage.setItem('oc-cc-' + k, v); } catch (e) { return null; } };
   var ic = function (n) { return '<svg class="ico s" aria-hidden="true"><use href="/static/icons.svg#i-' + n + '"/></svg>'; };
@@ -31,7 +36,7 @@
   function row(d) {
     var fav = favs.indexOf(d.id) >= 0;
     return '<div class="cc-dev" data-id="' + d.id + '"><button type="button" class="cc-star ' + (fav ? 'on' : '') + '" data-fav="' + d.id + '" aria-label="★" aria-pressed="' + fav + '">★</button>' +
-      '<button type="button" class="cc-open" data-open="' + d.id + '"><span class="vend">' + esc(d.vend) + '</span><span class="grow"><b>' + esc(d.name) + '</b><small class="mono">' + esc(d.host) + '</small></span>' +
+      '<button type="button" class="cc-open" data-open="' + d.id + '">' + vlogo(d.vl, 24) + '<span class="grow"><b>' + esc(d.name) + '</b><small class="mono">' + esc(d.host) + '</small></span>' +
       '<span class="dot ' + (d.status === 'ok' ? 'ok' : d.status === 'error' ? 'crit' : '') + '"></span></button></div>';
   }
   function list() {
@@ -171,7 +176,7 @@
   function mlist() {
     var q = $('mu-find').value.trim().toLowerCase();
     $('mu-list').innerHTML = D.devs.filter(function (d) { return !q || (d.name + ' ' + d.host + ' ' + d.vendor).toLowerCase().indexOf(q) >= 0; }).map(function (d) {
-      return '<label class="row nowrap sm"><input type="checkbox" data-m="' + d.id + '" ' + (msel[d.id] ? 'checked' : '') + '><span class="vend">' + esc(d.vend) + '</span><span class="grow">' + esc(d.name) + '</span><small class="muted mono">' + esc(d.host) + '</small></label>';
+      return '<label class="row nowrap sm"><input type="checkbox" data-m="' + d.id + '" ' + (msel[d.id] ? 'checked' : '') + '>' + vlogo(d.vl, 24) + '<span class="grow">' + esc(d.name) + '</span><small class="muted mono">' + esc(d.host) + '</small></label>';
     }).join('');
     var n = Object.keys(msel).length; $('mu-n').textContent = n === 1 ? T.sel1 : T.sel.replace('{0}', n); $('mu-run').textContent = $('mu-run').textContent.replace(/\s*\(\d+\)$/, '') + ' (' + n + ')';
   }
@@ -285,7 +290,7 @@
   }
   function applyDlg(r) {
     var dl = $('rc-apply');
-    $('rc-apply-devs').innerHTML = D.devs.filter(function (d) { return d.os === r.os; }).map(function (d) { return '<label class="row nowrap sm"><input type="checkbox" value="' + d.id + '"><span class="vend">' + esc(d.vend) + '</span><span class="grow">' + esc(d.name) + '</span><small class="muted mono">' + esc(d.host) + '</small></label>'; }).join('') || '<p class="muted">—</p>';
+    $('rc-apply-devs').innerHTML = D.devs.filter(function (d) { return d.os === r.os; }).map(function (d) { return '<label class="row nowrap sm"><input type="checkbox" value="' + d.id + '">' + vlogo(d.vl, 24) + '<span class="grow">' + esc(d.name) + '</span><small class="muted mono">' + esc(d.host) + '</small></label>'; }).join('') || '<p class="muted">—</p>';
     dl.showModal();
   }
   $('rc-apply-f').addEventListener('submit', function (e) {

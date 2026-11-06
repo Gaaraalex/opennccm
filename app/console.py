@@ -126,7 +126,7 @@ def _open_allowed(user, dev: Device) -> tuple[bool, dict]:
 def _dev_info(dev: Device) -> dict:
     prof = PROFILE_MAP.get(dev.device_type)
     return {"id": dev.id, "name": dev.name, "host": dev.host, "port": dev.port, "protocol": dev.protocol,
-            "vend": (prof.vendor if prof else dev.device_type)[:3].upper(), "has_cred": dev.credential_id is not None,
+            "vend": dev.device_type, "vl": __import__("app.vendorlogos", fromlist=["x"]).key(dev.device_type), "has_cred": dev.credential_id is not None,
             "model": dev.model or "", "os": (prof.label if prof else dev.device_type) + (f" {dev.os_version}" if dev.os_version else ""),
             "cred": dev.credential.name if dev.credential else ""}
 

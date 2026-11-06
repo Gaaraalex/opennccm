@@ -1,0 +1,932 @@
+{
+  "version": 1,
+  "nota": "Generado desde la maqueta «Logos de las 73 marcas». viewBox 0 0 24 24; se dibuja al tamaño que se pida.",
+  "origen": {
+    "si": "Simple Icons 16.36.0 (CC0-1.0)",
+    "p": "redibujado a mano",
+    "t": "nombre o iniciales de la marca"
+  },
+  "marcas": {
+    "mikrotik": {
+      "nombre": "MikroTik",
+      "vendor_en_drivers": "MikroTik",
+      "color": "#293239",
+      "archivo": "svg/mikrotik.svg",
+      "origen": "si",
+      "perfiles": [
+        "mikrotik_routeros",
+        "mikrotik_swos"
+      ]
+    },
+    "cisco": {
+      "nombre": "Cisco",
+      "vendor_en_drivers": "Cisco",
+      "color": "#1BA0D7",
+      "archivo": "svg/cisco.svg",
+      "origen": "si",
+      "perfiles": [
+        "cisco_ios",
+        "cisco_xe",
+        "cisco_nxos",
+        "cisco_xr",
+        "cisco_asa",
+        "cisco_ftd",
+        "cisco_wlc",
+        "cisco_s300",
+        "cisco_s200",
+        "cisco_s500",
+        "cisco_ioswlc",
+        "cisco_ap",
+        "cisco_viptela"
+      ]
+    },
+    "ubiquiti": {
+      "nombre": "Ubiquiti",
+      "vendor_en_drivers": "Ubiquiti",
+      "color": "#0559C9",
+      "archivo": "svg/ubiquiti.svg",
+      "origen": "si",
+      "perfiles": [
+        "ubiquiti_edgerouter",
+        "ubiquiti_edgeswitch",
+        "ubiquiti_airos",
+        "ubiquiti_airfiber",
+        "ubiquiti_unifi_ap",
+        "ubiquiti_usg",
+        "ubiquiti_unifiswitch"
+      ]
+    },
+    "juniper": {
+      "nombre": "Juniper",
+      "vendor_en_drivers": "Juniper",
+      "color": "#5E8F2E",
+      "archivo": "svg/juniper.svg",
+      "origen": "si",
+      "perfiles": [
+        "juniper_junos",
+        "juniper_screenos"
+      ]
+    },
+    "huawei": {
+      "nombre": "Huawei",
+      "vendor_en_drivers": "Huawei",
+      "color": "#E40C1C",
+      "archivo": "svg/huawei.svg",
+      "origen": "si",
+      "perfiles": [
+        "huawei",
+        "huawei_vrpv8",
+        "huawei_olt",
+        "huawei_smartax"
+      ]
+    },
+    "aruba": {
+      "nombre": "Aruba",
+      "vendor_en_drivers": "HPE Aruba",
+      "color": "#FF8300",
+      "archivo": "svg/aruba.svg",
+      "origen": "p",
+      "perfiles": [
+        "aruba_aoscx",
+        "aruba_os",
+        "aruba_osswitch"
+      ]
+    },
+    "extreme": {
+      "nombre": "Extreme",
+      "vendor_en_drivers": "Extreme",
+      "color": "#5E2D91",
+      "archivo": "svg/extreme.svg",
+      "origen": "p",
+      "perfiles": [
+        "extreme_exos",
+        "extreme_vsp",
+        "extreme_ers",
+        "extreme_slx",
+        "extreme_nos",
+        "extreme_wing",
+        "extreme",
+        "enterasys"
+      ]
+    },
+    "other": {
+      "nombre": "Genérico SSH",
+      "vendor_en_drivers": "Genérico",
+      "color": "#3a4357",
+      "archivo": "svg/other.svg",
+      "origen": "p",
+      "perfiles": [
+        "generic"
+      ]
+    },
+    "arista": {
+      "nombre": "Arista",
+      "vendor_en_drivers": "Arista",
+      "color": "#1B3D6E",
+      "archivo": "svg/arista.svg",
+      "origen": "p",
+      "perfiles": [
+        "arista_eos"
+      ]
+    },
+    "hpe": {
+      "nombre": "HPE",
+      "vendor_en_drivers": "HPE",
+      "color": "#01A982",
+      "archivo": "svg/hpe.svg",
+      "origen": "p",
+      "perfiles": [
+        "hp_procurve",
+        "hp_comware"
+      ]
+    },
+    "fortinet": {
+      "nombre": "Fortinet",
+      "vendor_en_drivers": "Fortinet",
+      "color": "#EE3124",
+      "archivo": "svg/fortinet.svg",
+      "origen": "si",
+      "perfiles": [
+        "fortinet"
+      ]
+    },
+    "paloalto": {
+      "nombre": "Palo Alto",
+      "vendor_en_drivers": "Palo Alto",
+      "color": "#F04E23",
+      "archivo": "svg/paloalto.svg",
+      "origen": "si",
+      "perfiles": [
+        "paloalto_panos",
+        "cloudgenix_ion"
+      ]
+    },
+    "checkpoint": {
+      "nombre": "Check Point",
+      "vendor_en_drivers": "Check Point",
+      "color": "#E5007D",
+      "archivo": "svg/checkpoint.svg",
+      "origen": "p",
+      "perfiles": [
+        "checkpoint_gaia"
+      ]
+    },
+    "sophos": {
+      "nombre": "Sophos",
+      "vendor_en_drivers": "Sophos",
+      "color": "#0059C9",
+      "archivo": "svg/sophos.svg",
+      "origen": "p",
+      "perfiles": [
+        "sophos_sfos"
+      ]
+    },
+    "f5": {
+      "nombre": "F5",
+      "vendor_en_drivers": "F5",
+      "color": "#E4002B",
+      "archivo": "svg/f5.svg",
+      "origen": "si",
+      "perfiles": [
+        "f5_tmsh"
+      ]
+    },
+    "dell": {
+      "nombre": "Dell",
+      "vendor_en_drivers": "Dell",
+      "color": "#007DB8",
+      "archivo": "svg/dell.svg",
+      "origen": "si",
+      "perfiles": [
+        "dell_os10",
+        "dell_force10",
+        "dell_powerconnect",
+        "dell_os6",
+        "dell_os9",
+        "dell_sonic"
+      ]
+    },
+    "ruckus": {
+      "nombre": "Ruckus",
+      "vendor_en_drivers": "Ruckus",
+      "color": "#F57F29",
+      "archivo": "svg/ruckus.svg",
+      "origen": "t",
+      "perfiles": [
+        "ruckus_fastiron"
+      ]
+    },
+    "nokia": {
+      "nombre": "Nokia",
+      "vendor_en_drivers": "Nokia",
+      "color": "#005AFF",
+      "archivo": "svg/nokia.svg",
+      "origen": "si",
+      "perfiles": [
+        "nokia_sros",
+        "nokia_srl",
+        "nokia_isam"
+      ]
+    },
+    "alcatel": {
+      "nombre": "Alcatel-Lucent",
+      "vendor_en_drivers": "Alcatel-Lucent",
+      "color": "#6E2C91",
+      "archivo": "svg/alcatel.svg",
+      "origen": "p",
+      "perfiles": [
+        "alcatel_aos"
+      ]
+    },
+    "vyos": {
+      "nombre": "VyOS",
+      "vendor_en_drivers": "VyOS",
+      "color": "#F29B12",
+      "archivo": "svg/vyos.svg",
+      "origen": "p",
+      "perfiles": [
+        "vyos"
+      ]
+    },
+    "tplink": {
+      "nombre": "TP-Link",
+      "vendor_en_drivers": "TP-Link",
+      "color": "#20A8B4",
+      "archivo": "svg/tplink.svg",
+      "origen": "si",
+      "perfiles": [
+        "tplink_jetstream"
+      ]
+    },
+    "zte": {
+      "nombre": "ZTE",
+      "vendor_en_drivers": "ZTE",
+      "color": "#008ED3",
+      "archivo": "svg/zte.svg",
+      "origen": "t",
+      "perfiles": [
+        "zte_zxros"
+      ]
+    },
+    "ruijie": {
+      "nombre": "Ruijie",
+      "vendor_en_drivers": "Ruijie",
+      "color": "#E60012",
+      "archivo": "svg/ruijie.svg",
+      "origen": "t",
+      "perfiles": [
+        "ruijie_os"
+      ]
+    },
+    "allied": {
+      "nombre": "Allied Telesis",
+      "vendor_en_drivers": "Allied Telesis",
+      "color": "#231F20",
+      "archivo": "svg/allied.svg",
+      "origen": "p",
+      "perfiles": [
+        "allied_telesis_awplus"
+      ]
+    },
+    "zyxel": {
+      "nombre": "Zyxel",
+      "vendor_en_drivers": "Zyxel",
+      "color": "#1B1B1F",
+      "archivo": "svg/zyxel.svg",
+      "origen": "p",
+      "perfiles": [
+        "zyxel_os"
+      ]
+    },
+    "linux": {
+      "nombre": "Linux",
+      "vendor_en_drivers": "Linux",
+      "color": "#FCC624",
+      "archivo": "svg/linux.svg",
+      "origen": "si",
+      "perfiles": [
+        "linux",
+        "ubuntu_server",
+        "alpine_linux"
+      ]
+    },
+    "netgate": {
+      "nombre": "Netgate (pfSense)",
+      "vendor_en_drivers": "Netgate",
+      "color": "#212121",
+      "archivo": "svg/netgate.svg",
+      "origen": "si",
+      "perfiles": [
+        "pfsense"
+      ]
+    },
+    "deciso": {
+      "nombre": "Deciso (OPNsense)",
+      "vendor_en_drivers": "Deciso",
+      "color": "#D94F00",
+      "archivo": "svg/deciso.svg",
+      "origen": "si",
+      "perfiles": [
+        "opnsense"
+      ]
+    },
+    "h3c": {
+      "nombre": "H3C",
+      "vendor_en_drivers": "H3C",
+      "color": "#E60012",
+      "archivo": "svg/h3c.svg",
+      "origen": "t",
+      "perfiles": [
+        "h3c_comware"
+      ]
+    },
+    "brocade": {
+      "nombre": "Brocade",
+      "vendor_en_drivers": "Brocade",
+      "color": "#E2231A",
+      "archivo": "svg/brocade.svg",
+      "origen": "p",
+      "perfiles": [
+        "brocade_netiron",
+        "brocade_nos",
+        "brocade_fos"
+      ]
+    },
+    "a10": {
+      "nombre": "A10 Networks",
+      "vendor_en_drivers": "A10 Networks",
+      "color": "#0B5FA5",
+      "archivo": "svg/a10.svg",
+      "origen": "t",
+      "perfiles": [
+        "a10"
+      ]
+    },
+    "citrix": {
+      "nombre": "Citrix",
+      "vendor_en_drivers": "Citrix",
+      "color": "#452170",
+      "archivo": "svg/citrix.svg",
+      "origen": "si",
+      "perfiles": [
+        "netscaler"
+      ]
+    },
+    "adtran": {
+      "nombre": "Adtran",
+      "vendor_en_drivers": "Adtran",
+      "color": "#00A9DE",
+      "archivo": "svg/adtran.svg",
+      "origen": "p",
+      "perfiles": [
+        "adtran_os"
+      ]
+    },
+    "adva": {
+      "nombre": "ADVA",
+      "vendor_en_drivers": "ADVA",
+      "color": "#1D4F91",
+      "archivo": "svg/adva.svg",
+      "origen": "p",
+      "perfiles": [
+        "adva_fsp150f2",
+        "adva_fsp150f3"
+      ]
+    },
+    "ciena": {
+      "nombre": "Ciena",
+      "vendor_en_drivers": "Ciena",
+      "color": "#E31837",
+      "archivo": "svg/ciena.svg",
+      "origen": "p",
+      "perfiles": [
+        "ciena_saos",
+        "ciena_saos10"
+      ]
+    },
+    "calix": {
+      "nombre": "Calix",
+      "vendor_en_drivers": "Calix",
+      "color": "#F37021",
+      "archivo": "svg/calix.svg",
+      "origen": "t",
+      "perfiles": [
+        "calix_b6",
+        "calix_exa"
+      ]
+    },
+    "ericsson": {
+      "nombre": "Ericsson",
+      "vendor_en_drivers": "Ericsson",
+      "color": "#0082F0",
+      "archivo": "svg/ericsson.svg",
+      "origen": "si",
+      "perfiles": [
+        "ericsson_ipos",
+        "ericsson_mltn63",
+        "ericsson_mltn66"
+      ]
+    },
+    "ipinfusion": {
+      "nombre": "IP Infusion",
+      "vendor_en_drivers": "IP Infusion",
+      "color": "#1B75BC",
+      "archivo": "svg/ipinfusion.svg",
+      "origen": "t",
+      "perfiles": [
+        "ipinfusion_ocnos"
+      ]
+    },
+    "infinera": {
+      "nombre": "Infinera",
+      "vendor_en_drivers": "Infinera",
+      "color": "#F7941D",
+      "archivo": "svg/infinera.svg",
+      "origen": "p",
+      "perfiles": [
+        "infinera_packet"
+      ]
+    },
+    "coriant": {
+      "nombre": "Coriant",
+      "vendor_en_drivers": "Coriant",
+      "color": "#2B2D42",
+      "archivo": "svg/coriant.svg",
+      "origen": "p",
+      "perfiles": [
+        "coriant"
+      ]
+    },
+    "raisecom": {
+      "nombre": "Raisecom",
+      "vendor_en_drivers": "Raisecom",
+      "color": "#00539F",
+      "archivo": "svg/raisecom.svg",
+      "origen": "t",
+      "perfiles": [
+        "raisecom_roap",
+        "raisecom_ros"
+      ]
+    },
+    "casa": {
+      "nombre": "Casa Systems",
+      "vendor_en_drivers": "Casa",
+      "color": "#0067B1",
+      "archivo": "svg/casa.svg",
+      "origen": "t",
+      "perfiles": [
+        "casa_cmts"
+      ]
+    },
+    "arris": {
+      "nombre": "Arris / CommScope",
+      "vendor_en_drivers": "Arris",
+      "color": "#2E3192",
+      "archivo": "svg/arris.svg",
+      "origen": "p",
+      "perfiles": [
+        "arris_cer"
+      ]
+    },
+    "edgecore": {
+      "nombre": "Edge-Core",
+      "vendor_en_drivers": "Edge-Core",
+      "color": "#009A44",
+      "archivo": "svg/edgecore.svg",
+      "origen": "t",
+      "perfiles": [
+        "edgecore_sonic"
+      ]
+    },
+    "nvidia": {
+      "nombre": "NVIDIA",
+      "vendor_en_drivers": "NVIDIA",
+      "color": "#76B900",
+      "archivo": "svg/nvidia.svg",
+      "origen": "si",
+      "perfiles": [
+        "cumulus_linux",
+        "mellanox_mlnxos"
+      ]
+    },
+    "dlink": {
+      "nombre": "D-Link",
+      "vendor_en_drivers": "D-Link",
+      "color": "#1A8F94",
+      "archivo": "svg/dlink.svg",
+      "origen": "p",
+      "perfiles": [
+        "dlink_ds"
+      ]
+    },
+    "netgear": {
+      "nombre": "Netgear",
+      "vendor_en_drivers": "Netgear",
+      "color": "#2C262D",
+      "archivo": "svg/netgear.svg",
+      "origen": "si",
+      "perfiles": [
+        "netgear_prosafe"
+      ]
+    },
+    "fs": {
+      "nombre": "FS",
+      "vendor_en_drivers": "FS",
+      "color": "#D7000F",
+      "archivo": "svg/fs.svg",
+      "origen": "t",
+      "perfiles": [
+        "fiberstore_fsos",
+        "fiberstore_fsosv2",
+        "fiberstore_networkos"
+      ]
+    },
+    "hirschmann": {
+      "nombre": "Hirschmann (Belden)",
+      "vendor_en_drivers": "Hirschmann",
+      "color": "#0060A9",
+      "archivo": "svg/hirschmann.svg",
+      "origen": "t",
+      "perfiles": [
+        "hirschmann_hios"
+      ]
+    },
+    "moxa": {
+      "nombre": "Moxa",
+      "vendor_en_drivers": "Moxa",
+      "color": "#00818A",
+      "archivo": "svg/moxa.svg",
+      "origen": "t",
+      "perfiles": [
+        "moxa_nos"
+      ]
+    },
+    "lancom": {
+      "nombre": "LANCOM",
+      "vendor_en_drivers": "LANCOM",
+      "color": "#1E4E9C",
+      "archivo": "svg/lancom.svg",
+      "origen": "t",
+      "perfiles": [
+        "lancom_lcossx4",
+        "lancom_lcossx5"
+      ]
+    },
+    "maipu": {
+      "nombre": "Maipu",
+      "vendor_en_drivers": "Maipu",
+      "color": "#E60012",
+      "archivo": "svg/maipu.svg",
+      "origen": "t",
+      "perfiles": [
+        "maipu"
+      ]
+    },
+    "alaxala": {
+      "nombre": "Alaxala",
+      "vendor_en_drivers": "Alaxala",
+      "color": "#00A0E9",
+      "archivo": "svg/alaxala.svg",
+      "origen": "t",
+      "perfiles": [
+        "alaxala_ax26s",
+        "alaxala_ax36s"
+      ]
+    },
+    "hitachi": {
+      "nombre": "Hitachi",
+      "vendor_en_drivers": "Hitachi",
+      "color": "#E60027",
+      "archivo": "svg/hitachi.svg",
+      "origen": "si",
+      "perfiles": [
+        "apresia_aeos"
+      ]
+    },
+    "nec": {
+      "nombre": "NEC",
+      "vendor_en_drivers": "NEC",
+      "color": "#1414A0",
+      "archivo": "svg/nec.svg",
+      "origen": "si",
+      "perfiles": [
+        "nec_ix"
+      ]
+    },
+    "yamaha": {
+      "nombre": "Yamaha",
+      "vendor_en_drivers": "Yamaha",
+      "color": "#4B1E78",
+      "archivo": "svg/yamaha.svg",
+      "origen": "si",
+      "perfiles": [
+        "yamaha"
+      ]
+    },
+    "iij": {
+      "nombre": "IIJ",
+      "vendor_en_drivers": "IIJ",
+      "color": "#C8102E",
+      "archivo": "svg/iij.svg",
+      "origen": "t",
+      "perfiles": [
+        "iij_seilos"
+      ]
+    },
+    "furukawa": {
+      "nombre": "Furukawa",
+      "vendor_en_drivers": "Furukawa",
+      "color": "#0068B7",
+      "archivo": "svg/furukawa.svg",
+      "origen": "t",
+      "perfiles": [
+        "furukawa_fitelnet"
+      ]
+    },
+    "fujitsu": {
+      "nombre": "Fujitsu",
+      "vendor_en_drivers": "Fujitsu",
+      "color": "#E60012",
+      "archivo": "svg/fujitsu.svg",
+      "origen": "si",
+      "perfiles": [
+        "fujitsu_sir"
+      ]
+    },
+    "centec": {
+      "nombre": "Centec",
+      "vendor_en_drivers": "Centec",
+      "color": "#0072BC",
+      "archivo": "svg/centec.svg",
+      "origen": "t",
+      "perfiles": [
+        "centec_os"
+      ]
+    },
+    "broadcom": {
+      "nombre": "Broadcom",
+      "vendor_en_drivers": "Broadcom",
+      "color": "#CC092F",
+      "archivo": "svg/broadcom.svg",
+      "origen": "si",
+      "perfiles": [
+        "broadcom_icos"
+      ]
+    },
+    "quanta": {
+      "nombre": "Quanta",
+      "vendor_en_drivers": "Quanta",
+      "color": "#00A0E9",
+      "archivo": "svg/quanta.svg",
+      "origen": "t",
+      "perfiles": [
+        "quanta_mesh"
+      ]
+    },
+    "supermicro": {
+      "nombre": "Supermicro",
+      "vendor_en_drivers": "Supermicro",
+      "color": "#151F6D",
+      "archivo": "svg/supermicro.svg",
+      "origen": "si",
+      "perfiles": [
+        "supermicro_smis"
+      ]
+    },
+    "eltex": {
+      "nombre": "Eltex",
+      "vendor_en_drivers": "Eltex",
+      "color": "#00A3E0",
+      "archivo": "svg/eltex.svg",
+      "origen": "t",
+      "perfiles": [
+        "eltex",
+        "eltex_esr"
+      ]
+    },
+    "ekinops": {
+      "nombre": "Ekinops",
+      "vendor_en_drivers": "Ekinops",
+      "color": "#E94E1B",
+      "archivo": "svg/ekinops.svg",
+      "origen": "t",
+      "perfiles": [
+        "ekinops_ek360"
+      ]
+    },
+    "oneaccess": {
+      "nombre": "OneAccess",
+      "vendor_en_drivers": "OneAccess",
+      "color": "#F39200",
+      "archivo": "svg/oneaccess.svg",
+      "origen": "t",
+      "perfiles": [
+        "oneaccess_oneos"
+      ]
+    },
+    "teldat": {
+      "nombre": "Teldat",
+      "vendor_en_drivers": "Teldat",
+      "color": "#E30613",
+      "archivo": "svg/teldat.svg",
+      "origen": "t",
+      "perfiles": [
+        "teldat_cit"
+      ]
+    },
+    "digi": {
+      "nombre": "Digi",
+      "vendor_en_drivers": "Digi",
+      "color": "#00A651",
+      "archivo": "svg/digi.svg",
+      "origen": "t",
+      "perfiles": [
+        "digi_transport"
+      ]
+    },
+    "siemens": {
+      "nombre": "Siemens",
+      "vendor_en_drivers": "Siemens",
+      "color": "#009999",
+      "archivo": "svg/siemens.svg",
+      "origen": "si",
+      "perfiles": [
+        "garderos_grs"
+      ]
+    },
+    "audiocodes": {
+      "nombre": "AudioCodes",
+      "vendor_en_drivers": "AudioCodes",
+      "color": "#E31B23",
+      "archivo": "svg/audiocodes.svg",
+      "origen": "t",
+      "perfiles": [
+        "audiocode_66",
+        "audiocode_72"
+      ]
+    },
+    "hillstone": {
+      "nombre": "Hillstone",
+      "vendor_en_drivers": "Hillstone",
+      "color": "#E60012",
+      "archivo": "svg/hillstone.svg",
+      "origen": "t",
+      "perfiles": [
+        "hillstone_stoneos"
+      ]
+    },
+    "watchguard": {
+      "nombre": "WatchGuard",
+      "vendor_en_drivers": "WatchGuard",
+      "color": "#E21A23",
+      "archivo": "svg/watchguard.svg",
+      "origen": "p",
+      "perfiles": [
+        "watchguard_fireware"
+      ]
+    },
+    "opengear": {
+      "nombre": "Opengear",
+      "vendor_en_drivers": "Opengear",
+      "color": "#5FA81E",
+      "archivo": "svg/opengear.svg",
+      "origen": "t",
+      "perfiles": [
+        "opengear_linux"
+      ]
+    }
+  },
+  "perfiles": {
+    "cisco_ios": "cisco",
+    "cisco_xe": "cisco",
+    "cisco_nxos": "cisco",
+    "cisco_xr": "cisco",
+    "cisco_asa": "cisco",
+    "cisco_ftd": "cisco",
+    "cisco_wlc": "cisco",
+    "cisco_s300": "cisco",
+    "juniper_junos": "juniper",
+    "arista_eos": "arista",
+    "hp_procurve": "hpe",
+    "hp_comware": "hpe",
+    "aruba_aoscx": "aruba",
+    "aruba_os": "aruba",
+    "huawei": "huawei",
+    "huawei_vrpv8": "huawei",
+    "fortinet": "fortinet",
+    "paloalto_panos": "paloalto",
+    "checkpoint_gaia": "checkpoint",
+    "sophos_sfos": "sophos",
+    "f5_tmsh": "f5",
+    "mikrotik_routeros": "mikrotik",
+    "mikrotik_swos": "mikrotik",
+    "dell_os10": "dell",
+    "dell_force10": "dell",
+    "dell_powerconnect": "dell",
+    "extreme_exos": "extreme",
+    "extreme_vsp": "extreme",
+    "ruckus_fastiron": "ruckus",
+    "nokia_sros": "nokia",
+    "alcatel_aos": "alcatel",
+    "vyos": "vyos",
+    "ubiquiti_edgerouter": "ubiquiti",
+    "ubiquiti_edgeswitch": "ubiquiti",
+    "ubiquiti_airos": "ubiquiti",
+    "ubiquiti_airfiber": "ubiquiti",
+    "ubiquiti_unifi_ap": "ubiquiti",
+    "ubiquiti_usg": "ubiquiti",
+    "tplink_jetstream": "tplink",
+    "zte_zxros": "zte",
+    "ruijie_os": "ruijie",
+    "allied_telesis_awplus": "allied",
+    "zyxel_os": "zyxel",
+    "linux": "linux",
+    "pfsense": "netgate",
+    "opnsense": "deciso",
+    "ubuntu_server": "linux",
+    "alpine_linux": "linux",
+    "cisco_s200": "cisco",
+    "cisco_s500": "cisco",
+    "cisco_ioswlc": "cisco",
+    "cisco_ap": "cisco",
+    "cisco_viptela": "cisco",
+    "aruba_osswitch": "aruba",
+    "h3c_comware": "h3c",
+    "huawei_olt": "huawei",
+    "huawei_smartax": "huawei",
+    "brocade_netiron": "brocade",
+    "brocade_nos": "brocade",
+    "brocade_fos": "brocade",
+    "extreme_ers": "extreme",
+    "extreme_slx": "extreme",
+    "extreme_nos": "extreme",
+    "extreme_wing": "extreme",
+    "extreme": "extreme",
+    "enterasys": "extreme",
+    "a10": "a10",
+    "netscaler": "citrix",
+    "adtran_os": "adtran",
+    "adva_fsp150f2": "adva",
+    "adva_fsp150f3": "adva",
+    "ciena_saos": "ciena",
+    "ciena_saos10": "ciena",
+    "calix_b6": "calix",
+    "calix_exa": "calix",
+    "ericsson_ipos": "ericsson",
+    "ericsson_mltn63": "ericsson",
+    "ericsson_mltn66": "ericsson",
+    "ipinfusion_ocnos": "ipinfusion",
+    "infinera_packet": "infinera",
+    "coriant": "coriant",
+    "nokia_srl": "nokia",
+    "nokia_isam": "nokia",
+    "raisecom_roap": "raisecom",
+    "raisecom_ros": "raisecom",
+    "casa_cmts": "casa",
+    "arris_cer": "arris",
+    "dell_os6": "dell",
+    "dell_os9": "dell",
+    "dell_sonic": "dell",
+    "edgecore_sonic": "edgecore",
+    "cumulus_linux": "nvidia",
+    "mellanox_mlnxos": "nvidia",
+    "dlink_ds": "dlink",
+    "netgear_prosafe": "netgear",
+    "fiberstore_fsos": "fs",
+    "fiberstore_fsosv2": "fs",
+    "fiberstore_networkos": "fs",
+    "hirschmann_hios": "hirschmann",
+    "moxa_nos": "moxa",
+    "lancom_lcossx4": "lancom",
+    "lancom_lcossx5": "lancom",
+    "maipu": "maipu",
+    "alaxala_ax26s": "alaxala",
+    "alaxala_ax36s": "alaxala",
+    "apresia_aeos": "hitachi",
+    "nec_ix": "nec",
+    "yamaha": "yamaha",
+    "iij_seilos": "iij",
+    "furukawa_fitelnet": "furukawa",
+    "fujitsu_sir": "fujitsu",
+    "centec_os": "centec",
+    "broadcom_icos": "broadcom",
+    "quanta_mesh": "quanta",
+    "supermicro_smis": "supermicro",
+    "ubiquiti_unifiswitch": "ubiquiti",
+    "eltex": "eltex",
+    "eltex_esr": "eltex",
+    "ekinops_ek360": "ekinops",
+    "oneaccess_oneos": "oneaccess",
+    "teldat_cit": "teldat",
+    "digi_transport": "digi",
+    "garderos_grs": "siemens",
+    "audiocode_66": "audiocodes",
+    "audiocode_72": "audiocodes",
+    "juniper_screenos": "juniper",
+    "hillstone_stoneos": "hillstone",
+    "watchguard_fireware": "watchguard",
+    "opengear_linux": "opengear",
+    "cloudgenix_ion": "paloalto",
+    "generic": "other"
+  }
+}

@@ -50,12 +50,17 @@ form = {"name": "R-NODO-A", "host": "192.0.2.71", "device_type": "mikrotik_route
 adm.post(B + "/devices/new", data=form)
 adm.post(B + "/devices/new", data=dict(form, name="R-NODO-B", host="192.0.2.72", node_id="__new", new_node="Nodo Angelina"))
 adm.post(B + "/devices/new", data=dict(form, name="R-SIN-NODO", host="192.0.2.73", node_id=""))
+adm.post(B + "/devices/new", data=dict(form, name="R-NODO-C", host="192.0.2.74"))  # mismo nodo que R-NODO-A
 with SessionLocal() as db:
-    devs = {d.name: d for d in db.scalars(select(Device).where(Device.name.in_(["R-NODO-A", "R-NODO-B", "R-SIN-NODO"])))}
+    devs = {d.name: d for d in db.scalars(select(Device).where(Device.name.in_(["R-NODO-A", "R-NODO-B", "R-SIN-NODO", "R-NODO-C"])))}
     na = db.scalar(select(NetNode.id).where(NetNode.name == "Nodo Angelina"))
-    a, b_ = devs["R-NODO-A"], devs["R-NODO-B"]
+    a, b_, c_ = devs["R-NODO-A"], devs["R-NODO-B"], devs["R-NODO-C"]
     a.neighbors = json.dumps([{"local_port": "ether1", "remote_name": "R-NODO-B", "remote_port": "ether1", "remote_ip": "", "mac": "",
+                               "platform": "MikroTik", "caps": ["router"]},
+                              {"local_port": "ether2", "remote_name": "R-NODO-C", "remote_port": "ether1", "remote_ip": "", "mac": "",
                                "platform": "MikroTik", "caps": ["router"]}])
+    c_.neighbors = json.dumps([{"local_port": "ether1", "remote_name": "R-NODO-A", "remote_port": "ether2", "remote_ip": "", "mac": "",
+                                "platform": "MikroTik", "caps": ["router"]}])
     b_.neighbors = json.dumps([{"local_port": "ether1", "remote_name": "R-NODO-A", "remote_port": "ether1", "remote_ip": "", "mac": "",
                                 "platform": "MikroTik", "caps": ["router"]}])
     db.commit()
@@ -69,8 +74,45 @@ t = adm.get(B + "/topology").text
 check("mapa: filtro «Nodo» con «Todos»", "Nodo: Todos" in t and "Nodo: Nodo Quisqueya" in t)
 t = adm.get(B + f"/topology?node={nq}").text
 m = re.search(r"const NODES = (\[.*?\]), LINKS", t, re.S)
+nmap = {n["label"]: n for n in json.loads(m.group(1))} if m else {}
+labels = set(nmap)
+check("mapa con un nodo: sus equipos", {"R-NODO-A", "R-NODO-C"} <= labels and "R-SIN-NODO" not in labels
+      and not nmap["R-NODO-A"].get("dim"), labels)
+# R-NODO-B es vecino de R-NODO-A pero está en otro nodo: antes salía como vecino «que no está en OpenNCCM»
+b_ = nmap.get("R-NODO-B") or {}
+check("mapa con un nodo: el vecino de otro nodo sale atenuado, con su nodo", b_.get("dim") and b_.get("kind") == "dev"
+      and "Nodo Angelina" in (b_.get("note") or ""), b_)
+check("mapa con un nodo: los chips cuentan solo sus equipos", re.search(r'data-fam="mikrotik"[^>]*>.*?<span class="n">2</span>', t, re.S), "")
+t = adm.get(B + "/devices?node=" + str(nq)).text
+_rows = re.findall(r'href="/devices/\d+" style="color:var\(--ink\)">([^<]+)<', t)
+check("Dispositivos filtrado por nodo", set(_rows) == {"R-NODO-A", "R-NODO-C"} and "Nodo: Nodo Quisqueya" in t, _rows)
+adm.post(B + "/nodes", data={"name": "Nodo Vacio"})
+with SessionLocal() as db:
+    nv = db.scalar(select(NetNode.id).where(NetNode.name == "Nodo Vacio"))
+t = adm.get(B + f"/topology?node={nv}").text
+check("nodo sin equipos: aviso propio y «Asignar equipos»", "Nodo Vacio todavía no tiene equipos." in t and f"/devices?assign={nv}" in t)
+r = adm.post(B + "/devices/bulk", data={"action": "node", "node_id": str(nv), "ids": [str(devs["R-SIN-NODO"].id)],
+                                        "next": f"/devices?assign={nv}"}, allow_redirects=False)
+with SessionLocal() as db:
+    sn = db.get(Device, devs["R-SIN-NODO"].id).node_id
+check("asignar equipos a un nodo desde Dispositivos", sn == nv and f"/topology?node={nv}" in r.headers.get("location", ""), (sn, r.headers.get("location")))
+t = adm.get(B + "/nodes").text
+check("lista de nodos: enlace a sus equipos, Editar y Borrar con ícono", f'href="/devices?node={nq}"' in t and "#i-pin" in t
+      and 'title="Borrar"' in t and "Sus 2 equipos quedarán sin nodo" in t)
+adm.post(B + f"/nodes/{nv}/delete")
+
+t = adm.get(B + "/topology").text
+m = re.search(r"const NODES = (\[.*?\]), LINKS", t, re.S)
 labels = {n["label"] for n in json.loads(m.group(1))} if m else set()
-check("mapa con un nodo: solo sus equipos (y sus vecinos)", "R-NODO-A" in labels and "R-SIN-NODO" not in labels, labels)
+check("mapa con «Todos»: también el del otro nodo", {"R-NODO-A", "R-NODO-B", "R-NODO-C"} <= labels, labels)
+# tipo en el mapa corregido a mano por el administrador (formulario del equipo)
+adm.post(B + f"/devices/{devs['R-NODO-A'].id}/edit", data=dict(form, node_id=str(nq), map_role="switch"))
+t = adm.get(B + "/topology").text
+m = re.search(r"const NODES = (\[.*?\]), LINKS", t, re.S)
+roles = {n["label"]: n.get("role") for n in json.loads(m.group(1))} if m else {}
+ed = adm.get(B + f"/devices/{devs['R-NODO-A'].id}/edit").text
+check("tipo en el mapa elegido a mano", roles.get("R-NODO-A") == "switch" and roles.get("R-NODO-C") == "router"
+      and 'name="map_role"' in ed and '<option value="switch" selected>' in ed, roles)
 
 # ---------------------------------------------------------------- distribución
 mm = re.search(r"const MODES = (\[.*?\]);", t, re.S)

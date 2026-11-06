@@ -12,12 +12,12 @@
   @media (max-width:599px){
     .devph{flex-wrap:wrap}
     .devph>.dh{flex:1 1 100%;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:6px 12px}
-    .devph>.dh>.dt{display:contents}.devph>.dh .vend{width:44px!important;height:44px!important;border-radius:12px!important}
+    .devph>.dh>.dt{display:contents}.devph>.dh .vlg{width:44px!important;height:44px!important}
     .devph>.dh .dsub{grid-column:1/-1}
     .devph h1{overflow-wrap:anywhere}
   }
 </style>
-<div class="ph devph"><div class="grow row nowrap dh" style="gap:16px"><span class="vend" style="width:56px;height:56px;border-radius:16px;font-size:14px">{{ profile.vendor[:3]|upper }}</span>
+<div class="ph devph"><div class="grow row nowrap dh" style="gap:16px">{{ vlogo(device.device_type, 56, 'dvl', vbrand(device.device_type)) }}
   <div style="min-width:0" class="dt"><div class="row"><h1>{{ device.name }}</h1>
     {% if device.last_status == 'ok' %}<span class="pill ok live">En línea</span>{% elif device.last_status == 'error' %}<span class="pill crit">Sin conexión</span>{% else %}<span class="pill warn">Pendiente</span>{% endif %}
     {% if device.baseline_drift %}<span class="pill major">Difiere de la base</span>{% endif %}
@@ -25,7 +25,7 @@
     {% if fwu and fwu.status == 'update' %}<a class="pill info" href="#firmware" data-tab-link title="{{ _('Ver qué mejora y cómo obtenerla') }}">{{ _f('Firmware {0} disponible', fwu.target) }}</a>{% endif %}
     {% if not device.enabled %}<span class="tag">deshabilitado</span>{% endif %}</div>
     <div class="muted dsub" style="margin-top:2px">{{ profile.label }} · <span class="mono">{{ device.host }}{{ ':' ~ device.port if device.port != (23 if device.protocol == 'telnet' else 22) }}</span> ({{ device.protocol|upper }}) · {{ _f('respaldado {0}', device.last_backup_at|ago) if device.last_backup_at else _('sin respaldar todavía') }}</div></div></div>
-  {% if can_console and device.protocol == 'ssh' %}<a class="btn" href="/devices/{{ device.id }}/console" target="_blank" rel="noopener" data-console="{{ device.id }}" data-name="{{ device.name }}" data-vend="{{ profile.vendor[:3]|upper }}" aria-label="{{ _f('Consola SSH de {0}', device.name) }}">{{ icon('term', 's') }}Consola</a>{% endif %}
+  {% if can_console and device.protocol == 'ssh' %}<a class="btn" href="/devices/{{ device.id }}/console" target="_blank" rel="noopener" data-console="{{ device.id }}" data-name="{{ device.name }}" data-vl="{{ vkey(device.device_type) }}" aria-label="{{ _f('Consola SSH de {0}', device.name) }}">{{ icon('term', 's') }}Consola</a>{% endif %}
   {% if device.web_enabled != false %}<a class="btn" href="{{ device.web_url or 'https://' ~ device.host ~ '/' }}" target="_blank" rel="noopener noreferrer" onclick="return abrirVentana(this.href, 'web-{{ device.id }}', 1280, 820)" aria-label="Interfaz web del equipo (ventana nueva)">{{ icon('globe', 's') }}Interfaz web</a>{% endif %}
   {% if can_run %}<form class="inline" method="post" action="/devices/{{ device.id }}/backup"><button class="btn pri">{{ icon('backup', 's') }}Respaldar ahora</button></form>{% endif %}
   <span class="dropw"><button type="button" class="btn icon" data-drop="dev-menu" aria-haspopup="true" aria-expanded="false" aria-label="Más acciones" title="Más acciones">{{ icon('more', 's') }}</button>
@@ -76,7 +76,7 @@
   {% if profile.note and not device.custom_backup_cmd %}<div class="banner info">{{ icon('info') }}<span class="grow">{{ profile.note }}</span></div>{% endif %}
   <div class="bento">
     <section class="card c5"><div class="card-h"><h2>Inventario</h2>{% if is_admin %}<a class="btn s ghost" href="/devices/{{ device.id }}/edit" data-sheet data-title="{{ _f('Editar {0}', device.name) }}">{{ icon('edit', 's') }}Editar</a>{% endif %}</div>
-      <dl class="kv"><dt>Host</dt><dd class="mono">{{ device.host }}:{{ device.port }} ({{ device.protocol }})</dd><dt>Fabricante</dt><dd>{{ profile.label }}</dd>
+      <dl class="kv"><dt>Host</dt><dd class="mono">{{ device.host }}:{{ device.port }} ({{ device.protocol }})</dd><dt>Fabricante</dt><dd><span class="row nowrap" style="gap:8px">{{ vlogo(device.device_type, 18) }}{{ profile.label }}</span></dd>
         <dt>Modelo</dt><dd>{{ device.model or '—' }}</dd><dt>Nº de serie</dt><dd class="mono">{{ device.serial or '—' }}</dd>
         <dt>Firmware</dt><dd class="mono">{{ device.os_version or '—' }}</dd><dt>Grupo</dt><dd>{% if device.group %}<a href="/devices?group={{ device.group.id }}">{{ device.group.name }}</a>{% else %}—{% endif %}</dd>
         <dt>Ubicación</dt><dd>{{ device.location or '—' }}</dd><dt>Credencial</dt><dd>{{ device.credential.name if device.credential else '—' }}{% if device.credential and can_view_creds(user) %} · <a href="/devices/{{ device.id }}/credential/view" data-sheet data-title="{{ _f('Credencial «{0}»', device.credential.name) }}">{{ _('Ver') }}</a>{% endif %}</dd>
