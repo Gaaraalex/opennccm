@@ -82,5 +82,14 @@ clock[0] += 200
 syslog()                              # cambio mucho después: comportamiento normal
 check("aviso aislado posterior: respaldo normal a los 20 s", len(timers) == 1 and timers[0].delay == 20)
 
+# Extreme VOSS / Fabric Engine: no avisa «configuración cambiada»; cada comando de la CLI llega como CLILOG (salida real
+# de un 5520 con VOSS 9.3 en GNS3). Cuentan los de configuración y el guardado; los de consulta no.
+from app.scheduler import CHANGE_PATTERNS  # noqa: E402
+H = "<190>1 2026-11-06T10:32:35.733Z 5520-24T-FabricEngine CP1 - 0x002c0600 - 00000000 GlobalRouter CLILOG INFO   "
+check("VOSS: un comando de configuración (CLILOG) es un cambio", bool(CHANGE_PATTERNS.search(H + "137 SSH:10.0.0.5 admin vlan create 998 name X type port-mstprstp 0")))
+check("VOSS: «Save config … successful» es un cambio", bool(CHANGE_PATTERNS.search("<190>1 x GlobalRouter SW INFO Save config to file /intflash/config.cfg successful.")))
+check("VOSS: show, terminal, enable, configure y end no son cambios", not any(CHANGE_PATTERNS.search(H + "1 SSH:10.0.0.5 admin " + c) for c in (
+    "show running-config", "terminal more disable", "enable", "configure terminal", "end", "exit")))
+
 print("\nRESULTADO:", "TODO OK" if not fails else f"{len(fails)} fallos: {fails}")
 sys.exit(1 if fails else 0)
