@@ -142,6 +142,45 @@ Mbr/PSU   Number   Number                Status                    Maximum
 check("AOS-CX: tablas de ventiladores y fuentes", rd("aruba_aoscx", "show environment fan", CX)
       == ([("PSU 1/1", "ok"), ("PSU 1/2", "absent")], [("Fan 1/1", "ok"), ("Fan 1/2", "fail")]), rd("aruba_aoscx", "", CX))
 
+VOSS = """Power Supply Info :
+
+        Ps#1 Status       : UP
+        Ps#1 Type         : AC
+        Ps#1 Description  : 1100W AC Power Supply
+        Ps#1 Serial Number: 
+        Ps#1 Version      : 02
+        Ps#1 Part Number  : XN-ACPWR-1100W-FB
+
+        Ps#2 Status       : UP
+        Ps#2 Type         : AC
+        Ps#2 Description  : 1100W AC Power Supply
+        Ps#2 Serial Number: 
+        Ps#2 Version      : 02
+        Ps#2 Part Number  : XN-ACPWR-1100W-FB
+
+        Total Power Available : 2200 watts
+        Total Power Usage     : 0 watts
+
+Fan Info :
+
+            Description   OperStatus       OperSpeed OperSpeed(Rpm)   AirflowDir
+           Tray 1 Fan 1           up        lowSpeed           0   back-front
+           Tray 1 Fan 2           up        lowSpeed           0   back-front
+
+LED Info : 
+Port Lock Info :
+
+        Status       : off
+        LockedPorts  : 
+
+Message Control Info : 
+"""
+check("VOSS (show sys-info): 2 fuentes y 2 ventiladores", rd("extreme_vsp", "show sys-info", VOSS)
+      == ([("PSU 1", "ok"), ("PSU 2", "ok")], [("Tray 1 Fan 1", "ok"), ("Tray 1 Fan 2", "ok")]), rd("extreme_vsp", "show sys-info", VOSS))
+check("VOSS: fuente caída", rd("extreme_vsp", "show sys-info", VOSS.replace("Ps#2 Status       : UP", "Ps#2 Status       : DOWN"))[0][1]
+      == ("PSU 2", "fail"))
+check("VOSS: orden", chassis.commands("extreme_vsp") == ["show sys-info"])
+
 check("órdenes por plataforma", chassis.commands("cisco_ios")[0] == "show environment all"
       and chassis.commands("huawei") == ["display power", "display fan"] and chassis.commands("linux") == [])
 check("sin datos: vacío", chassis.parse(None, "cisco_ios") == {"psu": [], "fan": []})

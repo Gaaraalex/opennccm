@@ -27,6 +27,7 @@ COMMANDS = {
     "extreme_exos": ["show fans", "show power"],
     "fortinet": ["execute sensor list"],
     "ubiquiti_unifiswitch": ["show environment"],
+    "extreme_vsp": ["show sys-info"],  # VOSS / Fabric Engine: «Power Supply Info» y «Fan Info» dentro de sys-info
 }
 
 
@@ -184,9 +185,29 @@ def _generic(text: str) -> dict:
     return {"psu": sorted(psu.values(), key=key), "fan": sorted(fan.values(), key=key)}
 
 
+def _voss(raw: str) -> dict:
+    """«show sys-info» de VOSS: «Ps#1 Status : UP» por fuente y la tabla de «Fan Info» («Tray 1 Fan 1  up …»). Solo se
+    leen esas dos secciones (más abajo hay otros «Status : off», por ejemplo el de Port Lock Info)."""
+    psu, fan = [], []
+    for n, st in re.findall(r"(?m)^\s*Ps#(\d+) Status\s*:\s*(\S+)", raw):
+        s = st.lower()
+        psu.append({"n": f"PSU {n}", "s": "ok" if s == "up" else "absent" if s in ("empty", "notpresent", "absent") else "fail",
+                    "st": f"Ps#{n} Status : {st}"})
+    sec = re.search(r"(?ms)^Fan Info\s*:(.*?)(?:^\S|\Z)", raw)
+    for m in re.finditer(r"(?m)^\s*(Tray \d+ Fan \d+)\s+(\S+)\s+\S+\s+(\d+)", sec.group(1) if sec else ""):
+        s = m.group(2).lower()
+        f = {"n": m.group(1), "s": "ok" if s == "up" else "absent" if s in ("notpresent", "absent") else "fail", "st": m.group(0).strip()}
+        if int(m.group(3)):
+            f["rpm"] = int(m.group(3))
+        fan.append(f)
+    return {"psu": psu, "fan": fan}
+
+
 def parse(raw: str | None, device_type: str) -> dict:
     if not raw:
         return {"psu": [], "fan": []}
     if device_type == "mikrotik_routeros":
         return _mikrotik(raw)
+    if device_type == "extreme_vsp":
+        return _voss(raw)
     return _generic(raw.replace(MARK, "\n"))

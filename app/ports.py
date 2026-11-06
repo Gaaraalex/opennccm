@@ -32,6 +32,8 @@ COMMANDS = {
     "cisco_nxos": ["show interface status"], "cisco_wlc": ["show port summary"],
     "hp_procurve": ["show interfaces brief"], "aruba_osswitch": ["show interfaces brief"],
     "aruba_aoscx": ["show interface brief"], "extreme_exos": ["show ports no-refresh"],
+    # Extreme VOSS / Fabric Engine: tabla con STATUS ADMIN / OPERATE por puerto (1/1…1/26), probada en un 5520 con 9.3
+    "extreme_vsp": ["show interfaces gigabitEthernet"],
     "fortinet": ["get system interface physical"], "paloalto_panos": ["show interface all"],
     "checkpoint_gaia": ["show interfaces all"], "nokia_sros": ["show port"],
     "pfsense": ["ifconfig -a"], "opnsense": ["ifconfig -a"],
