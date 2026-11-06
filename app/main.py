@@ -1662,30 +1662,40 @@ def topology_page(request: Request, group: int = 0, node: int = 0):
     def nb_node(x):
         t = by_name.get(topology.norm_name(x["name"]))
         return f"d{t.id}" if t is not None else f"u:{x['key']}"
+    def same_port(e, dev_node, port):
+        """El enlace sale de ese equipo por ese puerto (o no se sabe el puerto)."""
+        mine = e["pa"] if e["a"] == dev_node else e["pb"]
+        return not port or not mine or topology.short_port(mine) == topology.short_port(port)
+    # Un equipo de OpenNCCM nunca se pinta entero como «nuevo» o «perdido» (sigue ahí, quizá con otro nombre o por otro
+    # puerto): solo se marca el enlace de ese puerto. Visto en un laboratorio con tres VOSS: al renombrar un switch, el
+    # vecino del nombre viejo «se pierde» y el del nombre nuevo «aparece».
     for x in nbm["new"]:
-        nid = nb_node(x)
-        if nid in nodes and nid != f"d{x['dev']}":
-            nodes[nid]["chg"] = "new"
+        nid, me = nb_node(x), f"d{x['dev']}"
+        if nid in nodes and nid != me:
+            if nodes[nid].get("kind") != "dev":
+                nodes[nid]["chg"] = "new"
             for e in links:
-                if {e["a"], e["b"]} == {nid, f"d{x['dev']}"}:
+                if {e["a"], e["b"]} == {nid, me} and same_port(e, me, x["port"]):
                     e["chg"] = "new"
     for x in nbm["lost"]:
-        nid = nb_node(x)
-        if nid == f"d{x['dev']}" or f"d{x['dev']}" not in nodes:
+        nid, me = nb_node(x), f"d{x['dev']}"
+        if nid == me or me not in nodes:
             continue
         if nid not in nodes:
             nid = f"x:{x['key']}"
             nodes[nid] = {"id": nid, "label": x["name"], "kind": "lost", "sub": x.get("ip") or x.get("mac") or "",
                           "fam": "mikrotik" if x["romon"] else "other", "role": "unknown", "how": ""}
-        nodes[nid]["chg"], nodes[nid]["lost_ago"] = "lost", x["ago"]
-        if not any({e["a"], e["b"]} == {nid, f"d{x['dev']}"} for e in links):
-            a_, b_ = f"d{x['dev']}", nid
+        if nodes[nid].get("kind") != "dev":
+            nodes[nid]["chg"], nodes[nid]["lost_ago"] = "lost", x["ago"]
+        live = [e for e in links if {e["a"], e["b"]} == {nid, me} and not e.get("chg")]
+        hit = [e for e in live if x["port"] and same_port(e, me, x["port"]) and (e["pa"] if e["a"] == me else e["pb"])]
+        if hit:  # el enlace de ese puerto todavía figura (no debería): se marca perdido
+            for e in hit:
+                e["chg"] = "lost"
+        else:  # se dibuja aparte, aunque los dos sigan unidos por otro puerto
+            a_, b_ = me, nid
             links.append({"a": a_, "b": b_, "pa": x["port"] if not x["romon"] else "", "pb": x.get("remote_port") or "",
-                          "k": f"{a_}|{b_}|lost", "air": False, "romon": x["romon"], "chg": "lost"})
-        else:
-            for e in links:
-                if {e["a"], e["b"]} == {nid, f"d{x['dev']}"}:
-                    e["chg"] = "lost"
+                          "k": f"{a_}|{b_}|lost|{x['port']}", "air": False, "romon": x["romon"], "chg": "lost"})
     linked = {e["a"] for e in links} | {e["b"] for e in links}
     show = [n for n in nodes.values() if n["id"] in linked]
     alone = [n for n in nodes.values() if n["id"] not in linked and n["kind"] == "dev"]

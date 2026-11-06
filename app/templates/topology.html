@@ -308,7 +308,9 @@
       const hid = LAY && (LAY.hideE.has(e.a + '|' + e.b) || LAY.hideN.has(e.a) || LAY.hideN.has(e.b));
       x.g.classList.toggle('lay-hide', !!hid);
       line.classList.toggle('xtra', !!(LAY && LAY.tree && !LAY.tree.has(e.a + '|' + e.b) && (LAY.route === 'down' || LAY.route === 'right')));
-      if (x.g.xm) x.g.xm.setAttribute('transform', `translate(${(a.x + b.x) / 2},${(a.y + b.y) / 2})`);
+      if (x.g.xm) { let mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;  // la ✕ va en la mitad del trazo (recto o curvo)
+        try { const len = line.getTotalLength(), pm = line.getPointAtLength(len / 2); mx = pm.x; my = pm.y; } catch (err) { /* sin medida */ }
+        x.g.xm.setAttribute('transform', `translate(${mx},${my})`); }
       const dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1, ux = dx / d, uy = dy / d;
       [[x.ta, a, ux, uy, 'a'], [x.tb, b, -ux, -uy, 'b']].forEach(([lab, n, vx, vy, end]) => {
         if (!lab) return;
@@ -354,6 +356,8 @@
   const ic = n => `<svg class="ico s" aria-hidden="true"><use href="${SPRITE}i-${n}"/></svg>`;
   function edgeD(e, a, b) {
     const ctr = LAY && LAY.route === 'center' ? {x: 0, y: 0} : null;
+    // el enlace perdido va como curva aparte: los dos equipos pueden seguir unidos por otro puerto y no debe taparlo
+    if (e.chg === 'lost') return window.TopoLayouts.path('down', a, b, false, ctr);
     return window.TopoLayouts.path(LAY ? LAY.route : 'line', a, b, !!(LAY && LAY.tree && LAY.tree.has(e.a + '|' + e.b)), ctr);
   }
   function opts() {
