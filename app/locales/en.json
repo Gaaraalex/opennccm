@@ -4372,5 +4372,11 @@
 "{0} enlaces": "{0} links",
 "¿Eliminar el nodo «{0}»?": "Delete the node “{0}”?",
 "Árbol plegable": "Collapsible tree",
-"— Sin nodo —": "— No node —"
+"— Sin nodo —": "— No node —",
+"Cambia el usuario y la contraseña de un nivel de acceso de la CLI (read-write-all = administrador completo). El usuario que escribes es el nuevo: el anterior de ese nivel deja de servir. Para equipos sin «enhanced secure mode» (show boot config flags: enhancedsecure-mode false).": "Changes the user and password of a CLI access level (read-write-all = full administrator). The user you type is the new one: the previous one for that level stops working. For devices without “enhanced secure mode” (show boot config flags: enhancedsecure-mode false).",
+"Cambiar el usuario y la contraseña de la CLI (VOSS / Fabric Engine)": "Change the CLI user and password (VOSS / Fabric Engine)",
+"Cambiar el usuario y la contraseña. El equipo pide la contraseña actual y la nueva dos veces: hazlo en la consola, no como solicitud de cambio, porque las preguntas se responden a mano. Si OpenNCCM entra con este usuario, actualiza su credencial.": "Change the user and password. The device asks for the current password and the new one twice: do it in the console, not as a change request, because the questions are answered by hand. If OpenNCCM logs in with this user, update its credential.",
+"Comprobar que entras con el usuario y la contraseña nuevos en otra sesión, antes de cerrar esta.": "Check that you can log in with the new user and password in another session before closing this one.",
+"Guardar la configuración.": "Save the configuration.",
+"Usuario nuevo": "New user"
 }
