@@ -109,6 +109,11 @@ CHANGE_PATTERNS = re.compile("|".join([
     r"CLILOG\s+\w+\s+\d+\s+\S+\s+\S+\s+(?!(?:show|terminal|enable|disable|exit|end|configure|ping|traceroute|telnet|"
     r"ssh|help|history|more|logout|quit|clear|copy|dir|ls|pwd|cd|cat|save)\b)\w",
     r"Save config to file \S+ successful",
+    # Extreme EXOS: con «enable cli-config-logging» registra cada comando («cli: IP (ssh) usuario: comando»; salida real
+    # de un EXOS 33.6 en GNS3: «X-1 cli: 10.0.0.5 (ssh) admin: create vlan prueba»). Cuenta un comando que no sea de
+    # consulta ni de la sesión (OpenNCCM entra con «disable clipaging»)
+    r"\bcli: \S+ \(\w+\) \S+: (?!(?:show|disable clipaging|enable clipaging|exit|logout|quit|ping|traceroute|history|"
+    r"clear|ssh|telnet|top|ls|cd|cat|tftp get|download|upload)\b)\w",
 ]), re.IGNORECASE)
 
 _last_trigger: dict[int, float] = {}

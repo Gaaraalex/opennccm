@@ -90,6 +90,15 @@ check("VOSS: un comando de configuración (CLILOG) es un cambio", bool(CHANGE_PA
 check("VOSS: «Save config … successful» es un cambio", bool(CHANGE_PATTERNS.search("<190>1 x GlobalRouter SW INFO Save config to file /intflash/config.cfg successful.")))
 check("VOSS: show, terminal, enable, configure y end no son cambios", not any(CHANGE_PATTERNS.search(H + "1 SSH:10.0.0.5 admin " + c) for c in (
     "show running-config", "terminal more disable", "enable", "configure terminal", "end", "exit")))
+# Extreme EXOS 33.6 (salida real con «enable cli-config-logging»)
+X = "<142>Nov  7 18:52:29 X-1 cli: 10.0.0.5 (ssh) admin: "
+check("EXOS: un comando de configuración es un cambio", all(CHANGE_PATTERNS.search(X + c) for c in (
+    "create vlan prueba", "configure vlan DATOS add ports 5 untagged", "delete vlan prueba", "disable ports 2",
+    "save configuration")))
+check("EXOS: consultas y la preparación de la sesión no son cambios", not any(CHANGE_PATTERNS.search(X + c) for c in (
+    "show configuration", "disable clipaging", "show switch", "exit")))
+check("EXOS: el inicio de sesión no es un cambio", not CHANGE_PATTERNS.search(
+    "<142>Nov  7 18:56:29 X-1 AAA: Login passed for user admin through ssh (10.0.0.5)"))
 
 print("\nRESULTADO:", "TODO OK" if not fails else f"{len(fails)} fallos: {fails}")
 sys.exit(1 if fails else 0)
