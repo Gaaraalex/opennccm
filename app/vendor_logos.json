@@ -265,7 +265,9 @@
       "archivo": "svg/zte.svg",
       "origen": "t",
       "perfiles": [
-        "zte_zxros"
+        "zte_zxros",
+        "zte_olt",
+        "zte_olt_titan"
       ]
     },
     "ruijie": {
@@ -927,6 +929,8 @@
     "watchguard_fireware": "watchguard",
     "opengear_linux": "opengear",
     "cloudgenix_ion": "paloalto",
-    "generic": "other"
+    "generic": "other",
+    "zte_olt": "zte",
+    "zte_olt_titan": "zte"
   }
 }

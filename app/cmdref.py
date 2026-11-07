@@ -229,14 +229,27 @@ _MES = [_r("show interfaces status", PORTS), _r("show vlan", VLAN), _r("show ip 
         _r("show lldp neighbors", LLDP), _r("show system", SYS), _r("show version", VER), _r("show running-config", RUN),
         _c("configure", CONF), _x("reload", BOOT)]
 _ZXROS = [_r("show ip interface brief", IFS), _r("show interface", N_("detalle de las interfaces")), _r("show ip route", RT),
-          _r("show arp", ARP), _r("show version", VER), _r("show running-config", RUN), _c("configure terminal", CONF)]
+          _r("show arp", ARP), _r("show mac", N_("tabla de direcciones MAC")), _r("show vlan", VLAN),
+          _r("show version", VER), _r("show running-config", RUN), _c("configure terminal", CONF), _c("write", N_("guardar la configuración"))]
+# OLT ZTE ZXA10 (C300/C320 y TITAN): tarjetas, ONU y potencia óptica
+_ZTE_OLT = [_r("show card", N_("tarjetas de la OLT, con su versión y estado")),
+            _r("show gpon onu state gpon-olt_1/1/1", N_("estado de las ONU de un puerto PON")),
+            _r("show gpon onu uncfg", N_("ONU conectadas que todavía no se dieron de alta")),
+            _r("show gpon onu by sn ZTEG00000000", N_("buscar una ONU por su número de serie")),
+            _r("show gpon onu baseinfo gpon-olt_1/1/1", N_("ONU de un puerto PON con su tipo y serie")),
+            _r("show pon power attenuation gpon-onu_1/1/1:1", N_("potencia óptica y atenuación de una ONU")),
+            _r("show running-config interface gpon-onu_1/1/1:1", N_("configuración de una ONU")),
+            _r("show mac gpon onu gpon-onu_1/1/1:1", N_("direcciones MAC detrás de una ONU")),
+            _r("show system-group", N_("modelo, versión y tiempo encendida")), _r("show running-config", RUN),
+            _c("configure terminal", CONF), _c("write", N_("guardar la configuración"))]
+_ZTE_TITAN = [_r("show software", VER)] + [x for x in _ZTE_OLT if x[0] != "show system-group"]
 _NOS = [_r("show interface brief", IFS), _r("show ip route", RT), _r("show lldp neighbors", LLDP), _r("show vlan brief", VLAN),
         _r("show version", VER), _r("show running-config", RUN), _c("configure terminal", CONF)]
 _STONEOS = [_r("show interface", IFS), _r("show ip route", RT), _r("show arp", ARP), _r("show version", VER),
             _r("show configuration", CFG), _c("configure", CONF)]
 
 TYPES: dict[str, list] = {
-    "eltex": _MES, "zte_zxros": _ZXROS, "brocade_nos": _NOS, "extreme_nos": _NOS, "extreme_slx": _NOS, "brocade_netiron": _NOS,
+    "eltex": _MES, "zte_zxros": _ZXROS, "zte_olt": _ZTE_OLT, "zte_olt_titan": _ZTE_TITAN, "brocade_nos": _NOS, "extreme_nos": _NOS, "extreme_slx": _NOS, "brocade_netiron": _NOS,
     "hillstone_stoneos": _STONEOS,
     "cisco_asa": _ASA, "cisco_ftd": _FTD, "cisco_xr": _XR, "cisco_wlc": _AIREOS, "cisco_ap": _CISCO_AP, "cisco_viptela": _VIPTELA,
     "cisco_s200": _CISCO_SMB, "cisco_s300": _CISCO_SMB, "cisco_s500": _CISCO_SMB,

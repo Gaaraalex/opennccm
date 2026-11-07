@@ -4406,5 +4406,16 @@
 "sin nodo": "no node",
 "{0} equipos asignados a «{1}»": "{0} devices assigned to “{1}”",
 "{0} equipos quedaron sin nodo": "{0} devices were left without a node",
-"{0} todavía no tiene equipos.": "{0} has no devices yet."
+"{0} todavía no tiene equipos.": "{0} has no devices yet.",
+"ONU conectadas que todavía no se dieron de alta": "connected ONUs not yet provisioned",
+"ONU de un puerto PON con su tipo y serie": "ONUs on a PON port with their type and serial",
+"buscar una ONU por su número de serie": "find an ONU by its serial number",
+"configuración de una ONU": "configuration of an ONU",
+"direcciones MAC detrás de una ONU": "MAC addresses behind an ONU",
+"estado de las ONU de un puerto PON": "state of the ONUs on a PON port",
+"guardar la configuración": "save the configuration",
+"modelo, versión y tiempo encendida": "model, version and uptime",
+"potencia óptica y atenuación de una ONU": "optical power and attenuation of an ONU",
+"tabla de direcciones MAC": "MAC address table",
+"tarjetas de la OLT, con su versión y estado": "OLT cards, with their version and status"
 }

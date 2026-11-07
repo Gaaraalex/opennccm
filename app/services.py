@@ -591,8 +591,8 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
                 startup = neighbors_raw = ports_raw = license_raw = tables_raw = None
             else:
                 with connect(dev) as conn:
-                    running = conn.send_command(dev.custom_backup_cmd or prof.backup, read_timeout=180)
-                    startup = conn.send_command(prof.startup, read_timeout=180) if prof.startup else None
+                    running = conn.send_command(dev.custom_backup_cmd or prof.backup, read_timeout=prof.backup_timeout)
+                    startup = conn.send_command(prof.startup, read_timeout=prof.backup_timeout) if prof.startup else None
                     inventory = "\n\n".join(conn.send_command(c, read_timeout=60) for c in prof.inventory.split("\n")
                                             if c.strip()) if prof.inventory else None
                     neighbors_raw = _read_neighbors(conn, dev.device_type)

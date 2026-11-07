@@ -47,6 +47,7 @@ class Profile:
     # Una licencia guardada sin el detalle (versiones anteriores) se vuelve a leer una vez.
     license_ids: str | None = None
     license_mark: str | None = None
+    backup_timeout: int = 180  # segundos para leer la configuración (una OLT con miles de ONU tarda más)
 
     @property
     def inventory_label(self) -> str:
@@ -239,7 +240,25 @@ PROFILES: list[Profile] = [
                  "configuración, pero los cambios y su reversión se hacen en UniFi Network."),
     Profile("tplink_jetstream", "TP-Link JetStream", "TP-Link", "show running-config", "show startup-config",
             inventory="show system-info", ignore=CISCO_IGNORE),
-    Profile("zte_zxros", "ZTE ZXROS", "ZTE", "show running-config", None, telnet=True, ignore=CISCO_IGNORE),
+    # ---------------- ZTE ----------------
+    # Switches y routers ZXR10 (2900E, 5900E, 5960, 8900E, 9900, M6000…): «show version» trae
+    # «ZXR10 5960-56TM-HC Software, Version: V3.02.20…» o «ZXR10_5952 Software, Version ZXR10 5900 V2.8.23…»
+    Profile("zte_zxros", "ZTE ZXR10 (switches y routers ZXROS)", "ZTE", "show running-config", None, telnet=True,
+            ignore=CISCO_IGNORE,
+            version_re=[r"Software,\s*Version:?\s*(?:ZXR10\s+\S+\s+)?(V[\w.\-]+)", r"ROS Version\s+(V[\w.\-]+)"],
+            model_re=[r"(?m)^(ZXR10[ _][\w\-]+)\s+Software"], serial_re=[r"System serial\s*:\s*(\S+)"]),
+    # OLT GPON/EPON ZXA10 de la serie C300 (C300, C320, C350, C220): el prompt es «ZXAN#». «show system-group» trae
+    # «System Description: C320 Version V2.1.0 Software» y «show card» las tarjetas con su versión. La configuración
+    # incluye cada ONU (interface gpon-onu_1/2/3:18, pon-onu-mng…): con miles de ONU tarda en leerse.
+    Profile("zte_olt", "ZTE ZXA10 OLT (C300, C320, C350, C220)", "ZTE", "show running-config", None,
+            inventory="show system-group\nshow card", telnet=True, ignore=CISCO_IGNORE, backup_timeout=900,
+            version_re=[r"System Description:\s*(?:ZXA10\s+)?C\d{3}\w*\s+Version\s+(V[\w.\-]+)"],
+            model_re=[r"System Description:\s*(?:ZXA10\s+)?(C\d{3}\w*)"]),
+    # OLT ZXA10 TITAN (C600, C610, C620, C650, C680): la misma CLI de OLT; la versión sale de «show software»
+    Profile("zte_olt_titan", "ZTE ZXA10 OLT TITAN (C600, C610, C620, C650, C680)", "ZTE", "show running-config", None,
+            inventory="show software\nshow card", telnet=True, ignore=CISCO_IGNORE, backup_timeout=900,
+            version_re=[r"Software,?\s*Version\s*:?\s*(V[\w.\-]+)", r"Version\s*:\s*(V[\w.\-]+)"],
+            model_re=[r"\b(C6[0-9]{2})\b"]),
     Profile("ruijie_os", "Ruijie OS", "Ruijie", "show running-config", None, telnet=True, ignore=CISCO_IGNORE),
     Profile("allied_telesis_awplus", "Allied Telesis AlliedWare Plus", "Allied Telesis",
             "show running-config", "show startup-config", ignore=CISCO_IGNORE),
