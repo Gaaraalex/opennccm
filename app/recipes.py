@@ -105,7 +105,9 @@ BUILTIN = [
 ]
 from .recipes_more import MORE  # noqa: E402  (las tareas comunes de Cisco, MikroTik, EXOS y VOSS)
 
-BUILTIN += MORE
+from .recipes_ubnt_zte import UBNT_ZTE  # noqa: E402  (Ubiquiti y ZTE)
+
+BUILTIN += MORE + UBNT_ZTE
 BY_KEY = {r["key"]: r for r in BUILTIN}
 
 
