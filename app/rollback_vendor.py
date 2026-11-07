@@ -167,6 +167,11 @@ def routeros(current: str, target: str, mgmt: str | None = None) -> tuple[list[s
         if _ros_is_mgmt(it, mgmt) or (old is not None and _ros_is_mgmt(old, mgmt)):
             notes.append(_f("No se cambia la dirección o el acceso SSH por el que OpenNCCM gestiona el equipo: {0}", it["line"]))
             continue
+        if old is None and it["verb"] == "add" and it["props"].get("name", "").strip('"') == "default":
+            # lo crea RouterOS solo (p. ej. «/system keymat-provider add … name=default … qkd-certificate=*0» en 7.24):
+            # volver a crearlo falla («QKD KME address is empty») y deja la restauración a medias
+            notes.append(_f("No se crea un elemento que RouterOS crea por sí mismo: {0}", it["line"]))
+            continue
         if old is None and it["verb"] == "add":
             line = it["line"]
             if ROS_ORDERED.match(it["path"]):

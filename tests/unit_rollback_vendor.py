@@ -141,6 +141,10 @@ c2, n2 = routeros(ROS_CUR.replace("address=10.0.0.2/24 interface=ether1", "addre
                   ROS_TGT, mgmt="10.0.0.2")
 check("RouterOS: no toca la dirección de gestión de OpenNCCM (y lo avisa)",
       not any("10.0.0.2" in c for c in c2) and any("gestiona" in n for n in n2), (c2, n2))
+K = "/system identity set name=R7-A\n/system keymat-provider add disabled=yes key-size=0 name=default qkd-certificate=*0 type=qkd\n"
+c5, n5 = routeros("/system identity set name=R7-B\n", K)
+check("RouterOS 7: no intenta crear lo que RouterOS crea solo (keymat-provider default)",
+      c5 == ["/system identity set name=R7-A"] and any("keymat" in n for n in n5), (c5, n5))
 check("RouterOS: sin cambios, sin comandos", routeros(ROS_TGT, ROS_TGT) == ([], []))
 # RouterOS 7.24.5 (laboratorio GNS3): el «/export terse» partió el servidor DHCP en dos líneas; antes no se restauraba
 SPLIT = "/ip pool add name=pool-datos ranges=192.168.10.100-192.168.10.200\n/ip dhcp-server\nadd address-pool=pool-datos interface=DATOS name=dhcp-datos\n" \
