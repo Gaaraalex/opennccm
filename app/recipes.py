@@ -38,7 +38,7 @@ BUILTIN = [
         ],
     },
     {
-        "key": "ros-services", "vendor": "MikroTik", "os": "ros", "os_label": "RouterOS 7", "cat": "seguridad",
+        "key": "ros-services", "vendor": "MikroTik", "os": "ros", "os_label": "RouterOS", "cat": "seguridad",
         "name": N_("Limitar SSH y Winbox a la red de gestión y apagar Telnet y FTP (RouterOS)"),
         "intro": N_("Los servicios de administración de RouterOS aceptan conexiones desde cualquier dirección. Esta receta los limita a la red de gestión y apaga los que mandan la contraseña sin cifrar."),
         "doc": "https://manual.mikrotik.com/docs/7.25/system-information-and-utilities/services/",
@@ -46,9 +46,9 @@ BUILTIN = [
         "steps": [
             {"t": N_("Ver los servicios y desde dónde se aceptan."), "c": "/ip service print"},
             {"t": N_("Incluya la dirección desde la que administra el equipo: las conexiones nuevas desde fuera de la lista se rechazan, también la suya si queda fuera."),
-             "c": "/ip service set ssh,winbox available-from={{red}}", "warn": True},
+             "c": "/ip service set ssh,winbox address={{red}}", "warn": True},
             {"t": N_("Apagar Telnet y FTP, que mandan la contraseña sin cifrar."), "c": "/ip service disable telnet,ftp"},
-            {"t": N_("Comprobar: Telnet y FTP con la marca X (deshabilitados) y SSH y Winbox con la red de gestión."),
+            {"t": N_("Comprobar: Telnet y FTP con la marca X (deshabilitados) y SSH y Winbox con la red de gestión (en RouterOS 7 se muestra como «available-from»)."),
              "c": "/ip service print", "check": True},
         ],
     },

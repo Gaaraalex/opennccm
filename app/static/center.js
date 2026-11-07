@@ -448,7 +448,7 @@
   function fill(c, o) { return c.replace(/\{\{(\w+)\}\}/g, function (m, n) { return o[n] != null ? o[n] : m; }); }
   function riskOf(r, c) {  // lo mismo que consolecore, simplificado: ¿solo consulta?
     var l = c.trim();
-    if (r.os === 'ros') return /(^|\s)(add|set|remove|enable|disable|unset|reset|reboot|import|move|shutdown)(\s|$)/.test(l) ? 'change' : 'read';
+    if (r.os === 'ros') return /(^|\s)(print|monitor|monitor-traffic|export|ping|traceroute|torch|getall)(\s|$)|^:put\b/.test(l) ? 'read' : 'change';
     return /^(show|sh |display|ping|traceroute|tracert|get |dump )/i.test(l) ? 'read' : 'change';
   }
   function detail(key) {

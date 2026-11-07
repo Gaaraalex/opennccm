@@ -5269,5 +5269,9 @@
 "Nuevo configlet para {0}": "New configlet for {0}",
 "Todavía no hay configlets para {0}.": "There are no configlets for {0} yet.",
 "Ver sus recetas": "See its recipes",
-"{0} veces": "{0} times"
+"{0} veces": "{0} times",
+"Cliente NTP con el servidor de la empresa, en RouterOS 6 (su cliente usa «primary-ntp» y «secondary-ntp»).": "NTP client with the company server, on RouterOS 6 (its client uses «primary-ntp» and «secondary-ntp»).",
+"Comprobar: Telnet y FTP con la marca X (deshabilitados) y SSH y Winbox con la red de gestión (en RouterOS 7 se muestra como «available-from»).": "Check: Telnet and FTP marked X (disabled) and SSH and Winbox with the management network (RouterOS 7 shows it as «available-from»).",
+"Comprobar: «active-server» con el servidor cuando ya sincroniza.": "Check: «active-server» shows the server once it is synchronizing.",
+"Sincronizar la hora con NTP (RouterOS 6)": "Sync the time with NTP (RouterOS 6)"
 }
