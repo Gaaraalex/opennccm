@@ -898,6 +898,23 @@ def _mikrotik_safe_undo(conn) -> None:
         pass
 
 
+ROS_PROGRESS = re.compile(r"-- \[Q quit\|D dump\|C-z pause\]\s*$")
+
+
+def _ros_wait_progress(conn, resp: str) -> str:
+    """RouterOS 6 muestra el avance de algunos comandos («/certificate sign» → «progress: …» y «-- [Q quit|D dump|C-z
+    pause]»). Esa línea termina en «]» y parecía el prompt: el comando siguiente se escribía en la pantalla de avance y
+    se perdía, y la solicitud terminaba «bien» sin haberlo aplicado (visto en un CHR 6.49 con la receta de HTTPS). Se
+    sigue leyendo hasta que vuelve el prompt de verdad («[admin@R1] >» o «… <SAFE>»)."""
+    if not ROS_PROGRESS.search(resp):
+        return resp
+    try:
+        resp += conn.read_until_pattern(pattern=r"\]\s*(?:<SAFE>|>)\s*$", read_timeout=300)
+    except Exception as e:  # noqa: BLE001
+        raise RuntimeError(f"El equipo no terminó el comando (seguía mostrando su avance):\n{resp.strip()[-500:]}\n{e}") from e
+    return resp
+
+
 def _push_stepwise(conn, commands: list[str], prof) -> str:
     """Envía los comandos de uno en uno y se detiene en el primero que el equipo rechace.
 
@@ -908,6 +925,7 @@ def _push_stepwise(conn, commands: list[str], prof) -> str:
     for i, cmd in enumerate(commands):
         resp = conn.send_command(cmd, expect_string=PROMPT_END, read_timeout=60, strip_prompt=False,
                                  strip_command=False, cmd_verify=False)
+        resp = _ros_wait_progress(conn, resp)
         out += f"\n{resp}"
         problem = None
         if DEVICE_ERROR.search(resp):
