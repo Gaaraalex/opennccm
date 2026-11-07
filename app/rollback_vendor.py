@@ -325,6 +325,18 @@ def _exos_base(cur: list[str], tgt: list[str], notes: list[str]) -> tuple[list[s
 def exos(current: str, target: str, mgmt: str | None = None) -> tuple[list[str], list[str]]:
     notes: list[str] = []
     cur, tgt, after = _exos_base(_exos_lines(current), _exos_lines(target), notes)
+    # una cuenta que ya existe en el switch no se puede volver a crear («User Account already exists»): se le pone la
+    # contraseña de la copia («configure account X encrypted …») y la línea del switch no se borra
+    acc = re.compile(r"^create account (\S+) (\S+) encrypted (.+)$")
+    have = {m.group(2): (m.group(1), l) for l in cur if (m := acc.match(l))}
+    for n, l in enumerate(tgt):
+        m = acc.match(l)
+        if m and l not in cur and m.group(2) in have:
+            priv, old = have[m.group(2)]
+            tgt[n] = f"configure account {m.group(2)} encrypted {m.group(3)}"
+            cur = [x for x in cur if x != old]
+            if priv != m.group(1):
+                notes.append(_f("La cuenta {0} ya existe con otro nivel de acceso ({1}); revíselo a mano.", m.group(2), priv))
     cur_set, tgt_set = set(cur), set(tgt)
     mgmt_vlans = {_q(re.match(r"^configure vlan (\S+) ipaddress", l).group(1)) for l in cur + tgt
                   if mgmt and re.match(rf"^configure vlan \S+ ipaddress {re.escape(mgmt)}(\s|/|$)", l)}

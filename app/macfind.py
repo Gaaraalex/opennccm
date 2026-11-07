@@ -52,6 +52,9 @@ _MAC = re.compile(r"(?<![0-9A-Fa-f:.-])((?:[0-9A-Fa-f]{2}([:-])[0-9A-Fa-f]{2}(?:
 _IP = re.compile(r"(?<![\d.])(\d{1,3}(?:\.\d{1,3}){3})(?![\d.])")
 _PORT = re.compile(r"^(?:[A-Za-z][A-Za-z_-]*\d+(?:[/:.]\d+)*|\d+[:/]\d+(?:/\d+)?)$")
 _NOT_PORT = {"cpu", "router", "switch", "drop", "self", "sup-eth1"}
+# «show fdb» de EXOS 33.6 (salida real en GNS3): «0c:2c:84:eb:00:00  Default(0001) 0014  d m  1»
+# (MAC, VLAN(etiqueta), edad, marcas, puerto; en una pila el puerto es «1:5»). Sin las permanentes y estáticas propias
+_EXOS_FDB = re.compile(r"^([0-9a-fA-F]{2}(?::[0-9a-fA-F]{2}){5})\s+(\S+)\((\d{4})\)\s+\d+\s+([A-Za-z ]*?)\s+(\d+(?::\d+)?)$")
 
 
 # --------------------------------------------------------------------------- formatos
@@ -181,6 +184,12 @@ def parse_mac(text: str) -> list[tuple[str, str, str]]:
             port = kv.get("on-interface") or kv.get("interface") or ""
             if mac and port:
                 rows.append((mac, kv.get("vid", ""), port))
+            continue
+        x = _EXOS_FDB.match(b.strip())
+        if x:  # EXOS: el puerto de un switch suelto es solo un número («1»), que la regla general descarta
+            mac = norm_mac(x.group(1))
+            if mac and not re.search(r"[ps]", x.group(4)):
+                rows.append((mac, str(int(x.group(3))), x.group(5)))
             continue
         m = _MAC.search(b)
         if not m:

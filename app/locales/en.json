@@ -5276,5 +5276,6 @@
 "Sincronizar la hora con NTP (RouterOS 6)": "Sync the time with NTP (RouterOS 6)",
 "Cambiar la contraseña (EXOS pide la actual y la nueva). Si OpenNCCM entra con esta cuenta, actualice también su credencial.": "Change the password (EXOS asks for the current and the new one). If OpenNCCM logs in with this account, update its credential too.",
 "No se aplica una línea que describe el punto de partida de EXOS (revísela a mano si hace falta): {0}": "A line that describes the EXOS starting point is not applied (review it by hand if needed): {0}",
-"No se crea un elemento que RouterOS crea por sí mismo: {0}": "An item that RouterOS creates by itself is not created: {0}"
+"No se crea un elemento que RouterOS crea por sí mismo: {0}": "An item that RouterOS creates by itself is not created: {0}",
+"La cuenta {0} ya existe con otro nivel de acceso ({1}); revíselo a mano.": "The account {0} already exists with another access level ({1}); review it by hand."
 }

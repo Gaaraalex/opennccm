@@ -189,6 +189,9 @@ check("EXOS: quita de Default solo los puertos que van a otra VLAN, antes de agr
       "configure vlan Default delete ports 5-8,9-10" in c5
       and c5.index("configure vlan Default delete ports 5-8,9-10") < c5.index("configure vlan DATOS add ports 5-8 untagged")
       and not any("vlan Default add" in c for c in c5), c5)
+c7, _n7 = exos('create account user lectura encrypted "$5$aaa"\n', 'create account user lectura encrypted "$5$bbb"\n')
+check("EXOS: una cuenta que ya existe no se vuelve a crear: se le pone la contraseña de la copia",
+      c7 == ['configure account lectura encrypted "$5$bbb"'], c7)
 c6, _n6 = exos(BASE, BLANK)
 check("EXOS: al volver a la copia sin VLAN propias, devuelve todos los puertos a Default después de borrar las VLAN",
       "configure vlan Default add ports all untagged" in c6
