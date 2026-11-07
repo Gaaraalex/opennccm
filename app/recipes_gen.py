@@ -47,8 +47,36 @@ TASKS = {
              [("destino", N_("IP a probar"), "8.8.8.8")], N_("Ping.")),
     "save": (N_("Guardar la configuración ({0})"), N_("Graba la configuración para que no se pierda al reiniciar."), "sistema", [],
              N_("Guardar.")),
+    # consultas comunes a muchas plataformas (no cambian nada)
+    "config": (N_("Ver la configuración en ejecución ({0})"), N_("La configuración completa que está usando el equipo ahora."),
+               "diagnostico", [], N_("Configuración en ejecución.")),
+    "arp": (N_("Ver la tabla ARP ({0})"), N_("Qué IP corresponde a cada MAC en las redes del equipo."), "diagnostico", [],
+            N_("Tabla ARP.")),
+    "lldp": (N_("Ver los vecinos LLDP ({0})"), N_("Los equipos conectados a cada puerto, según LLDP."), "diagnostico", [],
+             N_("Vecinos LLDP.")),
+    "cpu": (N_("Ver el uso de CPU y memoria ({0})"), N_("Carga del procesador y memoria libre, sin cambiar nada."), "diagnostico", [],
+            N_("CPU y memoria.")),
+    "alarms": (N_("Ver las alarmas activas ({0})"), N_("Alarmas que el equipo tiene abiertas ahora."), "diagnostico", [],
+               N_("Alarmas activas.")),
+    "trace": (N_("Rastrear la ruta a una dirección ({0})"), N_("Los saltos por los que pasa el tráfico hasta esa dirección."),
+              "diagnostico", [("destino", N_("IP a probar"), "8.8.8.8")], N_("Rastreo de ruta.")),
+    "time": (N_("Ver la fecha y la hora ({0})"), N_("La hora del equipo: si está mal, los registros y los respaldos salen con otra hora."),
+             "diagnostico", [], N_("Fecha y hora.")),
+    "ha": (N_("Ver el estado de alta disponibilidad ({0})"), N_("Qué equipo del par está activo y si están sincronizados."),
+           "diagnostico", [], N_("Alta disponibilidad.")),
+    "sessions": (N_("Ver las sesiones activas ({0})"), N_("Conexiones que el equipo tiene abiertas ahora."), "diagnostico", [],
+                 N_("Sesiones activas.")),
+    "users": (N_("Ver quién está conectado al equipo ({0})"), N_("Usuarios con una sesión de administración abierta."),
+              "diagnostico", [], N_("Usuarios conectados.")),
+    "disk": (N_("Ver el espacio en disco ({0})"), N_("Espacio libre en el almacenamiento del equipo."), "diagnostico", [],
+             N_("Espacio en disco.")),
+    "dnsq": (N_("Probar la resolución de un nombre ({0})"), N_("Comprueba que el equipo resuelve nombres con sus DNS."),
+             "diagnostico", [("host", N_("Nombre a resolver"), "opennccm.com")], N_("Consulta DNS.")),
+    "capture": (N_("Capturar el tráfico de una dirección ({0})"), N_("Muestra los paquetes de esa dirección que pasan por el equipo. Ctrl+C para parar."),
+                "diagnostico", [("destino", N_("IP a capturar"), "10.0.0.20")], N_("Captura.")),
 }
-DIAG = {"ports", "mac", "version", "routes", "logs", "ping"}
+DIAG = {"ports", "mac", "version", "routes", "logs", "ping", "config", "arp", "lldp", "cpu", "alarms", "trace", "time", "ha",
+        "sessions", "users", "disk", "dnsq", "capture"}
 
 
 def family(key: str, plat: tuple, tasks: dict, save: str | None = None, note: str | None = None, doc: str = "",

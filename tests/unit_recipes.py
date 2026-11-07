@@ -38,6 +38,10 @@ for fam, keys in {"Ubiquiti": [p.key for p in PROFILES if p.vendor == "Ubiquiti"
                   "ZTE": [p.key for p in PROFILES if p.vendor == "ZTE"]}.items():
     poor = [k for k in keys if by_os.get(os_of(k), 0) < 10]
     check(f"{fam}: todos sus equipos tienen 10 recetas o más", not poor, poor)
+# SwitchOS no tiene línea de comandos y «Genérico SSH» no es un equipo concreto: todos los demás, 10 recetas o más
+poor = [p.key for p in PROFILES if p.key not in ("mikrotik_swos", "generic") and by_os.get(os_of(p.key), 0) < 10]
+check("todos los tipos de equipo (salvo SwOS y Genérico SSH) tienen 10 recetas o más", not poor, poor)
+check("las claves de las recetas no se repiten", len(recipes.BY_KEY) == len(recipes.BUILTIN))
 
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)

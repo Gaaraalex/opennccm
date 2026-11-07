@@ -115,7 +115,9 @@ from .recipes_fw import FW  # noqa: E402  (FortiGate, PAN-OS, ASA, FTD, IOS-XR, 
 
 from .recipes_gen import GEN  # noqa: E402  (recetas estándar por familia: CLI tipo Cisco, OS10, SONiC, Nokia, OmniSwitch…)
 
-BUILTIN += MORE + UBNT_ZTE + MAJOR + FW + GEN
+from .recipes_rest import REST  # noqa: E402  (las plataformas que faltaban: Sophos, Viptela, Brocade FC, Ciena, D-Link…)
+
+BUILTIN += MORE + UBNT_ZTE + MAJOR + FW + GEN + REST
 BY_KEY = {r["key"]: r for r in BUILTIN}
 
 # Recetas probadas enteras en un equipo («verified_on»: la versión del sistema en la que se probaron todos sus pasos).
