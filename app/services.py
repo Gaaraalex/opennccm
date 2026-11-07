@@ -41,6 +41,24 @@ def device_lock(device_id: int) -> threading.Lock:
 
 
 # --------------------------------------------------------------------------- conexión
+TRANSIENT_SSH = re.compile(r"(?i)no existing session|error reading ssh protocol banner|connection reset|"
+                           r"forzado la interrupci|eoferror|socket is closed")
+
+
+def _connect_retry(handler, params: dict, tries: int = 3):
+    """Un fallo pasajero del SSH al entrar (el equipo está atendiendo otras sesiones: visto en un CHR con varios
+    respaldos y solicitudes a la vez, «Paramiko: 'No existing session'») se reintenta dos veces. Una contraseña mala o
+    un equipo que no responde no se reintentan."""
+    for n in range(tries):
+        try:
+            return handler(**params)
+        except Exception as e:  # noqa: BLE001
+            if n == tries - 1 or not TRANSIENT_SSH.search(f"{type(e).__name__}: {e}"):
+                raise
+            log.info("%s: fallo pasajero al entrar por SSH (%s); reintento", params.get("host"), str(e)[:120])
+            time.sleep(3 * (n + 1))
+
+
 def connect(dev: Device):
     from netmiko import ConnectHandler
 
@@ -63,7 +81,7 @@ def connect(dev: Device):
                   password=password, conn_timeout=20, timeout=60, auth_timeout=30, banner_timeout=30,
                   fast_cli=False)
     try:
-        conn = ConnectHandler(secret=secret, **params)
+        conn = _connect_retry(ConnectHandler, dict(secret=secret, **params))
     except ValueError as e:
         # Algunos drivers (p. ej. Ubiquiti EdgeSwitch) entran a «enable» al conectar y fallan si el equipo
         # pide una contraseña que la credencial no tiene.

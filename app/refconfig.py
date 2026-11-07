@@ -161,6 +161,10 @@ def lines_of(text: str, device_type: str, hosts: list[str]) -> list[tuple[str, s
             s = re.sub(r'\s*comment=("[^"]*"|\S+)', "", s)
             if not s:
                 continue
+            if re.match(r"add\b", s) and re.search(r'\bname="?default"?(\s|$)', s):
+                # lo crea RouterOS solo («/system keymat-provider add … name=default» en 7.24): no es una diferencia
+                # de configuración y volver a crearlo falla («QKD KME address is empty»)
+                continue
             words = path.split()
             sec = _section(words[1] if len(words) > 1 and words[0] in ("/ip", "/ipv6", "/system", "/interface") and words[0] != "/interface"
                            else words[0] if words else "", " ".join(words[1:]))

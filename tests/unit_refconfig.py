@@ -68,5 +68,13 @@ check("EXOS: igualar sin «no …»: borra lo que sobra con su orden contraria y
       and "configure vlan DATOS tag 10" in lines and 'configure snmp sysLocation "Sede"' in lines, cmds)
 check("EXOS: no cambia el nombre ni la contraseña del switch", not any("sysName" in x or "account" in x for x in lines), cmds)
 
+# RouterOS 7.24 (salida real en GNS3): «keymat-provider … name=default» lo crea RouterOS solo; copiarlo falla
+RREF = "/system keymat-provider\nadd disabled=yes key-size=0 name=default qkd-certificate=*0 type=qkd\n/ip dns\nset servers=1.1.1.1\n"
+RDEV = "/ip dns\nset servers=8.8.8.8\n"
+c = refconfig.compare(type("D", (), {"host": "", "device_type": "mikrotik_routeros", "id": 1, "model": ""})(), RREF,
+                      type("D", (), {"host": "", "device_type": "mikrotik_routeros", "id": 2, "model": ""})(), RDEV, {})
+cmds, _sk = refconfig.commands("mikrotik_routeros", c)
+check("RouterOS 7: no copia lo que RouterOS crea solo (keymat-provider default)", "keymat" not in cmds and "servers=1.1.1.1" in cmds, cmds)
+
 print("\nRESULTADO:", "TODO OK" if not fails else f"{len(fails)} fallos: {fails}")
 sys.exit(1 if fails else 0)
