@@ -15,7 +15,7 @@ from email.message import EmailMessage
 
 import requests
 from jinja2.sandbox import SandboxedEnvironment
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text as sql_text
 
 from .config import NVD_API_KEY, WORKERS
 from .crypto import decrypt, encrypt, try_decrypt
@@ -574,6 +574,18 @@ def _read_ports(conn, device_type: str) -> str | None:
     return "\n".join(x for x in out if x) or None
 
 
+def _take_write_lock(db, device_id: int) -> None:
+    """SQLite (WAL): si una transacción empieza leyendo (los SAVEPOINT de las tablas MAC/ARP y de los vecinos leen antes
+    de escribir) y otro respaldo escribe en ese momento, SQLite rechaza su escritura AL INSTANTE («database is locked»,
+    sin esperar el «timeout»). Con varios respaldos a la vez («Respaldar todos», o el respaldo y una solicitud de cambio)
+    el respaldo terminaba en «Internal Server Error» y su versión no se guardaba. Se empieza la transacción escribiendo,
+    así espera su turno y todo lo que sigue va en una transacción de escritura."""
+    if db.get_bind().dialect.name != "sqlite":
+        return
+    db.flush()
+    db.execute(sql_text("UPDATE devices SET id = id WHERE id = :i"), {"i": device_id})
+
+
 def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
@@ -669,13 +681,15 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
         else:
             new_conflict = False
 
+        name = dev.name
+        _take_write_lock(db, dev.id)
         if tables_raw:
             try:
                 from . import macfind
                 with db.begin_nested():
                     macfind.store(dev.id, tables_raw, db)
             except Exception as e:  # noqa: BLE001 - las tablas nunca hacen fallar el respaldo
-                log.warning("tablas MAC/ARP de %s: %s", dev.name, e)
+                log.warning("tablas MAC/ARP de %s: %s", name, e)
         if neighbors_raw is not None:
             from . import topology
             nbrs = topology.parse(neighbors_raw, dev.device_type)
@@ -685,7 +699,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
                 with db.begin_nested():
                     nbwatch.update(db, dev, nbrs, running)
             except Exception as e:  # noqa: BLE001 - nunca hace fallar el respaldo
-                log.warning("vecinos nuevos o perdidos de %s: %s", dev.name, e)
+                log.warning("vecinos nuevos o perdidos de %s: %s", name, e)
 
         if prof.key not in HTTP_ONLY:  # puertos y su estado, para la ficha del equipo
             from . import ports as ports_mod
