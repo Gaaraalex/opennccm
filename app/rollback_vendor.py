@@ -83,14 +83,22 @@ def _ros_lines(text: str) -> list[str]:
 
 def _ros_parse(text: str) -> list[dict]:
     items = []
+    section = ""
     for raw in _ros_lines(text):
         line = raw.strip()
         if not line.startswith("/"):
-            continue  # comentarios «#», líneas vacías
+            # RouterOS 7 a veces parte un elemento del «/export terse» en dos líneas: «/ip dhcp-server» y debajo
+            # «add address-pool=… name=…» (visto en 7.24.5 con un servidor DHCP en una interfaz sin enlace)
+            first = line.split(" ", 1)[0]
+            if not (section and first in VERBS):
+                continue  # comentarios «#», líneas vacías
+            line = f"{section} {line}"
         t = _ros_tokens(line)
         vi = next((i for i, w in enumerate(t) if w in VERBS), None)
         if vi is None:
+            section = line if re.fullmatch(r"/[\w/ -]+", line) else ""
             continue
+        section = ""
         path, verb, rest = " ".join(t[:vi]), t[vi], t[vi + 1:]
         sel = ""
         if verb == "set" and rest and (rest[0].startswith("[") or "=" not in rest[0]):

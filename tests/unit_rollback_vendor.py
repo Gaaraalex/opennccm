@@ -142,6 +142,14 @@ c2, n2 = routeros(ROS_CUR.replace("address=10.0.0.2/24 interface=ether1", "addre
 check("RouterOS: no toca la dirección de gestión de OpenNCCM (y lo avisa)",
       not any("10.0.0.2" in c for c in c2) and any("gestiona" in n for n in n2), (c2, n2))
 check("RouterOS: sin cambios, sin comandos", routeros(ROS_TGT, ROS_TGT) == ([], []))
+# RouterOS 7.24.5 (laboratorio GNS3): el «/export terse» partió el servidor DHCP en dos líneas; antes no se restauraba
+SPLIT = "/ip pool add name=pool-datos ranges=192.168.10.100-192.168.10.200\n/ip dhcp-server\nadd address-pool=pool-datos interface=DATOS name=dhcp-datos\n" \
+        "/ip dhcp-server network add address=192.168.10.0/24 gateway=192.168.10.1\n"
+c3, _n3 = routeros("/ip dhcp-client add interface=ether1 name=client1\n", SPLIT)
+check("RouterOS: un elemento partido en dos líneas («/ip dhcp-server» + «add …») también se restaura",
+      "/ip dhcp-server add address-pool=pool-datos interface=DATOS name=dhcp-datos" in c3, c3)
+c4, _n4 = routeros(SPLIT, "/ip dhcp-client add interface=ether1 name=client1\n")
+check("RouterOS: y también se quita al volver a una versión sin él", any(c.startswith("/ip dhcp-server remove") for c in c4), c4)
 c5, n5 = routeros(ROS_TGT + "/system keymat-provider add name=default" + chr(10), ROS_TGT)
 check("RouterOS: no borra lo que RouterOS crea por sí mismo (name=default), lo avisa", c5 == [] and n5, (c5, n5))
 # RouterOS 7.25 con terminal estrecho parte las líneas largas de /export con «\» y sangría en la siguiente
