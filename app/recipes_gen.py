@@ -96,6 +96,7 @@ def family(key: str, plat: tuple, tasks: dict, save: str | None = None, note: st
             steps.append((N_("Comprobar."), chk, "c"))
         r = R(f"{key}-{t}", plat, cat, name, intro, vars_, steps, doc)
         r["name_arg"] = plat[2]
+        r["task"] = t
         out.append(r)
     return out + (extra or [])
 

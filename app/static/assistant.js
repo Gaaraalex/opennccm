@@ -105,7 +105,11 @@
             '<button type="button" class="btn s ghost" data-copy="' + esc(s.t) + '">' + esc(T.copy) + '</button>' +
             (window.CXinsert || window.ocAiInsert ? '<button type="button" class="btn s ghost" data-ins="' + esc(s.t) + '">' + esc(T.insert) + '</button>' : '') +
             (s.risk !== 'read' && body.device_id ? '<button type="button" class="btn s" data-cr="' + esc(s.t) + '">' + esc(T.cr) + '</button>' : '') + '</div></div>';
-        }).join('') + '<div class="meta">' + (j.source ? esc(T.source.replace('{0}', j.source)) + ' · ' : '') + esc(j.model) + ' · ' + esc(j.who) + ' · ' + j.ms + ' ms</div>';
+        }).join('') + (j.segments.some(function (s) { return s.k !== 'text' && s.risk !== 'read'; }) && T.wshort ?
+          '<div class="wl-short ai-warn"><svg class="ico s" aria-hidden="true"><use href="/static/icons.svg#i-alert"/></svg><span>' + esc(T.wshort) +
+          (T.forum_url ? ' <a href="' + esc(T.forum_url) + '" target="_blank" rel="noopener">' + esc(T.forum) + '</a>' : '') +
+          (T.issues_url ? ' · <a href="' + esc(T.issues_url) + '" target="_blank" rel="noopener">GitHub</a>' : '') + '</span></div>' : '') +
+          '<div class="meta">' + (j.source ? esc(T.source.replace('{0}', j.source)) + ' · ' : '') + esc(j.model) + ' · ' + esc(j.who) + ' · ' + j.ms + ' ms</div>';
         wait.parentNode.scrollTop = wait.parentNode.scrollHeight;
       }).catch(function () { busy = false; wait.innerHTML = '<p class="k-bad">…</p>'; });
   }

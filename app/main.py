@@ -2018,14 +2018,28 @@ def configlets(request: Request):
         devs = [d for d in db.scalars(select(Device).where(Device.enabled.is_(True)))]
         allowed = set(filter_ids(user, [d.id for d in devs]))
         audit_rows = db.scalars(select(AuditLog.detail).where(AuditLog.action.in_(("configlet_exec", "change_request")))).all()
-    for c in items:  # tarjetas del prototipo: equipos compatibles y veces que se ha usado
-        try:
-            rx = re.compile(c.device_type_filter) if c.device_type_filter else None
-        except re.error:
-            rx = None
-        c.compat = sum(1 for d in devs if d.id in allowed and (rx is None or rx.search(d.device_type)))
-        c.uses = sum(1 for det in audit_rows if det and c.name in det)
-    return render(request, "configlets.html", user, items=items)
+    from . import configlets_ui
+    uses = {c.id: sum(1 for det in audit_rows if det and c.name in det) for c in items}
+    data = configlets_ui.build(items, devs, allowed, uses)
+    open_id = request.query_params.get("open")
+    return render(request, "configlets.html", user, items=items, data=data,
+                  open_id=int(open_id) if open_id and open_id.isdigit() else None)
+
+
+@app.post("/configlets/{cid}/verify")
+async def configlet_verify(request: Request, cid: int):
+    """Sello «Verificada · versión» de un configlet: solo un administrador, y queda en Auditoría."""
+    user = require(request, "admin")
+    from . import verified
+    data = await request.json()
+    with SessionLocal() as db:
+        c = db.get(Configlet, cid)
+        if not c:
+            return JSONResponse({"error": _("No existe el configlet.")}, 404)
+        name = c.name
+    v = verified.put("configlet", cid, str(data.get("verified_on") or ""))
+    log_action(request, user, "configlet_verified" if v else "configlet_unverified", f"{name}{' · ' + v if v else ''}")
+    return JSONResponse({"ok": True, "verified_on": v})
 
 
 @app.get("/configlets/new")
@@ -2034,6 +2048,12 @@ def configlet_form(request: Request, cid: int | None = None):
     user = require(request, "admin")
     with SessionLocal() as db:
         c = db.get(Configlet, cid) if cid else None
+        src = request.query_params.get("from")
+        if not cid and src and src.isdigit():  # «Duplicar»: un configlet nuevo con los datos de otro
+            o = db.get(Configlet, int(src))
+            if o:
+                c = Configlet(name=_f("{0} (copia)", o.name), description=o.description, kind=o.kind, body=o.body,
+                              device_type_filter=o.device_type_filter)
         types = [d.device_type for d in db.scalars(select(Device))]
     return render(request, "configlet_form.html", user, c=c, types=types)
 
@@ -2091,8 +2111,12 @@ def configlet_run_form(request: Request, cid: int):
             d.group.name if d.group else None  # carga la relación antes de cerrar la sesión
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
     found_vars = sorted(set(re.findall(r"{{\s*([a-zA-Z_]\w*)", c.body)) - {"device"})
+    from . import configlets_ui, vendorlogos, verified
+    _fams, profs = configlets_ui.serves(c.device_type_filter)
     return render(request, "configlet_run.html", user, c=c, devices=devs, groups=groups, found_vars=found_vars,
-                  require_approval=get_setting("require_approval", "1") == "1")
+                  require_approval=get_setting("require_approval", "1") == "1",
+                  serves=configlets_ui.serves_text(c.device_type_filter, profs), vl={d.id: vendorlogos.key(d.device_type) for d in devs},
+                  verified_on=verified.get("configlet", c.id), os_label="")
 
 
 @app.post("/configlets/{cid}/run")
@@ -2587,6 +2611,7 @@ async def compliance_remediate_policy(request: Request):
     form = await request.form()
     pid = int(form.get("policy_id") or 0)
     only = int(form.get("device_id") or 0)
+    rules = {int(x) for x in form.getlist("rule_id") if str(x).isdigit()}
     back = form.get("next") or "/compliance"
     back = back if back.startswith("/") and not back.startswith("//") else "/compliance"
     scope = device_scope(user)
@@ -2596,7 +2621,7 @@ async def compliance_remediate_policy(request: Request):
                                                              ComplianceResult.passed.is_(False))):
             if (only and r.device_id != only) or (scope is not None and r.device_id not in scope):
                 continue
-            if r.rule and r.rule.remediation:
+            if r.rule and r.rule.remediation and (not rules or r.rule_id in rules):
                 per_dev.setdefault(r.device_id, []).append((r.rule.name, r.rule.remediation.strip(), r.device.name,
                                                             r.policy.name))
     if not per_dev:

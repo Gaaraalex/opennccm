@@ -4,7 +4,6 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import threading
 from datetime import timedelta
 from pathlib import Path
 
@@ -177,10 +176,12 @@ def _answer_prompts(conn, cmd: str) -> str:
     return full
 
 
-def upgrade_device(device_id: int, image_id: int, reload: bool, channel: str = "") -> str:
+def upgrade_device(device_id: int, image_id: int, reload: bool, channel: str = "", cr_id: int | None = None) -> str:
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
+        before = dev.os_version
         img = db.get(FirmwareImage, image_id) if image_id else None
+        target = img.version if img else None
         prof = get_profile(dev.device_type)
         fw = prof.firmware
         method = (fw or {}).get("method")
@@ -215,11 +216,11 @@ def upgrade_device(device_id: int, image_id: int, reload: bool, channel: str = "
         except Exception:
             services.end_maintenance(device_id)
             raise
-    # Refrescar inventario/configuración: tras el reinicio esperar 15 min (5 en MikroTik), si no, enseguida
-    delay = (300 if method == "routeros" else 900) if reload else 1
-    t = threading.Timer(delay, lambda: services.pool.submit(services.backup_device, device_id, "push", "firmware"))
-    t.daemon = True
-    t.start()
+    # Comprobar la versión: cuando el equipo vuelve (si reinicia) se lee su versión, se respalda y se dice si quedó en la
+    # nueva; si no, el final de su registro va a Eventos y a la solicitud de cambio (app/fwverify.py)
+    from . import fwverify
+    fwverify.start_verify(device_id, before, target, reload, cr_id)
+    log.append("OpenNCCM comprobará la versión instalada cuando el equipo responda" + (" después del reinicio." if reload else "."))
     return "\n".join(str(x) for x in log)
 
 
@@ -249,7 +250,7 @@ def _scp_boot(conn, img, fw, reload: bool, log: list) -> None:
             log.append(_answer_prompts(conn, fw["reload"]))
         except Exception as e:  # noqa: BLE001 - la sesión se corta al reiniciar
             log.append(f"(sesión cerrada por el reinicio: {e.__class__.__name__})")
-        log.append("Reinicio enviado. El inventario se actualizará con el próximo respaldo.")
+        log.append("Reinicio enviado.")
 
 
 def execute_firmware_request(db, cr):
@@ -266,7 +267,7 @@ def execute_firmware_request(db, cr):
             waves = [[d.id] for d in devices]
     report, ok, fail = [], 0, 0
     for n, wave in enumerate(waves, 1):
-        futs = [(by_id[i].name, services.pool.submit(upgrade_device, i, cr.firmware_id or 0, cr.reload, channel))
+        futs = [(by_id[i].name, services.pool.submit(upgrade_device, i, cr.firmware_id or 0, cr.reload, channel, cr.id))
                 for i in wave if i in by_id]
         tag = f"{n}/{len(waves)} · " if len(waves) > 1 else ""
         for name, f in futs:

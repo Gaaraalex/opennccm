@@ -149,6 +149,8 @@ def texts() -> dict:
             "secrets": _("secretos ocultos"), "sugg": _("PREGUNTAS SUGERIDAS"), "ph": _("Pregunta al asistente…"),
             "note": _("Sugiere; nunca ejecuta. Antes de enviar se ocultan contraseñas y claves. Cada pregunta queda en Auditoría."),
             "thinking": _("Pensando…"), "copy": _("Copiar"), "insert": _("Insertar"), "cr": _("Enviar como solicitud de cambio"),
+            "wshort": _("Revisa los comandos antes de usarlos en producción."), "forum": _("Foro"),
+            "forum_url": __import__("app.config", fromlist=["x"]).FORUM_URL, "issues_url": __import__("app.config", fromlist=["x"]).ISSUES_URL,
             "copied": _("Copiado."), "risk": {"read": _("solo lectura"), "change": _("cambia la configuración"),
                                               "outage": _("corta el servicio")},
             "source": _("Fuente: {0}"), "crdone": _("Solicitud de cambio creada."), "close": _("Cerrar"), "send": _("Enviar"),

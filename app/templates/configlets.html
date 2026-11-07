@@ -1,16 +1,34 @@
 {% extends "base.html" %}{% block title %}Configlets y scripts{% endblock %}
 {% block content %}
+{% import "_warn.html" as w with context %}
 {% set can_run = ROLES[user.role] >= 1 %}
+{% set n_exec = items|selectattr('kind', 'equalto', 'exec')|list|length %}
 <div class="ph"><div class="grow"><h1>Configlets y scripts</h1><div class="sub">Plantillas con variables <span class="mono">&#123;&#123; nombre &#125;&#125;</span>. Los <b>configlets</b> cambian la configuración; los <b>scripts</b> solo ejecutan comandos de consulta.</div></div>
   {% if user.role == 'admin' %}<a class="btn pri" href="/configlets/new" data-sheet data-title="Nuevo configlet">{{ icon('plus', 's') }}Nuevo configlet</a>{% endif %}</div>
 {% if items %}
-<div class="bento">{% for c in items %}{% set script = c.kind == 'exec' %}
-  <section class="card c4" style="display:flex;flex-direction:column;gap:12px">
-    <div class="row nowrap"><span class="qi {{ 'mut' if script else 'info' }}">{{ icon('term' if script else 'code') }}</span><div class="grow cfl-name"><b>{{ c.name }}</b><div class="muted sm">{{ c.description or '' }}</div></div><span class="tag">{{ _('Script') if script else _('Configlet') }}</span></div>
-    <pre class="mono" style="margin:0;padding:10px 12px;border-radius:10px;background:var(--surface-2);white-space:pre-wrap;color:var(--ink-2);flex:1;border:0">{{ c.body|varmark }}</pre>
-    <div class="row"><span class="muted sm grow">{{ _('1 equipo compatible') if c.compat == 1 else _f('{0} equipos compatibles', c.compat) }} · {{ _('usado 1 vez') if c.uses == 1 else _f('usado {0} veces', c.uses) }}</span>
-      {% if user.role == 'admin' %}<a class="btn s icon" href="/configlets/{{ c.id }}/edit" data-sheet data-title="{{ _f('Editar «{0}»', c.name) }}" aria-label="Editar" title="Editar">{{ icon('edit', 's') }}</a>{% endif %}
-      {% if can_run %}<a class="btn s pri" href="/configlets/{{ c.id }}/run" data-sheet data-wide data-title="{{ _f('Ejecutar «{0}»', c.name) }}">{{ icon('play', 's') }}Ejecutar</a>{% endif %}</div>
-  </section>{% endfor %}</div>
+<div class="rc-top"><div class="input grow">{{ icon('search', 's') }}<input id="cf-q" type="search" placeholder="{{ _('Buscar por nombre o comando…') }}" aria-label="{{ _('Buscar configlets y scripts') }}"></div>
+  <div class="seg" id="cf-kind" role="group" aria-label="{{ _('Tipo') }}"><button type="button" data-k="" class="on" aria-pressed="true">{{ _('Todos') }} <span class="n">{{ items|length }}</span></button><button type="button" data-k="config" aria-pressed="false">{{ _('Configlets') }} <span class="n">{{ items|length - n_exec }}</span></button><button type="button" data-k="exec" aria-pressed="false">{{ _('Scripts') }} <span class="n">{{ n_exec }}</span></button></div></div>
+{{ w.warn_line(_('Revisa los configlets antes de usarlos en producción.')) }}
+<div class="rc-cols" id="cf-cols">
+  <div class="rc-col l" id="cf-left"></div>
+  <div class="rc-col m" id="cf-mid"></div>
+  <div class="rc-col r" id="cf-detail"></div>
+</div>
+{{ w.warn_dialog(_('Revisa los configlets antes de usarlos en producción')) }}
+<noscript><ul class="cf-nojs">{% for c in items %}<li><b>{{ c.name }}</b> · {{ _('Script') if c.kind == 'exec' else _('Configlet') }}{% if can_run %} · <a href="/configlets/{{ c.id }}/run">{{ _('Ejecutar') }}</a>{% endif %}</li>{% endfor %}</ul></noscript>
+<script type="application/json" id="cfl-data">{{ {'items': data['items'], 'plats': data.plats, 'admin': user.role == 'admin', 'can_run': can_run, 'open': open_id,
+  'forum': FORUM_URL, 'issues': ISSUES_URL, 'version': VERSION,
+  't': {'yours': _('Tus equipos'), 'for_yours': _('Para tus equipos'), 'for_yours_s': _('Solo lo que puedes ejecutar'), 'not_yours': _('No aplican a tus equipos'),
+        'dim_note': _('Estos se ven atenuados: no hay en tu inventario equipos donde ejecutarlos.'), 'dev_1': _('1 equipo tuyo'), 'dev_n': _('{0} equipos tuyos'), 'none_dev': _('ningún equipo tuyo'),
+        'g_cfg': _('Configlets · cambian la configuración'), 'g_exec': _('Scripts · solo consulta'), 'show': _('Mostrar'), 'hide': _('Ocultar'),
+        'found': _('{0} con «{1}»'), 'no_res': _('No hay configlets ni scripts con «{0}».'), 'none': _('No hay configlets para tus equipos.'), 'pick': _('Elige un configlet o un script para verlo.'),
+        'k_cfg': _('Configlet · cambia la configuración'), 'k_exec': _('Script · solo consulta'), 'serves': _('Sirve para'), 'seal': _('Sello'), 'used': _('Usado'),
+        'times_1': _('1 vez'), 'times_n': _('{0} veces'), 'none_for': _('Todavía no hay configlets para {0}.'),
+        'new_for': _('Nuevo configlet para {0}'), 'new_t': _('Nuevo configlet'), 'see_recipes': _('Ver sus recetas'), 'v_pill': _('Verificada · {0}'), 'v_short': _('Verificada'), 'v_none': _('Sin verificar'),
+        'v_set': _('Marcar como verificado'), 'v_unset': _('Quitar el sello'), 'v_ask': _('Versión del sistema en la que se probaron todos los comandos (por ejemplo, «VOSS 9.3.0.0»):'),
+        'w_short': _('Revisa los comandos antes de usarlos en producción.'), 'forum': _('Foro'),
+        'gh_title': _('Configlet: {0}'), 'gh_l': [_('Configlet: {0}'), _('Plataforma: {0}'), _('Sello: {0}'), _('Versión de OpenNCCM: {0}'), _('Qué pasó:'), _('Versión del sistema de mi equipo:')],
+        'run': _('Ejecutar'), 'run_t': _('Ejecutar «{0}»'), 'edit': _('Editar'), 'edit_t': _('Editar «{0}»'), 'dup': _('Duplicar')}}|tojson }}</script>
+<script src="/static/configlets.js?v={{ VERSION }}"></script>
 {% else %}<section class="card"><div class="empty">{{ empty_art('plus') }}<h2>Aún no hay configlets</h2><p>Son plantillas de comandos para aplicar a muchos equipos a la vez. Para cargar ejemplos, ejecuta <code>opennccm-cli seed</code>.</p></div></section>{% endif %}
 {% endblock %}

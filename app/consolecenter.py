@@ -98,6 +98,9 @@ def center(request: Request, tab: str = "sesiones", q: str = "", rec: int = 0, e
     # las seis secciones van en la misma página (las sesiones abiertas siguen vivas al cambiar de sección)
     ctx["recipes"] = all_recipes(user)
     ctx["cats"] = {k: _(v) for k, v in recipes.CATEGORIES.items()}
+    ctx["tasks"] = recipe_tasks()
+    ctx["oslabels"] = {k: v for k, v in cc.OS_LABEL.items() if v}
+    ctx["brands"] = recipe_brands()
     ctx["recs"] = recordings(user, q, bool(empty))
     ctx["empty"] = bool(empty)
     ctx["tool_help"] = {k: _(v) for k, v in nettools.HELP.items()}
@@ -323,12 +326,56 @@ def _recipe_logos() -> tuple[dict, dict]:
     return by_vendor, by_os
 
 
+# recetas escritas a mano que hacen lo mismo que una tarea del generador («voss-sysname» es «hostname»)
+_TASK_ALIAS = {"sysname": "hostname", "identity": "hostname", "olt-hostname": "hostname", "sntp": "ntp"}
+
+
+def _task_of(r: dict) -> str:
+    """Tarea común de la receta (para la vista «Por tarea»); vacío si es propia de su plataforma."""
+    from .recipes_gen import TASKS
+    if r.get("task"):
+        return r["task"]
+    s = r["key"].split("-", 1)[1] if "-" in r["key"] else ""
+    s = _TASK_ALIAS.get(s, s)
+    return s if s in TASKS else ""
+
+
+def _short(name: str, *labels: str) -> str:
+    """El nombre sin la plataforma del final («Habilitar SSH (VOSS / Fabric Engine)» → «Habilitar SSH»)."""
+    for lb in labels:
+        if lb and name.endswith(f" ({lb})"):
+            return name[: -len(lb) - 3]
+    # las recetas de OpenNCCM siempre terminan con la plataforma entre paréntesis, aunque la escriban distinto («(EdgeOS)»)
+    return re.sub(r"\s+\([^()]{2,40}\)$", "", name) if labels and labels[0] != "§" else name
+
+
+def recipe_brands() -> list[dict]:
+    """Las marcas de los tipos de equipo, con su logo y las plataformas (familias de comandos) de sus equipos."""
+    from . import vendorlogos
+    from .drivers import PROFILES
+    out: dict[str, dict] = {}
+    for p in PROFILES:
+        b = out.setdefault(p.vendor, {"n": p.vendor, "vl": vendorlogos.key(p.key), "os": []})
+        o = cc.os_of(p.key)
+        if o != "generic" and o not in b["os"]:
+            b["os"].append(o)
+    return sorted((b for b in out.values() if b["os"]), key=lambda b: b["n"].lower())
+
+
+def recipe_tasks() -> dict:
+    """Tareas comunes con su nombre sin la plataforma, su introducción y su categoría."""
+    from .recipes_gen import TASKS
+    return {t: {"n": _short(_(v[0]).format("§"), "§"), "i": _(v[1]), "c": v[2]} for t, v in TASKS.items()}
+
+
 def all_recipes(user) -> list[dict]:
     uses = _uses()
     by_vendor, by_os = _recipe_logos()
     out = []
     for r in recipes.BUILTIN:
-        out.append({**r, "name": _(r["name"]).format(r["name_arg"]) if r.get("name_arg") else _(r["name"]), "intro": _(r["intro"]),
+        name = _(r["name"]).format(r["name_arg"]) if r.get("name_arg") else _(r["name"])
+        out.append({**r, "name": name, "short": _short(name, r.get("os_label", ""), cc.OS_LABEL.get(r["os"], ""), r.get("vendor", "")),
+                    "task": _task_of(r), "intro": _(r["intro"]),
                     "vars": [{**v, "l": _(v["l"])} for v in r["vars"]],
                     "steps": [{**s, "t": _(s["t"])} for s in r["steps"]],
                     "scope": "opennccm", "by": "OpenNCCM", "uses": uses.get(r["key"], 0), "mine": False,
@@ -340,7 +387,7 @@ def all_recipes(user) -> list[dict]:
             except ValueError:
                 continue
             mine = r.owner == user.username
-            out.append({**d, "key": f"u{r.id}", "id": r.id, "scope": "mine" if mine else "team", "by": r.owner,
+            out.append({**d, "short": d.get("name", ""), "task": "", "key": f"u{r.id}", "id": r.id, "scope": "mine" if mine else "team", "by": r.owner,
                         "uses": r.uses, "mine": mine, "vl": by_vendor.get(d.get("vendor"), by_os.get(d.get("os"), "other"))})
     return out
 

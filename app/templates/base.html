@@ -10,6 +10,7 @@
 <link rel="preload" href="/static/fonts/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/style.css?v={{ VERSION }}-{{ CSS_HASH }}">
 <link rel="stylesheet" href="/static/senal.css?v={{ VERSION }}-{{ SENAL_HASH }}">
+<link rel="stylesheet" href="/static/warn.css?v={{ VERSION }}-{{ WARN_HASH }}">
 <script>(function (h) { h.classList.add('tabs-wait'); addEventListener('load', function () { h.classList.remove('tabs-wait'); }); })(document.documentElement)  /* shell.js lo quita antes, al armar las pestañas */</script>
 </head>
 <body{% block body_attr %}{% endblock %}>
@@ -157,6 +158,7 @@
                 [_('Cambiar a tema oscuro'), 'oscuro', 'moon', 'theme'], [_('Cambiar a tema claro'), 'claro', 'sun', 'theme'],
                 [_('Ver atajos de teclado'), '', 'kbd', 'help'], [_('Cerrar sesión'), '/logout', 'logout', '']]}|tojson }};</script>
 <script src="/static/shell.js?v={{ VERSION }}-{{ SHELL_HASH }}" defer></script>
+<script src="/static/warn.js?v={{ VERSION }}-{{ WARN_HASH }}" defer></script>
 {% if ai_top %}<link rel="stylesheet" href="/static/console.css?v={{ VERSION }}-{{ CX_HASH }}"><script type="application/json" id="ai-t">{{ ai_top.t|tojson }}</script><template id="ai-logo">{{ ai_logo(ai_top.p, 36) }}</template><script src="/static/chat.js?v={{ VERSION }}-{{ CX_HASH }}" defer></script>{% endif %}
 {% endif %}
 {% if update_popup %}

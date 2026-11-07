@@ -1,5 +1,26 @@
 # Historial de versiones
 
+## 2.30.0
+- [nuevo] **Recetas para todos los equipos:** 758 recetas, con al menos 10 para cada tipo de equipo con línea de comandos (131 de
+  133), entre ellos Sophos, Cisco SD-WAN, Brocade FC, Ciena, Calix, Ericsson, Nokia ISAM, D-Link, Hirschmann, Yamaha, Eltex,
+  Teldat, AudioCodes, ScreenOS, Hillstone, WatchGuard y Prisma SD-WAN.
+- [mejora] **Recetas por equipo y por tarea:** La pestaña Recetas tiene tres columnas: tus plataformas y todas las marcas, sus
+  recetas agrupadas por categoría y el detalle. «Por tarea» muestra en qué plataformas hay receta para lo que quieres hacer, y la
+  búsqueda agrupa por plataforma y dice dónde está la palabra.
+- [mejora] **Configlets y scripts en columnas:** Primero lo que puedes ejecutar en tus equipos, con la plataforma en palabras,
+  el sello «Verificada», el aviso con el foro y GitHub y la casilla obligatoria antes de crear la solicitud.
+- [arreglo] **Vista previa de «Ejecutar» un configlet:** Mostraba trozos de código en lugar de los comandos; ahora muestra los
+  valores escritos y no deja enviar con una variable vacía.
+- [mejora] **Aviso al aplicar comandos:** Las correcciones de Cumplimiento, Multi-equipo y el asistente IA llevan el aviso
+  «Revisa los comandos antes de usarlos en producción», y las correcciones y Multi-equipo piden marcar la casilla antes de crear
+  la solicitud. «Corregir N» deja elegir qué correcciones aplicar.
+- [mejora] **Comprobar ahora lee la versión del equipo:** En la pestaña Firmware, «Comprobar ahora» le pregunta al equipo su
+  versión instalada antes de buscar la nueva, sin tener que respaldarlo.
+- [nuevo] **Comprobación después de actualizar el firmware:** Cuando el equipo vuelve, OpenNCCM lee su versión y avisa si quedó
+  en la nueva; si no, guarda en Eventos y en la solicitud el final del registro del equipo con el motivo.
+- [arreglo] **Serie de los Ubiquiti:** Los airMAX, airFiber y AP UniFi muestran su número de serie (la MAC, como hace Ubiquiti), y
+  se reconoce la serie escrita como «S/N».
+
 ## 2.29.0
 - [nuevo] **Equipos ZTE:** OLT ZXA10 C300, C320, C350 y C220, OLT TITAN C600, C610, C620, C650 y C680, y switches y routers
   ZXR10 (ZXROS), con respaldo, versión, modelo y serie.

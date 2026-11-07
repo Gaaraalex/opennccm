@@ -344,18 +344,23 @@ una pestaña por tipo de equipo, arrastrar para cambiar el orden, editar, quitar
   credencial del equipo; queda en Auditoría).</td></tr>
   <tr><td>Multi-equipo</td><td>Elija un grupo o equipos sueltos, escriba el comando una vez y ejecútelo en todos. Las respuestas
   se agrupan en <b>Iguales</b> y <b>Distintos</b>, con las líneas distintas resaltadas. Solo se ejecutan consultas: si el comando
-  cambia algo, se ofrece <b>Crear solicitud de cambio</b> (con aprobación, respaldo y reversión). Con el asistente activo,
+  cambia algo, <b>Ejecutar en los elegidos</b> se desactiva y el botón principal pasa a ser <b>Crear solicitud de cambio</b> (con
+  aprobación, respaldo y reversión), que se habilita al marcar «Revisé los comandos…». Con el asistente activo,
   <b>✦ Analizar diferencias</b> explica qué tienen distinto y cómo igualarlos.</td></tr>
-  <tr><td>Recetas</td><td>Guías paso a paso («¿Qué quieres hacer?»), con filtros por categoría (Seguridad, Interfaces y VLAN,
-  Servicios, Diagnóstico) y fabricante. Cada receta tiene introducción, <b>variables</b> que se sustituyen en los comandos, pasos
+  <tr><td>Recetas</td><td>Guías paso a paso en tres columnas que llenan la pantalla. <b>Por equipo</b> (la vista que se abre):
+  a la izquierda <b>Tus equipos</b> (las plataformas de su inventario, con <b>Fijar</b> para dejar una primera) y <b>Todas las
+  marcas</b>; en el medio, las recetas de la plataforma elegida agrupadas por categoría (Sistema, Seguridad, Interfaces y VLAN,
+  Servicios, Diagnóstico), con el chip <b>Solo verificadas</b>; a la derecha, la receta. <b>Por tarea</b> parte de lo que quiere
+  hacer («Enviar el syslog a OpenNCCM») y muestra en qué plataformas hay receta, primero las de sus equipos. El buscador agrupa
+  los resultados por plataforma y, si la palabra no está en el nombre, dice si está en la descripción o en los comandos. Cada receta tiene introducción, <b>variables</b> que se sustituyen en los comandos, pasos
   numerados con <b>Copiar</b> e <b>Insertar</b> (en la consola activa), pasos «Ojo» en ámbar y un paso final «Comprobar». Abajo:
   <b>Aplicar como solicitud de cambio</b> (o <b>Ejecutar en la consola activa</b> si solo consulta), <b>Usar en multi-equipo</b>
-  y <b>Duplicar y adaptar</b>; <b>+ Nueva</b> crea una propia. Trae 422 recetas, con al menos 10 para 95 de los 133 tipos de
-  equipo (Cisco, MikroTik, Extreme, Huawei, H3C/HPE Comware, Juniper, Arista, Fortinet, Palo Alto, Ubiquiti, ZTE, Dell, Nokia,
-  F5, Citrix, pfSense, OPNsense, Linux y otros): nombre del equipo, usuarios y contraseñas, SSH, acceso web por HTTPS, SNMP,
+  y <b>Duplicar y adaptar</b>; <b>+ Nueva</b> crea una propia. Trae 758 recetas, con al menos 10 para cada tipo de equipo con
+  línea de comandos (131 de 133; SwitchOS no tiene línea de comandos y «Genérico SSH» no es un equipo concreto): nombre del equipo, usuarios y contraseñas, SSH, acceso web por HTTPS, SNMP,
   syslog hacia OpenNCCM, NTP, DNS, VLAN, rutas, guardar la configuración, diagnóstico… con el enlace a la documentación oficial
   del fabricante cuando la hay.<br>
-  <b>Revisa cada receta antes de usarla en producción:</b> OpenNCCM no tiene todas las plataformas para probarlas. Las recetas
+  <b>Revisa cada receta antes de usarla en producción:</b> lo dice una línea ámbar arriba («Ver el aviso» abre el aviso completo);
+  OpenNCCM no tiene todas las plataformas para probarlas. Las recetas
   que se probaron completas, paso a paso, llevan el sello verde <b>Verificada</b> con la versión del sistema en la que se
   probaron (por ejemplo «Verificada · VOSS 9.3.0.0»); las demás dicen «Sin verificar» y salen de la documentación del
   fabricante. El chip <b>Solo verificadas</b> filtra las primeras. Un administrador puede poner o quitar el sello desde la
@@ -599,6 +604,16 @@ MAC de las tablas ARP. La MAC también aparece en los uplinks y troncales: se mu
   <tr><td><span class="badge b-warn">config</span></td><td>Entra en modo configuración, aplica los comandos y guarda la configuración (o hace <i>commit</i> en Junos, IOS-XR, PAN-OS, VyOS…).</td><td>Sí: crea una solicitud de cambio.</td></tr>
   <tr><td><span class="badge b-info">exec</span></td><td>Ejecuta comandos de consulta (<code>show</code>, <code>display</code>…) y muestra la salida de cada equipo.</td><td>No: es inmediato.</td></tr>
 </table>
+<p>La página tiene tres columnas, como las Recetas. A la izquierda, <b>Para tus equipos</b> (lo que se abre: solo lo que puede
+ejecutar) y las plataformas de su inventario; las que no tienen configlets quedan atenuadas al final y, al elegirlas, ofrecen
+<b>Nuevo configlet para…</b> y <b>Ver sus recetas</b>. Debajo, atenuadas, las plataformas que no están en su inventario. En el medio,
+los <b>configlets</b> (cambian la configuración) y los <b>scripts</b> (solo consulta), cada uno con su plataforma en palabras y
+cuántos equipos suyos lo pueden ejecutar; los que no aplican a sus equipos quedan plegados al final. A la derecha, el elegido:
+<b>Sirve para</b>, <b>Sello</b>, <b>Usado</b>, el aviso con el foro y GitHub, los comandos con las variables resaltadas y
+<b>Ejecutar</b>, <b>Editar</b> y <b>Duplicar</b>. El buscador mira el nombre y los comandos.</p>
+<p><b>Revisa los configlets antes de usarlos en producción.</b> Como las recetas, un configlet probado completo en un equipo lleva el
+sello <b>Verificada</b> con la versión del sistema; solo un administrador lo pone o lo quita, y queda en Auditoría. Los de ejemplo
+salen «Sin verificar».</p>
 <figure><img src="img/10-configlets.png"><figcaption>Lista de configlets (se incluyen ejemplos para cambiar contraseñas, VLAN, NTP, syslog y diagnósticos).</figcaption></figure>
 <h2>Variables</h2>
 <p>Los comandos son plantillas Jinja2. Puede usar datos del equipo y variables propias que se piden al ejecutar:</p>
@@ -614,9 +629,12 @@ spanning-tree vlan {{ vlan_id }} priority 4096
 <h2>Ejecutar</h2>
 <ol class="steps">
   <li>Pulse <b>Ejecutar</b> en la tarjeta del configlet: se abre un panel lateral.</li>
-  <li>Complete las variables detectadas: hay un campo por cada una, y la <b>vista previa de comandos</b> se actualiza al escribir.</li>
-  <li>Elija los equipos compatibles: uno a uno, todos, ninguno o un grupo completo.</li>
-  <li>Para <b>config</b>: pulse <b>Crear solicitud de cambio</b> y espere la aprobación. Para <b>exec</b>: verá la salida al instante.</li>
+  <li>Complete las variables detectadas: hay un campo por cada una, y la <b>vista previa de comandos</b> muestra los comandos con
+  sus valores al escribir. Una variable sin valor se ve en ámbar y no se puede enviar.</li>
+  <li>Elija los equipos compatibles (todos vienen marcados, con su versión del sistema): uno a uno, todos, ninguno o un grupo.</li>
+  <li>Para <b>config</b>: marque «Revisé los comandos y entiendo que OpenNCCM no los probó en todas las plataformas…» (si el
+  configlet está verificado y un equipo tiene otra versión, se avisa), pulse <b>Crear solicitud de cambio</b> y espere la
+  aprobación. Para <b>exec</b>: verá la salida al instante.</li>
 </ol>
 <figure><img src="img/11-configlet-ejecutar.png"><figcaption>Ejecución: variables y selección de equipos.</figcaption></figure>
 <figure><img src="img/12-configlet-exec-resultado.png" style="max-height:80mm"><figcaption>Resultado de un configlet de diagnóstico.</figcaption></figure>
@@ -812,8 +830,12 @@ indican qué falta y el comando se escribe con las direcciones reales. Una solic
   <li>El <b>mapa equipo × política</b> muestra el porcentaje de reglas que cumple cada equipo en cada política (verde, ámbar o
   rojo); un clic lleva al equipo. Debajo, cada política muestra una barra por gravedad y, al desplegarla, las reglas que fallan y en
   qué equipos. La severidad se distingue también por la forma (rombo crítica, triángulo mayor, círculo menor). Cada regla con
-  corrección muestra <b>Corregir</b>; si la incumplen varios equipos, <b>Corregir en N equipos…</b> abre la lista para marcar en
-  cuáles (una solicitud por equipo). En la ficha del equipo, <b>Corregir N</b> crea una solicitud con todas sus correcciones juntas.</li>
+  corrección muestra su sello («Sin verificar» o «Verificada · versión») y <b>Corregir</b> (o <b>Corregir en N equipos…</b>), que
+  abre un diálogo con los comandos, los equipos para marcar (una solicitud por equipo), el aviso con el foro y un reporte de
+  GitHub ya escrito, y la casilla obligatoria «Revisé los comandos…». En la ficha del equipo, <b>Corregir N</b> («Las correcciones
+  son comandos que cambian la configuración») abre «Corregir N infracciones en EQUIPO»: cada corrección con su casilla, su sello y
+  sus comandos, y <b>Crear solicitud (N correcciones)</b> crea una sola solicitud con las marcadas. <b>Corregir</b> en una regla
+  abre el mismo diálogo con esa sola corrección.</li>
   <li>Para crear o cambiar una política: <b>Nueva política</b> o <b>Editar</b> abren el editor en un panel lateral. Cada regla tiene
   nombre, condición (debe o no debe contener), severidad, patrón y corrección opcional, y se <b>prueba en vivo</b> contra la
   configuración del equipo elegido mientras se escribe («cumple» / «incumple»). <b>Guardar</b> guarda la política y todas sus reglas
@@ -895,7 +917,10 @@ con el paquete, y en línea). Los AP, switches y USG de UniFi actualizan el firm
   actualización</b>. También puede hacerlo desde la ficha de cada equipo.</li>
   <li>Un administrador revisa los pasos previstos y aprueba. El resultado muestra si el archivo ya existía, si se transfirió y si el MD5
   coincidió.</li>
-  <li>Tras el reinicio, OpenNCCM vuelve a respaldar el equipo a los 15 minutos para actualizar la versión en el inventario.</li>
+  <li>Después, OpenNCCM comprueba la versión: espera a que el equipo vuelva del reinicio (hasta 20 minutos), le pregunta su
+  versión, lo respalda y vuelve a buscar actualizaciones. En Eventos y en la solicitud de cambio dice «quedó en la versión X»; si
+  sigue en la anterior, avisa «la actualización no se aplicó» con el final del registro del equipo, que suele decir el motivo.
+  Si no vuelve a responder, también lo avisa.</li>
 </ol>
 <figure><img src="img/17-firmware.png"><figcaption>Firmware y ciclo de vida: pestaña Imágenes.</figcaption></figure>
 <h2>Actualizaciones disponibles</h2>
@@ -918,7 +943,9 @@ Cuando aparece una versión nueva se registra un aviso en Alarmas, una sola vez 
   cualquier imagen: solicitud, aprobación y respaldo previo.</li>
   <li>Para los fabricantes que piden cuenta, OpenNCCM avisa de la versión nueva y lo que mejora; el archivo se descarga del portal
   del fabricante y se sube con <b>Cargar imagen</b>.</li>
-  <li><b>Comprobar ahora</b> (en la ficha del equipo) y <b>Comprobar todos ahora</b> lo hacen al momento, en segundo plano. Un
+  <li><b>Comprobar ahora</b> (en la ficha del equipo) primero le pregunta al equipo su versión instalada (solo comandos de
+  consulta, sin respaldar) y después busca la versión nueva; <b>Comprobar todos ahora</b> usa la versión del último respaldo. Ambos
+  corren en segundo plano. Un
   administrador puede desactivar la comprobación diaria con <b>Comprobar a diario</b>. Solo se consultan los sitios de MikroTik,
   Ubiquiti y NVD, sin enviar datos de los equipos.</li>
 </ul>
