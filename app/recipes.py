@@ -107,7 +107,9 @@ from .recipes_more import MORE  # noqa: E402  (las tareas comunes de Cisco, Mikr
 
 from .recipes_ubnt_zte import UBNT_ZTE  # noqa: E402  (Ubiquiti y ZTE)
 
-BUILTIN += MORE + UBNT_ZTE
+from .recipes_major import MAJOR  # noqa: E402  (Huawei, Comware, OLT Huawei, Junos, NX-OS, EOS, Linux)
+
+BUILTIN += MORE + UBNT_ZTE + MAJOR
 BY_KEY = {r["key"]: r for r in BUILTIN}
 
 

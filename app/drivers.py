@@ -620,6 +620,55 @@ def _first(patterns: list[str], text: str) -> str | None:
     return None
 
 
+# CPE de NVD de los perfiles que no los traen en su definición (comprobados en el diccionario de CPE de NVD).
+# cpe: nombre común del producto; cpe_model: uno por modelo (expresión sobre el modelo, plantilla con {0}).
+SEMVER3_ANY = r"(\d+\.\d+\.\d+)"
+CPE_EXTRA: dict[str, dict] = {
+    "cisco_ftd": {"cpe": ("cpe:2.3:a:cisco:firepower_threat_defense", "cpe:2.3:o:cisco:firepower_threat_defense",
+                          "cpe:2.3:a:cisco:firepower_threat_defense_software")},
+    **{k: {"cpe_model": [(r"\b(s[fgx]\d{3}x?[pe]?-\d+[a-z]*)", "cpe:2.3:o:cisco:{0}_firmware")]}
+       for k in ("cisco_s200", "cisco_s300", "cisco_s500")},
+    "cisco_ap": {"cpe": ("cpe:2.3:o:cisco:aironet_access_point_firmware", "cpe:2.3:a:cisco:aironet_access_point_software")},
+    "cisco_viptela": {"cpe": "cpe:2.3:a:cisco:sd-wan_vedge_cloud",
+                      "cpe_model": [(r"\bvedge[- ]?(\d+\w*)", "cpe:2.3:o:cisco:vedge_{0}_firmware")]},
+    "huawei_vrpv8": {"cpe_model": [(r"\bCE(12|16|5|6|7|8)\d{2,3}", "cpe:2.3:o:huawei:cloudengine_{0}800_firmware")]},
+    "huawei_olt": {"cpe": "cpe:2.3:o:huawei:smartax_ma5800_firmware"},
+    "huawei_smartax": {"cpe": "cpe:2.3:o:huawei:smartax_ma5600t_firmware"},
+    "sophos_sfos": {"cpe": "cpe:2.3:o:sophos:sfos", "cpe_version": SEMVER3_ANY},
+    "dell_os10": {"cpe": ("cpe:2.3:o:dell:networking_os10", "cpe:2.3:o:dell:smartfabric_os10", "cpe:2.3:o:dell:emc_networking_os10")},
+    "dell_powerconnect": {"cpe_model": [(r"\b(m?\d{4}[a-z]*)\b", "cpe:2.3:o:dell:emc_powerconnect_{0}_firmware")]},
+    "dell_sonic": {"cpe": "cpe:2.3:o:dell:enterprise_sonic_distribution"},
+    "tplink_jetstream": {"cpe_model": [(r"\b(?:tl-)?(sg\d{4}[a-z]*)", "cpe:2.3:o:tp-link:tl-{0}_firmware")]},
+    "zte_zxros": {"cpe_model": [(r"ZXR10[ _]([\w-]+)", "cpe:2.3:o:zte:zxr10_{0}_firmware")]},
+    **{k: {"cpe_model": [(r"\b(C\d{3}\w*)", "cpe:2.3:o:zte:zxa10_{0}_firmware")]} for k in ("zte_olt", "zte_olt_titan")},
+    "ruijie_os": {"cpe_model": [(r"\b(rg-[\w-]+)", "cpe:2.3:o:ruijienetworks:{0}_firmware")]},
+    "alpine_linux": {"cpe": "cpe:2.3:o:alpinelinux:alpine_linux"},
+    "extreme_wing": {"cpe": "cpe:2.3:o:extremenetworks:extremewireless_wing"},
+    "netscaler": {"cpe": ("cpe:2.3:a:citrix:netscaler_application_delivery_controller",
+                          "cpe:2.3:o:citrix:netscaler_application_delivery_controller_firmware")},
+    "adtran_os": {"cpe": "cpe:2.3:o:adtran:aos"},
+    "ipinfusion_ocnos": {"cpe": "cpe:2.3:a:ipinfusion:ocnos"},
+    "cumulus_linux": {"cpe": ("cpe:2.3:o:nvidia:cumulus_linux", "cpe:2.3:o:cumulusnetworks:cumulus_linux")},
+    "dlink_ds": {"cpe_model": [(r"\b(d[egx]s-\d{4}-\w+)", "cpe:2.3:o:dlink:{0}_firmware")]},
+    "netgear_prosafe": {"cpe": "cpe:2.3:o:netgear:prosafe_firmware",
+                        "cpe_model": [(r"\b([gmx]s\d{3}\w*)", "cpe:2.3:o:netgear:{0}_firmware")]},
+    "hirschmann_hios": {"cpe": "cpe:2.3:o:belden:hirschmann_hios"},
+    **{k: {"cpe": "cpe:2.3:o:lancom-systems:lcos_sx"} for k in ("lancom_lcossx4", "lancom_lcossx5")},
+    "maipu": {"cpe_model": [(r"\b(mp\d{4}\w*(?:-\d+)?)", "cpe:2.3:o:maipu:{0}_firmware")]},
+    "yamaha": {"cpe_model": [(r"\b(rtx\d{3,4}\w*)", "cpe:2.3:o:yamaha:{0}")]},
+    "iij_seilos": {"cpe_model": [(r"seil[/ _-]?(\w+)", "cpe:2.3:o:iij:seil_{0}_firmware")]},
+    "fujitsu_sir": {"cpe_model": [(r"si-r[ _]?(\w+)", "cpe:2.3:o:fujitsu:si-r_{0}_firmware")]},
+    "teldat_cit": {"cpe_model": [(r"\b(rs\d{3}\w*)", "cpe:2.3:o:teldat:{0}_firmware")]},
+    "digi_transport": {"cpe_model": [(r"\b((?:wr|lr)\d{2}\w*)", "cpe:2.3:o:digi:transport_{0}_firmware")]},
+    **{k: {"cpe_model": [(r"mediant[ _-]?([\w-]+)", "cpe:2.3:o:audiocodes:mediant_{0}_firmware")]} for k in ("audiocode_66", "audiocode_72")},
+    "juniper_screenos": {"cpe": ("cpe:2.3:o:juniper:screenos", "cpe:2.3:o:juniper:netscreen_screenos")},
+    "opengear_linux": {"cpe": "cpe:2.3:a:opengear:opengear"},
+}
+for _p in PROFILES:
+    for _k, _v in CPE_EXTRA.get(_p.key, {}).items():
+        setattr(_p, _k, _v)
+
+
 def model_cpes(profile: Profile, model: str | None) -> list[str]:
     """CPE de NVD que salen del modelo del equipo (Profile.cpe_model)."""
     out = []
