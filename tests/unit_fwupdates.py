@@ -285,6 +285,35 @@ r = fw._distro(Device(device_type="ubuntu_server", os_version="13"), HOY)
 check("Debian 13: al día, con soporte hasta 2028-08-09", "target" not in r and r["detail"] == "soporte:2028-08-09", r)
 fw.requests.get = _prev_get
 
+# ---------------------------------------------------------------- «Comprobar ahora» de un equipo, independiente
+# (laboratorio MikroTik: dos equipos comprobados a la vez → el segundo se rechazaba y su versión no se leía)
+import threading  # noqa: E402
+gate, ran = threading.Event(), []
+_prev_one, _prev_run = fw._run_one, fw._run
+
+
+def _slow_one(i):
+    ran.append(i)
+    gate.wait(5)
+    with fw._lock:
+        fw._one_busy.discard(i)
+
+
+fw._run_one = _slow_one
+fw._run = lambda *a: (gate.wait(5), fw._state.update(running=False))
+check("comprobación general en curso: «Comprobar ahora» de un equipo igual arranca",
+      fw.start_check() and fw.start_check([11], refresh=True) and fw.state(11)["running"])
+check("otro equipo a la vez también arranca", fw.start_check([12], refresh=True) and fw.state(12)["running"])
+check("el mismo equipo dos veces: la segunda espera", fw.start_check([11], refresh=True) is False)
+check("otra comprobación general a la vez: no", fw.start_check() is False)
+gate.set()
+for _ in range(100):  # el grupo de trabajos en segundo plano puede estar ocupado con lo de pruebas anteriores
+    if not fw._one_busy and not fw._state["running"]:
+        break
+    threading.Event().wait(0.2)  # (time.sleep está anulado más arriba en esta prueba)
+check("al terminar, cada equipo queda libre", not fw._one_busy and not fw.state(11)["running"], (fw._one_busy, fw.state()))
+fw._run_one, fw._run = _prev_one, _prev_run
+
 # ---------------------------------------------------------------- comprobación diaria desactivable
 started = []
 fw.start_check = lambda ids=None: started.append(1) or True

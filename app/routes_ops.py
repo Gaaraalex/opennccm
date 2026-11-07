@@ -121,7 +121,7 @@ async def fw_updates_check(request: Request):
 @router.get("/firmware/updates/status")
 def fw_updates_status(request: Request, device_id: int = 0):
     require(request)
-    st = fwupdates.state()
+    st = fwupdates.state(device_id)
     dl = fwupdates.download_state(device_id) if device_id else None
     return {"running": st["running"], "done": st["done"], "total": st["total"],
             "downloading": bool(dl and dl.get("running"))}

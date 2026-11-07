@@ -485,21 +485,51 @@ def _save(dev_id: int, res: dict, error: str | None = None):
 
 _state = {"running": False, "started": None, "done": 0, "total": 0}
 _lock = threading.Lock()
+_one_busy: set[int] = set()  # «Comprobar ahora» de un solo equipo (desde su ficha), cada uno por su cuenta
 
 
-def state() -> dict:
-    return dict(_state)
+def state(device_id: int = 0) -> dict:
+    """Estado de la comprobación general; con device_id, «running» también es la comprobación de ese equipo."""
+    st = dict(_state)
+    if device_id and device_id in _one_busy:
+        st["running"] = True
+    return st
 
 
 def start_check(device_ids: list[int] | None = None, refresh: bool = False) -> bool:
     """Lanza la comprobación en segundo plano (todos los equipos o algunos). False si ya hay una en curso. Con refresh,
-    antes se le pregunta a cada equipo su versión instalada (solo consulta), sin esperar al próximo respaldo."""
+    antes se le pregunta a cada equipo su versión instalada (solo consulta), sin esperar al próximo respaldo.
+
+    «Comprobar ahora» de UN equipo no depende de las demás: antes, si otro equipo (u otro usuario) estaba comprobando,
+    este se rechazaba con «Ya hay una comprobación en curso» y su versión no se leía."""
+    if refresh and device_ids and len(device_ids) == 1:
+        one = device_ids[0]
+        with _lock:
+            if one in _one_busy:
+                return False
+            _one_busy.add(one)
+        services.jobs.submit(_run_one, one)
+        return True
     with _lock:
         if _state["running"]:
             return False
         _state.update(running=True, started=time.time(), done=0, total=0)
     services.jobs.submit(_run, device_ids, refresh)
     return True
+
+
+def _run_one(device_id: int):
+    try:
+        from . import fwverify
+        r = fwverify.read_inventory(device_id)
+        if not r.get("ok"):
+            log.info("Versión instalada del equipo %s: %s", device_id, r.get("error"))
+        check_all([device_id])
+    except Exception:  # noqa: BLE001
+        log.exception("Comprobación de firmware del equipo %s", device_id)
+    finally:
+        with _lock:
+            _one_busy.discard(device_id)
 
 
 def _run(device_ids=None, refresh=False):
