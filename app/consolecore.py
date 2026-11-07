@@ -29,6 +29,11 @@ OS_LABEL = {"ros": "RouterOS", "ios": "Cisco IOS", "nxos": "NX-OS", "eos": "Aris
             "generic": ""}
 
 
+# Tipos de equipo que tienen familia propia desde 2.30 (antes «generic»): los favoritos de la consola ya guardados
+# usan la clave de antes (el fabricante), para que nadie pierda los suyos (app.favorites.family_of).
+FAV_LEGACY = frozenset({"adva_fsp150f2", "adva_fsp150f3", "alaxala_ax26s", "alaxala_ax36s", "apresia_aeos", "audiocode_66", "audiocode_72", "brocade_fos", "calix_b6", "calix_exa", "ciena_saos", "ciena_saos10", "cisco_viptela", "cloudgenix_ion", "coriant", "digi_transport", "dlink_ds", "ekinops_ek360", "eltex_esr", "ericsson_ipos", "ericsson_mltn63", "ericsson_mltn66", "extreme_wing", "fujitsu_sir", "garderos_grs", "hillstone_stoneos", "hirschmann_hios", "iij_seilos", "infinera_packet", "juniper_screenos", "nec_ix", "nokia_isam", "sophos_sfos", "teldat_cit", "watchguard_fireware", "yamaha"})
+
+
 def os_of(device_type: str) -> str:
     t = device_type or ""
     if t.startswith("mikrotik_routeros"):

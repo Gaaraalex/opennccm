@@ -29,7 +29,7 @@ MAX_PER_USER = 300
 def family_of(device_type: str) -> str:
     """La familia de la consola (consolecore.os_of) o, si no tiene una propia, el fabricante («watchguard»)."""
     k = cc.os_of(device_type or "")
-    if k != "generic":
+    if k != "generic" and device_type not in cc.FAV_LEGACY:
         return k
     prof = PROFILE_MAP.get(device_type or "")
     return (prof.vendor if prof else (device_type or "generic")).lower().replace(" ", "")[:32] or "generic"
