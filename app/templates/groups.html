@@ -1,19 +1,20 @@
 {% extends "base.html" %}{% block title %}Grupos de dispositivos{% endblock %}
 {% block crumbs %}<b>Administración</b>{% endblock %}
 {% block content %}
+<style>.node-acts{opacity:1!important;visibility:visible!important}.node-acts .del:hover{color:var(--crit);border-color:var(--crit)}</style>
 {% include "_admin_tabs.html" %}
-<section class="card flush"><div class="card-h"><h2>Grupos de dispositivos</h2><span class="muted sm">Sirven para filtrar, programar tareas y limitar qué equipos ve cada usuario.</span></div>
+<section class="card flush"><div class="card-h"><h2>Grupos de dispositivos</h2><span class="muted sm grow">Sirven para filtrar, programar tareas y limitar qué equipos ve cada usuario.</span>
+  <a class="btn s pri" href="/groups/new" data-sheet data-title="{{ _('Crear grupo') }}">{{ icon('plus', 's') }}{{ _('Crear grupo') }}</a></div>
   {% if groups %}<div class="tw"><table class="t"><tbody data-pager>
   {% for g in groups %}<tr><td><div class="dev">{{ icon('folder', 's') }}{{ g.name }}</div></td><td class="muted">{{ _('1 equipo') if counts.get(g.id, 0) == 1 else _f('{0} equipos', counts.get(g.id, 0)) }}</td>
-    <td><div class="acts"><a class="btn s ghost" href="/devices?group={{ g.id }}">Ver equipos</a>
-      <button type="button" class="btn s icon" data-dialog="grp-del-{{ g.id }}" aria-label="{{ _f('Eliminar {0}', g.name) }}" title="Eliminar">{{ icon('trash', 's') }}</button>
+    <td><div class="acts node-acts"><a class="btn s ghost" href="/devices?group={{ g.id }}">Ver equipos</a>
+      <a class="btn s icon ghost" href="/groups/{{ g.id }}/edit" data-sheet data-title="{{ _f('Editar «{0}»', g.name) }}" aria-label="{{ _f('Editar {0}', g.name) }}" title="{{ _('Editar') }}">{{ icon('edit', 's') }}</a>
+      <button type="button" class="btn s icon ghost del" data-dialog="grp-del-{{ g.id }}" aria-label="{{ _f('Borrar {0}', g.name) }}" title="{{ _('Borrar') }}">{{ icon('trash', 's') }}</button>
       <dialog class="dlg" id="grp-del-{{ g.id }}"><form method="post" action="/groups/{{ g.id }}/delete">
         <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi crit">{{ icon('trash') }}</span><div><h2>{{ _f('¿Eliminar el grupo «{0}»?', g.name) }}</h2><p class="muted" style="margin-top:6px">Los equipos quedarán sin grupo; no se borran.</p></div></div>
         <div class="row end"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn dzf">Eliminar</button></div></form></dialog></div></td></tr>
   {% endfor %}</tbody></table></div>
-  {% else %}<div class="empty">{{ empty_art('plus') }}<h2>Aún no hay grupos</h2><p>Crea grupos por sede, función o cliente.</p></div>{% endif %}
-  <form method="post" action="/groups" class="row" style="padding:14px 20px;border-top:1px solid var(--line)">
-    <label class="input grow" style="max-width:320px" for="newgrp">{{ icon('folder', 's') }}<input id="newgrp" name="name" required placeholder="{{ _('Nombre del grupo nuevo') }}"></label>
-    <button class="btn pri">Crear grupo</button></form>
+  {% else %}<div class="empty">{{ empty_art('plus') }}<h2>Aún no hay grupos</h2><p>Crea grupos por sede, función o cliente.</p>
+    <a class="btn pri" href="/groups/new" data-sheet data-title="{{ _('Crear grupo') }}">{{ icon('plus', 's') }}{{ _('Crear grupo') }}</a></div>{% endif %}
 </section>
 {% endblock %}

@@ -4417,5 +4417,12 @@
 "modelo, versión y tiempo encendida": "model, version and uptime",
 "potencia óptica y atenuación de una ONU": "optical power and attenuation of an ONU",
 "tabla de direcciones MAC": "MAC address table",
-"tarjetas de la OLT, con su versión y estado": "OLT cards, with their version and status"
+"tarjetas de la OLT, con su versión y estado": "OLT cards, with their version and status",
+"Avisos de seguridad de {0}": "{0} security advisories",
+"Cambios de vecinos · {0}": "Neighbor changes · {0}",
+"El lugar de la red donde están los equipos: una torre, una sucursal, un centro de datos.": "The place in the network where the devices are: a tower, a branch office, a data center.",
+"Grupo «{0}» guardado.": "Group “{0}” saved.",
+"NVD no tiene un producto para este firmware: Ubiquiti publica sus avisos de seguridad junto a sus versiones. Revíselos también.": "NVD has no product for this firmware: Ubiquiti publishes its security advisories with its releases. Check them too.",
+"Por sede, función o cliente. Sirve para filtrar, programar tareas y limitar qué equipos ve cada usuario.": "By site, role or customer. Used to filter, schedule tasks and limit which devices each user sees.",
+"Ya hay un grupo «{0}».": "There is already a group “{0}”."
 }

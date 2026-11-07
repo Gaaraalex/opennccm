@@ -1244,6 +1244,11 @@ def version_view(request: Request, ver_id: int, raw: int = 0):
         is_baseline = v.device.baseline_version_id == v.id
         if raw:
             log_action(request, user, "config_download", f"{v.device.name} v{v.id}")
+            if get_profile(v.device.device_type).backup == "cat /tmp/system.cfg":
+                # airOS (airMAX M/AC), airFiber y AP UniFi: el mismo archivo del equipo, «system.cfg», listo para
+                # subirlo en airOS › System › Configuration Management › Upload Configuration
+                return Response(text, media_type="application/octet-stream",
+                                headers={"Content-Disposition": 'attachment; filename="system.cfg"'})
             ext = {"mikrotik_routeros": "rsc", "watchguard_fireware": "xml"}.get(v.device.device_type, "txt")
             fname = f"{v.device.name}_{v.kind}_{v.created_at:%Y%m%d-%H%M}.{ext}"
             if ext == "xml":  # WatchGuard: el XML tal como lo da el Firebox (lo abre Policy Manager), «EQUIPO_v48.xml»
@@ -1951,14 +1956,44 @@ def credential_delete(request: Request, cid: int):
     return go("/credentials")
 
 
+@app.get("/groups/new")
+def group_new(request: Request):
+    user = require(request, "admin")
+    return render(request, "group_edit.html", user, g=None, used=0)
+
+
+@app.get("/groups/{gid}/edit")
+def group_edit(request: Request, gid: int):
+    user = require(request, "admin")
+    with SessionLocal() as db:
+        g = db.get(DeviceGroup, gid)
+        used = db.scalar(select(func.count(Device.id)).where(Device.group_id == gid)) or 0
+    if g is None:
+        return go("/groups")
+    return render(request, "group_edit.html", user, g=g, used=used)
+
+
 @app.post("/groups")
 async def group_save(request: Request):
+    """Crear un grupo o (con «id») cambiarle el nombre."""
     user = require(request, "admin")
     form = await request.form()
+    name = (form.get("name") or "").strip()[:100]
+    gid = int(form.get("id") or 0)
+    if not name:
+        return go("/groups")
     with SessionLocal() as db:
-        db.add(DeviceGroup(name=form["name"].strip()))
+        if any(x.id != gid and x.name.lower() == name.lower() for x in db.scalars(select(DeviceGroup))):
+            flash(request, _f("Ya hay un grupo «{0}».", name), "error")
+            return go("/groups")
+        g = db.get(DeviceGroup, gid) if gid else None
+        if g is None:
+            db.add(DeviceGroup(name=name))
+        else:
+            g.name = name
         db.commit()
-    log_action(request, user, "group_create", form["name"])
+    log_action(request, user, "group_edit" if gid else "group_create", name)
+    flash(request, _f("Grupo «{0}» guardado.", name))
     return go("/groups")
 
 

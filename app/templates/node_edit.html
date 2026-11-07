@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block title %}{{ _f('Editar «{0}»', n.name) if n else _('Crear nodo') }}{% endblock %}
+{% block content %}
+<h1>{{ _f('Editar «{0}»', n.name) if n else _('Crear nodo') }}</h1>
+{% if n %}<p class="muted sm" data-sheet-sub>{{ _('1 equipo') if used == 1 else _f('{0} equipos', used) }}</p>{% endif %}
+<form method="post" action="{{ '/nodes/%d/edit' % n.id if n else '/nodes' }}" class="stack" autocomplete="off">
+  <div class="field"><label for="ndn">{{ _('Nombre') }}</label><div class="input">{{ icon('pin', 's') }}<input id="ndn" name="name" required maxlength="100" value="{{ n.name if n }}" placeholder="{{ _('Nodo Quisqueya') }}" autofocus></div>
+    <span class="help">{{ _('El lugar de la red donde están los equipos: una torre, una sucursal, un centro de datos.') }}</span></div>
+  <div class="field"><label for="ndd">{{ _('Descripción (opcional)') }}</label><div class="input"><input id="ndd" name="description" maxlength="255" value="{{ n.description or '' if n }}"></div></div>
+  <div class="row" data-sheet-foot><span class="grow"></span><a class="btn ghost" href="/nodes" data-cancel>{{ _('Cancelar') }}</a><button class="btn pri">{{ _('Guardar') }}</button></div>
+</form>
+{% endblock %}
