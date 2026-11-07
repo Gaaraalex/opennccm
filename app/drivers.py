@@ -48,6 +48,9 @@ class Profile:
     license_ids: str | None = None
     license_mark: str | None = None
     backup_timeout: int = 180  # segundos para leer la configuración (una OLT con miles de ONU tarda más)
+    # NVD registra algunos productos por modelo («cisco:sg350-28_firmware»): (expresión sobre el modelo del equipo,
+    # plantilla del CPE con {0} = lo que captura la expresión, en minúsculas)
+    cpe_model: list[tuple[str, str]] = field(default_factory=list)
 
     @property
     def inventory_label(self) -> str:
@@ -615,6 +618,16 @@ def _first(patterns: list[str], text: str) -> str | None:
             if re.search(r"[A-Za-z0-9]", value):  # descarta «.......» u otros rellenos
                 return value
     return None
+
+
+def model_cpes(profile: Profile, model: str | None) -> list[str]:
+    """CPE de NVD que salen del modelo del equipo (Profile.cpe_model)."""
+    out = []
+    for rx, tpl in profile.cpe_model:
+        m = re.search(rx, model or "", re.I)
+        if m:
+            out.append(tpl.format(*(g.lower().replace(" ", "_") for g in m.groups())))
+    return out
 
 
 def parse_inventory(text: str, profile: Profile) -> dict:

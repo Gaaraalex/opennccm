@@ -1324,7 +1324,7 @@ def scan_cves(device_id: int) -> int:
         if not dev.os_version:
             return -1
         items = []  # se consulta todo antes de borrar nada: si NVD falla se conserva el último resultado
-        for params in nvd_searches(prof, dev.os_version):
+        for params in nvd_searches(prof, dev.os_version, dev.model):
             items += nvd_query(params)
         db.execute(delete(Vulnerability).where(Vulnerability.device_id == device_id))
         count, seen = 0, set()
@@ -1358,10 +1358,11 @@ def scan_cves(device_id: int) -> int:
     return count
 
 
-def nvd_searches(prof, os_version: str) -> list[dict]:
-    """Búsquedas en NVD para un perfil y una versión: una por CPE (algunos productos tienen varios nombres en NVD).
-    Sin CPE se busca por texto (fabricante + versión)."""
-    cpes = (prof.cpe,) if isinstance(prof.cpe, str) else tuple(prof.cpe or ())
+def nvd_searches(prof, os_version: str, model: str | None = None) -> list[dict]:
+    """Búsquedas en NVD para un perfil y una versión: una por CPE (algunos productos tienen varios nombres en NVD, y
+    otros uno por modelo: Profile.cpe_model). Sin CPE se busca por texto (fabricante + versión)."""
+    from .drivers import model_cpes
+    cpes = ((prof.cpe,) if isinstance(prof.cpe, str) else tuple(prof.cpe or ())) + tuple(model_cpes(prof, model))
     if not cpes:
         return [{"keywordSearch": f"{prof.vendor} {os_version}"}]
     if prof.cpe_format == "junos" and (jv := junos_cpe_version(os_version)):
