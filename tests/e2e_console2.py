@@ -177,12 +177,20 @@ r = adm.post(B + "/console/recipes", json={"name": "Ver NTP", "vendor": "Cisco",
 check("recetas: se guarda una propia", r.get("ok"), r)
 check("recetas: la propia aparece como «mía»", '"Ver NTP"' in adm.get(B + "/console").text)
 adm.post(B + f"/console/recipes/{r['id']}/delete")
+check("recetas: las VOSS probadas llevan el sello con la versión", "VOSS 9.3.0.0" in center and "Revisa cada receta antes de usarla" in center)
+r = adm.post(B + "/console/recipes/verify", json={"key": "ios-ntp", "verified_on": "IOS 15.2"}).json()
+check("recetas: el administrador marca una como verificada", r.get("ok") and "IOS 15.2" in adm.get(B + "/console").text, r)
+adm.post(B + "/console/recipes/verify", json={"key": "ios-ntp", "verified_on": ""})
+check("recetas: y le quita el sello", "IOS 15.2" not in adm.get(B + "/console").text)
+check("recetas: el cambio del sello queda en Auditoría", "recipe_verified" in adm.get(B + "/audit").text)
 
 # ---- acceso: operador en solo lectura, grupo con aprobación y comandos prohibidos
 adm.post(B + "/users", data={"username": OPU, "role": "operator", "password": "Operador2026x", "password2": "Operador2026x"})
 adm.post(B + "/console/access", data={"role_admin": "rw", "role_operator": "ro", "role_viewer": "none", "record": "on", "deny": "on",
                                       "idle": "15", "days": "180", "g1_mode": "approval", "g1_deny": "show running"})
 op = login(OPU, "Operador2026x")
+check("recetas: un operador no puede poner el sello",
+      op.post(B + "/console/recipes/verify", json={"key": "ios-ntp", "verified_on": "x"}).status_code == 403)
 pg = op.get(B + "/devices/1/console").text
 check("grupo con aprobación: el operador ve «Pedir acceso»", "Pedir acceso" in pg and 'id="cx-in"' not in pg)
 with connect(WS, additional_headers={"Cookie": cookie(op), "Origin": ORIGIN}) as ws:

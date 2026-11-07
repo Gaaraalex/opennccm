@@ -63,6 +63,7 @@
   <div class="cc-rhead row"><div class="input grow"><input id="rc-q" placeholder="{{ _('¿Qué quieres hacer?') }}" aria-label="{{ _('Buscar recetas') }}"></div>
     <div class="input" style="max-width:220px"><select id="rc-vendor" aria-label="{{ _('Fabricante') }}"><option value="">{{ _('Todos los fabricantes') }}</option></select></div>
     {% if ROLES[user.role] >= 1 %}<button type="button" class="btn pri" id="rc-new">+ {{ _('Nueva') }}</button>{% endif %}</div>
+  <div class="rc-warn" id="rc-warn"></div>
   <div class="cc-chips" id="rc-cats"></div>
   <div class="cc-rgrid" id="rc-grid"></div>
   <div class="card stack cc-recipe" id="rc-detail" hidden></div>
@@ -82,7 +83,9 @@
     <h2 id="rc-apply-h" style="margin:0">{{ _('Aplicar como solicitud de cambio') }}</h2>
     <p class="muted sm" style="margin:0">{{ _('Se crea una solicitud de cambio con los pasos que cambian la configuración (los de consulta y comprobación no). Pasa por aprobación, con respaldo antes y después.') }}</p>
     <div class="cc-mlist" id="rc-apply-devs"></div>
-    <div class="row end"><button type="button" class="btn ghost" data-close>{{ _('Cancelar') }}</button><button class="btn pri">{{ _('Crear la solicitud') }}</button></div>
+    <div id="rc-apply-ver"></div>
+    <label class="ck rc-ack"><input type="checkbox" id="rc-ack"> <span id="rc-ack-t"></span></label>
+    <div class="row end"><button type="button" class="btn ghost" data-close>{{ _('Cancelar') }}</button><button class="btn pri" id="rc-apply-go" disabled>{{ _('Enviar a aprobación') }}</button></div>
   </form></dialog>
 </section>
 
@@ -160,13 +163,27 @@
 {% endif %}
 <div class="cx-toast" id="cx-toast" role="status" hidden></div>
 <script type="application/json" id="cc-data">{{ {'devs': devs, 'favs': favs, 'recent': recent, 'groups': groups, 'recipes': recipes or [], 'cats': cats or {}, 'rec': rec,
-  'role': user.role, 'ai': ai.on, 'ailogo': (ai_logo(ai.provider, 18)|string) if ai.on else '', 'tab': tab,
+  'role': user.role, 'user': user.username, 'forum': FORUM_URL, 'issues': ISSUES_URL, 'version': VERSION, 'ai': ai.on, 'ailogo': (ai_logo(ai.provider, 18)|string) if ai.on else '', 'tab': tab,
   't': {'rec': _('REC'), 'fav': _('Favoritos'), 'recent': _('Recientes'), 'bygroup': _('POR GRUPO'), 'nogroup': _('Sin grupo'), 'share': _('Compartir en solo lectura'), 'files': _('Archivos'),
         'close': _('Cerrar'), 'open': _('{0} sesiones abiertas · todo queda grabado en Auditoría'), 'open1': _('1 sesión abierta · todo queda grabado en Auditoría'), 'sel': _('{0} equipos elegidos'), 'sel1': _('1 equipo elegido'), 'same': _('{0} iguales'), 'same1': _('1 igual'), 'diff': _('{0} distintos'), 'diff1': _('1 distinto'), 'find': _('Buscar en la salida'), 'theme': _('Tema de la consola'), 'recon': _('Reconectar'), 'full': _('Pantalla completa'),
         'meta': _('respondieron {0} de {1} · {2} s'), 'equal': _('Iguales'), 'distinct': _('Distintos'), 'failed': _('No respondieron'), 'running': _('Ejecutando…'),
         'steps': _('{0} pasos'), 'uses': _('{0} usos'), 'mine': _('mía'), 'team': _('del equipo'), 'opennccm': _('de OpenNCCM'), 'none': _('No hay recetas con ese filtro.'),
         'copy': _('Copiar'), 'insert': _('Insertar'), 'warn': _('Ojo'), 'check': _('Comprobar'), 'apply': _('Aplicar como solicitud de cambio'), 'runact': _('Ejecutar en la consola activa'),
-        'multi': _('Usar en multi-equipo'), 'dup': _('Duplicar y adaptar'), 'edit': _('Editar'), 'del': _('Eliminar'), 'doc': _('Documentación del fabricante'), 'verified': _('Verificada'), 'verified_in': _('Verificada en {0}'), 'disclaimer': _('OpenNCCM es un proyecto de código abierto y gratuito: no tenemos el presupuesto para probar todas las plataformas que admite. Verifique esta receta, y cualquier comando que haga cambios, antes de usarla en equipos en producción. Las recetas probadas en un equipo llevan la marca «Verificada» con la versión del sistema en la que se probaron.'),  'noact': _('Abra primero una sesión en Sesiones.'),
+        'multi': _('Usar en multi-equipo'), 'dup': _('Duplicar y adaptar'), 'edit': _('Editar'), 'del': _('Eliminar'), 'doc': _('Documentación del fabricante'), 'v_pill': _('Verificada · {0}'), 'v_none': _('Sin verificar'), 'v_only': _('Solo verificadas'),
+        'v_box_t': _('Verificada en {0}'), 'v_box': _('Se probaron todos los pasos en esa versión del sistema. En otras versiones los comandos pueden cambiar.'),
+        'u_box_t': _('Sin verificar'), 'u_box': _('Sale de la documentación del fabricante y todavía no se probó en un equipo. Revísala con más cuidado.'),
+        'w_title': _('Revisa cada receta antes de usarla en producción'),
+        'w_p1': _('OpenNCCM es un proyecto de código abierto y gratuito, y no contamos con presupuesto para tener todas las plataformas que admite el sistema. Por eso te pedimos que revises cada receta, y cualquier comando que haga cambios, antes de usarlos en equipos en producción.'),
+        'w_p2': _('Las recetas con el sello {0} ya se probaron completas, paso a paso, en la versión del sistema que indica el sello.'), 'w_v': _('Verificada'),
+        'w_p3': _('¿Encontraste un error o probaste una receta en tu equipo? Cuéntanos por cualquiera de estas dos vías: así la verificamos para todos.'),
+        'f_t': _('Foro de la comunidad'), 'f_s': _('Comenta o pregunta a otros usuarios'), 'gh_t': _('Reportar en GitHub'), 'gh_s': _('Abre un reporte con el nombre de la receta'),
+        'gh_title': _('Receta: {0}'), 'gh_l': [_('Receta: {0} ({1})'), _('Plataforma: {0}'), _('Sello: {0}'), _('Versión de OpenNCCM: {0}'), _('Qué pasó:'), _('Versión del sistema de mi equipo:')], 'w_hide': _('Ocultar'), 'w_show': _('Ver el aviso completo'),
+        'w_short': _('OpenNCCM es gratuito y de código abierto: no tenemos todas las plataformas para probar. Verifica los comandos antes de usarlos en producción.'),
+        'w_report': _('Reportar un problema con esta receta:'),
+        'ack': _('Revisé los comandos y entiendo que OpenNCCM no los probó en todas las plataformas. Los aplico bajo mi responsabilidad en {0}.'),
+        'ack_sel': _('los equipos elegidos'),
+        'v_diff': _('{0} tiene otra versión. La receta se verificó en {1} y este equipo tiene {2}: revisa que los comandos existan igual en tu versión.'),
+        'v_set': _('Marcar como verificada'), 'v_unset': _('Quitar el sello'), 'v_ask': _('Versión del sistema en la que se probaron todos los pasos (por ejemplo, «VOSS 9.3.0.0»):'),  'noact': _('Abra primero una sesión en Sesiones.'),
         'copied': _('Copiado.'), 'sent': _('Enviado a la consola activa.'), 'crdone': _('Solicitud de cambio creada.'), 'saved': _('Receta guardada.'), 'all': _('Todas'),
         'ai': _('Asistente'), 'big': _('Ampliar'), 'small': _('Volver al tamaño normal'), 'fsm': _('Letra más pequeña'), 'fsp': _('Letra más grande'), 'win': _('Abrir en una ventana aparte'), 'openc': _('Abrir consola de {0}'), 'pickdev': _('Elija al menos un equipo.'), 'analyze': _('Analiza estas respuestas de varios equipos al mismo comando: qué tienen distinto y cómo igualarlos.'),
         'played': _('{0} comandos · {1}'), 'stopped': _('Detenido.'), 'shared': _('Enlace de solo lectura copiado.')}}|tojson }}</script>

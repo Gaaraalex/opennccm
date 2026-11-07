@@ -7,6 +7,8 @@ Las recetas de cada usuario se guardan en la tabla «recipes» con el mismo form
 """
 from __future__ import annotations
 
+import json
+
 from .i18n import N_
 
 CATEGORIES = {"sistema": N_("Sistema"), "seguridad": N_("Seguridad"), "interfaces": N_("Interfaces y VLAN"),
@@ -116,16 +118,26 @@ from .recipes_gen import GEN  # noqa: E402  (recetas estándar por familia: CLI 
 BUILTIN += MORE + UBNT_ZTE + MAJOR + FW + GEN
 BY_KEY = {r["key"]: r for r in BUILTIN}
 
-# Recetas probadas enteras en un equipo, con la versión del sistema en la que se probaron (la consola muestra
-# «Verificada en …»). Solo se agrega una receta cuando todos sus pasos se ejecutaron sin error en esa versión.
+# Recetas probadas enteras en un equipo («verified_on»: la versión del sistema en la que se probaron todos sus pasos).
+# Solo se agrega una receta cuando todos sus pasos se ejecutaron sin error en esa versión. Un administrador puede
+# poner o quitar el sello desde la consola (se guarda en el ajuste «recipe_verified» y queda en Auditoría).
 VERIFIED = {
-    # Extreme VOSS / Fabric Engine 9.3.0.0 (5520-24T), laboratorio del 2026-11-06
-    "voss-sysname": "Fabric Engine 9.3.0.0", "voss-ssh": "Fabric Engine 9.3.0.0", "voss-password": "Fabric Engine 9.3.0.0",
-    "voss-banner": "Fabric Engine 9.3.0.0", "voss-route": "Fabric Engine 9.3.0.0", "voss-save": "Fabric Engine 9.3.0.0",
-    "voss-diag": "Fabric Engine 9.3.0.0",
+    # Extreme VOSS / Fabric Engine 9.3.0.0 (5520-24T), 2026-11-06
+    "voss-sysname": "VOSS 9.3.0.0", "voss-ssh": "VOSS 9.3.0.0", "voss-password": "VOSS 9.3.0.0", "voss-banner": "VOSS 9.3.0.0",
+    "voss-route": "VOSS 9.3.0.0", "voss-save": "VOSS 9.3.0.0", "voss-diag": "VOSS 9.3.0.0",
 }
-for _k, _v in VERIFIED.items():
-    BY_KEY[_k]["verified"] = _v
+
+
+def verified_on(key: str) -> str:
+    """Versión en la que se verificó una receta incluida («» si no está verificada), con los cambios del administrador."""
+    from .db import get_setting
+    try:
+        over = json.loads(get_setting("recipe_verified", "{}") or "{}")
+    except ValueError:
+        over = {}
+    if key in over:
+        return over[key] or ""
+    return VERIFIED.get(key, "")
 
 
 def fill(recipe: dict, values: dict) -> list[dict]:
