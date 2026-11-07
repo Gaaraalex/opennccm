@@ -315,7 +315,7 @@ def all_recipes(user) -> list[dict]:
     uses = _uses()
     out = []
     for r in recipes.BUILTIN:
-        out.append({**r, "name": _(r["name"]), "intro": _(r["intro"]),
+        out.append({**r, "name": _(r["name"]).format(r["name_arg"]) if r.get("name_arg") else _(r["name"]), "intro": _(r["intro"]),
                     "vars": [{**v, "l": _(v["l"])} for v in r["vars"]],
                     "steps": [{**s, "t": _(s["t"])} for s in r["steps"]],
                     "scope": "opennccm", "by": "OpenNCCM", "uses": uses.get(r["key"], 0), "mine": False})

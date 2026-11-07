@@ -111,7 +111,9 @@ from .recipes_major import MAJOR  # noqa: E402  (Huawei, Comware, OLT Huawei, Ju
 
 from .recipes_fw import FW  # noqa: E402  (FortiGate, PAN-OS, ASA, FTD, IOS-XR, ProCurve, AOS-CX)
 
-BUILTIN += MORE + UBNT_ZTE + MAJOR + FW
+from .recipes_gen import GEN  # noqa: E402  (recetas estándar por familia: CLI tipo Cisco, OS10, SONiC, Nokia, OmniSwitch…)
+
+BUILTIN += MORE + UBNT_ZTE + MAJOR + FW + GEN
 BY_KEY = {r["key"]: r for r in BUILTIN}
 
 # Recetas probadas enteras en un equipo, con la versión del sistema en la que se probaron (la consola muestra

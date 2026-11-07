@@ -16,7 +16,10 @@ OS_LABEL = {"ros": "RouterOS", "ios": "Cisco IOS", "nxos": "NX-OS", "eos": "Aris
             "edgeos": "EdgeOS / VyOS", "airos": "airOS / UniFi AP", "zxros": "ZTE ZXR10", "zteolt": "ZTE OLT",
             "comware": "H3C / HPE Comware", "huaweiolt": "Huawei OLT", "fortios": "FortiOS", "panos": "PAN-OS",
             "asa": "Cisco ASA", "ftd": "Cisco FTD", "iosxr": "IOS-XR", "procurve": "ProCurve / Aruba OS-Switch",
-            "aoscx": "Aruba AOS-CX", "generic": ""}
+            "aoscx": "Aruba AOS-CX", "ioslike": "CLI tipo Cisco", "dellos10": "Dell OS10", "sonic": "SONiC", "sros": "Nokia SR OS",
+            "srl": "Nokia SR Linux", "omniswitch": "OmniSwitch AOS", "enterasys": "Enterasys", "zyxel": "Zyxel", "bsdfw": "pfSense / OPNsense",
+            "gaia": "Check Point Gaia", "tmsh": "F5 BIG-IP", "netscaler": "NetScaler", "aireos": "Cisco WLC", "arubaos": "ArubaOS",
+            "generic": ""}
 
 
 def os_of(device_type: str) -> str:
@@ -53,7 +56,15 @@ def os_of(device_type: str) -> str:
     if t in ("zte_olt", "zte_olt_titan"):
         return "zteolt"
     fam = {"fortinet": "fortios", "paloalto_panos": "panos", "cisco_asa": "asa", "cisco_ftd": "ftd", "cisco_xr": "iosxr",
-           "hp_procurve": "procurve", "aruba_osswitch": "procurve", "aruba_aoscx": "aoscx"}.get(t)
+           "hp_procurve": "procurve", "aruba_osswitch": "procurve", "aruba_aoscx": "aoscx", "cisco_ap": "ios",
+           "dell_os10": "dellos10", "dell_sonic": "sonic", "edgecore_sonic": "sonic", "nokia_sros": "sros", "nokia_srl": "srl",
+           "alcatel_aos": "omniswitch", "enterasys": "enterasys", "zyxel_os": "zyxel", "pfsense": "bsdfw", "opnsense": "bsdfw",
+           "checkpoint_gaia": "gaia", "f5_tmsh": "tmsh", "netscaler": "netscaler", "cisco_wlc": "aireos", "aruba_os": "arubaos",
+           **{k: "ioslike" for k in ("dell_force10", "brocade_netiron", "extreme_slx", "extreme_nos", "brocade_nos", "ipinfusion_ocnos",
+                                    "raisecom_roap", "raisecom_ros", "casa_cmts", "arris_cer", "mellanox_mlnxos", "fiberstore_fsos",
+                                    "fiberstore_fsosv2", "fiberstore_networkos", "moxa_nos", "lancom_lcossx4", "lancom_lcossx5", "maipu",
+                                    "centec_os", "quanta_mesh", "supermicro_smis", "eltex", "adtran_os", "a10", "oneaccess_oneos",
+                                    "furukawa_fitelnet")}}.get(t)
     if fam:
         return fam
     if t in ("linux", "ubuntu_server", "alpine_linux", "cumulus_linux", "opengear_linux"):
