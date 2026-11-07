@@ -261,6 +261,12 @@ def _exos_negate(line: str) -> str | None:
     m = re.match(r"^configure ports (\S+) display-string ", line)
     if m:
         return f"unconfigure ports {m.group(1)} display-string"
+    m = re.match(r"^configure snmp (sysContact|sysLocation) ", line)
+    if m:
+        return f'configure snmp {m.group(1)} ""'
+    m = re.match(r"^configure sntp-client (primary|secondary) ", line)
+    if m:
+        return f"unconfigure sntp-client {m.group(1)}"
     m = re.match(r"^configure iproute add (.+)$", line)
     if m:
         return f"configure iproute delete {m.group(1)}"
@@ -282,10 +288,44 @@ def _exos_vlan_of(line: str) -> str | None:
     return _q(m.group(1)) if m else None
 
 
+EXOS_DEFAULT_ALL = re.compile(r"^configure vlan default delete ports all$", re.I)
+EXOS_DEFAULT_ADD = re.compile(r"^configure vlan default add ports (\S+)", re.I)
+# líneas que EXOS escribe para describir el punto de partida de la configuración (se cargan sobre un switch de fábrica),
+# no órdenes para un switch que ya funciona: «configure vr VR-Default delete ports 1-12» acompaña a «configure vlan
+# default delete ports all» y «configure sys-recovery-level switch reset» no existe en todos los modelos (el EXOS-VM la
+# rechaza y la restauración se detenía ahí). Salida real de un EXOS 33.6 en GNS3.
+EXOS_BASE = re.compile(r"^configure (vr \S+ delete ports |sys-recovery-level )", re.I)
+
+
+def _exos_base(cur: list[str], tgt: list[str], notes: list[str]) -> tuple[list[str], list[str], list[str]]:
+    """Traduce las líneas de punto de partida de EXOS a órdenes para el switch tal como está. Devuelve (cur, tgt,
+    órdenes que se aplican después de quitar lo que sobra)."""
+    for l in tgt:
+        if EXOS_BASE.match(l) and l not in cur:
+            notes.append(_f("No se aplica una línea que describe el punto de partida de EXOS (revísela a mano si hace falta): {0}", l))
+    cur = [l for l in cur if not EXOS_BASE.match(l)]
+    tgt = [l for l in tgt if not EXOS_BASE.match(l)]
+    cur_all, tgt_all = any(EXOS_DEFAULT_ALL.match(l) for l in cur), any(EXOS_DEFAULT_ALL.match(l) for l in tgt)
+    after: list[str] = []
+    if tgt_all and not cur_all:
+        # en el switch todos los puertos siguen en la VLAN Default: se quitan solo los que la copia pone sin etiqueta en
+        # otra VLAN (lo demás queda en Default, como está)
+        moved = [re.match(r"^configure vlan \S+ add ports (\S+)", l).group(1) for l in tgt
+                 if re.match(r"^configure vlan \S+ add ports \S+ untagged", l) and not EXOS_DEFAULT_ADD.match(l) and l not in cur]
+        tgt = [l for l in tgt if not EXOS_DEFAULT_ALL.match(l) and not EXOS_DEFAULT_ADD.match(l)]
+        if moved:
+            tgt.insert(0, "configure vlan Default delete ports " + ",".join(moved))
+    elif cur_all and not tgt_all:
+        # la copia tiene todos los puertos en Default: se devuelven cuando las otras VLAN ya los soltaron
+        cur = [l for l in cur if not EXOS_DEFAULT_ALL.match(l) and not EXOS_DEFAULT_ADD.match(l)]
+        after.append("configure vlan Default add ports all untagged")
+    return cur, tgt, after
+
+
 def exos(current: str, target: str, mgmt: str | None = None) -> tuple[list[str], list[str]]:
-    cur, tgt = _exos_lines(current), _exos_lines(target)
-    cur_set, tgt_set = set(cur), set(tgt)
     notes: list[str] = []
+    cur, tgt, after = _exos_base(_exos_lines(current), _exos_lines(target), notes)
+    cur_set, tgt_set = set(cur), set(tgt)
     mgmt_vlans = {_q(re.match(r"^configure vlan (\S+) ipaddress", l).group(1)) for l in cur + tgt
                   if mgmt and re.match(rf"^configure vlan \S+ ipaddress {re.escape(mgmt)}(\s|/|$)", l)}
     deleted_vlans = {_q(re.match(r"^create vlan (\S+)", l).group(1)) for l in cur
@@ -308,6 +348,9 @@ def exos(current: str, target: str, mgmt: str | None = None) -> tuple[list[str],
         vlan = _exos_vlan_of(l)
         if vlan in deleted_vlans and not l.startswith("create vlan"):
             continue  # se va con la VLAN
+        m = re.match(r"^configure log target syslog (\S+ vr \S+ \S+) (filter|match|format) ", l)
+        if m and f"configure syslog add {m.group(1)}" in cur_set and f"configure syslog add {m.group(1)}" not in tgt_set:
+            continue  # se va con el destino de syslog
         if vlan in mgmt_vlans:
             notes.append(_f("No se cambia la VLAN de gestión de OpenNCCM: {0}", l))
             continue
@@ -323,7 +366,7 @@ def exos(current: str, target: str, mgmt: str | None = None) -> tuple[list[str],
     # orden: crear VLAN, quitar puertos/IP/VLAN que sobran (un puerto sin etiqueta solo puede estar en una VLAN),
     # aplicar lo nuevo y, al final, borrar rutas y cuentas que sobran (la ruta nueva ya está puesta)
     out: list[str] = []
-    for c in create + unapply + apply + delete:
+    for c in create + unapply + after + apply + delete:
         if c not in out:
             out.append(c)
     return out, notes

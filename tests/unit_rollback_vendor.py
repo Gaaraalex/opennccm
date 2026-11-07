@@ -174,6 +174,26 @@ c3, _n = exos(EXOS_TGT + "configure iproute add 10.50.0.0/16 10.99.0.254\n", EXO
 check("EXOS: rutas añadidas se borran", c3 == ["configure iproute delete 10.50.0.0/16 10.99.0.254"], c3)
 c4, n4 = exos(EXOS_TGT + "configure stpd s0 mode dot1w\n", EXOS_TGT)
 check("EXOS: lo que no sabe deshacer lo avisa en vez de inventar un comando", c4 == [] and n4, (c4, n4))
+# EXOS 33.6 (salida real en GNS3): con VLAN propias, «show configuration» describe el punto de partida con
+# «sys-recovery-level», «vlan default delete ports all» y «vr VR-Default delete ports»
+BLANK = 'configure snmp sysName "X-2"\nenable dhcp vlan Mgmt\n'
+BASE = ('configure snmp sysName "X-1"\nconfigure sys-recovery-level switch reset\nconfigure vlan default delete ports all\n'
+        'configure vr VR-Default delete ports 1-12\ncreate vlan "DATOS"\nconfigure vlan DATOS tag 10\n'
+        'configure vlan DATOS add ports 5-8 untagged\nconfigure vlan Default add ports 1-4 untagged\n'
+        'configure vlan VOZ add ports 9-10 untagged\nenable dhcp vlan Mgmt\n')
+c5, n5 = exos(BLANK, BASE)
+check("EXOS: no aplica las líneas del punto de partida (el EXOS-VM rechaza «sys-recovery-level»)",
+      not any(c.startswith(("configure sys-recovery-level", "configure vr ", "configure vlan default delete ports all")) for c in c5)
+      and len(n5) == 2, (c5, n5))
+check("EXOS: quita de Default solo los puertos que van a otra VLAN, antes de agregarlos",
+      "configure vlan Default delete ports 5-8,9-10" in c5
+      and c5.index("configure vlan Default delete ports 5-8,9-10") < c5.index("configure vlan DATOS add ports 5-8 untagged")
+      and not any("vlan Default add" in c for c in c5), c5)
+c6, _n6 = exos(BASE, BLANK)
+check("EXOS: al volver a la copia sin VLAN propias, devuelve todos los puertos a Default después de borrar las VLAN",
+      "configure vlan Default add ports all untagged" in c6
+      and c6.index("delete vlan \"DATOS\"") < c6.index("configure vlan Default add ports all untagged")
+      and not any(c.startswith("configure vlan Default delete") for c in c6), c6)
 
 # Extreme VOSS / Fabric Engine
 cmds, notes = voss(VOSS_CUR, VOSS_TGT, mgmt="10.99.0.6")
