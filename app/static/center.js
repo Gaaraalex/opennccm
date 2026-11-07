@@ -32,6 +32,7 @@
     if (!ok) k = 'sesiones';
     Array.prototype.forEach.call(secs, function (s) { s.hidden = s.dataset.sec !== k; });
     tabs.forEach(function (a) { var on = a.dataset.tab === k; a.classList.toggle('on', on); a.setAttribute('aria-selected', on ? 'true' : 'false'); });
+    if (k === 'recetas') setTimeout(sizeCols, 0);
     history.replaceState(null, '', location.pathname + location.search.replace(/([?&])tab=[^&]*&?/, '$1').replace(/[?&]$/, '') + '#' + k);
   }
   tabs.forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); show(a.dataset.tab); }); });
@@ -202,7 +203,7 @@
     if (!cmd) return;
     $('mu-change').hidden = true; $('mu-res').hidden = false; $('mu-groups-out').innerHTML = '<p class="muted">' + esc(T.running) + '</p>'; $('mu-same').textContent = $('mu-diff').textContent = $('mu-meta').textContent = '';
     post('/console/multi', {device_ids: ids, command: cmd}).then(function (j) {
-      if (j.change) { $('mu-res').hidden = true; $('mu-change').hidden = false; $('mu-change-t').textContent = j.msg; return; }
+      if (j.change) { $('mu-res').hidden = true; $('mu-change').hidden = false; $('mu-change-t').textContent = j.msg; $('mu-ack').checked = false; $('mu-cr').disabled = true; muChange(true); return; }
       if (j.error) { $('mu-groups-out').innerHTML = '<p class="k-bad">' + esc(j.error) + '</p>'; return; }
       lastMulti = {cmd: cmd, res: j};
       $('mu-same').textContent = j.same === 1 ? T.same1 : T.same.replace('{0}', j.same);
@@ -215,9 +216,16 @@
       }).join('') + (j.failed.length ? '<div class="cc-mg"><b class="sm">' + esc(T.failed) + '</b>' + j.failed.map(function (f) { return '<div class="sm"><b>' + esc(f.d) + '</b>: <span class="muted">' + esc(f.err) + '</span></div>'; }).join('') + '</div>' : '');
     });
   }
+  function muChange(on) {  // comando que cambia la configuración: el botón principal es «Crear solicitud de cambio»
+    var r = $('mu-run'); r.disabled = on; r.classList.toggle('pri', !on); r.title = on ? T.mu_change : '';
+    $('mu-cr').classList.toggle('pri', on); $('mu-cr').classList.toggle('s', !on);
+  }
+  $('mu-cmd').addEventListener('input', function () { if (!$('mu-change').hidden) { $('mu-change').hidden = true; muChange(false); } });
   $('mu-run').addEventListener('click', runMulti);
   $('mu-cmd').addEventListener('keydown', function (e) { if (e.key === 'Enter') runMulti(); });
+  $('mu-ack').addEventListener('change', function () { $('mu-cr').disabled = !this.checked; });
   $('mu-cr').addEventListener('click', function () {
+    if (!$('mu-ack').checked) return;
     var ids = Object.keys(msel).map(Number);
     post('/console/change-request', {device_ids: ids, body: $('mu-cmd').value, title: $('mu-cmd').value.slice(0, 120)}).then(function (j) { if (j.url) location.href = j.url; else toast(j.error); });
   });
@@ -227,18 +235,193 @@
     window.ocAi.open({kind: 'multi', text: txt.slice(0, 15000), ask: T.analyze});
   });
 
-  /* ---------- Recetas ---------- */
-  var cat = '', vendors = {}; D.recipes.forEach(function (r) { vendors[r.vendor] = 1; });
-  $('rc-vendor').innerHTML += Object.keys(vendors).sort().map(function (v) { return '<option>' + esc(v) + '</option>'; }).join('');
-  $('rc-cats').innerHTML = '<button type="button" class="chip on" data-c="">' + esc(T.all) + '</button>' + Object.keys(D.cats).map(function (k) { return '<button type="button" class="chip" data-c="' + k + '">' + esc(D.cats[k]) + '</button>'; }).join('');
-  // «Solo verificadas»: chip verde junto a las categorías
-  var onlyV = false;
-  $('rc-cats').insertAdjacentHTML('beforeend', '<button type="button" class="chip rc-only" id="rc-only" aria-pressed="false">' + ccIcon('shield') + esc(T.v_only) + ' <span class="num">' + D.recipes.filter(function (r) { return r.verified_on; }).length + '</span></button>');
-  $('rc-cats').addEventListener('click', function (e) {
-    var o = e.target.closest('#rc-only');
-    if (o) { onlyV = !onlyV; o.classList.toggle('on', onlyV); o.setAttribute('aria-pressed', String(onlyV)); grid(); return; }
-    var b = e.target.closest('[data-c]'); if (!b) return; cat = b.dataset.c; Array.prototype.forEach.call(this.querySelectorAll('[data-c]'), function (c) { c.classList.toggle('on', c === b); }); grid(); });
-  // «Reportar»: foro de la comunidad y reporte de GitHub con el título y el texto ya escritos (sin datos del equipo del usuario)
+  /* ---------- Recetas: por equipo, por tarea y búsqueda agrupada (tres columnas del alto de la pantalla) ---------- */
+  // el orden de las categorías (el JSON de la página las trae por orden alfabético)
+  var CATK = ['sistema', 'seguridad', 'interfaces', 'servicios', 'diagnostico'].filter(function (k) { return D.cats[k]; }).concat(Object.keys(D.cats).filter(function (k) { return ['sistema', 'seguridad', 'interfaces', 'servicios', 'diagnostico'].indexOf(k) < 0; })), devN = {}; D.devs.forEach(function (d) { devN[d.os] = (devN[d.os] || 0) + 1; });
+  var PL = {}, PLS = [];  // plataformas (familia de comandos): su nombre, marca, logo y recetas
+  D.recipes.forEach(function (r) {
+    var k = r.os || 'generic', p = PL[k];
+    if (!p) { p = PL[k] = {os: k, label: D.oslabels[k] || r.os_label || T.generic, vendor: r.vendor || T.generic, vl: r.vl, recs: [], nV: 0, vc: {}}; PLS.push(p); }
+    p.recs.push(r); if (r.verified_on) p.nV++; if (r.scope === 'opennccm') p.vc[r.vendor] = (p.vc[r.vendor] || 0) + 1;
+  });
+  PLS.forEach(function (p) {  // la marca de la plataforma: la de más recetas de OpenNCCM
+    var best = Object.keys(p.vc).sort(function (a, b) { return p.vc[b] - p.vc[a]; })[0]; if (best) p.vendor = best;
+    var own = p.recs.find(function (r) { return r.vendor === p.vendor; }); if (own) p.vl = own.vl;
+  });
+  // «Todas las marcas»: las marcas de los tipos de equipo, cada una con las plataformas de sus equipos que tienen recetas
+  var BRS = (D.brands || []).map(function (b) {
+    return {name: b.n, vl: b.vl, plats: b.os.map(function (o) { return PL[o]; }).filter(Boolean).sort(function (a, c) { return a.label.localeCompare(c.label); })};
+  }).filter(function (b) { return b.plats.length; });
+  var pKey = 'oc-rc-pins-' + (D.user || ''), pins = []; try { pins = JSON.parse(localStorage.getItem(pKey) || '[]'); } catch (e) { pins = []; }
+  function yours() {
+    return PLS.filter(function (p) { return devN[p.os] || pins.indexOf(p.os) >= 0; }).sort(function (a, b) {
+      return (pins.indexOf(a.os) < 0) - (pins.indexOf(b.os) < 0) || (devN[b.os] || 0) - (devN[a.os] || 0) || a.label.localeCompare(b.label); });
+  }
+  var st = {view: 'eq', plat: null, rkey: null, task: null, onlyV: false, open: {}, bq: '', oq: '', more: false};
+  (function () { var y = yours(), want = new URLSearchParams(location.search).get('rc'); st.plat = want && PL[want] ? want : y.length ? y[0].os : null; })();
+  // la primera tarea con receta en tus equipos (o la más común)
+  var TK = {}; D.recipes.forEach(function (r) { if (r.task && D.tasks[r.task]) (TK[r.task] = TK[r.task] || {}); if (r.task && TK[r.task]) TK[r.task][r.os] = TK[r.task][r.os] || r; });
+  var nf = function (n, one, many) { return n === 1 ? one : many.replace('{0}', n); };
+  var devTxt = function (n) { return nf(n, T.dev_1, T.dev_n); };
+  function pillV(r, sm) { return r.verified_on ? '<span class="rc-pill ok' + (sm ? ' sm' : '') + '">' + ccIcon('shield') + esc(sm ? T.w_v : T.v_pill.replace('{0}', r.verified_on)) + '</span>' : '<span class="rc-pill' + (sm ? ' sm' : '') + '">' + esc(T.v_none) + '</span>'; }
+  var chev = '<svg class="ico s rc-chev" aria-hidden="true"><use href="/static/icons.svg#i-right"/></svg>';
+  function sizeCols() {  // las columnas llenan la pantalla y bajan cada una por su lado (en pantallas angostas, una debajo de otra)
+    var c = $('rc-cols'); if (!c || c.offsetParent === null) return;
+    if (window.innerWidth <= 1100) { c.style.height = ''; return; }
+    var top = c.getBoundingClientRect().top + window.scrollY, hgt = Math.max(460, window.innerHeight - top - 10);
+    c.style.height = hgt + 'px';
+    var over = document.documentElement.scrollHeight - window.innerHeight;  // lo que agrega la página debajo (márgenes del contenido)
+    if (over > 0 && hgt - over >= 460) c.style.height = (hgt - over) + 'px';
+  }
+  window.addEventListener('resize', sizeCols);
+  function platRow(p, cls) {
+    return '<button type="button" class="rc-pl' + (st.plat === p.os ? ' on' : '') + (cls ? ' ' + cls : '') + '" data-p="' + esc(p.os) + '">' + vlogo(p.vl, 28) +
+      '<span class="rc-pt"><b>' + esc(p.label) + '</b><i>' + (devN[p.os] ? esc(devTxt(devN[p.os])) : (pins.indexOf(p.os) >= 0 ? esc(T.pinned) : esc(p.vendor))) + '</i></span><span class="rc-pn">' + p.recs.length + '</span></button>';
+  }
+  function left() {
+    var h = '';
+    if (st.view === 'eq') {
+      var y = yours();
+      if (y.length) h += '<div class="rc-lh">' + esc(T.yours) + ' <span>· ' + esc(nf(y.length, T.n_plat1, T.n_plats)) + '</span></div>' + y.map(function (p) { return platRow(p); }).join('');
+      var q = st.bq.toLowerCase();
+      h += '<div class="rc-lh' + (y.length ? ' gap' : '') + '">' + esc(T.brands) + ' <span>· ' + BRS.length + '</span></div>' +
+        '<div class="input s rc-bq">' + ccIcon('search') + '<input id="rc-bq" type="search" value="' + esc(st.bq) + '" placeholder="' + esc(T.brand_q) + '" aria-label="' + esc(T.brand_q) + '"></div>';
+      BRS.forEach(function (b) {
+        var ps = q ? b.plats.filter(function (p) { return (b.name + ' ' + p.label).toLowerCase().indexOf(q) >= 0; }) : b.plats;
+        if (!ps.length) return;
+        var open = !!(q || st.open[b.name]);
+        h += '<button type="button" class="rc-br' + (open ? ' open' : '') + '" data-b="' + esc(b.name) + '" aria-expanded="' + open + '">' + vlogo(b.vl, 22) + '<b>' + esc(b.name) + '</b><span class="muted grow">' + esc(nf(b.plats.length, T.n_plat1, T.n_plats)) + '</span>' +
+          '<svg class="ico s rc-chev" aria-hidden="true"><use href="/static/icons.svg#i-' + (open ? 'down' : 'right') + '"/></svg></button>';
+        if (open) h += '<div class="rc-sub">' + ps.map(function (p) {
+          return '<button type="button" class="rc-sp' + (st.plat === p.os ? ' on' : '') + '" data-p="' + esc(p.os) + '"><span class="grow">' + esc(p.label) + '</span>' +
+            (p.nV ? '<span class="rc-pill ok sm">' + ccIcon('shield') + p.nV + '</span>' : '') + '<span class="rc-pn">' + p.recs.length + '</span></button>';
+        }).join('') + '</div>';
+      });
+    } else {
+      h += '<div class="rc-lh">' + esc(T.what) + '</div>';
+      CATK.forEach(function (c) {
+        var ts = Object.keys(D.tasks).filter(function (t) { return D.tasks[t].c === c && TK[t]; });
+        if (!ts.length) return;
+        h += '<div class="rc-cg">' + esc(D.cats[c]) + '</div>' + ts.map(function (t) {
+          return '<button type="button" class="rc-tk' + (st.task === t ? ' on' : '') + '" data-t="' + esc(t) + '"><span class="grow">' + esc(D.tasks[t].n) + '</span><span class="rc-pn">' + Object.keys(TK[t]).length + '</span></button>';
+        }).join('');
+      });
+    }
+    $('rc-left').innerHTML = h;
+  }
+  function recRow(r, sel) {
+    return '<button type="button" class="rc-row' + (sel ? ' on' : '') + '" data-r="' + esc(r.key) + '"><span class="rc-rt">' + esc(r.short || r.name) + '</span>' +
+      (r.scope !== 'opennccm' ? '<span class="muted sm">' + esc(scopeL(r)) + '</span>' : '') + '<span class="muted sm nowrap">' + esc(T.steps.replace('{0}', r.steps.length)) + '</span>' + pillV(r, true) + chev + '</button>';
+  }
+  function mid() {
+    var h = '';
+    if (st.view === 'eq') {
+      var p = PL[st.plat];
+      if (!p) { $('rc-mid').innerHTML = '<p class="muted rc-empty">' + esc(T.pick_plat) + '</p>'; return; }
+      var pinned = pins.indexOf(p.os) >= 0;
+      h += '<div class="rc-mh">' + vlogo(p.vl, 36) + '<div class="grow"><h2>' + esc(p.label) + '</h2><div class="muted sm">' + esc(T.n_recs.replace('{0}', p.recs.length)) + ' · ' + esc(T.n_ver.replace('{0}', p.nV)) +
+        (devN[p.os] ? ' · ' + esc(devTxt(devN[p.os])) : '') + '</div></div><button type="button" class="btn s ghost' + (pinned ? ' on' : '') + '" id="rc-pin" aria-pressed="' + pinned + '" title="' + esc(T.pin_t) + '">' + ccIcon('star') + esc(pinned ? T.pinned : T.pin) + '</button></div>' +
+        '<div class="rc-chips"><button type="button" class="chip' + (st.onlyV ? '' : ' on') + '" data-o="0">' + esc(T.all) + ' <span class="n">' + p.recs.length + '</span></button>' +
+        '<button type="button" class="chip rc-only' + (st.onlyV ? ' on' : '') + '" data-o="1"' + (p.nV ? '' : ' disabled') + ' aria-pressed="' + st.onlyV + '">' + ccIcon('shield') + esc(T.v_only) + ' <span class="n">' + p.nV + '</span></button></div>';
+      CATK.forEach(function (c) {
+        var rs = p.recs.filter(function (r) { return r.cat === c && (!st.onlyV || r.verified_on); });
+        if (rs.length) h += '<div class="rc-cg">' + esc(D.cats[c]) + ' <span>' + rs.length + '</span></div>' + rs.map(function (r) { return recRow(r, r.key === st.rkey); }).join('');
+      });
+    } else {
+      var t = D.tasks[st.task];
+      if (!t) { $('rc-mid').innerHTML = '<p class="muted rc-empty">' + esc(T.pick_rec) + '</p>'; return; }
+      var byOs = TK[st.task], all = PLS.filter(function (p) { return byOs[p.os]; });
+      var mine = all.filter(function (p) { return devN[p.os]; }).sort(function (a, b) { return devN[b.os] - devN[a.os]; }), rest = all.filter(function (p) { return !devN[p.os]; });
+      h += '<div class="rc-mh"><div class="grow"><div class="muted sm">' + esc(D.cats[t.c] || '') + '</div><h2>' + esc(t.n) + '</h2><div class="muted sm">' + esc(t.i) + ' ' + esc(T.task_n.replace('{0}', all.length)) + '</div></div></div>';
+      var prow = function (p) { var r = byOs[p.os]; return '<button type="button" class="rc-row' + (r.key === st.rkey ? ' on' : '') + '" data-r="' + esc(r.key) + '">' + vlogo(p.vl, 24) +
+        '<span class="rc-rt">' + esc(p.label) + '<i>' + (devN[p.os] ? esc(devTxt(devN[p.os])) : esc(p.vendor)) + '</i></span>' + pillV(r, true) + chev + '</button>'; };
+      h += '<div class="rc-cg">' + esc(T.in_yours) + ' <span>' + mine.length + '</span></div>' + (mine.length ? mine.map(prow).join('') : '<p class="muted sm rc-empty">' + esc(T.no_yours) + '</p>');
+      var oq = st.oq.toLowerCase(), shown = oq ? rest.filter(function (p) { return (p.label + ' ' + p.vendor).toLowerCase().indexOf(oq) >= 0; }) : [];
+      h += '<div class="rc-cg gap">' + esc(T.others) + ' <span>' + rest.length + '</span></div><div class="input s rc-bq">' + ccIcon('search') + '<input id="rc-oq" type="search" value="' + esc(st.oq) + '" placeholder="' + esc(T.plat_q) + '" aria-label="' + esc(T.plat_q) + '"></div>' +
+        (oq ? shown.map(prow).join('') || '<p class="muted sm rc-empty">' + esc(T.no_res.replace('{0}', st.oq)) + '</p>' : '<p class="muted sm rc-empty">' + esc(T.others_hint.replace('{0}', rest.length)) + '</p>');
+    }
+    $('rc-mid').innerHTML = h;
+  }
+  function hl(s, q) {  // resalta todas las veces que aparece lo buscado
+    var i, out = '', low = s.toLowerCase(), from = 0;
+    while (q && (i = low.indexOf(q, from)) >= 0) { out += esc(s.slice(from, i)) + '<mark>' + esc(s.slice(i, i + q.length)) + '</mark>'; from = i + q.length; }
+    return out + esc(s.slice(from));
+  }
+  function cmdsOf(r) { return r.steps.map(function (s) { return s.c; }).join('\n'); }
+  function why(r, q) {  // «en los comandos: …ip service set ssh address=…» cuando la palabra no está en el nombre
+    if ((r.short || r.name).toLowerCase().indexOf(q) >= 0) return '';
+    var src = [[r.intro, T.in_desc], [cmdsOf(r), T.in_cmds]].find(function (x) { return x[0].toLowerCase().indexOf(q) >= 0; });
+    if (!src) return '';
+    var t = src[0].replace(/\s+/g, ' '), i = t.toLowerCase().indexOf(q), a = Math.max(0, i - 28), b = Math.min(t.length, i + q.length + 32);
+    return '<i class="rc-why">' + esc(src[1]) + ' ' + (a ? '…' : '') + hl(t.slice(a, b), q) + (b < t.length ? '…' : '') + '</i>';
+  }
+  function results() {
+    var raw = $('rc-q').value.trim(), q = raw.toLowerCase();
+    var groups = PLS.map(function (p) {
+      return {p: p, rs: p.recs.filter(function (r) { return ((r.short || r.name) + ' ' + r.intro + ' ' + p.label + ' ' + p.vendor + ' ' + cmdsOf(r)).toLowerCase().indexOf(q) >= 0; })
+        .sort(function (a, b) { return ((b.short || b.name).toLowerCase().indexOf(q) >= 0) - ((a.short || a.name).toLowerCase().indexOf(q) >= 0); })};
+    }).filter(function (g) { return g.rs.length; });
+    var mine = groups.filter(function (g) { return devN[g.p.os] || pins.indexOf(g.p.os) >= 0; }).sort(function (a, b) { return (devN[b.p.os] || 0) - (devN[a.p.os] || 0); });
+    var rest = groups.filter(function (g) { return mine.indexOf(g) < 0; });
+    var n = groups.reduce(function (s, g) { return s + g.rs.length; }, 0);
+    var grp = function (g) {
+      return '<div class="rc-sg"><div class="rc-sgh">' + vlogo(g.p.vl, 22) + '<b>' + esc(g.p.label) + '</b>' + (devN[g.p.os] ? '<span class="muted sm">' + esc(T.yours_tag) + '</span>' : '<span class="muted sm">' + esc(g.p.vendor) + '</span>') + '</div>' +
+        g.rs.slice(0, 2).map(function (r) { return '<button type="button" class="rc-row" data-r="' + esc(r.key) + '"><span class="rc-rt">' + hl(r.short || r.name, q) + why(r, q) + '</span>' + pillV(r, true) + chev + '</button>'; }).join('') +
+        (g.rs.length > 2 ? '<button type="button" class="linkbtn rc-more" data-p="' + esc(g.p.os) + '">' + esc(T.more.replace('{0}', g.rs.length - 2)) + '</button>' : '') + '</div>';
+    };
+    var h = !n ? '<p class="muted rc-empty">' + esc(T.no_res.replace('{0}', raw)) + '</p>'
+      : '<div class="rc-rh"><b>' + esc(T.res.replace('{0}', n).replace('{1}', raw).replace('{2}', groups.length)) + '</b>' + (mine.length && rest.length ? ' · ' + esc(T.res_first) : '') + '</div>';
+    if (n) {
+      if (mine.length) {
+        h += mine.map(grp).join('');
+        if (rest.length) h += '<div class="rc-sg"><button type="button" class="rc-sgh rc-toggle" id="rc-more-all" aria-expanded="' + st.more + '"><b>' + esc(T.other_plats.replace('{0}', rest.length).replace('{1}', rest.reduce(function (s, g) { return s + g.rs.length; }, 0))) + '</b><span class="grow"></span><span class="muted sm">' + esc(st.more ? T.hide_more : T.show_more) + '</span>' +
+          '<svg class="ico s" aria-hidden="true"><use href="/static/icons.svg#i-' + (st.more ? 'down' : 'right') + '"/></svg></button></div>' + (st.more ? rest.map(grp).join('') : '');
+      } else h += rest.map(grp).join('');
+    }
+    $('rc-results').innerHTML = h;
+  }
+  function render() {
+    var searching = !!$('rc-q').value.trim();
+    Array.prototype.forEach.call(document.querySelectorAll('#rc-view [data-v]'), function (b) { var on = b.dataset.v === st.view; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+    ['rc-left', 'rc-mid', 'rc-detail'].forEach(function (id) { $(id).hidden = searching; }); $('rc-results').hidden = !searching;
+    if (searching) results(); else { left(); mid(); if (!cur || cur.key !== st.rkey) detailEmpty(); }
+    sizeCols();
+  }
+  function detailEmpty() { if (!st.rkey) { cur = null; $('rc-detail').innerHTML = '<p class="muted rc-empty">' + esc(T.pick_rec) + '</p>'; } else detail(st.rkey); }
+  function pickRec(key) { st.rkey = key; detail(key); left(); mid(); post('/console/recipes/used', {key: key}); }
+  $('rc-view').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-v]'); if (!b) return; st.view = b.dataset.v;
+    if (st.view === 'tk' && !st.task) { var ts = Object.keys(TK).sort(function (a, c) { return Object.keys(TK[c]).length - Object.keys(TK[a]).length; }); st.task = ts.indexOf('syslog') >= 0 ? 'syslog' : ts[0]; }
+    $('rc-q').value = ''; render(); $('rc-left').scrollTop = 0; $('rc-mid').scrollTop = 0;
+  });
+  $('rc-q').addEventListener('input', function () { st.more = false; render(); });
+  $('rc-left').addEventListener('click', function (e) {
+    var p = e.target.closest('[data-p]'), b = e.target.closest('[data-b]'), t = e.target.closest('[data-t]');
+    if (p) { st.plat = p.dataset.p; st.onlyV = false; st.rkey = null; cur = null; render(); $('rc-mid').scrollTop = 0; }
+    else if (b) { st.open[b.dataset.b] = !st.open[b.dataset.b]; left(); }
+    else if (t) { st.task = t.dataset.t; st.oq = ''; var y = TK[st.task], first = PLS.filter(function (x) { return y[x.os] && devN[x.os]; }).sort(function (a, c) { return devN[c.os] - devN[a.os]; })[0]; st.rkey = first ? y[first.os].key : null; cur = null; render(); }
+  });
+  $('rc-left').addEventListener('input', function (e) { if (e.target.id === 'rc-bq') { st.bq = e.target.value; left(); var i = $('rc-bq'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); } });
+  $('rc-mid').addEventListener('click', function (e) {
+    var r = e.target.closest('[data-r]'), o = e.target.closest('[data-o]');
+    if (r) pickRec(r.dataset.r);
+    else if (o) { st.onlyV = o.dataset.o === '1'; mid(); }
+    else if (e.target.closest('#rc-pin')) {
+      var i = pins.indexOf(st.plat); if (i >= 0) pins.splice(i, 1); else pins.unshift(st.plat);
+      try { localStorage.setItem(pKey, JSON.stringify(pins)); } catch (er) {}
+      left(); mid();
+    }
+  });
+  $('rc-mid').addEventListener('input', function (e) { if (e.target.id === 'rc-oq') { st.oq = e.target.value; mid(); var i = $('rc-oq'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); } });
+  $('rc-results').addEventListener('click', function (e) {
+    var r = e.target.closest('[data-r]'), m = e.target.closest('.rc-more');
+    if (e.target.closest('#rc-more-all')) { st.more = !st.more; results(); return; }
+    if (!r && !m) return;
+    var key = r ? r.dataset.r : null, rec = key && D.recipes.find(function (x) { return x.key === key; });
+    st.view = 'eq'; st.plat = rec ? (rec.os || 'generic') : m.dataset.p; st.onlyV = false; st.rkey = key; $('rc-q').value = ''; cur = null; render();
+    if (key) post('/console/recipes/used', {key: key});
+  });
+  // «Revisa cada receta…»: una línea arriba; «Ver el aviso» abre el aviso completo con el foro y GitHub
   function ghUrl(r) {
     if (!r) return D.issues;
     var seal = r.verified_on ? T.v_box_t.replace('{0}', r.verified_on) : T.v_none;
@@ -255,65 +438,41 @@
     return '<div class="rc-reps' + (small ? ' sm' : '') + '">' + (D.forum ? one('forum', D.forum, 'chat2', T.f_t, T.f_s, r ? r.name : '') : '') +
       (D.issues ? one('gh', ghUrl(r), 'issue', T.gh_t, T.gh_s, '') : '') + '</div>';
   }
-  // aviso de arriba de la lista: abierto o en una sola línea (se recuerda por usuario)
-  var wKey = 'oc-rc-warn-' + (D.user || '');
-  function warn() {
-    var closed = false; try { closed = localStorage.getItem(wKey) === '0'; } catch (e) {}
-    $('rc-warn').innerHTML = closed
-      ? '<div class="banner warn rc-warn-s">' + ccIcon('alert') + '<span class="grow"><b>' + esc(T.w_title) + '</b> · <a href="#" data-w="open">' + esc(T.w_show) + '</a></span></div>'
-      : '<div class="banner warn rc-warn-b">' + ccIcon('alert') + '<div class="grow stack" style="gap:6px"><b>' + esc(T.w_title) + '</b><p>' + esc(T.w_p1) + '</p>' +
-        '<p>' + esc(T.w_p2).replace('{0}', '<b>' + esc(T.w_v) + '</b>') + '</p><p>' + esc(T.w_p3) + '</p>' + reportLinks(null, false) + '</div>' +
-        '<button type="button" class="btn s ghost" data-w="close">' + esc(T.w_hide) + '</button></div>';
-  }
-  $('rc-warn').addEventListener('click', function (e) {
-    var a = e.target.closest('[data-w]'); if (!a) return; e.preventDefault();
-    try { localStorage.setItem(wKey, a.dataset.w === 'close' ? '0' : '1'); } catch (er) {}
-    warn();
+  $('rc-warn-open').addEventListener('click', function () {
+    $('rc-warn-body').innerHTML = '<p>' + esc(T.w_p1) + '</p><p>' + esc(T.w_p2).replace('{0}', '<b>' + esc(T.w_v) + '</b>') + '</p><p>' + esc(T.w_p3) + '</p>' + reportLinks(cur, false);
+    $('rc-warn-dlg').showModal();
   });
-  warn();
-  $('rc-q').addEventListener('input', grid); $('rc-vendor').addEventListener('change', grid);
   function scopeL(r) { return r.scope === 'mine' ? T.mine : r.scope === 'team' ? T.team : T.opennccm; }
-  function grid() {
-    var q = $('rc-q').value.trim().toLowerCase(), v = $('rc-vendor').value;
-    var rs = D.recipes.filter(function (r) { return (!cat || r.cat === cat) && (!v || r.vendor === v) && (!onlyV || r.verified_on) && (!q || (r.name + ' ' + r.intro + ' ' + r.vendor).toLowerCase().indexOf(q) >= 0); });
-    $('rc-grid').innerHTML = rs.map(function (r) {
-      return '<button type="button" class="card cc-rc" data-r="' + esc(r.key) + '"><div class="row sm"><span class="pill sm rc-brand">' + vlogo(r.vl, 16) + esc(r.vendor) + '</span><span class="muted">' + esc(D.cats[r.cat] || '') + '</span></div>' +
-        '<b>' + esc(r.name) + '</b><div class="rc-meta"><span class="muted">' + esc(T.steps.replace('{0}', r.steps.length)) + ' · ' + esc(T.uses.replace('{0}', r.uses)) + ' · ' + esc(scopeL(r)) + (r.scope === 'team' ? ' (' + esc(r.by) + ')' : '') + '</span>' +
-        vPill(r) + '</div></button>';
-    }).join('') || '<p class="muted">' + esc(T.none) + '</p>';
-  }
   var cur = null;
   function vals() { var o = {}; Array.prototype.forEach.call(document.querySelectorAll('#rc-detail [data-var]'), function (i) { o[i.dataset.var] = i.value; }); return o; }
   function fill(c, o) { return c.replace(/\{\{(\w+)\}\}/g, function (m, n) { return o[n] != null ? o[n] : m; }); }
-  function osOf(r) { return r.os; }
   function riskOf(r, c) {  // lo mismo que consolecore, simplificado: ¿solo consulta?
     var l = c.trim();
     if (r.os === 'ros') return /(^|\s)(add|set|remove|enable|disable|unset|reset|reboot|import|move|shutdown)(\s|$)/.test(l) ? 'change' : 'read';
-    return /^(show|sh |display|ping|traceroute|tracert)/i.test(l) ? 'read' : 'change';
+    return /^(show|sh |display|ping|traceroute|tracert|get |dump )/i.test(l) ? 'read' : 'change';
   }
   function detail(key) {
     var r = D.recipes.find(function (x) { return x.key === key; }); if (!r) return; cur = r;
-    var el = $('rc-detail'); el.hidden = false;
-    el.innerHTML = '<div class="row"><div class="grow"><div class="row sm"><span class="pill sm rc-brand">' + vlogo(r.vl, 16) + esc(r.vendor) + '</span><span class="muted">' + esc(r.os_label || '') + ' · ' + esc(D.cats[r.cat] || '') + ' · ' + esc(scopeL(r)) + '</span></div><h2 style="margin:6px 0 0">' + esc(r.name) + '</h2></div>' + vPill(r) + '<button type="button" class="btn s ghost" id="rc-x">✕</button></div>' +
-      '<p class="muted">' + esc(r.intro) + (r.doc ? ' <a href="' + esc(r.doc) + '" target="_blank" rel="noopener">' + esc(T.doc) + '</a>' : '') + '</p>' +
-      '<div class="rc-boxes">' + (r.verified_on
-        ? '<div class="rc-box ok">' + ccIcon('shield') + '<div><b>' + esc(T.v_box_t.replace('{0}', r.verified_on)) + '</b><p>' + esc(T.v_box) + '</p></div></div>'
-        : '<div class="rc-box">' + ccIcon('file') + '<div><b>' + esc(T.u_box_t) + '</b><p>' + esc(T.u_box) + '</p></div></div>') +
-      '<div class="rc-box warn">' + ccIcon('alert') + '<div><b>' + esc(T.w_title) + '</b><p>' + esc(T.w_short) + '</p>' +
-      '<p class="rc-replbl">' + esc(T.w_report) + '</p>' + reportLinks(r, true) + '</div></div></div>' +
-      (D.role === 'admin' ? '<div class="row"><button type="button" class="btn s ghost" id="rc-verify">' + ccIcon('shield') + esc(r.verified_on ? T.v_unset : T.v_set) + '</button></div>' : '') +
-      (r.vars.length ? '<div class="f3">' + r.vars.map(function (v) { return '<div class="field"><label>' + esc(v.l) + '</label><div class="input mono"><input data-var="' + esc(v.n) + '" value="' + esc(v.v) + '"></div></div>'; }).join('') + '</div>' : '') +
+    var el = $('rc-detail'), p = PL[r.os || 'generic'];
+    el.innerHTML = '<div class="rc-dh">' + vlogo(p ? p.vl : r.vl, 36) + '<div class="grow"><div class="muted sm">' + esc(p ? p.label : r.os_label || '') + ' · ' + esc(D.cats[r.cat] || '') + (r.scope !== 'opennccm' ? ' · ' + esc(scopeL(r)) : '') + '</div>' +
+      '<h3>' + esc(r.short || r.name) + '</h3></div></div><div>' + pillV(r) + '</div>' +
+      '<div class="rc-avs">' + ccIcon('alert') + '<span>' + esc(T.w_short2) + ' <a href="' + esc(D.forum) + '" target="_blank" rel="noopener">' + esc(T.forum) + '</a> · <a href="' + esc(ghUrl(r)) + '" target="_blank" rel="noopener">' + esc(T.github) + '</a></span></div>' +
+      '<p class="muted sm rc-intro">' + esc(r.intro) + (r.doc ? ' <a href="' + esc(r.doc) + '" target="_blank" rel="noopener">' + esc(T.doc) + '</a>' : '') + '</p>' +
+      (D.role === 'admin' ? '<div><button type="button" class="btn s ghost" id="rc-verify">' + ccIcon('shield') + esc(r.verified_on ? T.v_unset : T.v_set) + '</button></div>' : '') +
+      (r.vars.length ? '<div class="rc-vars">' + r.vars.map(function (v) { return '<div class="field"><label>' + esc(v.l) + '</label><div class="input mono s"><input data-var="' + esc(v.n) + '" value="' + esc(v.v) + '" aria-label="' + esc(v.l) + '"></div></div>'; }).join('') + '</div>' : '') +
       '<ol class="cc-steps" id="rc-steps"></ol>' +
-      '<div class="row"><button type="button" class="btn pri" id="rc-run"></button><button type="button" class="btn" id="rc-multi">' + esc(T.multi) + '</button><span class="grow"></span>' +
+      '<div class="rc-acts"><button type="button" class="btn pri" id="rc-run"></button><button type="button" class="btn" id="rc-multi">' + esc(T.multi) + '</button>' +
       (D.role !== 'viewer' ? (r.mine ? '<button type="button" class="btn ghost" id="rc-edit-b">' + esc(T.edit) + '</button><button type="button" class="btn ghost dz" id="rc-del">' + esc(T.del) + '</button>' : '<button type="button" class="btn ghost" id="rc-dup">' + esc(T.dup) + '</button>') : '') + '</div>';
     steps();
     if ($('rc-verify')) $('rc-verify').addEventListener('click', function () {
       var v = r.verified_on ? '' : prompt(T.v_ask, r.os_label ? r.os_label.split(' ')[0] + ' ' : '');
       if (v === null) return;
-      post('/console/recipes/verify', {key: r.key, verified_on: v}).then(function (j) { if (j.ok) { r.verified_on = j.verified_on; grid(); detail(r.key); } else toast(j.error); });
+      post('/console/recipes/verify', {key: r.key, verified_on: v}).then(function (j) {
+        if (!j.ok) { toast(j.error); return; }
+        var was = !!r.verified_on; r.verified_on = j.verified_on; if (p) p.nV += (r.verified_on ? 1 : 0) - (was ? 1 : 0); detail(r.key); mid();
+      });
     });
     Array.prototype.forEach.call(el.querySelectorAll('[data-var]'), function (i) { i.addEventListener('input', steps); });
-    $('rc-x').addEventListener('click', function () { el.hidden = true; });
     var onlyRead = r.steps.every(function (s) { return s.c.split('\n').every(function (l) { return !l.trim() || riskOf(r, l) === 'read'; }); });
     $('rc-run').textContent = onlyRead ? T.runact : T.apply;
     $('rc-run').addEventListener('click', function () { onlyRead ? runActive(r) : applyDlg(r); });
@@ -324,7 +483,7 @@
     if ($('rc-dup')) $('rc-dup').addEventListener('click', function () { editDlg(r, true); });
     if ($('rc-edit-b')) $('rc-edit-b').addEventListener('click', function () { editDlg(r, false); });
     if ($('rc-del')) $('rc-del').addEventListener('click', function () { post('/console/recipes/' + r.id + '/delete', {}).then(function () { location.hash = 'recetas'; location.reload(); }); });
-    el.scrollIntoView({behavior: 'smooth', block: 'start'});
+    el.scrollTop = 0;
   }
   function steps() {
     var r = cur, o = vals();
@@ -334,13 +493,13 @@
         (c ? '<div class="cx" data-theme="0" style="height:auto"><div class="cx-out mono" style="padding:8px 10px">' + esc(c) + '</div></div><div class="row"><button type="button" class="btn s ghost" data-cp="' + i + '">' + esc(T.copy) + '</button><button type="button" class="btn s ghost" data-in="' + i + '">' + esc(T.insert) + '</button></div>' : '') + '</li>';
     }).join('');
   }
-  $('rc-grid').addEventListener('click', function (e) { var b = e.target.closest('[data-r]'); if (b) { detail(b.dataset.r); post('/console/recipes/used', {key: b.dataset.r}); } });
   $('rc-detail').addEventListener('click', function (e) {
     var c = e.target.closest('[data-cp]'), n = e.target.closest('[data-in]');
     var o = vals();
     if (c) navigator.clipboard.writeText(fill(cur.steps[+c.dataset.cp].c, o)).then(function () { toast(T.copied); });
     if (n) { if (!active || !msgTo(active, {cmd: 'insert', text: fill(cur.steps[+n.dataset.in].c, o).split('\n')[0]})) toast(T.noact); else { show('sesiones'); } }
   });
+  render();
   function runActive(r) {
     if (!active) { toast(T.noact); return; }
     var o = vals(), all = r.steps.map(function (s) { return fill(s.c, o); }).join('\n');
@@ -497,7 +656,7 @@
     s.addEventListener('change', function () { Array.prototype.forEach.call(s.querySelectorAll('label'), function (l) { l.classList.toggle('on', l.querySelector('input').checked); }); });
   });
 
-  list(); paint(); mlist(); grid();
+  list(); paint(); mlist();
   show(location.hash.slice(1) || D.tab);
   if (D.rec) { show('grabaciones'); openRec(D.rec); }
 })();

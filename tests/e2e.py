@@ -142,8 +142,8 @@ check("configlet exec devuelve salida", "GigabitEthernet0/0" in r.text)
 
 # corrección de cumplimiento (no ip http server)
 c = get("/compliance").text
-m = re.search(r'/compliance/remediate/(\d+)', c)
-check("hay botón Corregir", m is not None)
+m = re.search(r'action="/compliance/remediate-rule"[\s\S]*?name="result_id" value="(\d+)"', c)
+check("hay botón Corregir (abre el diálogo con la casilla obligatoria)", m is not None and "data-needs-ack" in c)
 
 # tareas
 r = post("/schedules", {"name": "Nocturno", "action": "backup", "cron": "0 2 * * *"})

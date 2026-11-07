@@ -146,9 +146,11 @@
 </section>
 
 <section id="compliance" class="stack" aria-label="Cumplimiento">
-  {% if comp_groups %}
+  {% if comp_groups %}{% import "_warn.html" as w with context %}{% set rver = verified_map('rule') %}
   <div class="row between"><span class="muted sm">{{ _f('Revisado {0} con {1} políticas que aplican a {2}.', audited_at|ago, comp_groups|length, profile.label) }}</span>
     {% if can_run %}<form class="inline" method="post" action="/devices/{{ device.id }}/compliance"><button class="btn s">{{ icon('refresh', 's') }}Auditar ahora</button></form>{% endif %}</div>
+  {% if comp_groups|selectattr('fixable')|list %}{{ w.warn_line(_('Revisa las correcciones antes de usarlas en producción.')) }}{% endif %}
+  {{ w.warn_dialog(_('Revisa las correcciones antes de usarlas en producción')) }}
   {% for g in comp_groups %}
   {% set tot = g.results|length %}{% set ok_n = tot - g.fails %}
   {% set nc = g.results|selectattr('passed', 'equalto', false)|map(attribute='rule.severity')|list %}
@@ -157,15 +159,26 @@
       <div class="barw"><div class="bar"><i class="ok" style="width:{{ ok_n / tot * 100 }}%"></i><i class="crit" style="width:{{ nc.count('critical') / tot * 100 }}%"></i><i class="major" style="width:{{ nc.count('major') / tot * 100 }}%"></i><i class="warn" style="width:{{ (g.fails - nc.count('critical') - nc.count('major')) / tot * 100 }}%"></i></div>
         <div class="muted sm" style="margin-top:4px">{{ _f('{0} de {1} cumplen', ok_n, tot) }}</div></div>
       {% if g.fails %}<span class="pill crit">{{ _f('{0} infracciones', g.fails) }}</span>{% else %}<span class="pill ok">Cumple</span>{% endif %}
-      {% if g.fixable and can_run %}<form method="post" action="/compliance/remediate-policy"><input type="hidden" name="policy_id" value="{{ g.policy.id }}"><input type="hidden" name="device_id" value="{{ device.id }}"><input type="hidden" name="next" value="/devices/{{ device.id }}#compliance">
-        <button class="btn s sig">{{ icon('wrench', 's') }}{{ _f('Corregir {0}', g.fixable) }}</button></form>
+      {% if g.fixable and can_run %}<span class="cfix-sum"><span class="wl-gray">{{ _('Las correcciones son comandos que cambian la configuración') }}</span>
+        <button type="button" class="btn s sig" data-fix="cfix-{{ g.policy.id }}">{{ icon('wrench', 's') }}{{ _f('Corregir {0}', g.fixable) }}</button></span>
       {% elif is_admin %}<a class="btn s ghost" href="/compliance/policies/{{ g.policy.id }}">{{ icon('edit', 's') }}Editar</a>{% else %}<span></span>{% endif %}</summary>
     {% set fails = g.results|rejectattr('passed')|list %}
     {% if fails %}<div>{% for c in fails %}<div class="rule">{{ sevtag(c.rule.severity) }}<span>{{ c.rule.name }}{% if not c.rule.remediation %} <span class="muted">· sin corrección automática</span>{% endif %}</span>
-      {% if c.rule.remediation and can_run %}<form method="post" action="/compliance/remediate/{{ c.id }}"><button class="btn s">Corregir</button></form>
+      {% if c.rule.remediation and can_run %}<span class="cfix-act">{{ w.vpill(rver.get(c.rule.id|string), True) }}<button type="button" class="btn s" data-fix="cfix-{{ g.policy.id }}" data-only="{{ c.rule.id }}">{{ _('Corregir') }}</button></span>
       {% elif is_admin %}<a class="btn s ghost" href="/compliance/policies/{{ g.policy.id }}">Añadir corrección</a>{% else %}<span></span>{% endif %}</div>{% endfor %}</div>{% endif %}
     <div class="passed">{{ icon('check', 's') }} {{ _f('{0} reglas cumplen', ok_n) }}</div>
   </details>
+  {% if g.fixable and can_run %}<dialog class="dlg cfix" id="cfix-{{ g.policy.id }}" aria-labelledby="cfix-{{ g.policy.id }}-h"><form method="post" action="/compliance/remediate-policy" class="stack">
+    <input type="hidden" name="policy_id" value="{{ g.policy.id }}"><input type="hidden" name="device_id" value="{{ device.id }}"><input type="hidden" name="next" value="/devices/{{ device.id }}#compliance">
+    <div class="row nowrap"><span class="qi sig">{{ icon('wrench') }}</span><div class="grow"><h2 id="cfix-{{ g.policy.id }}-h" data-h-n="{{ _f('Corregir {0} infracciones en {1}', '{n}', device.name) }}" data-h-one="{{ _f('Corregir 1 infracción en {0}', device.name) }}">{{ _f('Corregir {0} infracciones en {1}', g.fixable, device.name) }}</h2>
+      <div class="muted sm">{{ _('Se crea una solicitud de cambio · pasa por aprobación, con respaldo antes y después.') }}</div></div></div>
+    <div class="cfix-list">{% for c in fails if c.rule.remediation %}{% set sv = rver.get(c.rule.id|string) %}
+      <label class="cfix-r" data-rule="{{ c.rule.id }}" data-gh="{{ fix_issue_url(c.rule.name, g.policy.name, profile.label, sv) }}"><input type="checkbox" name="rule_id" value="{{ c.rule.id }}" checked>
+        <div class="grow"><div class="row nowrap"><b class="grow">{{ c.rule.name }}</b>{{ w.vpill(sv) }}</div><pre class="cf-body mono">{{ c.rule.remediation }}</pre></div></label>{% endfor %}</div>
+    {{ w.warn_short() }}
+    {{ w.ack(device.name) }}
+    <div class="row end"><button type="button" class="btn ghost" data-close>{{ _('Cancelar') }}</button><button class="btn pri" data-needs-ack disabled data-fix-go data-l-n="{{ _f('Crear solicitud ({0} correcciones)', '{n}') }}" data-l-one="{{ _('Crear solicitud (1 corrección)') }}">{{ _f('Crear solicitud ({0} correcciones)', g.fixable) }}</button></div>
+  </form></dialog>{% endif %}
   {% endfor %}
   {% else %}
   <section class="card"><div class="empty">{{ empty_art('search') }}<h2>Aún no se ha auditado</h2><p>{% if device.last_backup_at %}No hay políticas que apliquen a {{ profile.label }} o aún no se audita.{% else %}Este equipo todavía no tiene un respaldo, así que no hay configuración que revisar.{% endif %}</p>

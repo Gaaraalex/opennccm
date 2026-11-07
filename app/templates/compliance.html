@@ -1,5 +1,6 @@
 {% extends "base.html" %}{% block title %}Cumplimiento{% endblock %}
 {% block content %}
+{% import "_warn.html" as w with context %}{% set rver = verified_map('rule') %}
 {% set is_admin = user.role == 'admin' %}
 <div class="ph"><div class="grow"><h1>Cumplimiento</h1>
   <div class="sub">{% if pct is not none %}{{ _f('{0} % de las reglas se cumplen en {1} equipos auditados', pct, devices_checked) }}{% if last_audit %} · {{ _f('última auditoría {0}', last_audit|ago) }}{% endif %}{% else %}Aún no se ha auditado ningún equipo.{% endif %}</div></div>
@@ -16,7 +17,8 @@
 {% endif %}
 
 <div class="row between"><h2>{{ _f('Políticas ({0})', policies|length) }}</h2><span class="muted sm">Cada política agrupa reglas regex que se comprueban en la configuración guardada.</span></div>
-{% if policies %}<div class="stack">{% for p in policies %}{% set st = pstat.get(p.id) %}{% set tot = [st.ok + st.critical + st.major + st.minor, 1]|max %}{% set fails = st.critical + st.major + st.minor %}
+{% if policies %}{{ w.warn_line(_('Revisa las correcciones antes de usarlas en producción.')) }}{{ w.warn_dialog(_('Revisa las correcciones antes de usarlas en producción')) }}
+<div class="stack">{% for p in policies %}{% set st = pstat.get(p.id) %}{% set tot = [st.ok + st.critical + st.major + st.minor, 1]|max %}{% set fails = st.critical + st.major + st.minor %}
   <details class="pol" {{ 'open' if loop.first and fails }}>
     <summary><div><div class="nm">{{ p.name }}{% if not p.enabled %} <span class="tag">inactiva</span>{% endif %}</div><div class="muted sm">{{ _f('{0} reglas', p.rules|length) }} · tipo <span class="mono" title="{{ p.device_type_filter or '' }}">{{ (p.device_type_filter or '.*')|truncate(36) }}</span>{% if p.group_id %} · {{ _('grupo') }} {% for g in groups if g.id == p.group_id %}{{ g.name }}{% endfor %}{% endif %}</div></div>
       <div class="barw"><div class="bar"><i class="ok" style="width:{{ st.ok / tot * 100 }}%"></i><i class="crit" style="width:{{ st.critical / tot * 100 }}%"></i><i class="major" style="width:{{ st.major / tot * 100 }}%"></i><i class="warn" style="width:{{ st.minor / tot * 100 }}%"></i></div>
@@ -26,14 +28,16 @@
     {% set ns = namespace(ok=0) %}<div>{% for r in p.rules %}{% set rf = fail_rows|selectattr('rule_id', 'equalto', r.id)|list %}{% if not rf %}{% set ns.ok = ns.ok + 1 %}{% else %}
       <div class="rule">{{ sevtag(r.severity) }}<span>{{ r.name }}{% if not r.remediation %} <span class="muted">· sin corrección automática</span>{% endif %} {% set names = rf|map(attribute='device.name')|list %}<span class="muted sm" {% if names|length > 5 %}title="{{ names|join(', ') }}"{% endif %}>· {{ names[:5]|join(', ') }}{% if names|length > 5 %} {{ _f('y {0} más', names|length - 5) }}{% endif %}</span></span>
         {% if ai_top %}<button type="button" class="btn s ghost" data-ai="compliance" data-id="{{ rf[0].id }}" data-device="{{ rf[0].device_id }}" data-name="{{ rf[0].device.name }}" data-ask="{{ _('¿Cómo lo corrijo?') }}">✦ {{ _('¿Cómo lo corrijo?') }}</button>{% endif %}
-        {% if r.remediation and ROLES[user.role] >= 1 %}{% if rf|length == 1 %}<form method="post" action="/compliance/remediate/{{ rf[0].id }}" style="margin:0"><button class="btn s">{{ _('Corregir') }}</button></form>
-        {% else %}<button type="button" class="btn s" data-dialog="fix-{{ r.id }}">{{ _f('Corregir en {0} equipos…', rf|length) }}</button>
-        <dialog class="dlg" id="fix-{{ r.id }}" aria-labelledby="fix-{{ r.id }}-h"><form method="post" action="/compliance/remediate-rule" class="stack">
-          <div><h2 id="fix-{{ r.id }}-h">{{ _f('Corregir «{0}»', r.name) }}</h2><p class="muted sm" style="margin-top:6px">{{ _('Se crea una solicitud de cambio por cada equipo marcado.') }}</p></div>
-          <label class="row nowrap sm"><input type="checkbox" checked data-all><span>{{ _('Todos') }} (<span data-n>{{ rf|length }}</span>/{{ rf|length }})</span></label>
-          <div class="stack fixlist" style="max-height:min(50vh,360px);overflow:auto;gap:6px">{% for f in rf %}<label class="row nowrap sm"><input type="checkbox" name="result_id" value="{{ f.id }}" checked><span>{{ f.device.name }}</span></label>{% endfor %}</div>
-          <div class="row end"><button type="button" class="btn ghost" data-close>{{ _('Cancelar') }}</button><button class="btn pri" data-go>{{ _('Crear solicitudes') }}</button></div>
-        </form></dialog>{% endif %}
+        {% if r.remediation and ROLES[user.role] >= 1 %}{% set sv = rver.get(r.id|string) %}<span class="cfix-act">{{ w.vpill(sv, True) }}<button type="button" class="btn s" data-dialog="fix-{{ r.id }}">{{ _('Corregir') if rf|length == 1 else _f('Corregir en {0} equipos…', rf|length) }}</button></span>
+        <dialog class="dlg cfix" id="fix-{{ r.id }}" aria-labelledby="fix-{{ r.id }}-h"><form method="post" action="/compliance/remediate-rule" class="stack">
+          <div class="row nowrap"><span class="qi sig">{{ icon('wrench') }}</span><div class="grow"><h2 id="fix-{{ r.id }}-h">{{ _f('Corregir «{0}»', r.name) }}</h2><p class="muted sm" style="margin-top:4px">{{ _('Se crea una solicitud de cambio por cada equipo marcado · pasa por aprobación, con respaldo antes y después.') }}</p></div>{{ w.vpill(sv) }}</div>
+          <pre class="cf-body mono">{{ r.remediation }}</pre>
+          {% if rf|length > 1 %}<label class="row nowrap sm"><input type="checkbox" checked data-all><span>{{ _('Todos') }} (<span data-n>{{ rf|length }}</span>/{{ rf|length }})</span></label>{% endif %}
+          <div class="stack fixlist" style="max-height:min(40vh,300px);overflow:auto;gap:6px">{% for f in rf %}<label class="row nowrap sm"><input type="checkbox" name="result_id" value="{{ f.id }}" checked><span>{{ f.device.name }}</span></label>{% endfor %}</div>
+          {{ w.warn_short(fix_issue_url(r.name, p.name, filter_words(p.device_type_filter), sv)) }}
+          {{ w.ack(rf[0].device.name if rf|length == 1 else _('los equipos marcados')) }}
+          <div class="row end"><button type="button" class="btn ghost" data-close>{{ _('Cancelar') }}</button><button class="btn pri" data-go data-needs-ack disabled>{{ _('Crear solicitud') if rf|length == 1 else _('Crear solicitudes') }}</button></div>
+        </form></dialog>
         {% elif is_admin %}<a class="btn s ghost" href="/compliance/policies/{{ p.id }}" data-sheet data-wide data-title="Editar política">Añadir corrección</a>{% else %}<span></span>{% endif %}</div>{% endif %}{% endfor %}</div>
     {% if ns.ok %}<div class="passed">{{ icon('check', 's') }} {{ _('1 regla cumple') if ns.ok == 1 else _f('{0} reglas cumplen', ns.ok) }}</div>{% endif %}
   </details>{% endfor %}</div>
@@ -42,9 +46,11 @@
 // «Corregir en N equipos…»: marcar o desmarcar todos y contar los marcados
 document.querySelectorAll('dialog[id^="fix-"] form').forEach(f => {
   const all = f.querySelector('[data-all]'), boxes = [...f.querySelectorAll('input[name=result_id]')];
-  const sync = () => { const n = boxes.filter(b => b.checked).length; f.querySelector('[data-n]').textContent = n;
-    all.checked = n === boxes.length; all.indeterminate = n > 0 && n < boxes.length; f.querySelector('[data-go]').disabled = !n; };
-  all.addEventListener('change', () => { boxes.forEach(b => { b.checked = all.checked; }); sync(); });
+  const sync = () => { const n = boxes.filter(b => b.checked).length, go = f.querySelector('[data-go]');
+    if (all) { f.querySelector('[data-n]').textContent = n; all.checked = n === boxes.length; all.indeterminate = n > 0 && n < boxes.length; }
+    if (n) go.removeAttribute('data-blocked'); else go.setAttribute('data-blocked', '');
+    if (window.ocAckSync) window.ocAckSync(go); else go.disabled = !n; };
+  if (all) all.addEventListener('change', () => { boxes.forEach(b => { b.checked = all.checked; }); sync(); });
   boxes.forEach(b => b.addEventListener('change', sync));
 });
 document.querySelectorAll('tr.click[data-href]').forEach(tr => tr.addEventListener('click', () => { location.href = tr.dataset.href; }));

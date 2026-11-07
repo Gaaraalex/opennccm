@@ -110,7 +110,7 @@ async def fw_updates_check(request: Request):
     else:
         scope = device_scope(user)
         ids = None if scope is None else sorted(scope)
-    started = fwupdates.start_check(ids)
+    started = fwupdates.start_check(ids, refresh=bool(one))  # un equipo: primero se le pregunta su versión
     log_action(request, user, "fw_update_check", f"device={one}" if one else "todos")
     if not started:
         flash(request, _("Ya hay una comprobación en curso; espere a que termine."), "error")

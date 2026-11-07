@@ -19,7 +19,19 @@ OS_LABEL = {"ros": "RouterOS", "ios": "Cisco IOS", "nxos": "NX-OS", "eos": "Aris
             "aoscx": "Aruba AOS-CX", "ioslike": "CLI tipo Cisco", "dellos10": "Dell OS10", "sonic": "SONiC", "sros": "Nokia SR OS",
             "srl": "Nokia SR Linux", "omniswitch": "OmniSwitch AOS", "enterasys": "Enterasys", "zyxel": "Zyxel", "bsdfw": "pfSense / OPNsense",
             "gaia": "Check Point Gaia", "tmsh": "F5 BIG-IP", "netscaler": "NetScaler", "aireos": "Cisco WLC", "arubaos": "ArubaOS",
+            "sfos": "Sophos SFOS", "viptela": "Cisco SD-WAN vEdge", "bfos": "Brocade FOS", "wing": "Extreme WiNG",
+            "adva": "ADVA FSP 150CC", "saos": "Ciena SAOS 6/8", "saos10": "Ciena SAOS 10", "calixexa": "Calix EXA",
+            "ipos": "Ericsson IPOS", "mltn": "Ericsson MINI-LINK", "coriant": "Coriant 8600", "isam": "Nokia ISAM",
+            "dlink": "D-Link", "hios": "Hirschmann HiOS", "yamaha": "Yamaha RTX", "seil": "IIJ SEIL", "sir": "Fujitsu Si-R",
+            "esr": "Eltex ESR", "ekinops": "Ekinops 360", "teldat": "Teldat", "digi": "Digi TransPort",
+            "garderos": "Siemens Garderos", "audiocodes": "AudioCodes Mediant", "screenos": "ScreenOS",
+            "stoneos": "Hillstone StoneOS", "fireware": "WatchGuard Fireware", "ion": "Prisma SD-WAN ION",
             "generic": ""}
+
+
+# Tipos de equipo que tienen familia propia desde 2.30 (antes «generic»): los favoritos de la consola ya guardados
+# usan la clave de antes (el fabricante), para que nadie pierda los suyos (app.favorites.family_of).
+FAV_LEGACY = frozenset({"adva_fsp150f2", "adva_fsp150f3", "alaxala_ax26s", "alaxala_ax36s", "apresia_aeos", "audiocode_66", "audiocode_72", "brocade_fos", "calix_b6", "calix_exa", "ciena_saos", "ciena_saos10", "cisco_viptela", "cloudgenix_ion", "coriant", "digi_transport", "dlink_ds", "ekinops_ek360", "eltex_esr", "ericsson_ipos", "ericsson_mltn63", "ericsson_mltn66", "extreme_wing", "fujitsu_sir", "garderos_grs", "hillstone_stoneos", "hirschmann_hios", "iij_seilos", "infinera_packet", "juniper_screenos", "nec_ix", "nokia_isam", "sophos_sfos", "teldat_cit", "watchguard_fireware", "yamaha"})
 
 
 def os_of(device_type: str) -> str:
@@ -60,11 +72,20 @@ def os_of(device_type: str) -> str:
            "dell_os10": "dellos10", "dell_sonic": "sonic", "edgecore_sonic": "sonic", "nokia_sros": "sros", "nokia_srl": "srl",
            "alcatel_aos": "omniswitch", "enterasys": "enterasys", "zyxel_os": "zyxel", "pfsense": "bsdfw", "opnsense": "bsdfw",
            "checkpoint_gaia": "gaia", "f5_tmsh": "tmsh", "netscaler": "netscaler", "cisco_wlc": "aireos", "aruba_os": "arubaos",
+           "sophos_sfos": "sfos", "cisco_viptela": "viptela", "brocade_fos": "bfos", "extreme_wing": "wing",
+           "adva_fsp150f2": "adva", "adva_fsp150f3": "adva", "ciena_saos": "saos", "ciena_saos10": "saos10",
+           "calix_exa": "calixexa", "ericsson_ipos": "ipos", "ericsson_mltn63": "mltn", "ericsson_mltn66": "mltn",
+           "coriant": "coriant", "nokia_isam": "isam", "dlink_ds": "dlink", "hirschmann_hios": "hios", "yamaha": "yamaha",
+           "iij_seilos": "seil", "fujitsu_sir": "sir", "eltex_esr": "esr", "ekinops_ek360": "ekinops", "teldat_cit": "teldat",
+           "digi_transport": "digi", "garderos_grs": "garderos", "audiocode_66": "audiocodes", "audiocode_72": "audiocodes",
+           "juniper_screenos": "screenos", "hillstone_stoneos": "stoneos", "watchguard_fireware": "fireware",
+           "cloudgenix_ion": "ion",
            **{k: "ioslike" for k in ("dell_force10", "brocade_netiron", "extreme_slx", "extreme_nos", "brocade_nos", "ipinfusion_ocnos",
                                     "raisecom_roap", "raisecom_ros", "casa_cmts", "arris_cer", "mellanox_mlnxos", "fiberstore_fsos",
                                     "fiberstore_fsosv2", "fiberstore_networkos", "moxa_nos", "lancom_lcossx4", "lancom_lcossx5", "maipu",
                                     "centec_os", "quanta_mesh", "supermicro_smis", "eltex", "adtran_os", "a10", "oneaccess_oneos",
-                                    "furukawa_fitelnet")}}.get(t)
+                                    "furukawa_fitelnet", "calix_b6", "alaxala_ax26s", "alaxala_ax36s",
+                                    "apresia_aeos", "infinera_packet", "nec_ix")}}.get(t)
     if fam:
         return fam
     if t in ("linux", "ubuntu_server", "alpine_linux", "cumulus_linux", "opengear_linux"):

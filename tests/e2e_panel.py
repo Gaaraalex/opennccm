@@ -156,6 +156,17 @@ if pol:
           cr is not None and "Se creó la solicitud de corrección" in r.text, r.url)
     if cr:  # no dejar la solicitud pendiente para las pruebas siguientes
         adm.post(f"{B}/changes/{cr.group(1)}/review", data={"decision": "reject", "comment": "prueba"})
+    check("ficha: «Corregir N» abre el diálogo con el aviso, el sello y la casilla obligatoria",
+          'data-fix="cfix-' in dev and "Revisa las correcciones antes de usarlas" in dev and "data-ack" in dev and "Sin verificar" in dev
+          and "Las correcciones son comandos que cambian la configuración" in dev)
+    rid = re.search(r'name="rule_id" value="(\d+)"', dev)
+    if rid:
+        r = adm.post(B + "/compliance/remediate-policy",
+                     data={"policy_id": pol.group(1), "device_id": dev_id, "rule_id": rid.group(1), "next": f"/devices/{dev_id}"})
+        cr = re.search(r"/changes/(\d+)$", r.url)
+        check("«Corregir» de una regla: la solicitud lleva solo esa corrección", cr is not None and "Corrección de 1 reglas" in r.text, r.url)
+        if cr:
+            adm.post(f"{B}/changes/{cr.group(1)}/review", data={"decision": "reject", "comment": "prueba"})
     pp = adm.get(f"{B}/compliance/policies/{pol.group(1)}").text
     check("política: el título muestra el nombre de la política",
           re.search(r'<a href="/compliance">Cumplimiento</a>.*?<b>[^<]+</b>', pp, re.S) is not None and "<h1>Editar política</h1>" in pp)

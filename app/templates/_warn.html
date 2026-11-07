@@ -1,0 +1,35 @@
+{# Aviso «revisa los comandos antes de usarlos en producción», el sello «Verificada» y la casilla obligatoria antes de
+   aplicar. Lo mismo que en Recetas, para todo lugar donde OpenNCCM ofrece comandos para aplicar en un equipo
+   (configlets, scripts, correcciones de cumplimiento, multi-equipo y el asistente). Lo hace funcionar static/warn.js. #}
+
+{# Línea ámbar de arriba; «Ver el aviso» abre el aviso completo (warn_dialog, una vez por página). #}
+{% macro warn_line(title, text=None) -%}
+<div class="wl-line">{{ icon('alert', 's') }}<b>{{ title }}</b><span class="grow">{{ text or _('OpenNCCM no tiene todas las plataformas para probar; los que tienen el sello Verificada ya se probaron.') }}</span><button type="button" class="linkbtn" data-warn-open>{{ _('Ver el aviso') }}</button></div>
+{%- endmacro %}
+
+{# Aviso corto junto a los comandos, con el foro y un reporte de GitHub ya escrito. #}
+{% macro warn_short(gh=None) -%}
+<div class="wl-short">{{ icon('alert', 's') }}<span>{{ _('Revisa los comandos antes de usarlos en producción.') }}{% if FORUM_URL %} <a href="{{ FORUM_URL }}" target="_blank" rel="noopener">{{ _('Foro') }}</a>{% endif %}{% if ISSUES_URL %} · <a href="{{ gh or ISSUES_URL }}" target="_blank" rel="noopener" data-gh>GitHub</a>{% endif %}</span></div>
+{%- endmacro %}
+
+{# Casilla obligatoria: los botones con data-needs-ack del mismo formulario o diálogo quedan desactivados hasta marcarla. #}
+{% macro ack(where) -%}
+<label class="ck wl-ack"><input type="checkbox" data-ack> <span data-ack-t>{{ _f('Revisé los comandos y entiendo que OpenNCCM no los probó en todas las plataformas. Los aplico bajo mi responsabilidad en {0}.', where) }}</span></label>
+{%- endmacro %}
+
+{# Sello: «Verificada · versión» o «Sin verificar». #}
+{% macro vpill(ver, short=False) -%}
+{% if ver %}<span class="rc-pill ok sm" title="{{ _f('Verificada en {0}', ver) }}">{{ icon('shield', 's') }}{{ _('Verificada') if short else _f('Verificada · {0}', ver) }}</span>{% else %}<span class="rc-pill sm">{{ _('Sin verificar') }}</span>{% endif %}
+{%- endmacro %}
+
+{# El aviso completo (una vez por página). #}
+{% macro warn_dialog(title) -%}
+<dialog class="dlg rc-wdlg" id="warn-dlg" aria-labelledby="warn-dlg-h"><div class="stack">
+  <div class="row">{{ icon('alert') }}<h2 id="warn-dlg-h" class="grow" style="margin:0">{{ title }}</h2></div>
+  <p>{{ _('OpenNCCM es un proyecto de código abierto y gratuito, y no contamos con presupuesto para tener todas las plataformas que admite el sistema. Por eso te pedimos que revises cualquier comando que haga cambios antes de usarlo en equipos en producción.') }}</p>
+  <p>{{ _('Los que tienen el sello {0} ya se probaron completos, paso a paso, en la versión del sistema que indica el sello.')|replace('{0}', '<b>' ~ _('Verificada') ~ '</b>')|safe }}</p>
+  <p>{{ _('¿Encontraste un error o probaste estos comandos en tu equipo? Cuéntanos por cualquiera de estas dos vías: así los verificamos para todos.') }}</p>
+  <div class="rc-reps">{% if FORUM_URL %}<a class="rc-rep forum" href="{{ FORUM_URL }}" target="_blank" rel="noopener">{{ icon('chat2') }}<span class="grow"><b>{{ _('Foro de la comunidad') }}</b><small>{{ _('Comenta o pregunta a otros usuarios') }}</small></span><svg class="ico s rc-ext" aria-hidden="true"><use href="/static/icons.svg#i-ext"/></svg></a>{% endif %}
+    {% if ISSUES_URL %}<a class="rc-rep gh" href="{{ ISSUES_URL }}" target="_blank" rel="noopener">{{ icon('issue') }}<span class="grow"><b>{{ _('Reportar en GitHub') }}</b><small>{{ _('Abre un reporte en GitHub') }}</small></span><svg class="ico s rc-ext" aria-hidden="true"><use href="/static/icons.svg#i-ext"/></svg></a>{% endif %}</div>
+  <div class="row end"><button type="button" class="btn" data-close>{{ _('Cerrar') }}</button></div></div></dialog>
+{%- endmacro %}

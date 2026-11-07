@@ -1,36 +1,63 @@
 {% extends "base.html" %}{% block title %}{{ _f('Ejecutar «{0}»', c.name) }}{% endblock %}
 {% block content %}
+{% import "_warn.html" as w with context %}
 {% set script = c.kind == 'exec' %}
 <div data-sheet-wide></div>
 <h1>{{ _f('Ejecutar «{0}»', c.name) }}</h1>
 <p class="muted sm" data-sheet-sub>{% if script %}Solo lectura: no cambia la configuración.{% else %}Se creará una solicitud de cambio{% if require_approval %} para que un administrador la apruebe{% endif %}.{% endif %}</p>
 <form method="post" action="/configlets/{{ c.id }}/run" class="stack" id="runf">
-  <div class="field"><div class="row between"><span class="fl">{{ _f('Equipos ({0} compatibles)', devices|length) }}</span><span class="row"><button type="button" class="btn s ghost" data-ck="1">Todos</button><button type="button" class="btn s ghost" data-ck="0">Ninguno</button>
+  <div class="field"><div class="row between"><span class="fl">{{ _f('Equipos · {0}', serves) }} <span class="muted">{{ _f('{0} compatibles', devices|length) }}</span></span><span class="row"><button type="button" class="btn s ghost" data-ck="1">Todos</button><button type="button" class="btn s ghost" data-ck="0">Ninguno</button>
     {% if groups %}<div class="input" style="min-height:30px"><select id="ckgrp" aria-label="Seleccionar un grupo" style="height:28px;font-size:12.5px"><option value="">Seleccionar grupo…</option>{% for g in groups %}<option>{{ g.name }}</option>{% endfor %}</select></div>{% endif %}</span></div>
-    {% if devices %}<div class="cklist">{% for d in devices %}<label class="ck"><input type="checkbox" class="rdev" name="device_ids" value="{{ d.id }}" data-g="{{ d.group.name if d.group else '' }}" {{ 'checked' if loop.first }}> {{ d.name }}</label>{% endfor %}</div>
+    {% if devices %}<div class="cklist cf-devs">{% for d in devices %}<label class="ck"><input type="checkbox" class="rdev" name="device_ids" value="{{ d.id }}" data-g="{{ d.group.name if d.group else '' }}" data-name="{{ d.name }}" data-ver="{{ d.os_version or '' }}" checked>{{ vlogo(vl[d.id], 20) }}<b>{{ d.name }}</b><span class="mono muted sm">{{ d.host }}</span><span class="grow"></span><span class="muted sm">{{ d.os_version or '' }}</span></label>{% endfor %}</div>
     {% else %}<p class="muted">{{ _f('No hay equipos compatibles con el filtro {0}.', c.device_type_filter or '') }}</p>{% endif %}</div>
   {% if found_vars %}<div class="f2">{% for v in found_vars %}<div class="field"><label for="v_{{ v }}">{{ v }}</label><div class="input mono"><input id="v_{{ v }}" name="var_{{ v }}" data-var="{{ v }}"></div></div>{% endfor %}</div>{% endif %}
   {% if not script %}<div class="field"><label for="rtitle">Título de la solicitud de cambio</label><div class="input"><input id="rtitle" name="title" value="{{ c.name }}"></div></div>{% endif %}
-  <div class="field"><span class="fl">Vista previa de comandos</span><pre class="term" id="cpv" style="min-height:0">{{ c.body }}</pre></div>
+  <div class="field"><span class="fl">{{ _('Vista previa de comandos') }} <span class="muted">{{ _('con tus valores') }}</span></span><pre class="term cf-pv" id="cpv" style="min-height:0"></pre>
+    <span class="help cf-pvhelp" id="cpv-empty" hidden>{{ _('Escribe un valor en cada variable resaltada para poder enviar.') }}</span></div>
+  {{ w.warn_short() }}
+  <div id="cver"></div>
+  {% if not script %}{{ w.ack(_('los equipos elegidos')) }}{% endif %}
   <div class="row" data-sheet-foot><span class="muted sm grow" id="rcount"></span><a class="btn ghost" href="/configlets" data-cancel>Cancelar</a>
-    {% if script %}<button class="btn pri">{{ icon('play', 's') }}Ejecutar ahora</button>{% else %}<button class="btn pri">Crear solicitud de cambio</button>{% endif %}</div>
+    {% if script %}<button class="btn pri" id="rgo" data-go>{{ icon('play', 's') }}Ejecutar ahora</button>{% else %}<button class="btn pri" id="rgo" data-go data-needs-ack disabled>Crear solicitud de cambio</button>{% endif %}</div>
 </form>
+<div id="run-data" hidden data-j="{{ {'body': c.body, 'verified': verified_on, 'label': os_label,
+  't': {'one': _('1 equipo'), 'many': _('{0} equipos'), 'ack': _('Revisé los comandos y entiendo que OpenNCCM no los probó en todas las plataformas. Los aplico bajo mi responsabilidad en {0}.'),
+        'ack1': '{0}', 'ackn': _('{0} equipos'),
+        'diff': _('{0} tiene otra versión. El configlet se verificó en {1} y este equipo tiene {2}: revisa que los comandos existan igual en tu versión.')}}|tojson|forceescape }}"></div>
 <script>
+{% raw %}
 (function () {
-  const f = document.getElementById('runf'), body = {{ c.body|tojson }}, T = {{ {'one': _('1 equipo'), 'many': _('{0} equipos')}|tojson }};
-  const pv = document.getElementById('cpv'), cnt = document.getElementById('rcount');
+  const f = document.getElementById('runf'), D = JSON.parse(document.getElementById('run-data').dataset.j), T = D.t;
+  const pv = document.getElementById('cpv'), cnt = document.getElementById('rcount'), empty = document.getElementById('cpv-empty');
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  const verNum = s => { const m = String(s || '').match(/\d+(?:\.\d+)+/); return m ? m[0] : String(s || '').trim(); };
   function upd() {
-    let t = body;
-    f.querySelectorAll('[data-var]').forEach(x => { t = t.split(new RegExp('\\{\\{\\s*' + x.dataset.var + '\\s*\\}\\}')).join(x.value || '{{ ' + x.dataset.var + ' }}'); });
-    pv.textContent = t;
-    const n = f.querySelectorAll('.rdev:checked').length;
+    // la vista previa: cada variable con lo escrito (resaltado) o, si está vacía, su nombre en ámbar y no se puede enviar
+    const vals = {}; f.querySelectorAll('[data-var]').forEach(x => { vals[x.dataset.var] = x.value.trim(); });
+    let missing = 0;
+    pv.innerHTML = esc(D.body).replace(/\{\{\s*([A-Za-z_]\w*)\s*\}\}/g, (m, n) => {
+      if (!(n in vals)) return m;
+      if (vals[n]) return '<b class="cf-val">' + esc(vals[n]) + '</b>';
+      missing++; return '<b class="cf-miss">{{ ' + n + ' }}</b>';
+    });
+    const checked = [...f.querySelectorAll('.rdev:checked')], n = checked.length;
     cnt.textContent = n === 1 ? T.one : T.many.replace('{0}', n);
+    empty.hidden = !missing;
+    const at = document.querySelector('[data-ack-t]');
+    if (at) at.textContent = T.ack.replace('{0}', n === 1 ? checked[0].dataset.name : T.ackn.replace('{0}', n));
+    document.getElementById('cver').innerHTML = D.verified ? checked.filter(c => c.dataset.ver && verNum(c.dataset.ver) !== verNum(D.verified)).map(c =>
+      '<div class="banner warn"><svg class="ico" aria-hidden="true"><use href="/static/icons.svg#i-alert"/></svg><span class="grow">' +
+      esc(T.diff).replace('{0}', '<b>' + esc(c.dataset.name) + '</b>').replace('{1}', esc(D.verified)).replace('{2}', esc(c.dataset.ver)) + '</span></div>').join('') : '';
+    document.querySelectorAll('[data-go]').forEach(b => { if (missing || !n) b.setAttribute('data-blocked', ''); else b.removeAttribute('data-blocked');
+      if (!b.hasAttribute('data-needs-ack')) b.disabled = !!(missing || !n); });
+    if (window.ocAckSync) window.ocAckSync(f);
   }
   f.addEventListener('input', upd); f.addEventListener('change', upd);
   f.querySelectorAll('[data-ck]').forEach(b => b.addEventListener('click', () => { f.querySelectorAll('.rdev').forEach(c => { c.checked = b.dataset.ck === '1'; }); upd(); }));
   const g = document.getElementById('ckgrp');
   if (g) g.addEventListener('change', () => { f.querySelectorAll('.rdev').forEach(c => { c.checked = g.value !== '' && c.dataset.g === g.value; }); upd(); });
-  upd();
+  upd(); setTimeout(upd, 0);
 })();
+{% endraw %}
 </script>
 {% endblock %}

@@ -223,6 +223,7 @@ PROFILES: list[Profile] = [
     Profile("ubiquiti_airos", "Ubiquiti airMAX M / AC (airOS)", "Ubiquiti", "cat /tmp/system.cfg", None,
             inventory="cat /etc/version; cat /etc/board.info", family=MERGE, save=False, firmware={"method": "airos"},
             version_re=[r"^[A-Z0-9]+\.v(\d+\.\d+\.\d+)"], model_re=[r"^board\.name=(.+?)\s*$"],
+            serial_re=[r"^board\.hwaddr=([0-9A-Fa-f]{12})\s*$"],  # Ubiquiti usa la MAC como número de serie
             cpe=("cpe:2.3:o:ui:airos", "cpe:2.3:o:ubnt:airos", "cpe:2.3:o:ui:airmax_ac_firmware",
                  "cpe:2.3:o:ui:airmax_m_firmware", "cpe:2.3:o:ui:airmax_m_xw_firmware", "cpe:2.3:o:ui:airmax_m_xm_firmware",
                  "cpe:2.3:o:ui:airmax_m_ti_firmware"), cpe_version=SEMVER3,
@@ -232,6 +233,7 @@ PROFILES: list[Profile] = [
     Profile("ubiquiti_airfiber", "Ubiquiti airFiber (AF5XHD, AF60, AF24HD, AF5X)", "Ubiquiti", "cat /tmp/system.cfg",
             None, inventory="cat /etc/version; cat /etc/board.info", family=MERGE, save=False, firmware={"method": "airos"},
             version_re=[r"^[A-Z0-9]+\.v(\d+\.\d+\.\d+)"], model_re=[r"^board\.name=(.+?)\s*$"],
+            serial_re=[r"^board\.hwaddr=([0-9A-Fa-f]{12})\s*$"],  # Ubiquiti usa la MAC como número de serie
             cpe=("cpe:2.3:o:ui:af5x_firmware", "cpe:2.3:o:ui:af5_firmware", "cpe:2.3:o:ui:airfiber_af60_firmware",
                  "cpe:2.3:o:ui:airfiber_af60-xg_firmware", "cpe:2.3:o:ui:airfiber_af24hd_firmware",
                  "cpe:2.3:o:ui:airfiber_af24_firmware"), cpe_version=SEMVER3,
@@ -240,6 +242,7 @@ PROFILES: list[Profile] = [
     Profile("ubiquiti_unifi_ap", "Ubiquiti UniFi AP", "Ubiquiti", "cat /tmp/system.cfg", None,
             inventory="info\ncat /etc/board.info", family=MERGE, save=False,
             version_re=[r"Version:\s+v?(\S+)"], model_re=[r"Model:\s+(.+?)\s*$", r"^board\.name=(.+?)\s*$"],
+            serial_re=[r"^board\.hwaddr=([0-9A-Fa-f]{12})\s*$"],
             cpe=("cpe:2.3:o:ui:unifi_uap_firmware", "cpe:2.3:o:ui:unifi_ap_ac_lite_firmware",
                  "cpe:2.3:o:ui:unifi_meshing_access_point_firmware"), cpe_version=SEMVER3,
             note="Los AP UniFi los configura el controlador UniFi Network: OpenNCCM guarda y compara su configuración, "
@@ -533,7 +536,8 @@ for _k, _fw in _FW.items():
 GENERIC_VERSION = [r"[Vv]ersion[:\s]+([\w.()\-]+)"]
 # [ \t]* y no \s*: un valor vacío («Model: ») no debe tomar la línea siguiente como valor
 GENERIC_MODEL = [r"[Mm]odel(?: [Nn]umber)?[ \t]*[:=][ \t]*(\S+)", r"Hardware[ \t]*:[ \t]*(\S+)"]
-GENERIC_SERIAL = [r"[Ss]erial[ _-]?(?:[Nn]umber|[Nn]o\.?|#)[ \t]*[:=]?[ \t]*(\S+)", r"Processor board ID (\S+)"]
+GENERIC_SERIAL = [r"[Ss]erial[ _-]?(?:[Nn]umber|[Nn]o\.?|#)[ \t]*[:=]?[ \t]*(\S+)", r"Processor board ID (\S+)",
+                  r"\bS/N[ \t]*[:=][ \t]*(\S+)"]  # «HW S/N: …» (EdgeRouter y otros)
 
 
 def telnet_supported(key: str) -> bool:

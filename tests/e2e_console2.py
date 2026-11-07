@@ -184,6 +184,24 @@ adm.post(B + "/console/recipes/verify", json={"key": "ios-ntp", "verified_on": "
 check("recetas: y le quita el sello", "IOS 15.2" not in adm.get(B + "/console").text)
 check("recetas: el cambio del sello queda en Auditoría", "recipe_verified" in adm.get(B + "/audit").text)
 
+# ---- configlets: tres columnas, aviso, sello y la vista previa de «Ejecutar» sin código suelto
+cf = adm.get(B + "/configlets").text
+check("configlets: columnas y aviso «revisa los configlets»", 'id="cfl-data"' in cf and "Revisa los configlets antes de usarlos" in cf and 'id="warn-dlg"' in cf)
+cdata = json.loads(re.search(r'<script type="application/json" id="cfl-data">(.*?)</script>', cf, re.S).group(1))
+cid = cdata["items"][0]["id"]
+vid = next((c["id"] for c in cdata["items"] if "{{" in c["body"] and c["kind"] != "exec"), cid)
+run = adm.get(f"{B}/configlets/{vid}/run").text
+check("ejecutar configlet: la vista previa ya no muestra código JavaScript", "x.dataset.var +" not in run and 'data-j="' in run, run[-600:])
+check("ejecutar configlet: aviso corto y casilla obligatoria antes de «Crear solicitud»",
+      "Revisa los comandos antes de usarlos en producción" in run and "data-ack" in run and "data-needs-ack disabled" in run)
+r = adm.post(f"{B}/configlets/{cid}/verify", json={"verified_on": "IOS 15.2(7)E"}).json()
+check("configlets: el administrador pone el sello", r.get("ok") and "IOS 15.2(7)E" in adm.get(B + "/configlets").text, r)
+adm.post(f"{B}/configlets/{cid}/verify", json={"verified_on": ""})
+check("configlets: y lo quita", "IOS 15.2(7)E" not in adm.get(B + "/configlets").text)
+check("configlets: el sello queda en Auditoría", "configlet_verified" in adm.get(B + "/audit").text)
+dup = adm.get(f"{B}/configlets/new?from={cid}").text
+check("configlets: «Duplicar» abre uno nuevo con los datos y «(copia)»", "(copia)" in dup and "Nuevo configlet" in dup and 'data-dialog="cfl-del"' not in dup)
+
 # ---- acceso: operador en solo lectura, grupo con aprobación y comandos prohibidos
 adm.post(B + "/users", data={"username": OPU, "role": "operator", "password": "Operador2026x", "password2": "Operador2026x"})
 adm.post(B + "/console/access", data={"role_admin": "rw", "role_operator": "ro", "role_viewer": "none", "record": "on", "deny": "on",
@@ -191,6 +209,8 @@ adm.post(B + "/console/access", data={"role_admin": "rw", "role_operator": "ro",
 op = login(OPU, "Operador2026x")
 check("recetas: un operador no puede poner el sello",
       op.post(B + "/console/recipes/verify", json={"key": "ios-ntp", "verified_on": "x"}).status_code == 403)
+check("configlets: un operador no puede poner el sello",
+      op.post(f"{B}/configlets/{cid}/verify", json={"verified_on": "x"}).status_code == 403)
 pg = op.get(B + "/devices/1/console").text
 check("grupo con aprobación: el operador ve «Pedir acceso»", "Pedir acceso" in pg and 'id="cx-in"' not in pg)
 with connect(WS, additional_headers={"Cookie": cookie(op), "Origin": ORIGIN}) as ws:

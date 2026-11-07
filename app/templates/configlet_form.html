@@ -1,6 +1,6 @@
-{% extends "base.html" %}{% block title %}{{ _f('Editar «{0}»', c.name) if c else _('Nuevo configlet') }}{% endblock %}
+{% extends "base.html" %}{% block title %}{{ _f('Editar «{0}»', c.name) if c and c.id else _('Nuevo configlet') }}{% endblock %}
 {% block content %}
-<h1>{{ _f('Editar «{0}»', c.name) if c else _('Nuevo configlet') }}</h1>
+<h1>{{ _f('Editar «{0}»', c.name) if c and c.id else _('Nuevo configlet') }}</h1>
 <p class="muted sm" data-sheet-sub>Usa &#123;&#123; variable &#125;&#125; para los valores que cambian en cada ejecución.</p>
 <form method="post" class="stack" id="cflform">
   <div class="f2"><div class="field"><label for="cn">Nombre</label><div class="input"><input id="cn" name="name" required value="{{ c.name if c }}" placeholder="Agregar VLAN"></div></div>
@@ -12,10 +12,10 @@
   <div class="field"><label for="ctpl">Comandos (uno por línea)</label><textarea class="ta" id="ctpl" name="body" required style="min-height:180px" placeholder="vlan &#123;&#123; vlan_id &#125;&#125;&#10; name &#123;&#123; nombre &#125;&#125;">{{ c.body if c }}</textarea></div>
   <div class="field"><span class="fl">Variables detectadas</span><div class="row" id="cvars"></div></div>
   <div class="row" data-sheet-foot>
-    {% if c %}<button type="button" class="btn dz" data-dialog="cfl-del">{{ icon('trash', 's') }}Eliminar</button>{% endif %}
+    {% if c and c.id %}<button type="button" class="btn dz" data-dialog="cfl-del">{{ icon('trash', 's') }}Eliminar</button>{% endif %}
     <span class="grow"></span><a class="btn ghost" href="/configlets" data-cancel>Cancelar</a><button class="btn pri">Guardar</button></div>
 </form>
-{% if c %}<dialog class="dlg" id="cfl-del"><form method="post" action="/configlets/{{ c.id }}/delete">
+{% if c and c.id %}<dialog class="dlg" id="cfl-del"><form method="post" action="/configlets/{{ c.id }}/delete">
   <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi crit">{{ icon('trash') }}</span><div><h2>{{ _f('¿Eliminar «{0}»?', c.name) }}</h2><p class="muted" style="margin-top:6px">El configlet se borrará. Las solicitudes ya creadas con él no cambian.</p></div></div>
   <div class="row end"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn dzf">Eliminar</button></div></form></dialog>{% endif %}
 <script>

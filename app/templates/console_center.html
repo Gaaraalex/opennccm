@@ -47,7 +47,10 @@
       <div class="card stack">
         <div class="row nowrap"><div class="input mono grow"><input id="mu-cmd" placeholder="show ip interface brief" aria-label="{{ _('Comando') }}" spellcheck="false"></div><button type="button" class="btn pri" id="mu-run">{{ _('Ejecutar en los elegidos') }}</button></div>
         <div class="muted sm">{{ _('Solo se ejecutan comandos de consulta. Si es un cambio, se crea una solicitud de cambio para aprobar, con respaldo y reversión.') }}</div>
-        <div class="banner warn" id="mu-change" hidden>{{ icon('alert') }}<span class="grow" id="mu-change-t"></span><button type="button" class="btn s" id="mu-cr">{{ _('Crear solicitud de cambio') }}</button></div>
+        {% import "_warn.html" as w with context %}{{ w.warn_short() }}
+        <div class="banner warn" id="mu-change" hidden>{{ icon('alert') }}<div class="grow stack" style="gap:8px"><span id="mu-change-t"></span>
+          <label class="ck wl-ack"><input type="checkbox" id="mu-ack"> <span>{{ _f('Revisé los comandos y entiendo que OpenNCCM no los probó en todas las plataformas. Los aplico bajo mi responsabilidad en {0}.', _('los equipos elegidos')) }}</span></label></div>
+          <button type="button" class="btn s" id="mu-cr" disabled>{{ _('Crear solicitud de cambio') }}</button></div>
       </div>
       <div class="card stack" id="mu-res" hidden>
         <div class="row"><h3 style="margin:0" class="grow">{{ _('Resultado') }}</h3><span class="pill ok" id="mu-same"></span><span class="pill warn" id="mu-diff"></span><span class="muted sm" id="mu-meta"></span>
@@ -60,13 +63,20 @@
 
 {# ------------------------------------------------------------------ Recetas #}
 <section class="cc-sec" id="t-recetas" data-sec="recetas" hidden>
-  <div class="cc-rhead row"><div class="input grow"><input id="rc-q" placeholder="{{ _('¿Qué quieres hacer?') }}" aria-label="{{ _('Buscar recetas') }}"></div>
-    <div class="input" style="max-width:220px"><select id="rc-vendor" aria-label="{{ _('Fabricante') }}"><option value="">{{ _('Todos los fabricantes') }}</option></select></div>
+  <div class="rc-top"><div class="input grow">{{ icon('search', 's') }}<input id="rc-q" type="search" placeholder="{{ _('Busca en todas las recetas: «vlan», «ssh», «syslog»…') }}" aria-label="{{ _('Buscar recetas') }}"></div>
+    <div class="seg" id="rc-view" role="group" aria-label="{{ _('Ordenar las recetas') }}"><button type="button" data-v="eq" class="on" aria-pressed="true">{{ _('Por equipo') }}</button><button type="button" data-v="tk" aria-pressed="false">{{ _('Por tarea') }}</button></div>
     {% if ROLES[user.role] >= 1 %}<button type="button" class="btn pri" id="rc-new">+ {{ _('Nueva') }}</button>{% endif %}</div>
-  <div class="rc-warn" id="rc-warn"></div>
-  <div class="cc-chips" id="rc-cats"></div>
-  <div class="cc-rgrid" id="rc-grid"></div>
-  <div class="card stack cc-recipe" id="rc-detail" hidden></div>
+  <div class="rc-line" id="rc-warn">{{ icon('alert', 's') }}<b>{{ _('Revisa cada receta antes de usarla en producción.') }}</b><span class="grow">{{ _('OpenNCCM no tiene todas las plataformas para probar; las que tienen el sello Verificada ya se probaron.') }}</span><button type="button" class="linkbtn" id="rc-warn-open">{{ _('Ver el aviso') }}</button></div>
+  <div class="rc-cols" id="rc-cols">
+    <div class="rc-col l" id="rc-left"></div>
+    <div class="rc-col m" id="rc-mid"></div>
+    <div class="rc-col r" id="rc-detail"></div>
+    <div class="rc-col wide" id="rc-results" hidden></div>
+  </div>
+  <dialog class="dlg rc-wdlg" id="rc-warn-dlg" aria-labelledby="rc-warn-h"><div class="stack">
+    <div class="row">{{ icon('alert') }}<h2 id="rc-warn-h" class="grow" style="margin:0">{{ _('Revisa cada receta antes de usarla en producción') }}</h2></div>
+    <div id="rc-warn-body" class="stack" style="gap:8px"></div>
+    <div class="row end"><button type="button" class="btn" data-close>{{ _('Cerrar') }}</button></div></div></dialog>
   <dialog class="dlg" id="rc-edit" aria-labelledby="rc-edit-h"><form class="stack" id="rc-form">
     <h2 id="rc-edit-h" style="margin:0">{{ _('Receta') }}</h2>
     <div class="f2"><div class="field"><label for="rf-name">{{ _('Título') }}</label><div class="input"><input id="rf-name" required maxlength="200"></div></div>
@@ -162,7 +172,7 @@
 </section>
 {% endif %}
 <div class="cx-toast" id="cx-toast" role="status" hidden></div>
-<script type="application/json" id="cc-data">{{ {'devs': devs, 'favs': favs, 'recent': recent, 'groups': groups, 'recipes': recipes or [], 'cats': cats or {}, 'rec': rec,
+<script type="application/json" id="cc-data">{{ {'devs': devs, 'favs': favs, 'recent': recent, 'groups': groups, 'recipes': recipes or [], 'cats': cats or {}, 'tasks': tasks or {}, 'oslabels': oslabels or {}, 'brands': brands or [], 'rec': rec,
   'role': user.role, 'user': user.username, 'forum': FORUM_URL, 'issues': ISSUES_URL, 'version': VERSION, 'ai': ai.on, 'ailogo': (ai_logo(ai.provider, 18)|string) if ai.on else '', 'tab': tab,
   't': {'rec': _('REC'), 'fav': _('Favoritos'), 'recent': _('Recientes'), 'bygroup': _('POR GRUPO'), 'nogroup': _('Sin grupo'), 'share': _('Compartir en solo lectura'), 'files': _('Archivos'),
         'close': _('Cerrar'), 'open': _('{0} sesiones abiertas · todo queda grabado en Auditoría'), 'open1': _('1 sesión abierta · todo queda grabado en Auditoría'), 'sel': _('{0} equipos elegidos'), 'sel1': _('1 equipo elegido'), 'same': _('{0} iguales'), 'same1': _('1 igual'), 'diff': _('{0} distintos'), 'diff1': _('1 distinto'), 'find': _('Buscar en la salida'), 'theme': _('Tema de la consola'), 'recon': _('Reconectar'), 'full': _('Pantalla completa'),
@@ -180,6 +190,14 @@
         'gh_title': _('Receta: {0}'), 'gh_l': [_('Receta: {0} ({1})'), _('Plataforma: {0}'), _('Sello: {0}'), _('Versión de OpenNCCM: {0}'), _('Qué pasó:'), _('Versión del sistema de mi equipo:')], 'w_hide': _('Ocultar'), 'w_show': _('Ver el aviso completo'),
         'w_short': _('OpenNCCM es gratuito y de código abierto: no tenemos todas las plataformas para probar. Verifica los comandos antes de usarlos en producción.'),
         'w_report': _('Reportar un problema con esta receta:'),
+        'yours': _('Tus equipos'), 'n_plats': _('{0} plataformas'), 'n_plat1': _('1 plataforma'), 'brands': _('Todas las marcas'), 'brand_q': _('Buscar marca o plataforma'),
+        'dev_n': _('{0} equipos tuyos'), 'dev_1': _('1 equipo tuyo'), 'n_recs': _('{0} recetas'), 'n_ver': _('{0} verificadas'), 'pin': _('Fijar'), 'pinned': _('Fijada'),
+        'pin_t': _('Dejarla primera en la lista'), 'pick_plat': _('Elige una marca y una plataforma a la izquierda.'), 'pick_rec': _('Elige una receta para ver sus pasos.'),
+        'what': _('¿Qué quieres hacer?'), 'task_n': _('Hay receta para {0} plataformas.'), 'in_yours': _('En tus equipos'), 'others': _('Otras plataformas'),
+        'plat_q': _('Buscar plataforma…'), 'others_hint': _('Escribe para buscar entre las {0} plataformas que no están en tu inventario.'), 'no_yours': _('Ninguna plataforma de tu inventario tiene esta receta.'),
+        'res': _('{0} recetas con «{1}» en {2} plataformas'), 'res_first': _('primero las de tus equipos'), 'more': _('+{0} más en esta plataforma'),
+        'other_plats': _('Otras {0} plataformas · {1} recetas'), 'show_more': _('Mostrar'), 'hide_more': _('Ocultar'), 'yours_tag': _('tus equipos'),
+        'no_res': _('No hay recetas con «{0}».'), 'mu_change': _('Este comando cambia la configuración: usa «Crear solicitud de cambio»'), 'in_desc': _('en la descripción:'), 'in_cmds': _('en los comandos:'), 'generic': _('Genérico'), 'w_short2': _('Revisa los comandos antes de usarlos en producción.'), 'forum': _('Foro'), 'github': 'GitHub',
         'ack': _('Revisé los comandos y entiendo que OpenNCCM no los probó en todas las plataformas. Los aplico bajo mi responsabilidad en {0}.'),
         'ack_sel': _('los equipos elegidos'),
         'v_diff': _('{0} tiene otra versión. La receta se verificó en {1} y este equipo tiene {2}: revisa que los comandos existan igual en tu versión.'),

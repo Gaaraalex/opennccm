@@ -55,7 +55,8 @@ with SessionLocal() as db:
     dev_ids, res_ids, pol_id, cred_id = [d.id for d in devs], [r.id for r in res], pol.id, cred.id
 page = s.get(B + "/compliance").text
 check("un solo botón «Corregir en 7 equipos…»", page.count("Corregir en 7 equipos…") == 1 and "Corregir ux-sw" not in page)
-dlg = page[page.find('<dialog class="dlg" id="fix-'):]
+fid = re.search(r'data-dialog="(fix-\d+)">Corregir en 7 equipos…', page)  # cada regla con corrección tiene su diálogo
+dlg = page[page.find(f'<dialog class="dlg cfix" id="{fid.group(1) if fid else "fix-"}"'):]
 dlg = dlg[:dlg.find("</dialog>")]
 check("el diálogo lista los 7 equipos con casillas marcadas", len(re.findall(r'name="result_id" value="\d+" checked', dlg)) == 7)
 check("la lista de nombres de la regla se recorta («y 2 más»)", "y 2 más" in page)

@@ -26,6 +26,9 @@ templates.env.globals["SHELL_HASH"] = __import__("hashlib").md5(
 templates.env.globals["CX_HASH"] = __import__("hashlib").md5(b"".join(
     (BASE_DIR / "static" / f).read_bytes() for f in ("console.css", "console.js", "center.css", "center.js", "assistant.js", "chat.js")
 )).hexdigest()[:8]
+# aviso «revisa los comandos», sello y casilla (static/warn.*) y la página de configlets
+templates.env.globals["WARN_HASH"] = __import__("hashlib").md5(b"".join(
+    (BASE_DIR / "static" / f).read_bytes() for f in ("warn.css", "warn.js", "configlets.js"))).hexdigest()[:8]
 # muestras del selector de acento de la barra superior: (claro, oscuro), los mismos valores que senal.css
 templates.env.globals["ACCENT_SWATCHES"] = {
     "cobalto": ("#2347e8", "#7c96ff"), "bosque": ("#1f7a4d", "#5fd09a"), "oceano": ("#0b7f86", "#3cc6c0"),
@@ -68,6 +71,30 @@ templates.env.globals["icon"] = icon
 from .config import FORUM_URL as _FU, ISSUES_URL as _IU  # noqa: E402
 templates.env.globals["FORUM_URL"] = _FU
 templates.env.globals["ISSUES_URL"] = _IU
+
+
+def _verified_map(kind: str) -> dict:
+    """Sellos «Verificada» de los configlets («configlet») o de las correcciones («rule»): {id: versión}."""
+    from . import verified
+    return verified.all_of(kind)
+
+
+def _fix_issue_url(rule: str, policy: str, platform: str, seal: str) -> str:
+    """Reporte de GitHub de una corrección de cumplimiento, ya escrito y sin datos del equipo."""
+    from urllib.parse import quote
+
+    from . import __version__
+    from .i18n import _
+    body = "\n".join([_("Política: {0}").format(policy), _("Regla: {0}").format(rule), _("Plataforma: {0}").format(platform),
+                      _("Sello: {0}").format(seal or _("Sin verificar")), _("Versión de OpenNCCM: {0}").format(__version__), "",
+                      _("Qué pasó:"), "", _("Versión del sistema de mi equipo:"), ""])
+    return f"{_IU}?title={quote(_('Corrección: {0} ({1})').format(rule, platform))}&body={quote(body)}"
+
+
+templates.env.globals["verified_map"] = _verified_map
+templates.env.globals["filter_words"] = lambda flt: __import__("app.configlets_ui", fromlist=["x"]).serves_text(
+    flt, __import__("app.configlets_ui", fromlist=["x"]).serves(flt)[1])
+templates.env.globals["fix_issue_url"] = _fix_issue_url
 # logos de marca de los equipos (app/vendorlogos.py): vlogo(device_type, px), vlk(clave, px), vbrand(device_type)
 from . import vendorlogos as _vl  # noqa: E402
 templates.env.globals.update(vlogo=_vl.logo, vlk=_vl.svg, vbrand=_vl.brand, vkey=_vl.key, VL_SPRITE=_vl.SPRITE)

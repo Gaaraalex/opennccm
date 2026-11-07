@@ -491,18 +491,25 @@ def state() -> dict:
     return dict(_state)
 
 
-def start_check(device_ids: list[int] | None = None) -> bool:
-    """Lanza la comprobación en segundo plano (todos los equipos o algunos). False si ya hay una en curso."""
+def start_check(device_ids: list[int] | None = None, refresh: bool = False) -> bool:
+    """Lanza la comprobación en segundo plano (todos los equipos o algunos). False si ya hay una en curso. Con refresh,
+    antes se le pregunta a cada equipo su versión instalada (solo consulta), sin esperar al próximo respaldo."""
     with _lock:
         if _state["running"]:
             return False
         _state.update(running=True, started=time.time(), done=0, total=0)
-    services.jobs.submit(_run, device_ids)
+    services.jobs.submit(_run, device_ids, refresh)
     return True
 
 
-def _run(device_ids=None):
+def _run(device_ids=None, refresh=False):
     try:
+        if refresh and device_ids:
+            from . import fwverify
+            for i in device_ids:
+                r = fwverify.read_inventory(i)
+                if not r.get("ok"):
+                    log.info("Versión instalada del equipo %s: %s", i, r.get("error"))
         check_all(device_ids)
     except Exception:  # noqa: BLE001
         log.exception("Comprobación de actualizaciones de firmware")
