@@ -3,26 +3,19 @@
 {% block content %}
 <style>.node-acts{opacity:1!important;visibility:visible!important}.node-acts .del:hover{color:var(--crit);border-color:var(--crit)}</style>
 {% include "_admin_tabs.html" %}
-<section class="card flush"><div class="card-h"><h2>{{ _('Nodos de la red') }}</h2><span class="muted sm">{{ _('Cada equipo se asigna a un nodo al crearlo o editarlo. En el Mapa de la red, «Nodo» muestra solo los equipos de ese nodo.') }}</span></div>
+<section class="card flush"><div class="card-h"><h2>{{ _('Nodos de la red') }}</h2><span class="muted sm grow">{{ _('Cada equipo se asigna a un nodo al crearlo o editarlo. En el Mapa de la red, «Nodo» muestra solo los equipos de ese nodo.') }}</span>
+  <a class="btn s pri" href="/nodes/new" data-sheet data-title="{{ _('Crear nodo') }}">{{ icon('plus', 's') }}{{ _('Crear nodo') }}</a></div>
   {% if nodes %}<div class="tw"><table class="t"><thead><tr><th>{{ _('Nombre') }}</th><th>{{ _('Descripción') }}</th><th>{{ _('Equipos') }}</th><th><span class="vh">{{ _('Acciones') }}</span></th></tr></thead><tbody data-pager>
   {% for n in nodes %}{% set c = counts.get(n.id, 0) %}<tr><td><div class="dev">{{ icon('pin', 's') }}{{ n.name }}</div></td><td class="muted">{{ n.description or '—' }}</td>
     <td>{% if c %}<a href="/devices?node={{ n.id }}">{{ _('1 equipo') if c == 1 else _f('{0} equipos', c) }}</a>{% else %}<span class="muted">{{ _f('{0} equipos', 0) }}</span>{% endif %}</td>
     <td><div class="acts node-acts"><a class="btn s ghost" href="/topology?node={{ n.id }}">{{ _('Ver en el mapa') }}</a>
-      <button type="button" class="btn s icon ghost" data-dialog="node-edit-{{ n.id }}" aria-label="{{ _f('Editar {0}', n.name) }}" title="{{ _('Editar') }}">{{ icon('edit', 's') }}</button>
+      <a class="btn s icon ghost" href="/nodes/{{ n.id }}/edit" data-sheet data-title="{{ _f('Editar «{0}»', n.name) }}" aria-label="{{ _f('Editar {0}', n.name) }}" title="{{ _('Editar') }}">{{ icon('edit', 's') }}</a>
       <button type="button" class="btn s icon ghost del" data-dialog="node-del-{{ n.id }}" aria-label="{{ _f('Borrar {0}', n.name) }}" title="{{ _('Borrar') }}">{{ icon('trash', 's') }}</button>
-      <dialog class="dlg" id="node-edit-{{ n.id }}"><form method="post" action="/nodes/{{ n.id }}/edit" class="stack">
-        <h2>{{ _f('Editar «{0}»', n.name) }}</h2>
-        <div class="field"><label for="ne-{{ n.id }}">{{ _('Nombre') }}</label><div class="input"><input id="ne-{{ n.id }}" name="name" value="{{ n.name }}" maxlength="100" required></div></div>
-        <div class="field"><label for="nd-{{ n.id }}">{{ _('Descripción') }}</label><div class="input"><input id="nd-{{ n.id }}" name="description" value="{{ n.description or '' }}" maxlength="255"></div></div>
-        <div class="row end"><button type="button" class="btn ghost" data-close>{{ _('Cancelar') }}</button><button class="btn pri">{{ _('Guardar') }}</button></div></form></dialog>
       <dialog class="dlg" id="node-del-{{ n.id }}"><form method="post" action="/nodes/{{ n.id }}/delete">
         <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi crit">{{ icon('trash') }}</span><div><h2>{{ _f('¿Eliminar el nodo «{0}»?', n.name) }}</h2><p class="muted" style="margin-top:6px">{% if c == 1 %}{{ _('Su equipo quedará sin nodo; no se borra.') }}{% elif c %}{{ _f('Sus {0} equipos quedarán sin nodo; no se borran.', c) }}{% else %}{{ _('No tiene equipos asignados.') }}{% endif %}</p></div></div>
         <div class="row end"><button type="button" class="btn ghost" data-close>{{ _('Cancelar') }}</button><button class="btn dzf">{{ _('Eliminar') }}</button></div></form></dialog></div></td></tr>
   {% endfor %}</tbody></table></div>
-  {% else %}<div class="empty">{{ empty_art('plus') }}<h2>{{ _('Aún no hay nodos') }}</h2><p>{{ _('Crea un nodo por sitio o punto de la red y asígnale sus equipos.') }}</p></div>{% endif %}
-  <form method="post" action="/nodes" class="row" style="padding:14px 20px;border-top:1px solid var(--line);gap:8px;flex-wrap:wrap">
-    <label class="input grow" style="max-width:280px" for="newnode">{{ icon('pin', 's') }}<input id="newnode" name="name" required maxlength="100" placeholder="{{ _('Nombre del nodo nuevo') }}"></label>
-    <label class="input grow" style="max-width:360px" for="newnoded"><input id="newnoded" name="description" maxlength="255" placeholder="{{ _('Descripción (opcional)') }}"></label>
-    <button class="btn pri">{{ _('Crear nodo') }}</button></form>
+  {% else %}<div class="empty">{{ empty_art('plus') }}<h2>{{ _('Aún no hay nodos') }}</h2><p>{{ _('Crea un nodo por sitio o punto de la red y asígnale sus equipos.') }}</p>
+    <a class="btn pri" href="/nodes/new" data-sheet data-title="{{ _('Crear nodo') }}">{{ icon('plus', 's') }}{{ _('Crear nodo') }}</a></div>{% endif %}
 </section>
 {% endblock %}

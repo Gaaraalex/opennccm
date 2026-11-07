@@ -7,6 +7,13 @@
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); };
   // logo de marca de un equipo (app/vendorlogos.py): clave «extreme», «mikrotik»… del sprite static/vendor-logos.svg
+  // ícono del sprite de la app (static/icons.svg)
+  function ccIcon(n) { return '<svg class="ico s" aria-hidden="true"><use href="/static/icons.svg#i-' + n + '"/></svg>'; }
+  // píldora del sello: verde «Verificada · VOSS 9.3.0.0» o gris «Sin verificar»
+  function vPill(r) {
+    return r.verified_on ? '<span class="rc-pill ok">' + ccIcon('shield') + esc(T.v_pill.replace('{0}', r.verified_on)) + '</span>'
+                         : '<span class="rc-pill">' + ccIcon('file') + esc(T.v_none) + '</span>';
+  }
   var vlogo = function (k, px) {
     return '<svg class="vlg" width="' + px + '" height="' + px + '" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="'
       + esc(((window.OC && OC.vl) || '/static/vendor-logos.svg') + '#vl-' + (k || 'other')) + '"/></svg>';
@@ -224,15 +231,55 @@
   var cat = '', vendors = {}; D.recipes.forEach(function (r) { vendors[r.vendor] = 1; });
   $('rc-vendor').innerHTML += Object.keys(vendors).sort().map(function (v) { return '<option>' + esc(v) + '</option>'; }).join('');
   $('rc-cats').innerHTML = '<button type="button" class="chip on" data-c="">' + esc(T.all) + '</button>' + Object.keys(D.cats).map(function (k) { return '<button type="button" class="chip" data-c="' + k + '">' + esc(D.cats[k]) + '</button>'; }).join('');
-  $('rc-cats').addEventListener('click', function (e) { var b = e.target.closest('[data-c]'); if (!b) return; cat = b.dataset.c; Array.prototype.forEach.call(this.children, function (c) { c.classList.toggle('on', c === b); }); grid(); });
+  // «Solo verificadas»: chip verde junto a las categorías
+  var onlyV = false;
+  $('rc-cats').insertAdjacentHTML('beforeend', '<button type="button" class="chip rc-only" id="rc-only" aria-pressed="false">' + ccIcon('shield') + esc(T.v_only) + ' <span class="num">' + D.recipes.filter(function (r) { return r.verified_on; }).length + '</span></button>');
+  $('rc-cats').addEventListener('click', function (e) {
+    var o = e.target.closest('#rc-only');
+    if (o) { onlyV = !onlyV; o.classList.toggle('on', onlyV); o.setAttribute('aria-pressed', String(onlyV)); grid(); return; }
+    var b = e.target.closest('[data-c]'); if (!b) return; cat = b.dataset.c; Array.prototype.forEach.call(this.querySelectorAll('[data-c]'), function (c) { c.classList.toggle('on', c === b); }); grid(); });
+  // «Reportar»: foro de la comunidad y reporte de GitHub con el título y el texto ya escritos (sin datos del equipo del usuario)
+  function ghUrl(r) {
+    if (!r) return D.issues;
+    var seal = r.verified_on ? T.v_box_t.replace('{0}', r.verified_on) : T.v_none;
+    var L = T.gh_l, body = [L[0].replace('{0}', r.name).replace('{1}', r.key), L[1].replace('{0}', r.os_label || r.vendor || ''), L[2].replace('{0}', seal),
+      L[3].replace('{0}', D.version || ''), '', L[4], '', L[5], ''].join('\n');
+    return D.issues + '?title=' + encodeURIComponent(T.gh_title.replace('{0}', r.name)) + '&body=' + encodeURIComponent(body);
+  }
+  function reportLinks(r, small) {
+    var ext = '<svg class="ico s rc-ext" aria-hidden="true"><use href="/static/icons.svg#i-ext"/></svg>';
+    function one(cls, href, ico, t, s, title) {
+      return '<a class="rc-rep ' + cls + '" href="' + esc(href) + '" target="_blank" rel="noopener"' + (title ? ' title="' + esc(title) + '"' : '') + '>' +
+        '<svg class="ico" aria-hidden="true"><use href="/static/icons.svg#i-' + ico + '"/></svg><span class="grow"><b>' + esc(t) + '</b>' + (small ? '' : '<small>' + esc(s) + '</small>') + '</span>' + ext + '</a>';
+    }
+    return '<div class="rc-reps' + (small ? ' sm' : '') + '">' + (D.forum ? one('forum', D.forum, 'chat2', T.f_t, T.f_s, r ? r.name : '') : '') +
+      (D.issues ? one('gh', ghUrl(r), 'issue', T.gh_t, T.gh_s, '') : '') + '</div>';
+  }
+  // aviso de arriba de la lista: abierto o en una sola línea (se recuerda por usuario)
+  var wKey = 'oc-rc-warn-' + (D.user || '');
+  function warn() {
+    var closed = false; try { closed = localStorage.getItem(wKey) === '0'; } catch (e) {}
+    $('rc-warn').innerHTML = closed
+      ? '<div class="banner warn rc-warn-s">' + ccIcon('alert') + '<span class="grow"><b>' + esc(T.w_title) + '</b> · <a href="#" data-w="open">' + esc(T.w_show) + '</a></span></div>'
+      : '<div class="banner warn rc-warn-b">' + ccIcon('alert') + '<div class="grow stack" style="gap:6px"><b>' + esc(T.w_title) + '</b><p>' + esc(T.w_p1) + '</p>' +
+        '<p>' + esc(T.w_p2).replace('{0}', '<b>' + esc(T.w_v) + '</b>') + '</p><p>' + esc(T.w_p3) + '</p>' + reportLinks(null, false) + '</div>' +
+        '<button type="button" class="btn s ghost" data-w="close">' + esc(T.w_hide) + '</button></div>';
+  }
+  $('rc-warn').addEventListener('click', function (e) {
+    var a = e.target.closest('[data-w]'); if (!a) return; e.preventDefault();
+    try { localStorage.setItem(wKey, a.dataset.w === 'close' ? '0' : '1'); } catch (er) {}
+    warn();
+  });
+  warn();
   $('rc-q').addEventListener('input', grid); $('rc-vendor').addEventListener('change', grid);
   function scopeL(r) { return r.scope === 'mine' ? T.mine : r.scope === 'team' ? T.team : T.opennccm; }
   function grid() {
     var q = $('rc-q').value.trim().toLowerCase(), v = $('rc-vendor').value;
-    var rs = D.recipes.filter(function (r) { return (!cat || r.cat === cat) && (!v || r.vendor === v) && (!q || (r.name + ' ' + r.intro + ' ' + r.vendor).toLowerCase().indexOf(q) >= 0); });
+    var rs = D.recipes.filter(function (r) { return (!cat || r.cat === cat) && (!v || r.vendor === v) && (!onlyV || r.verified_on) && (!q || (r.name + ' ' + r.intro + ' ' + r.vendor).toLowerCase().indexOf(q) >= 0); });
     $('rc-grid').innerHTML = rs.map(function (r) {
-      return '<button type="button" class="card cc-rc" data-r="' + esc(r.key) + '"><div class="row sm"><span class="pill sm">' + esc(r.vendor) + '</span><span class="muted">' + esc(D.cats[r.cat] || '') + '</span><span class="grow"></span><span class="muted">' + esc(scopeL(r)) + '</span></div>' +
-        '<b>' + esc(r.name) + '</b><span class="muted sm">' + esc(T.steps.replace('{0}', r.steps.length)) + ' · ' + esc(T.uses.replace('{0}', r.uses)) + ' · ' + esc(r.by) + '</span></button>';
+      return '<button type="button" class="card cc-rc" data-r="' + esc(r.key) + '"><div class="row sm"><span class="pill sm rc-brand">' + vlogo(r.vl, 16) + esc(r.vendor) + '</span><span class="muted">' + esc(D.cats[r.cat] || '') + '</span></div>' +
+        '<b>' + esc(r.name) + '</b><div class="rc-meta"><span class="muted">' + esc(T.steps.replace('{0}', r.steps.length)) + ' · ' + esc(T.uses.replace('{0}', r.uses)) + ' · ' + esc(scopeL(r)) + (r.scope === 'team' ? ' (' + esc(r.by) + ')' : '') + '</span>' +
+        vPill(r) + '</div></button>';
     }).join('') || '<p class="muted">' + esc(T.none) + '</p>';
   }
   var cur = null;
@@ -247,13 +294,24 @@
   function detail(key) {
     var r = D.recipes.find(function (x) { return x.key === key; }); if (!r) return; cur = r;
     var el = $('rc-detail'); el.hidden = false;
-    el.innerHTML = '<div class="row"><div class="grow"><div class="row sm"><span class="pill sm">' + esc(r.vendor) + '</span><span class="muted">' + esc(r.os_label || '') + ' · ' + esc(D.cats[r.cat] || '') + ' · ' + esc(scopeL(r)) + '</span></div><h2 style="margin:6px 0 0">' + esc(r.name) + '</h2></div><button type="button" class="btn s ghost" id="rc-x">✕</button></div>' +
+    el.innerHTML = '<div class="row"><div class="grow"><div class="row sm"><span class="pill sm rc-brand">' + vlogo(r.vl, 16) + esc(r.vendor) + '</span><span class="muted">' + esc(r.os_label || '') + ' · ' + esc(D.cats[r.cat] || '') + ' · ' + esc(scopeL(r)) + '</span></div><h2 style="margin:6px 0 0">' + esc(r.name) + '</h2></div>' + vPill(r) + '<button type="button" class="btn s ghost" id="rc-x">✕</button></div>' +
       '<p class="muted">' + esc(r.intro) + (r.doc ? ' <a href="' + esc(r.doc) + '" target="_blank" rel="noopener">' + esc(T.doc) + '</a>' : '') + '</p>' +
+      '<div class="rc-boxes">' + (r.verified_on
+        ? '<div class="rc-box ok">' + ccIcon('shield') + '<div><b>' + esc(T.v_box_t.replace('{0}', r.verified_on)) + '</b><p>' + esc(T.v_box) + '</p></div></div>'
+        : '<div class="rc-box">' + ccIcon('file') + '<div><b>' + esc(T.u_box_t) + '</b><p>' + esc(T.u_box) + '</p></div></div>') +
+      '<div class="rc-box warn">' + ccIcon('alert') + '<div><b>' + esc(T.w_title) + '</b><p>' + esc(T.w_short) + '</p>' +
+      '<p class="rc-replbl">' + esc(T.w_report) + '</p>' + reportLinks(r, true) + '</div></div></div>' +
+      (D.role === 'admin' ? '<div class="row"><button type="button" class="btn s ghost" id="rc-verify">' + ccIcon('shield') + esc(r.verified_on ? T.v_unset : T.v_set) + '</button></div>' : '') +
       (r.vars.length ? '<div class="f3">' + r.vars.map(function (v) { return '<div class="field"><label>' + esc(v.l) + '</label><div class="input mono"><input data-var="' + esc(v.n) + '" value="' + esc(v.v) + '"></div></div>'; }).join('') + '</div>' : '') +
       '<ol class="cc-steps" id="rc-steps"></ol>' +
       '<div class="row"><button type="button" class="btn pri" id="rc-run"></button><button type="button" class="btn" id="rc-multi">' + esc(T.multi) + '</button><span class="grow"></span>' +
       (D.role !== 'viewer' ? (r.mine ? '<button type="button" class="btn ghost" id="rc-edit-b">' + esc(T.edit) + '</button><button type="button" class="btn ghost dz" id="rc-del">' + esc(T.del) + '</button>' : '<button type="button" class="btn ghost" id="rc-dup">' + esc(T.dup) + '</button>') : '') + '</div>';
     steps();
+    if ($('rc-verify')) $('rc-verify').addEventListener('click', function () {
+      var v = r.verified_on ? '' : prompt(T.v_ask, r.os_label ? r.os_label.split(' ')[0] + ' ' : '');
+      if (v === null) return;
+      post('/console/recipes/verify', {key: r.key, verified_on: v}).then(function (j) { if (j.ok) { r.verified_on = j.verified_on; grid(); detail(r.key); } else toast(j.error); });
+    });
     Array.prototype.forEach.call(el.querySelectorAll('[data-var]'), function (i) { i.addEventListener('input', steps); });
     $('rc-x').addEventListener('click', function () { el.hidden = true; });
     var onlyRead = r.steps.every(function (s) { return s.c.split('\n').every(function (l) { return !l.trim() || riskOf(r, l) === 'read'; }); });
@@ -288,15 +346,32 @@
     var o = vals(), all = r.steps.map(function (s) { return fill(s.c, o); }).join('\n');
     msgTo(active, {cmd: 'run', text: all}); toast(T.sent); show('sesiones');
   }
+  // versión del equipo comparada con la del sello («VOSS 9.3.0.0» y «9.3.0.0» son la misma)
+  function verNum(s) { var m = String(s || '').match(/\d+(?:\.\d+)+/); return m ? m[0] : String(s || '').trim(); }
+  function applyCheck() {
+    var r = cur, dl = $('rc-apply'), sel = Array.prototype.filter.call(dl.querySelectorAll('#rc-apply-devs input:checked'), function () { return true; });
+    var devs = sel.map(function (i) { return D.devs.find(function (d) { return d.id === +i.value; }); }).filter(Boolean);
+    $('rc-ack-t').textContent = T.ack.replace('{0}', devs.length === 1 ? devs[0].name : T.ack_sel);
+    var diff = r.verified_on ? devs.filter(function (d) { return d.ver && verNum(d.ver) !== verNum(r.verified_on); }) : [];
+    $('rc-apply-ver').innerHTML = diff.map(function (d) {
+      var txt = esc(T.v_diff).replace('{0}', '<b>' + esc(d.name) + '</b>').replace('{1}', esc(r.verified_on))
+        .replace('{2}', esc((r.os_label ? r.os_label.split(' ')[0] + ' ' : '') + d.ver));
+      return '<div class="banner warn">' + ccIcon('alert') + '<span class="grow">' + txt + '</span></div>';
+    }).join('');
+    $('rc-apply-go').disabled = !$('rc-ack').checked || !devs.length;
+  }
+  $('rc-apply').addEventListener('change', applyCheck);
   function applyDlg(r) {
     var dl = $('rc-apply');
     $('rc-apply-devs').innerHTML = D.devs.filter(function (d) { return d.os === r.os; }).map(function (d) { return '<label class="row nowrap sm"><input type="checkbox" value="' + d.id + '">' + vlogo(d.vl, 24) + '<span class="grow">' + esc(d.name) + '</span><small class="muted mono">' + esc(d.host) + '</small></label>'; }).join('') || '<p class="muted">—</p>';
+    $('rc-ack').checked = false; applyCheck();
     dl.showModal();
   }
   $('rc-apply-f').addEventListener('submit', function (e) {
     e.preventDefault();
-    var ids = Array.prototype.map.call(this.querySelectorAll('input:checked'), function (i) { return +i.value; }), o = vals(), r = cur;
+    var ids = Array.prototype.map.call(this.querySelectorAll('#rc-apply-devs input:checked'), function (i) { return +i.value; }), o = vals(), r = cur;
     if (!ids.length) { toast(T.pickdev); return; }
+    if (!$('rc-ack').checked) return;
     var body = r.steps.filter(function (s) { return !s.check; }).map(function (s) { return fill(s.c, o).split('\n').filter(function (l) { return riskOf(r, l) !== 'read'; }).join('\n'); }).filter(Boolean).join('\n');
     post('/console/change-request', {device_ids: ids, body: body, title: r.name}).then(function (j) { if (j.url) location.href = j.url; else toast(j.error); });
   });

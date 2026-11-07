@@ -12,7 +12,14 @@ import re
 from .i18n import N_
 
 OS_LABEL = {"ros": "RouterOS", "ios": "Cisco IOS", "nxos": "NX-OS", "eos": "Arista EOS", "vrp": "Huawei VRP",
-            "junos": "Junos", "exos": "EXOS", "voss": "VOSS / Fabric Engine", "fastpath": "EdgeSwitch", "linux": "Linux", "generic": ""}
+            "junos": "Junos", "exos": "EXOS", "voss": "VOSS / Fabric Engine", "fastpath": "EdgeSwitch", "linux": "Linux",
+            "edgeos": "EdgeOS / VyOS", "airos": "airOS / UniFi AP", "zxros": "ZTE ZXR10", "zteolt": "ZTE OLT",
+            "comware": "H3C / HPE Comware", "huaweiolt": "Huawei OLT", "fortios": "FortiOS", "panos": "PAN-OS",
+            "asa": "Cisco ASA", "ftd": "Cisco FTD", "iosxr": "IOS-XR", "procurve": "ProCurve / Aruba OS-Switch",
+            "aoscx": "Aruba AOS-CX", "ioslike": "CLI tipo Cisco", "dellos10": "Dell OS10", "sonic": "SONiC", "sros": "Nokia SR OS",
+            "srl": "Nokia SR Linux", "omniswitch": "OmniSwitch AOS", "enterasys": "Enterasys", "zyxel": "Zyxel", "bsdfw": "pfSense / OPNsense",
+            "gaia": "Check Point Gaia", "tmsh": "F5 BIG-IP", "netscaler": "NetScaler", "aireos": "Cisco WLC", "arubaos": "ArubaOS",
+            "generic": ""}
 
 
 def os_of(device_type: str) -> str:
@@ -26,9 +33,13 @@ def os_of(device_type: str) -> str:
         return "nxos"
     if t == "arista_eos":
         return "eos"
-    if t.startswith(("huawei", "h3c", "hp_comware")):
+    if t in ("huawei_olt", "huawei_smartax"):
+        return "huaweiolt"
+    if t.startswith(("h3c", "hp_comware")):
+        return "comware"
+    if t.startswith("huawei"):
         return "vrp"
-    if t.startswith("juniper"):
+    if t in ("juniper_junos", "juniper"):
         return "junos"
     if t in ("extreme_exos", "extreme"):
         return "exos"
@@ -36,6 +47,26 @@ def os_of(device_type: str) -> str:
         return "voss"
     if t in ("ubiquiti_edgeswitch", "ubiquiti_unifiswitch", "broadcom_icos", "netgear_prosafe"):
         return "fastpath"
+    if t in ("ubiquiti_edgerouter", "ubiquiti_usg", "vyos"):
+        return "edgeos"
+    if t in ("ubiquiti_airos", "ubiquiti_airfiber", "ubiquiti_unifi_ap"):
+        return "airos"
+    if t == "zte_zxros":
+        return "zxros"
+    if t in ("zte_olt", "zte_olt_titan"):
+        return "zteolt"
+    fam = {"fortinet": "fortios", "paloalto_panos": "panos", "cisco_asa": "asa", "cisco_ftd": "ftd", "cisco_xr": "iosxr",
+           "hp_procurve": "procurve", "aruba_osswitch": "procurve", "aruba_aoscx": "aoscx", "cisco_ap": "ios",
+           "dell_os10": "dellos10", "dell_sonic": "sonic", "edgecore_sonic": "sonic", "nokia_sros": "sros", "nokia_srl": "srl",
+           "alcatel_aos": "omniswitch", "enterasys": "enterasys", "zyxel_os": "zyxel", "pfsense": "bsdfw", "opnsense": "bsdfw",
+           "checkpoint_gaia": "gaia", "f5_tmsh": "tmsh", "netscaler": "netscaler", "cisco_wlc": "aireos", "aruba_os": "arubaos",
+           **{k: "ioslike" for k in ("dell_force10", "brocade_netiron", "extreme_slx", "extreme_nos", "brocade_nos", "ipinfusion_ocnos",
+                                    "raisecom_roap", "raisecom_ros", "casa_cmts", "arris_cer", "mellanox_mlnxos", "fiberstore_fsos",
+                                    "fiberstore_fsosv2", "fiberstore_networkos", "moxa_nos", "lancom_lcossx4", "lancom_lcossx5", "maipu",
+                                    "centec_os", "quanta_mesh", "supermicro_smis", "eltex", "adtran_os", "a10", "oneaccess_oneos",
+                                    "furukawa_fitelnet")}}.get(t)
+    if fam:
+        return fam
     if t in ("linux", "ubuntu_server", "alpine_linux", "cumulus_linux", "opengear_linux"):
         return "linux"
     return "generic"
@@ -44,10 +75,14 @@ def os_of(device_type: str) -> str:
 # para que la salida llegue entera (sin «--More--»). Son los mismos que usa netmiko al conectar.
 PAGING_OFF = {"ios": "terminal length 0", "nxos": "terminal length 0", "eos": "terminal length 0",
               "fastpath": "terminal length 0", "vrp": "screen-length 0 temporary", "junos": "set cli screen-length 0",
-              "exos": "disable clipaging", "voss": "terminal more disable"}
+              "exos": "disable clipaging", "voss": "terminal more disable", "zxros": "terminal length 0",
+              "zteolt": "terminal length 0", "edgeos": "terminal length 0", "comware": "screen-length disable",
+              "huaweiolt": "scroll 512"}
 # prompt de modo configuración: mientras se vea, el cambio aún no terminó (el aviso espera a que se salga)
 CONFIG_PROMPT = {"ios": r"\(config[^)]*\)#", "nxos": r"\(config[^)]*\)#", "eos": r"\(config[^)]*\)#", "voss": r"\(config[^)]*\)#",
-                 "fastpath": r"\(Config|\(Interface|\(Vlan", "vrp": r"^\[[^\]]+\]", "junos": r"\[edit", "exos": r"$^"}
+                 "fastpath": r"\(Config|\(Interface|\(Vlan", "vrp": r"^\[[^\]]+\]", "junos": r"\[edit", "exos": r"$^",
+                 "zxros": r"\(config[^)]*\)#", "zteolt": r"\(config[^)]*\)#|\(gpon-onu-mng", "edgeos": r"@[^#\s]+#\s*$", "comware": r"^\[[^\]]+\]",
+                 "huaweiolt": r"\(config[^)]*\)#"}
 
 
 def in_config(os_key: str, prompt_line: str) -> bool:

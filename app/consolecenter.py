@@ -56,7 +56,7 @@ def _devices(user) -> list[dict]:
             prof = get_profile(d.device_type)
             out.append({"id": d.id, "name": d.name, "host": d.host, "vend": prof.vendor[:3].upper(), "vl": __import__("app.vendorlogos", fromlist=["x"]).key(d.device_type), "vendor": prof.vendor,
                         "os": cc.os_of(d.device_type), "label": prof.label, "group": d.group.name if d.group else "",
-                        "gid": d.group_id or 0, "status": d.last_status})
+                        "gid": d.group_id or 0, "status": d.last_status, "ver": d.os_version or ""})
         return out
 
 
@@ -311,14 +311,28 @@ def _uses() -> dict:
         return {}
 
 
+def _recipe_logos() -> tuple[dict, dict]:
+    """Logo de marca de las recetas: por fabricante y, si no, por familia de CLI (del primer perfil que la usa)."""
+    from . import vendorlogos
+    from .drivers import PROFILES
+    by_vendor, by_os = {}, {}
+    for p in PROFILES:
+        k = vendorlogos.key(p.key)
+        by_vendor.setdefault(p.vendor, k)
+        by_os.setdefault(cc.os_of(p.key), k)
+    return by_vendor, by_os
+
+
 def all_recipes(user) -> list[dict]:
     uses = _uses()
+    by_vendor, by_os = _recipe_logos()
     out = []
     for r in recipes.BUILTIN:
-        out.append({**r, "name": _(r["name"]), "intro": _(r["intro"]),
+        out.append({**r, "name": _(r["name"]).format(r["name_arg"]) if r.get("name_arg") else _(r["name"]), "intro": _(r["intro"]),
                     "vars": [{**v, "l": _(v["l"])} for v in r["vars"]],
                     "steps": [{**s, "t": _(s["t"])} for s in r["steps"]],
-                    "scope": "opennccm", "by": "OpenNCCM", "uses": uses.get(r["key"], 0), "mine": False})
+                    "scope": "opennccm", "by": "OpenNCCM", "uses": uses.get(r["key"], 0), "mine": False,
+                    "verified_on": recipes.verified_on(r["key"]), "vl": by_vendor.get(r["vendor"], by_os.get(r["os"], "other"))})
     with SessionLocal() as db:
         for r in db.scalars(select(Recipe).order_by(Recipe.id)):
             try:
@@ -327,7 +341,7 @@ def all_recipes(user) -> list[dict]:
                 continue
             mine = r.owner == user.username
             out.append({**d, "key": f"u{r.id}", "id": r.id, "scope": "mine" if mine else "team", "by": r.owner,
-                        "uses": r.uses, "mine": mine})
+                        "uses": r.uses, "mine": mine, "vl": by_vendor.get(d.get("vendor"), by_os.get(d.get("os"), "other"))})
     return out
 
 
@@ -360,6 +374,37 @@ async def recipe_save(request: Request):
         rid = r.id
     audit(user.username, "recipe_save", clean["name"])
     return JSONResponse({"ok": True, "id": rid})
+
+
+@router.post("/console/recipes/verify")
+async def recipe_verify(request: Request):
+    """Poner o quitar el sello «Verificada» de una receta (solo administradores; queda en Auditoría)."""
+    user = require(request, "admin")
+    d = await request.json()
+    key, ver = str(d.get("key") or ""), str(d.get("verified_on") or "").strip()[:64]
+    from .db import get_setting, set_setting
+    if key.startswith("u") and key[1:].isdigit():
+        with SessionLocal() as db:
+            r = db.get(Recipe, int(key[1:]))
+            if r is None:
+                return JSONResponse({"error": _("La receta no existe.")}, 404)
+            data = json.loads(r.data)
+            data["verified_on"] = ver
+            r.data = json.dumps(data, ensure_ascii=False)
+            db.commit()
+            name = data.get("name", key)
+    elif key in recipes.BY_KEY:
+        try:
+            over = json.loads(get_setting("recipe_verified", "{}") or "{}")
+        except ValueError:
+            over = {}
+        over[key] = ver
+        set_setting("recipe_verified", json.dumps(over))
+        name = key
+    else:
+        return JSONResponse({"error": _("La receta no existe.")}, 404)
+    audit(user.username, "recipe_verified" if ver else "recipe_unverified", f"{name}: {ver}" if ver else name)
+    return JSONResponse({"ok": True, "verified_on": ver})
 
 
 @router.post("/console/recipes/{rid}/delete")

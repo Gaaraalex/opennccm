@@ -47,6 +47,10 @@ class Profile:
     # Una licencia guardada sin el detalle (versiones anteriores) se vuelve a leer una vez.
     license_ids: str | None = None
     license_mark: str | None = None
+    backup_timeout: int = 180  # segundos para leer la configuración (una OLT con miles de ONU tarda más)
+    # NVD registra algunos productos por modelo («cisco:sg350-28_firmware»): (expresión sobre el modelo del equipo,
+    # plantilla del CPE con {0} = lo que captura la expresión, en minúsculas)
+    cpe_model: list[tuple[str, str]] = field(default_factory=list)
 
     @property
     def inventory_label(self) -> str:
@@ -219,27 +223,53 @@ PROFILES: list[Profile] = [
     Profile("ubiquiti_airos", "Ubiquiti airMAX M / AC (airOS)", "Ubiquiti", "cat /tmp/system.cfg", None,
             inventory="cat /etc/version; cat /etc/board.info", family=MERGE, save=False, firmware={"method": "airos"},
             version_re=[r"^[A-Z0-9]+\.v(\d+\.\d+\.\d+)"], model_re=[r"^board\.name=(.+?)\s*$"],
-            cpe=("cpe:2.3:o:ui:airos", "cpe:2.3:o:ubnt:airos"), cpe_version=SEMVER3,
+            cpe=("cpe:2.3:o:ui:airos", "cpe:2.3:o:ubnt:airos", "cpe:2.3:o:ui:airmax_ac_firmware",
+                 "cpe:2.3:o:ui:airmax_m_firmware", "cpe:2.3:o:ui:airmax_m_xw_firmware", "cpe:2.3:o:ui:airmax_m_xm_firmware",
+                 "cpe:2.3:o:ui:airmax_m_ti_firmware"), cpe_version=SEMVER3,
             note="airMAX M (M2, M5: NanoStation, Rocket, NanoBeam, PowerBeam, LiteBeam M con airOS 6) y airMAX AC "
                  "(airOS 8). Para restaurar una versión: airOS › System › Configuration Management › Upload "
-                 "Configuration, con el archivo descargado de OpenNCCM."),
+                 "Configuration, con el «system.cfg» que descarga OpenNCCM."),
     Profile("ubiquiti_airfiber", "Ubiquiti airFiber (AF5XHD, AF60, AF24HD, AF5X)", "Ubiquiti", "cat /tmp/system.cfg",
             None, inventory="cat /etc/version; cat /etc/board.info", family=MERGE, save=False, firmware={"method": "airos"},
             version_re=[r"^[A-Z0-9]+\.v(\d+\.\d+\.\d+)"], model_re=[r"^board\.name=(.+?)\s*$"],
+            cpe=("cpe:2.3:o:ui:af5x_firmware", "cpe:2.3:o:ui:af5_firmware", "cpe:2.3:o:ui:airfiber_af60_firmware",
+                 "cpe:2.3:o:ui:airfiber_af60-xg_firmware", "cpe:2.3:o:ui:airfiber_af24hd_firmware",
+                 "cpe:2.3:o:ui:airfiber_af24_firmware"), cpe_version=SEMVER3,
             note="Comando tomado de la documentación del fabricante, sin verificar en hardware. Los airFiber antiguos "
                  "(AF24, AF5 sin X) tienen otra interfaz de comandos: use un comando de respaldo personalizado."),
     Profile("ubiquiti_unifi_ap", "Ubiquiti UniFi AP", "Ubiquiti", "cat /tmp/system.cfg", None,
-            inventory="info", family=MERGE, save=False,
-            version_re=[r"Version:\s+v?(\S+)"], model_re=[r"Model:\s+(.+?)\s*$"],
+            inventory="info\ncat /etc/board.info", family=MERGE, save=False,
+            version_re=[r"Version:\s+v?(\S+)"], model_re=[r"Model:\s+(.+?)\s*$", r"^board\.name=(.+?)\s*$"],
+            cpe=("cpe:2.3:o:ui:unifi_uap_firmware", "cpe:2.3:o:ui:unifi_ap_ac_lite_firmware",
+                 "cpe:2.3:o:ui:unifi_meshing_access_point_firmware"), cpe_version=SEMVER3,
             note="Los AP UniFi los configura el controlador UniFi Network: OpenNCCM guarda y compara su configuración, "
                  "pero los cambios y su reversión se hacen en UniFi Network."),
     Profile("ubiquiti_usg", "Ubiquiti UniFi Security Gateway (USG)", "Ubiquiti", "show configuration commands", None,
-            family=SET, commit=True, version_re=[r"Version:\s+v(\S+)"],
+            family=SET, commit=True, version_re=[r"Version:\s+v(\S+)"], model_re=[r"HW model:\s+(.+?)\s*$"],
+            cve_note=("ubiquiti", "https://community.ui.com/releases"),
             note="El USG lo configura el controlador UniFi Network (config.gateway.json): OpenNCCM guarda y compara su "
                  "configuración, pero los cambios y su reversión se hacen en UniFi Network."),
     Profile("tplink_jetstream", "TP-Link JetStream", "TP-Link", "show running-config", "show startup-config",
             inventory="show system-info", ignore=CISCO_IGNORE),
-    Profile("zte_zxros", "ZTE ZXROS", "ZTE", "show running-config", None, telnet=True, ignore=CISCO_IGNORE),
+    # ---------------- ZTE ----------------
+    # Switches y routers ZXR10 (2900E, 5900E, 5960, 8900E, 9900, M6000…): «show version» trae
+    # «ZXR10 5960-56TM-HC Software, Version: V3.02.20…» o «ZXR10_5952 Software, Version ZXR10 5900 V2.8.23…»
+    Profile("zte_zxros", "ZTE ZXR10 (switches y routers ZXROS)", "ZTE", "show running-config", None, telnet=True,
+            ignore=CISCO_IGNORE,
+            version_re=[r"Software,\s*Version:?\s*(?:ZXR10\s+\S+\s+)?(V[\w.\-]+)", r"ROS Version\s+(V[\w.\-]+)"],
+            model_re=[r"(?m)^(ZXR10[ _][\w\-]+)\s+Software"], serial_re=[r"System serial\s*:\s*(\S+)"]),
+    # OLT GPON/EPON ZXA10 de la serie C300 (C300, C320, C350, C220): el prompt es «ZXAN#». «show system-group» trae
+    # «System Description: C320 Version V2.1.0 Software» y «show card» las tarjetas con su versión. La configuración
+    # incluye cada ONU (interface gpon-onu_1/2/3:18, pon-onu-mng…): con miles de ONU tarda en leerse.
+    Profile("zte_olt", "ZTE ZXA10 OLT (C300, C320, C350, C220)", "ZTE", "show running-config", None,
+            inventory="show system-group\nshow card", telnet=True, ignore=CISCO_IGNORE, backup_timeout=900,
+            version_re=[r"System Description:\s*(?:ZXA10\s+)?C\d{3}\w*\s+Version\s+(V[\w.\-]+)"],
+            model_re=[r"System Description:\s*(?:ZXA10\s+)?(C\d{3}\w*)"]),
+    # OLT ZXA10 TITAN (C600, C610, C620, C650, C680): la misma CLI de OLT; la versión sale de «show software»
+    Profile("zte_olt_titan", "ZTE ZXA10 OLT TITAN (C600, C610, C620, C650, C680)", "ZTE", "show running-config", None,
+            inventory="show software\nshow card", telnet=True, ignore=CISCO_IGNORE, backup_timeout=900,
+            version_re=[r"Software,?\s*Version\s*:?\s*(V[\w.\-]+)", r"Version\s*:\s*(V[\w.\-]+)"],
+            model_re=[r"\b(C6[0-9]{2})\b"]),
     Profile("ruijie_os", "Ruijie OS", "Ruijie", "show running-config", None, telnet=True, ignore=CISCO_IGNORE),
     Profile("allied_telesis_awplus", "Allied Telesis AlliedWare Plus", "Allied Telesis",
             "show running-config", "show startup-config", ignore=CISCO_IGNORE),
@@ -588,6 +618,65 @@ def _first(patterns: list[str], text: str) -> str | None:
             if re.search(r"[A-Za-z0-9]", value):  # descarta «.......» u otros rellenos
                 return value
     return None
+
+
+# CPE de NVD de los perfiles que no los traen en su definición (comprobados en el diccionario de CPE de NVD).
+# cpe: nombre común del producto; cpe_model: uno por modelo (expresión sobre el modelo, plantilla con {0}).
+SEMVER3_ANY = r"(\d+\.\d+\.\d+)"
+CPE_EXTRA: dict[str, dict] = {
+    "cisco_ftd": {"cpe": ("cpe:2.3:a:cisco:firepower_threat_defense", "cpe:2.3:o:cisco:firepower_threat_defense",
+                          "cpe:2.3:a:cisco:firepower_threat_defense_software")},
+    **{k: {"cpe_model": [(r"\b(s[fgx]\d{3}x?[pe]?-\d+[a-z]*)", "cpe:2.3:o:cisco:{0}_firmware")]}
+       for k in ("cisco_s200", "cisco_s300", "cisco_s500")},
+    "cisco_ap": {"cpe": ("cpe:2.3:o:cisco:aironet_access_point_firmware", "cpe:2.3:a:cisco:aironet_access_point_software")},
+    "cisco_viptela": {"cpe": "cpe:2.3:a:cisco:sd-wan_vedge_cloud",
+                      "cpe_model": [(r"\bvedge[- ]?(\d+\w*)", "cpe:2.3:o:cisco:vedge_{0}_firmware")]},
+    "huawei_vrpv8": {"cpe_model": [(r"\bCE(12|16|5|6|7|8)\d{2,3}", "cpe:2.3:o:huawei:cloudengine_{0}800_firmware")]},
+    "huawei_olt": {"cpe": "cpe:2.3:o:huawei:smartax_ma5800_firmware"},
+    "huawei_smartax": {"cpe": "cpe:2.3:o:huawei:smartax_ma5600t_firmware"},
+    "sophos_sfos": {"cpe": "cpe:2.3:o:sophos:sfos", "cpe_version": SEMVER3_ANY},
+    "dell_os10": {"cpe": ("cpe:2.3:o:dell:networking_os10", "cpe:2.3:o:dell:smartfabric_os10", "cpe:2.3:o:dell:emc_networking_os10")},
+    "dell_powerconnect": {"cpe_model": [(r"\b(m?\d{4}[a-z]*)\b", "cpe:2.3:o:dell:emc_powerconnect_{0}_firmware")]},
+    "dell_sonic": {"cpe": "cpe:2.3:o:dell:enterprise_sonic_distribution"},
+    "tplink_jetstream": {"cpe_model": [(r"\b(?:tl-)?(sg\d{4}[a-z]*)", "cpe:2.3:o:tp-link:tl-{0}_firmware")]},
+    "zte_zxros": {"cpe_model": [(r"ZXR10[ _]([\w-]+)", "cpe:2.3:o:zte:zxr10_{0}_firmware")]},
+    **{k: {"cpe_model": [(r"\b(C\d{3}\w*)", "cpe:2.3:o:zte:zxa10_{0}_firmware")]} for k in ("zte_olt", "zte_olt_titan")},
+    "ruijie_os": {"cpe_model": [(r"\b(rg-[\w-]+)", "cpe:2.3:o:ruijienetworks:{0}_firmware")]},
+    "alpine_linux": {"cpe": "cpe:2.3:o:alpinelinux:alpine_linux"},
+    "extreme_wing": {"cpe": "cpe:2.3:o:extremenetworks:extremewireless_wing"},
+    "netscaler": {"cpe": ("cpe:2.3:a:citrix:netscaler_application_delivery_controller",
+                          "cpe:2.3:o:citrix:netscaler_application_delivery_controller_firmware")},
+    "adtran_os": {"cpe": "cpe:2.3:o:adtran:aos"},
+    "ipinfusion_ocnos": {"cpe": "cpe:2.3:a:ipinfusion:ocnos"},
+    "cumulus_linux": {"cpe": ("cpe:2.3:o:nvidia:cumulus_linux", "cpe:2.3:o:cumulusnetworks:cumulus_linux")},
+    "dlink_ds": {"cpe_model": [(r"\b(d[egx]s-\d{4}-\w+)", "cpe:2.3:o:dlink:{0}_firmware")]},
+    "netgear_prosafe": {"cpe": "cpe:2.3:o:netgear:prosafe_firmware",
+                        "cpe_model": [(r"\b([gmx]s\d{3}\w*)", "cpe:2.3:o:netgear:{0}_firmware")]},
+    "hirschmann_hios": {"cpe": "cpe:2.3:o:belden:hirschmann_hios"},
+    **{k: {"cpe": "cpe:2.3:o:lancom-systems:lcos_sx"} for k in ("lancom_lcossx4", "lancom_lcossx5")},
+    "maipu": {"cpe_model": [(r"\b(mp\d{4}\w*(?:-\d+)?)", "cpe:2.3:o:maipu:{0}_firmware")]},
+    "yamaha": {"cpe_model": [(r"\b(rtx\d{3,4}\w*)", "cpe:2.3:o:yamaha:{0}")]},
+    "iij_seilos": {"cpe_model": [(r"seil[/ _-]?(\w+)", "cpe:2.3:o:iij:seil_{0}_firmware")]},
+    "fujitsu_sir": {"cpe_model": [(r"si-r[ _]?(\w+)", "cpe:2.3:o:fujitsu:si-r_{0}_firmware")]},
+    "teldat_cit": {"cpe_model": [(r"\b(rs\d{3}\w*)", "cpe:2.3:o:teldat:{0}_firmware")]},
+    "digi_transport": {"cpe_model": [(r"\b((?:wr|lr)\d{2}\w*)", "cpe:2.3:o:digi:transport_{0}_firmware")]},
+    **{k: {"cpe_model": [(r"mediant[ _-]?([\w-]+)", "cpe:2.3:o:audiocodes:mediant_{0}_firmware")]} for k in ("audiocode_66", "audiocode_72")},
+    "juniper_screenos": {"cpe": ("cpe:2.3:o:juniper:screenos", "cpe:2.3:o:juniper:netscreen_screenos")},
+    "opengear_linux": {"cpe": "cpe:2.3:a:opengear:opengear"},
+}
+for _p in PROFILES:
+    for _k, _v in CPE_EXTRA.get(_p.key, {}).items():
+        setattr(_p, _k, _v)
+
+
+def model_cpes(profile: Profile, model: str | None) -> list[str]:
+    """CPE de NVD que salen del modelo del equipo (Profile.cpe_model)."""
+    out = []
+    for rx, tpl in profile.cpe_model:
+        m = re.search(rx, model or "", re.I)
+        if m:
+            out.append(tpl.format(*(g.lower().replace(" ", "_") for g in m.groups())))
+    return out
 
 
 def parse_inventory(text: str, profile: Profile) -> dict:

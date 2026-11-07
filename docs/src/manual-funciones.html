@@ -350,10 +350,18 @@ una pestaña por tipo de equipo, arrastrar para cambiar el orden, editar, quitar
   Servicios, Diagnóstico) y fabricante. Cada receta tiene introducción, <b>variables</b> que se sustituyen en los comandos, pasos
   numerados con <b>Copiar</b> e <b>Insertar</b> (en la consola activa), pasos «Ojo» en ámbar y un paso final «Comprobar». Abajo:
   <b>Aplicar como solicitud de cambio</b> (o <b>Ejecutar en la consola activa</b> si solo consulta), <b>Usar en multi-equipo</b>
-  y <b>Duplicar y adaptar</b>; <b>+ Nueva</b> crea una propia. Incluye al menos 10 recetas de las tareas más comunes para Cisco
-  IOS, MikroTik RouterOS, Extreme EXOS y Extreme VOSS / Fabric Engine (nombre del equipo, usuarios y contraseñas, SSH, acceso web
-  por HTTPS, SNMP, syslog hacia OpenNCCM, RADIUS, NTP, VLAN, guardar la configuración, diagnóstico…), con el enlace a la
-  documentación oficial del fabricante cuando la hay.</td></tr>
+  y <b>Duplicar y adaptar</b>; <b>+ Nueva</b> crea una propia. Trae 422 recetas, con al menos 10 para 95 de los 133 tipos de
+  equipo (Cisco, MikroTik, Extreme, Huawei, H3C/HPE Comware, Juniper, Arista, Fortinet, Palo Alto, Ubiquiti, ZTE, Dell, Nokia,
+  F5, Citrix, pfSense, OPNsense, Linux y otros): nombre del equipo, usuarios y contraseñas, SSH, acceso web por HTTPS, SNMP,
+  syslog hacia OpenNCCM, NTP, DNS, VLAN, rutas, guardar la configuración, diagnóstico… con el enlace a la documentación oficial
+  del fabricante cuando la hay.<br>
+  <b>Revisa cada receta antes de usarla en producción:</b> OpenNCCM no tiene todas las plataformas para probarlas. Las recetas
+  que se probaron completas, paso a paso, llevan el sello verde <b>Verificada</b> con la versión del sistema en la que se
+  probaron (por ejemplo «Verificada · VOSS 9.3.0.0»); las demás dicen «Sin verificar» y salen de la documentación del
+  fabricante. El chip <b>Solo verificadas</b> filtra las primeras. Un administrador puede poner o quitar el sello desde la
+  receta, con la versión en la que la probó (queda en Auditoría). Al aplicar una receta como solicitud de cambio hay que marcar
+  «Revisé los comandos…», y si el equipo tiene otra versión que la del sello se avisa. «Reportar un problema» abre el foro de la
+  comunidad o un reporte de GitHub con el nombre de la receta ya escrito.</td></tr>
   <tr><td>Grabaciones</td><td>Cada sesión: usuario, equipo, hora, duración y comandos, con marca roja si hubo un comando que
   corta el servicio. Busca en lo escrito y en lo visto (por ejemplo «reload»). El reproductor tiene línea de tiempo con esas
   marcas, velocidad 1×, 2× o 4× y <b>Exportar</b> (texto). Se guardan 180 días (se puede cambiar).</td></tr>
@@ -821,11 +829,12 @@ indican qué falta y el comando se escribe con las direcciones reales. Una solic
 <h2>Cómo funciona</h2>
 <p>Con la versión de firmware leída del inventario, OpenNCCM consulta la base pública <b>NVD</b> del NIST. Usa el identificador CPE
 del fabricante cuando existe (Cisco IOS/IOS-XE/NX-OS/IOS-XR/ASA, Junos, EOS, AOS-CX, FortiOS, PAN-OS, RouterOS, Ubiquiti
-EdgeSwitch, UniFi Switch y EdgeRouter, WatchGuard Fireware). En Junos convierte la versión al formato de NVD, que separa versión y
+EdgeSwitch, UniFi Switch, EdgeRouter, airMAX, airFiber y AP UniFi, ZTE, Huawei, Dell y otros, 70 tipos de equipo en total) y,
+si NVD registra el firmware por modelo, el CPE del modelo del equipo. En Junos convierte la versión al formato de NVD, que separa versión y
 actualización («21.4R3-S5» se busca como «21.4:r3-s5») y búsqueda por palabras en el resto. Pide los CVE en páginas pequeñas y reintenta cada una si
 NVD corta la respuesta, así que también funciona con versiones que tienen muchos CVE (por ejemplo, Cisco IOS 12.4). Para Extreme
 VOSS / Fabric Engine, NVD casi no registra vulnerabilidades: la ficha del equipo lo indica y enlaza a los avisos de seguridad de
-Extreme. Guarda el ID CVE, la puntuación CVSS, la severidad y el enlace, y genera una alarma crítica si hay CVE críticos.
+Extreme; lo mismo con el USG de Ubiquiti, que enlaza a sus avisos de seguridad. Guarda el ID CVE, la puntuación CVSS, la severidad y el enlace, y genera una alarma crítica si hay CVE críticos.
 Además descarga (como mucho una vez al día) el catálogo <b>KEV</b> de CISA y marca los CVE <b>«explotado activamente»</b>.</p>
 <h2>Cómo usarlo</h2>
 <ul>
@@ -897,7 +906,7 @@ Cuando aparece una versión nueva se registra un aviso en Alarmas, una sola vez 
 <table>
   <tr><th>Equipos</th><th>De dónde sale la versión</th><th>Descarga</th></tr>
   <tr><td>MikroTik RouterOS</td><td>Sitio oficial de MikroTik (estable y long-term), con sus novedades</td><td>Sí, el archivo de la arquitectura del equipo</td></tr>
-  <tr><td>Ubiquiti EdgeSwitch, EdgeRouter, UniFi Switch</td><td>Catálogo oficial de Ubiquiti, por modelo</td><td>Sí</td></tr>
+  <tr><td>Ubiquiti EdgeSwitch, EdgeRouter, UniFi Switch, airMAX (airOS), airFiber, AP UniFi y USG</td><td>Catálogo oficial de Ubiquiti, por modelo</td><td>Sí</td></tr>
   <tr><td>Ubuntu Server y Debian</td><td>Tabla oficial de versiones (distro-info-data): la LTS o estable más nueva y la fecha de fin de soporte de la instalada</td><td>No: se actualiza en el propio servidor (<code>do-release-upgrade</code>)</td></tr>
   <tr><td>Cisco, Fortinet, Juniper, Palo Alto, Arista, WatchGuard y otros con CPE</td><td>Diccionario de versiones de NVD (NIST): la más nueva de su rama y la más reciente</td><td>No: el fabricante pide cuenta</td></tr>
 </table>

@@ -7,6 +7,8 @@ Las recetas de cada usuario se guardan en la tabla «recipes» con el mismo form
 """
 from __future__ import annotations
 
+import json
+
 from .i18n import N_
 
 CATEGORIES = {"sistema": N_("Sistema"), "seguridad": N_("Seguridad"), "interfaces": N_("Interfaces y VLAN"),
@@ -105,8 +107,37 @@ BUILTIN = [
 ]
 from .recipes_more import MORE  # noqa: E402  (las tareas comunes de Cisco, MikroTik, EXOS y VOSS)
 
-BUILTIN += MORE
+from .recipes_ubnt_zte import UBNT_ZTE  # noqa: E402  (Ubiquiti y ZTE)
+
+from .recipes_major import MAJOR  # noqa: E402  (Huawei, Comware, OLT Huawei, Junos, NX-OS, EOS, Linux)
+
+from .recipes_fw import FW  # noqa: E402  (FortiGate, PAN-OS, ASA, FTD, IOS-XR, ProCurve, AOS-CX)
+
+from .recipes_gen import GEN  # noqa: E402  (recetas estándar por familia: CLI tipo Cisco, OS10, SONiC, Nokia, OmniSwitch…)
+
+BUILTIN += MORE + UBNT_ZTE + MAJOR + FW + GEN
 BY_KEY = {r["key"]: r for r in BUILTIN}
+
+# Recetas probadas enteras en un equipo («verified_on»: la versión del sistema en la que se probaron todos sus pasos).
+# Solo se agrega una receta cuando todos sus pasos se ejecutaron sin error en esa versión. Un administrador puede
+# poner o quitar el sello desde la consola (se guarda en el ajuste «recipe_verified» y queda en Auditoría).
+VERIFIED = {
+    # Extreme VOSS / Fabric Engine 9.3.0.0 (5520-24T), 2026-11-06
+    "voss-sysname": "VOSS 9.3.0.0", "voss-ssh": "VOSS 9.3.0.0", "voss-password": "VOSS 9.3.0.0", "voss-banner": "VOSS 9.3.0.0",
+    "voss-route": "VOSS 9.3.0.0", "voss-save": "VOSS 9.3.0.0", "voss-diag": "VOSS 9.3.0.0",
+}
+
+
+def verified_on(key: str) -> str:
+    """Versión en la que se verificó una receta incluida («» si no está verificada), con los cambios del administrador."""
+    from .db import get_setting
+    try:
+        over = json.loads(get_setting("recipe_verified", "{}") or "{}")
+    except ValueError:
+        over = {}
+    if key in over:
+        return over[key] or ""
+    return VERIFIED.get(key, "")
 
 
 def fill(recipe: dict, values: dict) -> list[dict]:

@@ -20,8 +20,8 @@ def check(name, cond, extra=""):
 
 
 check("familias de consola", [cc.os_of(t) for t in ("mikrotik_routeros", "cisco_ios", "cisco_xe", "huawei", "juniper_junos",
-                                                     "extreme_exos", "ubiquiti_edgeswitch", "linux", "fortinet")]
-      == ["ros", "ios", "ios", "vrp", "junos", "exos", "fastpath", "linux", "generic"])
+                                                     "extreme_exos", "ubiquiti_edgeswitch", "linux", "fortinet", "generic")]
+      == ["ros", "ios", "ios", "vrp", "junos", "exos", "fastpath", "linux", "fortios", "generic"])
 CASES = [
     ("ros", "/interface print", "read"), ("ros", "/ip address print where interface=ether1", "read"),
     ("ros", '/log print where topics~"interface"', "read"), ("ros", "/export", "read"),

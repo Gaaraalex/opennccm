@@ -22,6 +22,23 @@ def page(request: Request):
     return render(request, "nodes.html", user, nodes=nodes, counts=counts)
 
 
+@router.get("/nodes/new")
+def new(request: Request):
+    user = require(request, "admin")
+    return render(request, "node_edit.html", user, n=None, used=0)
+
+
+@router.get("/nodes/{nid}/edit")
+def edit_form(request: Request, nid: int):
+    user = require(request, "admin")
+    with SessionLocal() as db:
+        n = db.get(NetNode, nid)
+        used = db.scalar(select(func.count(Device.id)).where(Device.node_id == nid)) or 0
+    if n is None:
+        return go("/nodes")
+    return render(request, "node_edit.html", user, n=n, used=used)
+
+
 def _clean(form) -> tuple[str, str]:
     return (form.get("name") or "").strip()[:100], (form.get("description") or "").strip()[:255]
 

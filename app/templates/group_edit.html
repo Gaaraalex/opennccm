@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block title %}{{ _f('Editar «{0}»', g.name) if g else _('Crear grupo') }}{% endblock %}
+{% block content %}
+<h1>{{ _f('Editar «{0}»', g.name) if g else _('Crear grupo') }}</h1>
+{% if g %}<p class="muted sm" data-sheet-sub>{{ _('1 equipo') if used == 1 else _f('{0} equipos', used) }}</p>{% endif %}
+<form method="post" action="/groups" class="stack" autocomplete="off">
+  {% if g %}<input type="hidden" name="id" value="{{ g.id }}">{% endif %}
+  <div class="field"><label for="grn">{{ _('Nombre') }}</label><div class="input">{{ icon('folder', 's') }}<input id="grn" name="name" required maxlength="100" value="{{ g.name if g }}" placeholder="{{ _('Oficina principal') }}" autofocus></div>
+    <span class="help">{{ _('Por sede, función o cliente. Sirve para filtrar, programar tareas y limitar qué equipos ve cada usuario.') }}</span></div>
+  <div class="row" data-sheet-foot><span class="grow"></span><a class="btn ghost" href="/groups" data-cancel>{{ _('Cancelar') }}</a><button class="btn pri">{{ _('Guardar') }}</button></div>
+</form>
+{% endblock %}

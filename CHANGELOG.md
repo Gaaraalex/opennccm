@@ -1,5 +1,26 @@
 # Historial de versiones
 
+## 2.29.0
+- [nuevo] **Equipos ZTE:** OLT ZXA10 C300, C320, C350 y C220, OLT TITAN C600, C610, C620, C650 y C680, y switches y routers
+  ZXR10 (ZXROS), con respaldo, versión, modelo y serie.
+- [nuevo] **Recetas para casi todos los equipos:** 422 recetas, con al menos 10 para 95 de los 133 tipos de equipo: Ubiquiti,
+  ZTE, Huawei, H3C/HPE Comware, Juniper, Arista, Cisco NX-OS, IOS-XR y ASA, FortiGate, PAN-OS, Aruba, Dell, Nokia, F5, Citrix,
+  pfSense, OPNsense, Linux y los equipos con CLI tipo Cisco, entre otros.
+- [nuevo] **Sello «Verificada» en las recetas:** Las recetas probadas completas llevan el sello con la versión del sistema en
+  la que se probaron, por ejemplo «Verificada · VOSS 9.3.0.0»; las demás dicen «Sin verificar». Hay un filtro «Solo
+  verificadas» y un administrador puede poner o quitar el sello.
+- [mejora] **Aviso en las recetas:** Arriba de la lista, un aviso pide revisar cada receta antes de usarla en producción, porque
+  OpenNCCM no tiene todas las plataformas para probarlas. Al aplicar una receta hay que confirmar que se revisaron los comandos, se
+  avisa si el equipo tiene otra versión que la del sello, y cada receta se puede reportar en el foro o en GitHub.
+- [mejora] **Firmware y CVE de Ubiquiti:** airMAX, airFiber, los AP UniFi, el USG y el EdgeSwitch X muestran el firmware
+  disponible y sus vulnerabilidades. La búsqueda de CVE usa además el modelo del equipo y cubre 70 tipos de equipo.
+- [mejora] **Copia de airOS como system.cfg:** En airMAX, airFiber y los AP UniFi, la copia de seguridad se descarga como
+  system.cfg, lista para restaurar en el equipo.
+- [mejora] **Grupos y Nodos con panel lateral:** «Crear grupo» y «Crear nodo» están siempre arriba y abren un panel a la
+  derecha, como en Credenciales; cada fila tiene Editar y Borrar.
+- [mejora] **Cambios de vecinos del mapa:** El panel ya no se abre cada vez que se entra al mapa; solo cuando hay cambios
+  nuevos, y se puede abrir con el botón «Cambios de vecinos».
+
 ## 2.28.0
 - [nuevo] **Logos de marca:** Cada equipo muestra el logo de su marca (73 marcas, los 131 tipos de equipo) en Dispositivos, la
   ficha, el mapa, la consola, la búsqueda Ctrl K y las demás pantallas. Dispositivos tiene un filtro «Marca» y una fila de chips

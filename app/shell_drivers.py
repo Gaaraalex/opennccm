@@ -111,7 +111,11 @@ DRIVERS = {"pfsense": FreeBSDFirewallSSH, "opnsense": FreeBSDFirewallSSH, "alpin
            "ubuntu_server": UbuntuServerSSH,
            # Ubiquiti: airOS, airFiber y AP UniFi son BusyBox (prompt «XW.v6.3.11#»); el USG es EdgeOS
            "ubiquiti_airos": LinuxSSH, "ubiquiti_airfiber": LinuxSSH, "ubiquiti_unifi_ap": LinuxSSH,
-           "ubiquiti_usg": CLASS_MAPPER["ubiquiti_edgerouter"]}
+           "ubiquiti_usg": CLASS_MAPPER["ubiquiti_edgerouter"],
+           # OLT ZTE ZXA10 (C300/C320 y TITAN C600/C620…): la misma CLI que ZXROS (prompt «ZXAN#», «terminal length 0»,
+           # «write» para guardar), por SSH o Telnet
+           "zte_olt": CLASS_MAPPER["zte_zxros"], "zte_olt_telnet": CLASS_MAPPER["zte_zxros_telnet"],
+           "zte_olt_titan": CLASS_MAPPER["zte_zxros"], "zte_olt_titan_telnet": CLASS_MAPPER["zte_zxros_telnet"]}
 
 
 # sustituyen al driver de Netmiko para ese device_type

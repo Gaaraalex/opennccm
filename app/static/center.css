@@ -76,3 +76,24 @@ body.cc-big{overflow:hidden}
 .cc-ph [data-big][aria-pressed="true"]{color:var(--brand);background:var(--surface-2)}
 .cc-ph .cx-aibtn .ai-tile{flex:none}
 .cc-ph .tbtn.txt{font:600 12.5px var(--f-sans);min-width:28px}
+
+/* recetas: sello «Verificada», aviso y casilla de responsabilidad (diseño de Diseño UX) */
+.rc-pill{display:inline-flex;align-items:center;gap:5px;flex:none;padding:2px 9px;border-radius:99px;background:var(--surface-2);color:var(--muted);font:600 11.5px var(--f-sans);white-space:nowrap}
+.rc-pill.ok{background:var(--ok-soft);color:var(--ok)}
+.rc-only.on{background:var(--ok-soft);color:var(--ok);border-color:var(--ok)}
+.rc-warn{margin:0 0 10px}.rc-warn .banner p{margin:0;font-size:13px;line-height:1.5}
+.rc-boxes{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
+.rc-box{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:8px;background:var(--surface-2);color:var(--ink);font-size:13px;line-height:1.45}
+.rc-box p{margin:2px 0 0}.rc-box.ok{background:var(--ok-soft)}.rc-box.ok b{color:var(--ok)}
+.rc-box.warn{background:var(--warn-soft)}.rc-box.warn b{color:var(--warn)}
+.rc-ack{align-items:flex-start;font-size:13px;line-height:1.45}
+.rc-meta{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 8px;font-size:12px;margin-top:auto}.rc-meta>.muted{white-space:nowrap}.rc-meta>.rc-pill{margin-left:auto}
+.rc-only.on .num{color:var(--ok)}
+.pill.rc-brand{gap:5px;padding-left:6px}.pill.rc-brand::before{display:none}
+.rc-reps{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px;margin-top:4px}
+.rc-rep{display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);text-decoration:none}
+.rc-rep:hover{border-color:var(--brand)}.rc-rep b{display:block;font-size:13px}.rc-rep small{display:block;color:var(--muted);font-size:12px}
+.rc-rep.forum>.ico{color:var(--brand)}.rc-rep.gh>.ico{color:var(--ok)}.rc-rep .rc-ext{color:var(--muted)}
+.rc-reps.sm{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:6px}.rc-reps.sm .rc-rep{padding:5px 10px}
+.rc-replbl{margin:6px 0 0 !important;font-weight:600}
+.rc-box .rc-rep b{color:var(--ink)}

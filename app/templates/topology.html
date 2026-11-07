@@ -124,6 +124,7 @@
   <span class="grow"></span><div class="input" style="max-width:280px"><select id="tnet" aria-label="{{ _('Red') }}"><option value="-1">{{ _('Todas las redes') }}</option></select></div>
   <div class="input" style="max-width:260px"><input type="search" id="tq" placeholder="{{ _('Buscar en el mapa') }}" aria-label="{{ _('Buscar en el mapa') }}"></div>
   <label class="ck" title="{{ _('Nuevos y perdidos de las últimas 24 h') }}"><input type="checkbox" id="tnb" checked> {{ _('Resaltar cambios de vecinos') }}</label>
+  {% if nb_feed %}<button type="button" class="chip" id="tnbf" hidden>{{ icon('bell', 's') }}{{ _f('Cambios de vecinos · {0}', nb_feed|length) }}</button>{% endif %}
   <button type="button" class="btn s ghost" id="treset">{{ icon('refresh', 's') }}{{ _('Reordenar') }}</button></section>
 <div class="topo-wrap" id="topo"><svg id="tsvg" tabindex="0" role="img" aria-label="{{ _f('Mapa de la red: {0} equipos y {1} enlaces', nodes|length, links|length) }}"><g id="tview"></g></svg>
   <div class="topo-ctl"><button type="button" data-z="1.3" title="{{ _('Acercar') }}" aria-label="{{ _('Acercar') }}">+</button>
@@ -555,6 +556,18 @@
   // panel lateral «Cambios de vecinos · últimas 24 h»: se ve mientras no hay un equipo elegido
   const nbBox = document.getElementById('tnb');
   const nbOn = () => !nbBox || nbBox.checked;
+  const fsig = f => f.id + ':' + f.kind;
+  let SEEN = new Set();
+  try { SEEN = new Set(JSON.parse(localStorage.getItem('oc-nbfeed-seen') || '[]')); } catch (e) {}
+  const unseen = () => FEED.some(f => !SEEN.has(fsig(f)));
+  function markSeen() {
+    FEED.forEach(f => SEEN.add(fsig(f)));
+    try { localStorage.setItem('oc-nbfeed-seen', JSON.stringify([...SEEN].slice(-800))); } catch (e) {}
+    paintFeedBtn();
+  }
+  const feedBtn = document.getElementById('tnbf');
+  function paintFeedBtn() { if (feedBtn) { feedBtn.hidden = !FEED.length || !nbOn(); feedBtn.classList.toggle('on', unseen()); } }
+  function feedAuto() { if (FEED.length && nbOn() && unseen()) feed(); else if (!cur) panel(false); paintFeedBtn(); }
   function feed() {
     if (!FEED.length || !nbOn()) { panel(false); return; }
     const K = {new: ['warn', NL.k_new], lost: ['crit', NL.k_lost], back: ['ok', NL.k_back]};
@@ -562,17 +575,18 @@
       + '<ul class="nb-feed">' + FEED.map(f => `<li><a href="/neighbors/${f.id}"><span class="pill ${K[f.kind][0]}">${esc(K[f.kind][1])}</span>`
       + `<span class="grow" style="min-width:0"><b>${esc(f.name)}</b><div class="t">${esc(NL.at.replace('{0}', f.dev_name).replace('{1}', f.romon ? 'RoMON' : f.port).replace('{2}', f.proto))}`
       + `${f.dur ? ' · ' + esc(NL.after.replace('{0}', f.dur)) : ''}</div></span><span class="t">${esc(f.ago)}</span></a></li>`).join('') + '</ul>';
-    sideIn.querySelector('[data-x]').addEventListener('click', () => { FEED.length = 0; panel(false); });
+    sideIn.querySelector('[data-x]').addEventListener('click', () => { markSeen(); panel(false); });
     panel(true);
   }
+  if (feedBtn) feedBtn.addEventListener('click', () => { if (cur) unselect(); feed(); });
   if (nbBox) {
     try { if (localStorage.getItem('oc-topo-nb') === '0') nbBox.checked = false; } catch (e) {}
-    const applyNb = () => { wrap.classList.toggle('nb-off', !nbBox.checked); if (!cur) feed(); };
+    const applyNb = () => { wrap.classList.toggle('nb-off', !nbBox.checked); if (!cur) feedAuto(); };
     nbBox.addEventListener('change', () => { try { localStorage.setItem('oc-topo-nb', nbBox.checked ? '1' : '0'); } catch (e) {} applyNb(); });
     applyNb();
   }
   function unselect() {
-    cur = null; panel(false); clearImp(); if (FEED.length && nbOn()) feed();
+    cur = null; panel(false); clearImp(); feedAuto();
     edgeEls.forEach(x => { x.line.classList.remove('hl'); x.g.classList.remove('on'); x.on = false; x.own = ''; });
     NODES.forEach(m => nodeEls[m.id].classList.remove('sel'));
     place(); ports();
@@ -779,7 +793,7 @@
   draw(); paintMenu(); applyLayout(false);
   if (PREF.fit !== false) fit();
   else { const c = NODES.find(n => n.id === (LAY && LAY.center)) || NODES[0]; tf = {k: 1, x: W / 2 - c.x, y: H / 2 - c.y}; apply(); }
-  if (FEED.length && nbOn()) feed();
+  feedAuto();
   const focus = new URLSearchParams(location.search).get('focus');  // «Ver en el mapa» desde una alarma de vecinos
   if (focus) { const f = focus.toLowerCase(), n = NODES.find(m => (m.label || '').toLowerCase() === f) || NODES.find(m => (m.label || '').toLowerCase().includes(f));
     if (n) { select(n); if (typeof reveal === 'function') reveal(n); } }

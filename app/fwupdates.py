@@ -312,9 +312,28 @@ EDGEROUTER = [(r"infinity|8-?xg", "e1000"), (r"edgerouter (4|6p|12)|\ber-?(4|6p|
               (r"edgerouter (8|pro)|\ber-?8\b|erpro|ep-?r8", "e200")]
 
 
-def ubnt_product(prof_key: str, model: str) -> tuple[str, str] | None:
-    """(product, platform) del catálogo de Ubiquiti para el modelo del equipo, o None si no se reconoce."""
+USG = [(r"xg", "UGWXG"), (r"gateway-?4|usg-?pro-?4|\bpro\b", "UGW4"), (r"gateway-?3|\busg\b|gateway", "UGW3")]
+
+
+def ubnt_product(prof_key: str, model: str, raw: str = "") -> tuple[str, str] | None:
+    """(product, platform) del catálogo de Ubiquiti para el modelo del equipo, o None si no se reconoce. «raw» es lo
+    que devolvió el inventario del último respaldo (/etc/version, /etc/board.info, «show version»)."""
     m = (model or "").lower()
+    if prof_key in ("ubiquiti_airos", "ubiquiti_airfiber"):  # «XW.v6.3.11», «WA.v8.7.11», «AF5X.v4.1.0» → XW, WA, AF5X
+        g = re.search(r"(?m)^([A-Za-z0-9-]+)\.v\d", raw or "")
+        return (g.group(1), "") if g else None
+    if prof_key == "ubiquiti_unifi_ap":  # /etc/board.info: «board.shortname=U7PG2»
+        g = re.search(r"(?m)^board\.shortname=(\S+)", raw or "")
+        return ("unifi-firmware", g.group(1)) if g else None
+    if prof_key == "ubiquiti_usg":
+        for rx, plat in USG:
+            if re.search(rx, m):
+                return "unifi-firmware", plat
+        return None
+    if prof_key == "ubiquiti_edgeswitch" and (re.search(r"\bes-?\d+-?xp\b", m) or re.search(r"\bes-?\d+x\b", m)
+                                               or "Loader Version" in (raw or "")):
+        # EdgeSwitch X / XP (chip Realtek, firmware 1.x/2.x propio): «esx» y «esxp» en el catálogo
+        return ("esxp" if re.search(r"\bes-?\d+-?xp\b", m) else "esx"), "edgeswitch"
     if prof_key == "ubiquiti_edgeswitch":
         # con PoE («150W», «250W»…) la línea ESWH; sin PoE / Lite / XG la ESGH
         return ("eswh" if re.search(r"\d+\s*w\b", m) else "esgh"), "edgeswitch"
@@ -330,14 +349,17 @@ def ubnt_product(prof_key: str, model: str) -> tuple[str, str] | None:
     return None
 
 
-def _ubiquiti(dev, prof) -> dict | None:
-    pp = ubnt_product(prof.key, dev.model or "")
+def _ubiquiti(dev, prof, raw: str = "") -> dict | None:
+    pp = ubnt_product(prof.key, dev.model or "", raw)
     if not pp:
         return None
     product, plat = pp
     cat = _ubnt_catalog()
-    if prof.key == "ubiquiti_unifiswitch":
-        items = [f for f in cat if f["product"] == product and (f["platform"] or "").upper() == plat]
+    if prof.key in ("ubiquiti_unifiswitch", "ubiquiti_unifi_ap", "ubiquiti_usg"):
+        items = [f for f in cat if f["product"] == product and (f["platform"] or "").upper() == plat.upper()]
+    elif prof.key in ("ubiquiti_airos", "ubiquiti_airfiber"):
+        # sin las compilaciones «-cs» (personalizadas para un cliente), que no son para todos
+        items = [f for f in cat if (f["product"] or "").lower() == product.lower() and not f["version"].endswith("-cs")]
     else:
         lite = "lite" in (dev.model or "").lower()
         items = [f for f in cat if f["product"] == product and f["platform"] == plat
@@ -415,7 +437,7 @@ def check_device(dev, raw: str = "") -> dict:
     if prof.key.startswith("mikrotik"):
         found = _mikrotik(dev, prof, raw)
     elif prof.key.startswith("ubiquiti_"):
-        found = _ubiquiti(dev, prof)
+        found = _ubiquiti(dev, prof, raw)
     elif prof.key == "ubuntu_server":
         found = _distro(dev)
     if found is None and prof.cpe:
