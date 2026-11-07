@@ -7,6 +7,8 @@
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); };
   // logo de marca de un equipo (app/vendorlogos.py): clave «extreme», «mikrotik»… del sprite static/vendor-logos.svg
+  // ícono del sprite de la app (static/icons.svg)
+  function ccIcon(n) { return '<svg class="ico s" aria-hidden="true"><use href="/static/icons.svg#i-' + n + '"/></svg>'; }
   var vlogo = function (k, px) {
     return '<svg class="vlg" width="' + px + '" height="' + px + '" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="'
       + esc(((window.OC && OC.vl) || '/static/vendor-logos.svg') + '#vl-' + (k || 'other')) + '"/></svg>';
@@ -232,7 +234,8 @@
     var rs = D.recipes.filter(function (r) { return (!cat || r.cat === cat) && (!v || r.vendor === v) && (!q || (r.name + ' ' + r.intro + ' ' + r.vendor).toLowerCase().indexOf(q) >= 0); });
     $('rc-grid').innerHTML = rs.map(function (r) {
       return '<button type="button" class="card cc-rc" data-r="' + esc(r.key) + '"><div class="row sm"><span class="pill sm">' + esc(r.vendor) + '</span><span class="muted">' + esc(D.cats[r.cat] || '') + '</span><span class="grow"></span><span class="muted">' + esc(scopeL(r)) + '</span></div>' +
-        '<b>' + esc(r.name) + '</b><span class="muted sm">' + esc(T.steps.replace('{0}', r.steps.length)) + ' · ' + esc(T.uses.replace('{0}', r.uses)) + ' · ' + esc(r.by) + '</span></button>';
+        '<b>' + esc(r.name) + '</b><span class="muted sm">' + esc(T.steps.replace('{0}', r.steps.length)) + ' · ' + esc(T.uses.replace('{0}', r.uses)) + ' · ' + esc(r.by) + '</span>' +
+        (r.verified ? '<span class="rc-ver" title="' + esc(T.verified_in.replace('{0}', r.verified)) + '">' + ccIcon('check') + esc(T.verified_in.replace('{0}', r.verified)) + '</span>' : '') + '</button>';
     }).join('') || '<p class="muted">' + esc(T.none) + '</p>';
   }
   var cur = null;
@@ -249,6 +252,8 @@
     var el = $('rc-detail'); el.hidden = false;
     el.innerHTML = '<div class="row"><div class="grow"><div class="row sm"><span class="pill sm">' + esc(r.vendor) + '</span><span class="muted">' + esc(r.os_label || '') + ' · ' + esc(D.cats[r.cat] || '') + ' · ' + esc(scopeL(r)) + '</span></div><h2 style="margin:6px 0 0">' + esc(r.name) + '</h2></div><button type="button" class="btn s ghost" id="rc-x">✕</button></div>' +
       '<p class="muted">' + esc(r.intro) + (r.doc ? ' <a href="' + esc(r.doc) + '" target="_blank" rel="noopener">' + esc(T.doc) + '</a>' : '') + '</p>' +
+      (r.verified ? '<p class="rc-ver">' + ccIcon('check') + esc(T.verified_in.replace('{0}', r.verified)) + '</p>' : '') +
+      '<div class="banner warn rc-disclaimer">' + ccIcon('alert') + '<span class="grow">' + esc(T.disclaimer) + '</span></div>' +
       (r.vars.length ? '<div class="f3">' + r.vars.map(function (v) { return '<div class="field"><label>' + esc(v.l) + '</label><div class="input mono"><input data-var="' + esc(v.n) + '" value="' + esc(v.v) + '"></div></div>'; }).join('') + '</div>' : '') +
       '<ol class="cc-steps" id="rc-steps"></ol>' +
       '<div class="row"><button type="button" class="btn pri" id="rc-run"></button><button type="button" class="btn" id="rc-multi">' + esc(T.multi) + '</button><span class="grow"></span>' +

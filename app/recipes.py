@@ -109,8 +109,21 @@ from .recipes_ubnt_zte import UBNT_ZTE  # noqa: E402  (Ubiquiti y ZTE)
 
 from .recipes_major import MAJOR  # noqa: E402  (Huawei, Comware, OLT Huawei, Junos, NX-OS, EOS, Linux)
 
-BUILTIN += MORE + UBNT_ZTE + MAJOR
+from .recipes_fw import FW  # noqa: E402  (FortiGate, PAN-OS, ASA, FTD, IOS-XR, ProCurve, AOS-CX)
+
+BUILTIN += MORE + UBNT_ZTE + MAJOR + FW
 BY_KEY = {r["key"]: r for r in BUILTIN}
+
+# Recetas probadas enteras en un equipo, con la versión del sistema en la que se probaron (la consola muestra
+# «Verificada en …»). Solo se agrega una receta cuando todos sus pasos se ejecutaron sin error en esa versión.
+VERIFIED = {
+    # Extreme VOSS / Fabric Engine 9.3.0.0 (5520-24T), laboratorio del 2026-11-06
+    "voss-sysname": "Fabric Engine 9.3.0.0", "voss-ssh": "Fabric Engine 9.3.0.0", "voss-password": "Fabric Engine 9.3.0.0",
+    "voss-banner": "Fabric Engine 9.3.0.0", "voss-route": "Fabric Engine 9.3.0.0", "voss-save": "Fabric Engine 9.3.0.0",
+    "voss-diag": "Fabric Engine 9.3.0.0",
+}
+for _k, _v in VERIFIED.items():
+    BY_KEY[_k]["verified"] = _v
 
 
 def fill(recipe: dict, values: dict) -> list[dict]:

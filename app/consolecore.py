@@ -14,7 +14,9 @@ from .i18n import N_
 OS_LABEL = {"ros": "RouterOS", "ios": "Cisco IOS", "nxos": "NX-OS", "eos": "Arista EOS", "vrp": "Huawei VRP",
             "junos": "Junos", "exos": "EXOS", "voss": "VOSS / Fabric Engine", "fastpath": "EdgeSwitch", "linux": "Linux",
             "edgeos": "EdgeOS / VyOS", "airos": "airOS / UniFi AP", "zxros": "ZTE ZXR10", "zteolt": "ZTE OLT",
-            "comware": "H3C / HPE Comware", "huaweiolt": "Huawei OLT", "generic": ""}
+            "comware": "H3C / HPE Comware", "huaweiolt": "Huawei OLT", "fortios": "FortiOS", "panos": "PAN-OS",
+            "asa": "Cisco ASA", "ftd": "Cisco FTD", "iosxr": "IOS-XR", "procurve": "ProCurve / Aruba OS-Switch",
+            "aoscx": "Aruba AOS-CX", "generic": ""}
 
 
 def os_of(device_type: str) -> str:
@@ -50,6 +52,10 @@ def os_of(device_type: str) -> str:
         return "zxros"
     if t in ("zte_olt", "zte_olt_titan"):
         return "zteolt"
+    fam = {"fortinet": "fortios", "paloalto_panos": "panos", "cisco_asa": "asa", "cisco_ftd": "ftd", "cisco_xr": "iosxr",
+           "hp_procurve": "procurve", "aruba_osswitch": "procurve", "aruba_aoscx": "aoscx"}.get(t)
+    if fam:
+        return fam
     if t in ("linux", "ubuntu_server", "alpine_linux", "cumulus_linux", "opengear_linux"):
         return "linux"
     return "generic"
