@@ -59,6 +59,21 @@ def _connect_retry(handler, params: dict, tries: int = 3):
             time.sleep(3 * (n + 1))
 
 
+def _release_db(dev) -> None:
+    """Antes de hablar con el equipo (segundos o minutos) se devuelve al grupo la conexión a la base que tenía tomada
+    la sesión del equipo, si no tiene nada sin guardar; la vuelve a pedir sola cuando haga falta. Antes cada respaldo
+    la retenía todo el tiempo del SSH: con 16 a la vez se agotaban las 15 de SQLite y los demás fallaban a los 30 s
+    con «QueuePool limit of size 5 overflow 10 reached» (un falso error de SSH en equipos que estaban bien) y las
+    páginas se quedaban esperando una conexión (pantalla en negro durante «Respaldar todos»)."""
+    from sqlalchemy.orm import object_session
+    s = object_session(dev)
+    if s is not None and not (s.new or s.dirty or s.deleted) and s.in_transaction():
+        try:
+            s.commit()
+        except Exception as e:  # noqa: BLE001 - nunca impide conectar
+            log.info("No se pudo soltar la conexión a la base antes del SSH: %s", e)
+
+
 def connect(dev: Device):
     from netmiko import ConnectHandler
 
@@ -80,6 +95,7 @@ def connect(dev: Device):
     params = dict(device_type=device_type, host=dev.host, port=dev.port, username=cred.username,
                   password=password, conn_timeout=20, timeout=60, auth_timeout=30, banner_timeout=30,
                   fast_cli=False)
+    _release_db(dev)
     try:
         conn = _connect_retry(ConnectHandler, dict(secret=secret, **params))
     except ValueError as e:
@@ -350,13 +366,77 @@ def backup_device(device_id: int, trigger="manual", username: str | None = None)
             end_maintenance(device_id)  # no dejar la ventana de mantenimiento abierta
         return "busy"
     try:
-        result = _backup_device(device_id, trigger, username)
+        result = _backup_device(device_id, trigger, username, report=False)
+        if result == "error":
+            result = _check_and_retry(device_id, trigger, username)
         log.info("Respaldo del equipo %s [%s]: %s", device_id, trigger, result)
         return result
     finally:
         if trigger == "push":
             end_maintenance(device_id)
         lock.release()
+
+
+# Respaldo fallido: antes de dar la alarma se comprueba qué pasó y, si tiene arreglo, se reintenta solo.
+#   «interno»: la falla fue de OpenNCCM (base ocupada, sin conexiones libres): se reintenta.
+#   «red»: el equipo tardó o cortó la sesión (tiempo agotado, «No existing session», prompt que no llegó): si su puerto
+#          SSH responde se reintenta; si no responde, es que está caído o inalcanzable y no tiene sentido.
+#   El resto (contraseña rechazada, clave SSH cambiada, sin credencial, comando no reconocido) necesita a una persona.
+RETRY_INTERNAL = re.compile(r"(?i)QueuePool limit|database is locked|OperationalError|disk I/O error|"
+                            r"El equipo está ocupado")
+RETRY_NETWORK = re.compile(r"(?i)timed? ?out|timeout|No existing session|Error reading SSH protocol banner|"
+                           r"Connection reset|forzado la interrupci|EOFError|Socket is closed|Pattern not detected|"
+                           r"incompleta|vacía o inválida|SSH session not active")
+RETRY_WAITS = (8, 25)  # segundos antes del 2.º y del 3.er intento
+
+
+def _port_open(host: str, port: int, timeout: float = 6) -> bool:
+    import socket
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def _check_and_retry(device_id: int, trigger: str, username: str | None) -> str:
+    """Comprobación después de un respaldo fallido: por qué falló y, si se puede, otro intento. Antes de esto un equipo
+    en línea quedaba con error (p. ej. «QueuePool limit … reached») hasta que alguien le daba a «Respaldar» a mano."""
+    with SessionLocal() as db:
+        dev = db.get(Device, device_id)
+        if dev is None:
+            return "missing"
+        name, host, port, err, dtype = dev.name, dev.host, dev.port or 22, dev.last_error or "", dev.device_type
+    kind = "interno" if RETRY_INTERNAL.search(err) else "red" if RETRY_NETWORK.search(err) else None
+    first = err.strip().splitlines()[0][:200] if err.strip() else "sin detalle"
+    steps = [f"1.er intento: {first}"]
+    result = "error"
+    if kind == "red" and get_profile(dtype).key not in HTTP_ONLY and not _port_open(host, port):
+        steps.append(f"Comprobación: el equipo no responde en {host}:{port}; no se reintenta.")
+        kind = None
+    if kind:
+        steps.append("Comprobación: la falla fue de OpenNCCM (base de datos ocupada); se reintenta." if kind == "interno"
+                     else f"Comprobación: el puerto {port} responde; se reintenta.")
+        for n, wait in enumerate(RETRY_WAITS, start=2):
+            time.sleep(wait)
+            result = _backup_device(device_id, trigger, username, report=n == len(RETRY_WAITS) + 1)
+            if result != "error":
+                steps.append(f"{n}.º intento: correcto.")
+                break
+            with SessionLocal() as db:
+                again = (db.get(Device, device_id).last_error or "").strip().splitlines()[:1]
+            steps.append(f"{n}.º intento: " + (again[0][:200] if again else "sin detalle"))
+    with SessionLocal() as db:
+        dev = db.get(Device, device_id)
+        if result == "error":
+            dev.last_error = ((dev.last_error or "") + "\n\n" + "\n".join(steps))[:2000]
+            db.commit()
+            if not kind:  # sin reintentos: la alarma de siempre, con lo que se comprobó
+                add_event("major", "Respaldo fallido", f"{name} ({host}): {err}\n" + "\n".join(steps[1:]), device_id)
+        else:
+            add_event("info", "Respaldo reintentado", f"{name}: falló al primer intento y se reintentó solo." + "\n"
+                      + "\n".join(steps), device_id)
+    return result
 
 
 def mikrotik_backup_file(device_id: int, password: str = "") -> tuple[str, bytes]:
@@ -604,7 +684,7 @@ def _take_write_lock(db, device_id: int) -> None:
     db.execute(sql_text("UPDATE devices SET id = id WHERE id = :i"), {"i": device_id})
 
 
-def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
+def _backup_device(device_id: int, trigger: str, username: str | None, report: bool = True) -> str:
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
         if dev is None:
@@ -642,14 +722,16 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
         except Exception as e:  # noqa: BLE001
             dev.last_status, dev.last_error = "error", (str(e) or repr(e))[:2000]
             db.commit()
-            add_event("major", "Respaldo fallido", f"{dev.name} ({dev.host}): {e}", dev.id)
+            if report:
+                add_event("major", "Respaldo fallido", f"{dev.name} ({dev.host}): {e}", dev.id)
             return "error"
 
         running = clean_config(running, prof)
         if len(running.strip()) < 10 or device_error(running):
             dev.last_status, dev.last_error = "error", "Salida de configuración vacía o inválida"
             db.commit()
-            add_event("major", "Respaldo fallido", f"{dev.name}: salida inválida:\n{running[:300]}", dev.id)
+            if report:
+                add_event("major", "Respaldo fallido", f"{dev.name}: salida inválida:\n{running[:300]}", dev.id)
             return "error"
         # salida cortada: paginación activa («--More--»), configuración estilo FastPath sin el «exit» final o
         # plataformas que siempre terminan en «end» y esta vez no
@@ -661,7 +743,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
             dev.last_status = "error"
             dev.last_error = "La configuración llegó incompleta (cortada o paginada); no se guardó esta versión"
             db.commit()
-            add_event("major", "Respaldo fallido", f"{dev.name}: configuración incompleta, no se guardó:\n"
+            report and add_event("major", "Respaldo fallido", f"{dev.name}: configuración incompleta, no se guardó:\n"
                       f"{running[-300:]}", dev.id)
             return "error"
 
