@@ -38,7 +38,7 @@ BUILTIN = [
         ],
     },
     {
-        "key": "ros-services", "vendor": "MikroTik", "os": "ros", "os_label": "RouterOS 7", "cat": "seguridad",
+        "key": "ros-services", "vendor": "MikroTik", "os": "ros", "os_label": "RouterOS", "cat": "seguridad",
         "name": N_("Limitar SSH y Winbox a la red de gestión y apagar Telnet y FTP (RouterOS)"),
         "intro": N_("Los servicios de administración de RouterOS aceptan conexiones desde cualquier dirección. Esta receta los limita a la red de gestión y apaga los que mandan la contraseña sin cifrar."),
         "doc": "https://manual.mikrotik.com/docs/7.25/system-information-and-utilities/services/",
@@ -46,9 +46,9 @@ BUILTIN = [
         "steps": [
             {"t": N_("Ver los servicios y desde dónde se aceptan."), "c": "/ip service print"},
             {"t": N_("Incluya la dirección desde la que administra el equipo: las conexiones nuevas desde fuera de la lista se rechazan, también la suya si queda fuera."),
-             "c": "/ip service set ssh,winbox available-from={{red}}", "warn": True},
+             "c": "/ip service set ssh,winbox address={{red}}", "warn": True},
             {"t": N_("Apagar Telnet y FTP, que mandan la contraseña sin cifrar."), "c": "/ip service disable telnet,ftp"},
-            {"t": N_("Comprobar: Telnet y FTP con la marca X (deshabilitados) y SSH y Winbox con la red de gestión."),
+            {"t": N_("Comprobar: Telnet y FTP con la marca X (deshabilitados) y SSH y Winbox con la red de gestión (en RouterOS 7 se muestra como «available-from»)."),
              "c": "/ip service print", "check": True},
         ],
     },
@@ -127,6 +127,25 @@ VERIFIED = {
     # Extreme VOSS / Fabric Engine 9.3.0.0 (5520-24T), 2026-11-06
     "voss-sysname": "VOSS 9.3.0.0", "voss-ssh": "VOSS 9.3.0.0", "voss-password": "VOSS 9.3.0.0", "voss-banner": "VOSS 9.3.0.0",
     "voss-route": "VOSS 9.3.0.0", "voss-save": "VOSS 9.3.0.0", "voss-diag": "VOSS 9.3.0.0",
+    # MikroTik RouterOS 6.49.23 y 7.24.5 (CHR en GNS3), 3 rondas seguidas sin fallos, 2026-11-07
+    "ros-dns": "RouterOS 6.49.23 / 7.24.5",
+    "ros-flap": "RouterOS 6.49.23 / 7.24.5",
+    "ros-https": "RouterOS 6.49.23 / 7.24.5",
+    "ros-identity": "RouterOS 6.49.23 / 7.24.5",
+    "ros-ntp": "RouterOS 7.24.5",
+    "ros-password": "RouterOS 6.49.23 / 7.24.5",
+    "ros-radius": "RouterOS 6.49.23 / 7.24.5",
+    "ros-services": "RouterOS 6.49.23 / 7.24.5",
+    "ros-snmp": "RouterOS 6.49.23 / 7.24.5",
+    "ros-syslog": "RouterOS 6.49.23 / 7.24.5",
+    "ros-user": "RouterOS 6.49.23 / 7.24.5",
+    "ros-vlan": "RouterOS 6.49.23 / 7.24.5",
+    "ros6-ntp": "RouterOS 6.49.23",
+    # Extreme EXOS 33.6.1.14 (EXOS-VM en GNS3), 3 rondas seguidas, 2026-11-07
+    "exos-ssh": "EXOS 33.6.1.14", "exos-sysname": "EXOS 33.6.1.14", "exos-user": "EXOS 33.6.1.14",
+    "exos-password": "EXOS 33.6.1.14", "exos-https": "EXOS 33.6.1.14", "exos-snmp": "EXOS 33.6.1.14",
+    "exos-syslog": "EXOS 33.6.1.14", "exos-radius": "EXOS 33.6.1.14", "exos-sntp": "EXOS 33.6.1.14",
+    "exos-vlan": "EXOS 33.6.1.14", "exos-vlan-ip": "EXOS 33.6.1.14", "exos-ports": "EXOS 33.6.1.14",
 }
 
 

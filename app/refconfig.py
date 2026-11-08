@@ -120,6 +120,16 @@ def _indent_exit_blocks(raw: list[str]) -> list[str]:
     return out
 
 
+def _exos_section(s: str) -> str:
+    w = s.lower().split()
+    obj = w[1] if len(w) > 1 else ""
+    if w[0] in ("enable", "disable") and len(w) > 1:
+        obj = "vlan" if "vlan" in w[2:] else w[1]
+    return {"vlan": "VLAN", "account": _("Usuarios"), "iproute": _("Enrutamiento"), "ports": _("Interfaces"),
+            "snmp": "SNMP", "snmpv3": "SNMP", "snmpv2c": "SNMP", "sntp-client": "NTP", "syslog": "Logging", "log": "Logging",
+            "ssh2": "SSH", "web": _("Servicios"), "radius": "AAA", "dns-client": "DNS"}.get(obj, _section(obj))
+
+
 def lines_of(text: str, device_type: str, hosts: list[str]) -> list[tuple[str, str]]:
     """(sección, línea normalizada) de una configuración, sin lo que no se compara. Las líneas de un bloque llevan su
     cabecera delante («interface Gi1/0/1 ⟩ switchport mode access»)."""
@@ -151,6 +161,10 @@ def lines_of(text: str, device_type: str, hosts: list[str]) -> list[tuple[str, s
             s = re.sub(r'\s*comment=("[^"]*"|\S+)', "", s)
             if not s:
                 continue
+            if re.match(r"add\b", s) and re.search(r'\bname="?default"?(\s|$)', s):
+                # lo crea RouterOS solo («/system keymat-provider add … name=default» en 7.24): no es una diferencia
+                # de configuración y volver a crearlo falla («QKD KME address is empty»)
+                continue
             words = path.split()
             sec = _section(words[1] if len(words) > 1 and words[0] in ("/ip", "/ipv6", "/system", "/interface") and words[0] != "/interface"
                            else words[0] if words else "", " ".join(words[1:]))
@@ -159,6 +173,19 @@ def lines_of(text: str, device_type: str, hosts: list[str]) -> list[tuple[str, s
             if words and words[0] in ("/ip", "/ipv6"):
                 sec = _section("ip", " ".join(words[1:]))
             out.append((sec, _mask(f"{path} {s}", hosts)))
+        return out
+    if device_type.startswith("extreme_exos"):
+        # EXOS: órdenes planas. No se comparan las propias de cada switch: el nombre, el engine-id de SNMPv3 y las
+        # contraseñas cifradas (cada switch las cifra con su propia sal; copiarlas cambiaba la contraseña de admin)
+        for ln in raw:
+            s = ln.strip()
+            if not s or s.startswith("#"):
+                continue
+            if re.match(r"(?i)^configure (snmp sysName|snmpv3 engine-id) ", s):
+                continue
+            if re.match(r'(?i)^(create|configure) account (\S+ )?\S+ encrypted ', s):
+                s = re.sub(r'encrypted\s+("[^"]*"|\S+)', "encrypted ***", s)
+            out.append((_exos_section(s), _mask(s, hosts)))
         return out
     if any(ln.startswith("set ") for ln in raw[:80]):  # Junos, VyOS y similares: «set …» por línea
         for ln in raw:
@@ -266,6 +293,18 @@ def commands(device_type: str, c: dict) -> tuple[str, int]:
             lines.append(k)
         skipped += len(c["extra"])
         return "\n".join(lines), skipped
+    if device_type.startswith("extreme_exos"):
+        # EXOS no tiene «no …»: lo que sobra se deshace con su orden contraria («delete vlan», «unconfigure…»), en el
+        # orden que EXOS necesita. Se usa el mismo cálculo que «Volver a esta versión».
+        from .rollback_vendor import exos
+        bad = lambda k: "***" in k or "{IP}" in k  # noqa: E731
+        cur = [k for _s, k in c["dev_lines"] if not bad(k)]
+        # destino: lo de la referencia, salvo lo que se decidió no comparar, que se queda como está en el equipo
+        tgt = [k for _s, k in c["ref_lines"] if not bad(k) and k not in c["skip"]]
+        tgt += [k for _s, k in c["dev_lines"] if not bad(k) and k in c["skip"] and k not in tgt]
+        skipped += sum(bad(k) for _s, k in c["missing"] + c["extra"])
+        cmds, notes = exos("\n".join(cur), "\n".join(tgt))
+        return "\n".join(cmds), skipped + len(notes)
     if os_key == "junos" or any(k.startswith("set ") for _s, k in c["missing"] + c["extra"]):
         for _s, k in c["missing"]:
             if "***" in k or "{IP}" in k:

@@ -141,7 +141,19 @@ c2, n2 = routeros(ROS_CUR.replace("address=10.0.0.2/24 interface=ether1", "addre
                   ROS_TGT, mgmt="10.0.0.2")
 check("RouterOS: no toca la dirección de gestión de OpenNCCM (y lo avisa)",
       not any("10.0.0.2" in c for c in c2) and any("gestiona" in n for n in n2), (c2, n2))
+K = "/system identity set name=R7-A\n/system keymat-provider add disabled=yes key-size=0 name=default qkd-certificate=*0 type=qkd\n"
+c5, n5 = routeros("/system identity set name=R7-B\n", K)
+check("RouterOS 7: no intenta crear lo que RouterOS crea solo (keymat-provider default)",
+      c5 == ["/system identity set name=R7-A"] and any("keymat" in n for n in n5), (c5, n5))
 check("RouterOS: sin cambios, sin comandos", routeros(ROS_TGT, ROS_TGT) == ([], []))
+# RouterOS 7.24.5 (laboratorio GNS3): el «/export terse» partió el servidor DHCP en dos líneas; antes no se restauraba
+SPLIT = "/ip pool add name=pool-datos ranges=192.168.10.100-192.168.10.200\n/ip dhcp-server\nadd address-pool=pool-datos interface=DATOS name=dhcp-datos\n" \
+        "/ip dhcp-server network add address=192.168.10.0/24 gateway=192.168.10.1\n"
+c3, _n3 = routeros("/ip dhcp-client add interface=ether1 name=client1\n", SPLIT)
+check("RouterOS: un elemento partido en dos líneas («/ip dhcp-server» + «add …») también se restaura",
+      "/ip dhcp-server add address-pool=pool-datos interface=DATOS name=dhcp-datos" in c3, c3)
+c4, _n4 = routeros(SPLIT, "/ip dhcp-client add interface=ether1 name=client1\n")
+check("RouterOS: y también se quita al volver a una versión sin él", any(c.startswith("/ip dhcp-server remove") for c in c4), c4)
 c5, n5 = routeros(ROS_TGT + "/system keymat-provider add name=default" + chr(10), ROS_TGT)
 check("RouterOS: no borra lo que RouterOS crea por sí mismo (name=default), lo avisa", c5 == [] and n5, (c5, n5))
 # RouterOS 7.25 con terminal estrecho parte las líneas largas de /export con «\» y sangría en la siguiente
@@ -162,6 +174,29 @@ c3, _n = exos(EXOS_TGT + "configure iproute add 10.50.0.0/16 10.99.0.254\n", EXO
 check("EXOS: rutas añadidas se borran", c3 == ["configure iproute delete 10.50.0.0/16 10.99.0.254"], c3)
 c4, n4 = exos(EXOS_TGT + "configure stpd s0 mode dot1w\n", EXOS_TGT)
 check("EXOS: lo que no sabe deshacer lo avisa en vez de inventar un comando", c4 == [] and n4, (c4, n4))
+# EXOS 33.6 (salida real en GNS3): con VLAN propias, «show configuration» describe el punto de partida con
+# «sys-recovery-level», «vlan default delete ports all» y «vr VR-Default delete ports»
+BLANK = 'configure snmp sysName "X-2"\nenable dhcp vlan Mgmt\n'
+BASE = ('configure snmp sysName "X-1"\nconfigure sys-recovery-level switch reset\nconfigure vlan default delete ports all\n'
+        'configure vr VR-Default delete ports 1-12\ncreate vlan "DATOS"\nconfigure vlan DATOS tag 10\n'
+        'configure vlan DATOS add ports 5-8 untagged\nconfigure vlan Default add ports 1-4 untagged\n'
+        'configure vlan VOZ add ports 9-10 untagged\nenable dhcp vlan Mgmt\n')
+c5, n5 = exos(BLANK, BASE)
+check("EXOS: no aplica las líneas del punto de partida (el EXOS-VM rechaza «sys-recovery-level»)",
+      not any(c.startswith(("configure sys-recovery-level", "configure vr ", "configure vlan default delete ports all")) for c in c5)
+      and len(n5) == 2, (c5, n5))
+check("EXOS: quita de Default solo los puertos que van a otra VLAN, antes de agregarlos",
+      "configure vlan Default delete ports 5-8,9-10" in c5
+      and c5.index("configure vlan Default delete ports 5-8,9-10") < c5.index("configure vlan DATOS add ports 5-8 untagged")
+      and not any("vlan Default add" in c for c in c5), c5)
+c7, _n7 = exos('create account user lectura encrypted "$5$aaa"\n', 'create account user lectura encrypted "$5$bbb"\n')
+check("EXOS: una cuenta que ya existe no se vuelve a crear: se le pone la contraseña de la copia",
+      c7 == ['configure account lectura encrypted "$5$bbb"'], c7)
+c6, _n6 = exos(BASE, BLANK)
+check("EXOS: al volver a la copia sin VLAN propias, devuelve todos los puertos a Default después de borrar las VLAN",
+      "configure vlan Default add ports all untagged" in c6
+      and c6.index("delete vlan \"DATOS\"") < c6.index("configure vlan Default add ports all untagged")
+      and not any(c.startswith("configure vlan Default delete") for c in c6), c6)
 
 # Extreme VOSS / Fabric Engine
 cmds, notes = voss(VOSS_CUR, VOSS_TGT, mgmt="10.99.0.6")

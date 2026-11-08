@@ -31,6 +31,7 @@
   const pv = document.getElementById('cpv'), cnt = document.getElementById('rcount'), empty = document.getElementById('cpv-empty');
   const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
   const verNum = s => { const m = String(s || '').match(/\d+(?:\.\d+)+/); return m ? m[0] : String(s || '').trim(); };
+  const sameVer = (dev, seal) => (String(seal || '').match(/\d+(?:\.\d+)+/g) || [String(seal || '').trim()]).includes(verNum(dev));
   function upd() {
     // la vista previa: cada variable con lo escrito (resaltado) o, si está vacía, su nombre en ámbar y no se puede enviar
     const vals = {}; f.querySelectorAll('[data-var]').forEach(x => { vals[x.dataset.var] = x.value.trim(); });
@@ -45,7 +46,7 @@
     empty.hidden = !missing;
     const at = document.querySelector('[data-ack-t]');
     if (at) at.textContent = T.ack.replace('{0}', n === 1 ? checked[0].dataset.name : T.ackn.replace('{0}', n));
-    document.getElementById('cver').innerHTML = D.verified ? checked.filter(c => c.dataset.ver && verNum(c.dataset.ver) !== verNum(D.verified)).map(c =>
+    document.getElementById('cver').innerHTML = D.verified ? checked.filter(c => c.dataset.ver && !sameVer(c.dataset.ver, D.verified)).map(c =>
       '<div class="banner warn"><svg class="ico" aria-hidden="true"><use href="/static/icons.svg#i-alert"/></svg><span class="grow">' +
       esc(T.diff).replace('{0}', '<b>' + esc(c.dataset.name) + '</b>').replace('{1}', esc(D.verified)).replace('{2}', esc(c.dataset.ver)) + '</span></div>').join('') : '';
     document.querySelectorAll('[data-go]').forEach(b => { if (missing || !n) b.setAttribute('data-blocked', ''); else b.removeAttribute('data-blocked');

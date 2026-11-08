@@ -63,6 +63,18 @@ VOSS = """4052 self       0c:39:e4:6b:00:84  Port-1/2           false    -
 4052 self       0c:1f:b6:ba:00:84  Port-cpp           false    -
 """
 check("VOSS: «Port-1/2» se guarda como 1/2 (igual que en LLDP) y la CPU no cuenta", parse_mac(VOSS) == [("0C39E46B0084", "4052", "1/2")], parse_mac(VOSS))
+# Extreme EXOS 33.6 (salida real en GNS3): el puerto de un switch suelto es solo un número
+EXOS = """MAC                                      VLAN Name( Tag)  Age  Flags          Port / Virtual Port List
+------------------------------------------------------------------------------------------------------
+0c:2c:84:eb:00:00                        Default(0001) 0014  d m            1
+0c:8d:b3:a6:00:00                        DATOS(0010) 0010  d m            1:5
+00:04:96:00:00:01                        Default(0001) 0000  s m p          2
+
+Flags : d - Dynamic, s - Static, p - Permanent, n - NetLogin, m - MAC, i - IP,
+Total: 3 Static: 1  Perm: 1  Dyn: 2  Dropped: 0  Locked: 0  Locked with Timeout: 0
+"""
+check("EXOS: tabla MAC con puertos «1» y «1:5», sin las permanentes", parse_mac(EXOS) == [
+    ("0C2C84EB0000", "1", "1"), ("0C8DB3A60000", "10", "1:5")], parse_mac(EXOS))
 
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)

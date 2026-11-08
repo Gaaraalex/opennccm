@@ -167,10 +167,10 @@ PROFILES: list[Profile] = [
             family=MERGE, save=False, version_re=[r"Version\s+(\S+)"]),
     # ---------------- Otros switches/routers ----------------
     Profile("mikrotik_routeros", "MikroTik RouterOS", "MikroTik", "/export terse", None,
-            inventory="/system resource print", family=MERGE, save=False, firmware={"method": "routeros"},
+            inventory="/system resource print\n/system routerboard print", family=MERGE, save=False, firmware={"method": "routeros"},
             ignore=[r"^# \w{3}/\d{2}/\d{4} \d", r"^# \d{4}-\d{2}-\d{2} \d", r"^# software id"],
             cpe="cpe:2.3:o:mikrotik:routeros",
-            version_re=[r"version: ([\d.]+)"], model_re=[r"board-name: (.+)"]),
+            version_re=[r"version: ([\d.]+)"], model_re=[r"board-name: (.+)"], serial_re=[r"serial-number: (\S+)"]),
     # SwitchOS no tiene SSH: el respaldo se descarga por HTTP (app/swos.py); el comando del perfil no se usa
     Profile("mikrotik_swos", "MikroTik SwitchOS (SwOS / SwOS Lite)", "MikroTik", "backup.swb (HTTP)", None,
             inventory=None, family=MERGE, save=False,
@@ -681,6 +681,13 @@ def model_cpes(profile: Profile, model: str | None) -> list[str]:
         if m:
             out.append(tpl.format(*(g.lower().replace(" ", "_") for g in m.groups())))
     return out
+
+
+def config_serial(config: str | None) -> str | None:
+    """Número de serie escrito en la cabecera de la configuración: el /export de un RouterBOARD empieza con
+    «# model = RB760iGS» y «# serial number = HN30BV2EWHP» (un CHR no tiene)."""
+    m = re.search(r"(?m)^# serial number = (\S+)", config or "")
+    return m.group(1) if m else None
 
 
 def parse_inventory(text: str, profile: Profile) -> dict:

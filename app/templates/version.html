@@ -9,7 +9,11 @@
 {% if small and v.kind == 'running' %}<div class="banner crit">{{ icon('alert') }}<span class="grow"><b>Esta versión parece incompleta.</b> Tiene muchas menos líneas que la actual ({{ v.size }} frente a {{ current.size }} bytes); puede que el respaldo se cortara. No conviene restaurarla.</span></div>{% endif %}
 <div class="row">{% if is_baseline %}<span class="tag sig" title="Línea base del equipo">línea base</span>{% endif %}{% if v.label %}<span class="tag info">{{ icon('tag', 's') }}{{ v.label }}</span>{% endif %}<span class="tag" title="SHA-256 {{ v.sha256 }}">{{ v.kind }}</span></div>
 {% if can_run %}<form class="row" method="post" action="/versions/{{ v.id }}/label"><label class="input grow" style="min-width:200px">{{ icon('tag', 's') }}<input name="label" value="{{ v.label or '' }}" placeholder="Etiqueta, p. ej. «antes de la migración»" aria-label="Etiqueta"></label><button class="btn">Etiquetar</button></form>{% endif %}
-<div class="cv">{% for l in lines %}<div><span class="n">{{ loop.index }}</span><span>{{ l }}</span></div>{% endfor %}</div>
+<div class="row cvf-bar" role="search"><label class="input grow" style="min-width:200px">{{ icon('search', 's') }}<input type="search" data-cvf placeholder="{{ _('Buscar en esta versión (texto o IP)') }}" aria-label="{{ _('Buscar en esta versión') }}" autocomplete="off"></label>
+  <span class="muted sm" data-cvf-n aria-live="polite"></span>
+  <button type="button" class="btn ghost s" data-cvf-go="-1" aria-label="{{ _('Coincidencia anterior') }}" title="{{ _('Anterior (Mayús+Intro)') }}">{{ icon('down', 's flip') }}</button>
+  <button type="button" class="btn ghost s" data-cvf-go="1" aria-label="{{ _('Coincidencia siguiente') }}" title="{{ _('Siguiente (Intro)') }}">{{ icon('down', 's') }}</button></div>
+<div class="cv" data-cvf-box>{% for l in lines %}<div><span class="n">{{ loop.index }}</span><span>{{ l }}</span></div>{% endfor %}</div>
 <div class="row" data-sheet-foot>
   <a class="btn ghost" href="/versions/{{ v.id }}?raw=1">{{ icon('dl', 's') }}Descargar</a>
   {% if prev %}<a class="btn ghost" href="/devices/{{ v.device_id }}?a={{ prev.id }}&b={{ v.id }}#versions">{{ icon('branch', 's') }}Comparar con anterior</a>{% endif %}
@@ -29,4 +33,55 @@
   <div class="row end"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn pri">Crear solicitud</button></div>
 </form></dialog>
 {% endif %}
+<script>
+/* Buscar dentro de la versión: resalta las líneas que tienen el texto y salta entre ellas (Intro / Mayús+Intro).
+   Se escucha en el documento una sola vez, así funciona también cuando la versión se abre en el panel lateral. */
+(function () {
+  if (window.__cvf) return; window.__cvf = 1;
+  var T = {{ {'none': _('Sin coincidencias'), 'of': _('{0} de {1} líneas')}|tojson }};
+  function parts(el) { var root = el.closest('[data-sheet-wide]') ? document : (el.closest('.sheet, main, body') || document);
+    return { box: root.querySelector('[data-cvf-box]'), n: root.querySelector('[data-cvf-n]'), q: root.querySelector('[data-cvf]') }; }
+  function run(q, keep) {
+    var P = parts(q), rows = P.box ? P.box.children : [], term = q.value.trim().toLowerCase(), hits = [];
+    for (var i = 0; i < rows.length; i++) {
+      var span = rows[i].lastElementChild, txt = span.textContent;
+      span.textContent = txt;  // quita las marcas anteriores
+      rows[i].classList.remove('cvf-hit', 'cvf-cur');
+      if (!term) continue;
+      var at = txt.toLowerCase().indexOf(term);
+      if (at < 0) continue;
+      hits.push(rows[i]); rows[i].classList.add('cvf-hit');
+      span.textContent = '';
+      var from = 0, low = txt.toLowerCase();
+      while (at >= 0) {
+        span.appendChild(document.createTextNode(txt.slice(from, at)));
+        var m = document.createElement('mark'); m.textContent = txt.slice(at, at + term.length); span.appendChild(m);
+        from = at + term.length; at = low.indexOf(term, from);
+      }
+      span.appendChild(document.createTextNode(txt.slice(from)));
+    }
+    q._hits = hits; if (!keep) q._i = 0;
+    show(q);
+  }
+  function show(q) {
+    var P = parts(q), h = q._hits || [];
+    if (!q.value.trim()) { P.n.textContent = ''; return; }
+    if (!h.length) { P.n.textContent = T.none; return; }
+    q._i = (q._i + h.length) % h.length;
+    h.forEach(function (r) { r.classList.remove('cvf-cur'); });
+    h[q._i].classList.add('cvf-cur');
+    h[q._i].scrollIntoView({ block: 'center' });
+    P.n.textContent = T.of.replace('{0}', q._i + 1).replace('{1}', h.length);
+  }
+  document.addEventListener('input', function (e) { if (e.target.matches('[data-cvf]')) run(e.target); });
+  document.addEventListener('keydown', function (e) {
+    if (e.target.matches('[data-cvf]') && e.key === 'Enter') { e.preventDefault(); e.target._i = (e.target._i || 0) + (e.shiftKey ? -1 : 1); show(e.target); }
+  });
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-cvf-go]'); if (!b) return;
+    var q = parts(b).q; if (!q || !(q._hits || []).length) return;
+    q._i = (q._i || 0) + Number(b.dataset.cvfGo); show(q);
+  });
+})();
+</script>
 {% endblock %}

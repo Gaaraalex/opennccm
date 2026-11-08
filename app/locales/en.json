@@ -5269,5 +5269,20 @@
 "Nuevo configlet para {0}": "New configlet for {0}",
 "Todavía no hay configlets para {0}.": "There are no configlets for {0} yet.",
 "Ver sus recetas": "See its recipes",
-"{0} veces": "{0} times"
+"{0} veces": "{0} times",
+"Cliente NTP con el servidor de la empresa, en RouterOS 6 (su cliente usa «primary-ntp» y «secondary-ntp»).": "NTP client with the company server, on RouterOS 6 (its client uses «primary-ntp» and «secondary-ntp»).",
+"Comprobar: Telnet y FTP con la marca X (deshabilitados) y SSH y Winbox con la red de gestión (en RouterOS 7 se muestra como «available-from»).": "Check: Telnet and FTP marked X (disabled) and SSH and Winbox with the management network (RouterOS 7 shows it as «available-from»).",
+"Comprobar: «active-server» con el servidor cuando ya sincroniza.": "Check: «active-server» shows the server once it is synchronizing.",
+"Sincronizar la hora con NTP (RouterOS 6)": "Sync the time with NTP (RouterOS 6)",
+"Cambiar la contraseña (EXOS pide la actual y la nueva). Si OpenNCCM entra con esta cuenta, actualice también su credencial.": "Change the password (EXOS asks for the current and the new one). If OpenNCCM logs in with this account, update its credential too.",
+"No se aplica una línea que describe el punto de partida de EXOS (revísela a mano si hace falta): {0}": "A line that describes the EXOS starting point is not applied (review it by hand if needed): {0}",
+"No se crea un elemento que RouterOS crea por sí mismo: {0}": "An item that RouterOS creates by itself is not created: {0}",
+"La cuenta {0} ya existe con otro nivel de acceso ({1}); revíselo a mano.": "The account {0} already exists with another access level ({1}); review it by hand.",
+"Anterior (Mayús+Intro)": "Previous (Shift+Enter)",
+"Buscar en esta versión": "Search this version",
+"Buscar en esta versión (texto o IP)": "Search this version (text or IP)",
+"Coincidencia anterior": "Previous match",
+"Coincidencia siguiente": "Next match",
+"Siguiente (Intro)": "Next (Enter)",
+"{0} de {1} líneas": "{0} of {1} lines"
 }

@@ -448,7 +448,7 @@
   function fill(c, o) { return c.replace(/\{\{(\w+)\}\}/g, function (m, n) { return o[n] != null ? o[n] : m; }); }
   function riskOf(r, c) {  // lo mismo que consolecore, simplificado: ¿solo consulta?
     var l = c.trim();
-    if (r.os === 'ros') return /(^|\s)(add|set|remove|enable|disable|unset|reset|reboot|import|move|shutdown)(\s|$)/.test(l) ? 'change' : 'read';
+    if (r.os === 'ros') return /(^|\s)(print|monitor|monitor-traffic|export|ping|traceroute|torch|getall)(\s|$)|^:put\b/.test(l) ? 'read' : 'change';
     return /^(show|sh |display|ping|traceroute|tracert|get |dump )/i.test(l) ? 'read' : 'change';
   }
   function detail(key) {
@@ -507,11 +507,13 @@
   }
   // versión del equipo comparada con la del sello («VOSS 9.3.0.0» y «9.3.0.0» son la misma)
   function verNum(s) { var m = String(s || '').match(/\d+(?:\.\d+)+/); return m ? m[0] : String(s || '').trim(); }
+  // el sello puede nombrar varias versiones probadas («RouterOS 6.49.23 / 7.24.5»): basta con que el equipo tenga una
+  function sameVer(dev, seal) { var vs = String(seal || '').match(/\d+(?:\.\d+)+/g) || [String(seal || '').trim()]; return vs.indexOf(verNum(dev)) >= 0; }
   function applyCheck() {
     var r = cur, dl = $('rc-apply'), sel = Array.prototype.filter.call(dl.querySelectorAll('#rc-apply-devs input:checked'), function () { return true; });
     var devs = sel.map(function (i) { return D.devs.find(function (d) { return d.id === +i.value; }); }).filter(Boolean);
     $('rc-ack-t').textContent = T.ack.replace('{0}', devs.length === 1 ? devs[0].name : T.ack_sel);
-    var diff = r.verified_on ? devs.filter(function (d) { return d.ver && verNum(d.ver) !== verNum(r.verified_on); }) : [];
+    var diff = r.verified_on ? devs.filter(function (d) { return d.ver && !sameVer(d.ver, r.verified_on); }) : [];
     $('rc-apply-ver').innerHTML = diff.map(function (d) {
       var txt = esc(T.v_diff).replace('{0}', '<b>' + esc(d.name) + '</b>').replace('{1}', esc(r.verified_on))
         .replace('{2}', esc((r.os_label ? r.os_label.split(' ')[0] + ' ' : '') + d.ver));

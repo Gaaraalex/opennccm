@@ -15,13 +15,13 @@ from email.message import EmailMessage
 
 import requests
 from jinja2.sandbox import SandboxedEnvironment
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text as sql_text
 
 from .config import NVD_API_KEY, WORKERS
 from .crypto import decrypt, encrypt, try_decrypt
 from .db import (ChangeRequest, ComplianceResult, ConfigVersion, Device, Event, Policy, SessionLocal,
                  Vulnerability, audit, get_setting, now)
-from .drivers import FASTPATH, IOS, clean_config, compare_text, get_profile, parse_inventory, telnet_supported
+from .drivers import FASTPATH, IOS, clean_config, compare_text, config_serial, get_profile, parse_inventory, telnet_supported
 from .drivers import HTTP_ONLY as _HTTP_ONLY
 from .rollback import fastpath_style, rollback_plan
 from .i18n import N_
@@ -41,6 +41,24 @@ def device_lock(device_id: int) -> threading.Lock:
 
 
 # --------------------------------------------------------------------------- conexión
+TRANSIENT_SSH = re.compile(r"(?i)no existing session|error reading ssh protocol banner|connection reset|"
+                           r"forzado la interrupci|eoferror|socket is closed")
+
+
+def _connect_retry(handler, params: dict, tries: int = 3):
+    """Un fallo pasajero del SSH al entrar (el equipo está atendiendo otras sesiones: visto en un CHR con varios
+    respaldos y solicitudes a la vez, «Paramiko: 'No existing session'») se reintenta dos veces. Una contraseña mala o
+    un equipo que no responde no se reintentan."""
+    for n in range(tries):
+        try:
+            return handler(**params)
+        except Exception as e:  # noqa: BLE001
+            if n == tries - 1 or not TRANSIENT_SSH.search(f"{type(e).__name__}: {e}"):
+                raise
+            log.info("%s: fallo pasajero al entrar por SSH (%s); reintento", params.get("host"), str(e)[:120])
+            time.sleep(3 * (n + 1))
+
+
 def connect(dev: Device):
     from netmiko import ConnectHandler
 
@@ -63,7 +81,7 @@ def connect(dev: Device):
                   password=password, conn_timeout=20, timeout=60, auth_timeout=30, banner_timeout=30,
                   fast_cli=False)
     try:
-        conn = ConnectHandler(secret=secret, **params)
+        conn = _connect_retry(ConnectHandler, dict(secret=secret, **params))
     except ValueError as e:
         # Algunos drivers (p. ej. Ubiquiti EdgeSwitch) entran a «enable» al conectar y fallan si el equipo
         # pide una contraseña que la credencial no tiene.
@@ -574,6 +592,18 @@ def _read_ports(conn, device_type: str) -> str | None:
     return "\n".join(x for x in out if x) or None
 
 
+def _take_write_lock(db, device_id: int) -> None:
+    """SQLite (WAL): si una transacción empieza leyendo (los SAVEPOINT de las tablas MAC/ARP y de los vecinos leen antes
+    de escribir) y otro respaldo escribe en ese momento, SQLite rechaza su escritura AL INSTANTE («database is locked»,
+    sin esperar el «timeout»). Con varios respaldos a la vez («Respaldar todos», o el respaldo y una solicitud de cambio)
+    el respaldo terminaba en «Internal Server Error» y su versión no se guardaba. Se empieza la transacción escribiendo,
+    así espera su turno y todo lo que sigue va en una transacción de escritura."""
+    if db.get_bind().dialect.name != "sqlite":
+        return
+    db.flush()
+    db.execute(sql_text("UPDATE devices SET id = id WHERE id = :i"), {"i": device_id})
+
+
 def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
@@ -646,7 +676,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
         changed = prev is None or (prev.sha256 != sha and not same_config(prev_text, running, prof))
         # otro aparato con la misma dirección (RMA o cambio de equipo): el número de serie ya no es el guardado
         old_serial = dev.serial
-        new_serial = parse_inventory(inventory, prof)["serial"] if inventory else None
+        new_serial = (parse_inventory(inventory, prof)["serial"] if inventory else None) or config_serial(running)
         replaced = replaced_serial(old_serial, new_serial)
         result = "unchanged"
         if changed:
@@ -669,13 +699,15 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
         else:
             new_conflict = False
 
+        name = dev.name
+        _take_write_lock(db, dev.id)
         if tables_raw:
             try:
                 from . import macfind
                 with db.begin_nested():
                     macfind.store(dev.id, tables_raw, db)
             except Exception as e:  # noqa: BLE001 - las tablas nunca hacen fallar el respaldo
-                log.warning("tablas MAC/ARP de %s: %s", dev.name, e)
+                log.warning("tablas MAC/ARP de %s: %s", name, e)
         if neighbors_raw is not None:
             from . import topology
             nbrs = topology.parse(neighbors_raw, dev.device_type)
@@ -685,7 +717,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
                 with db.begin_nested():
                     nbwatch.update(db, dev, nbrs, running)
             except Exception as e:  # noqa: BLE001 - nunca hace fallar el respaldo
-                log.warning("vecinos nuevos o perdidos de %s: %s", dev.name, e)
+                log.warning("vecinos nuevos o perdidos de %s: %s", name, e)
 
         if prof.key not in HTTP_ONLY:  # puertos y su estado, para la ficha del equipo
             from . import ports as ports_mod
@@ -711,7 +743,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
             # sin modelo en el inventario (EdgeSwitch de chip Realtek): la cabecera de su configuración lo dice
             sysdesc = re.search(r"(?m)^! System Description:\s*(?:RTK\s+)?(\S+)", running)
             dev.model = inv["model"] or (sysdesc.group(1) if sysdesc else None) or dev.model
-            dev.serial = inv["serial"] or dev.serial
+            dev.serial = inv["serial"] or config_serial(running) or dev.serial
             dev.inventory_raw_enc = encrypt(inventory)
 
         new_drift = False
@@ -898,6 +930,23 @@ def _mikrotik_safe_undo(conn) -> None:
         pass
 
 
+ROS_PROGRESS = re.compile(r"-- \[Q quit\|D dump\|C-z pause\]\s*$")
+
+
+def _ros_wait_progress(conn, resp: str) -> str:
+    """RouterOS 6 muestra el avance de algunos comandos («/certificate sign» → «progress: …» y «-- [Q quit|D dump|C-z
+    pause]»). Esa línea termina en «]» y parecía el prompt: el comando siguiente se escribía en la pantalla de avance y
+    se perdía, y la solicitud terminaba «bien» sin haberlo aplicado (visto en un CHR 6.49 con la receta de HTTPS). Se
+    sigue leyendo hasta que vuelve el prompt de verdad («[admin@R1] >» o «… <SAFE>»)."""
+    if not ROS_PROGRESS.search(resp):
+        return resp
+    try:
+        resp += conn.read_until_pattern(pattern=r"\]\s*(?:<SAFE>|>)\s*$", read_timeout=300)
+    except Exception as e:  # noqa: BLE001
+        raise RuntimeError(f"El equipo no terminó el comando (seguía mostrando su avance):\n{resp.strip()[-500:]}\n{e}") from e
+    return resp
+
+
 def _push_stepwise(conn, commands: list[str], prof) -> str:
     """Envía los comandos de uno en uno y se detiene en el primero que el equipo rechace.
 
@@ -908,6 +957,7 @@ def _push_stepwise(conn, commands: list[str], prof) -> str:
     for i, cmd in enumerate(commands):
         resp = conn.send_command(cmd, expect_string=PROMPT_END, read_timeout=60, strip_prompt=False,
                                  strip_command=False, cmd_verify=False)
+        resp = _ros_wait_progress(conn, resp)
         out += f"\n{resp}"
         problem = None
         if DEVICE_ERROR.search(resp):

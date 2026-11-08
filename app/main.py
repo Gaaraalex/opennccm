@@ -1123,7 +1123,7 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
                   cve_at=services.cve_scanned_at(dev.id) or max((v.found_at for v in vulns if v.found_at),
                                                                     default=None),
                   cve_state=services.cve_scan_state(dev.id),
-                  fwu=_fwu.for_device(dev.id), fw_state=_fwu.state(), fw_dl=_fwu.download_state(dev.id), fw_sources=_FW_SOURCES,
+                  fwu=_fwu.for_device(dev.id), fw_state=_fwu.state(dev.id), fw_dl=_fwu.download_state(dev.id), fw_sources=_FW_SOURCES,
                   fw_have=_fwu.in_library(dev.device_type, (_fwu.for_device(dev.id) or {}).get("target")),
                   latest_run=next((t["id"] for t in tl if t["kind"] == "running"), None),
                   fxi=fxi.context(dev, tl) if dev.device_type == "watchguard_fireware" else None)
