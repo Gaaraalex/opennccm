@@ -73,7 +73,13 @@ imp = adm.get(B + "/devices/import").text
 check("importar CSV: columnas, plantilla y vista previa", all(t in imp for t in ("device_type", 'id="imp-tpl"', 'id="imp-prev"', 'action="/devices/import"')))
 check("el lector no abre la importación", lec.get(B + "/devices/import", allow_redirects=False).status_code in (302, 303, 403))
 r = adm.post(B + "/devices/bulk", data={"action": "backup", "ids": ["1"]})
-check("masivo: respaldar los seleccionados", any("Respaldo de 1 equipos" in f for f in flashes(r.text)), flashes(r.text))
+job = adm.get(B + "/backup/job").json().get("job") or {}
+check("masivo: respaldar los seleccionados (con el progreso de «Respaldar todos»)", job.get("total") == 1 and 'id="bk-panel"' in r.text, job)
+for _ in range(60):  # que termine antes de seguir
+    if (adm.get(B + "/backup/job").json().get("job") or {}).get("ended"):
+        break
+    time.sleep(1)
+adm.post(B + "/backup/job/close")
 r = adm.post(B + "/devices/bulk", data={"action": "audit", "ids": ["1"]})
 check("masivo: auditar los seleccionados", any("Auditoría de cumplimiento lanzada para 1" in f for f in flashes(r.text)), flashes(r.text))
 adm.post(B + "/groups", data={"name": "Masivo-UI"})

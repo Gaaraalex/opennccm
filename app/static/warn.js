@@ -15,12 +15,17 @@
     buttonsFor(scope).forEach(function (b) { b.disabled = !ack.checked || b.hasAttribute('data-blocked'); });
   }
   window.ocAckSync = function (el) { sync(scopeOf(el)); };
+  // cada vez que alguien marca la casilla del aviso queda en Auditoría: quién, cuándo, qué aviso y dónde
+  document.addEventListener('change', function (e) {
+    var a = e.target; if (!a.matches || !a.matches('[data-warn-log]') || !a.checked) return;
+    var w = a.closest('[data-warn-title]'), lab = a.closest('label');
+    var body = {title: (w && w.dataset.warnTitle) || document.title, where: a.dataset.where || '', page: location.pathname + location.search,
+                text: lab ? lab.textContent.trim() : ''};
+    fetch('/warn/ack', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)})
+      .then(function (r) { if (r.ok && lab) lab.classList.add('done'); }).catch(function () {});
+  });
   function init(root) { Array.prototype.forEach.call((root || document).querySelectorAll('[data-ack]'), function (a) { sync(scopeOf(a)); }); }
   document.addEventListener('change', function (e) { if (e.target.matches && e.target.matches('[data-ack]')) sync(scopeOf(e.target)); });
-  document.addEventListener('click', function (e) {
-    var o = e.target.closest && e.target.closest('[data-warn-open]'); if (!o) return;
-    var d = document.getElementById('warn-dlg'); if (d && d.showModal) d.showModal();
-  });
   // un botón «enviar» que llega a enviarse sin la casilla (por ejemplo, con Enter): no se envía
   document.addEventListener('submit', function (e) {
     var a = e.target.querySelector && e.target.querySelector('[data-ack]');

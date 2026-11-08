@@ -186,14 +186,18 @@ check("recetas: el cambio del sello queda en Auditoría", "recipe_verified" in a
 
 # ---- configlets: tres columnas, aviso, sello y la vista previa de «Ejecutar» sin código suelto
 cf = adm.get(B + "/configlets").text
-check("configlets: columnas y aviso «revisa los configlets»", 'id="cfl-data"' in cf and "Revisa los configlets antes de usarlos" in cf and 'id="warn-dlg"' in cf)
+check("configlets: columnas y el aviso completo (foro, GitHub y casilla que queda en Auditoría)", 'id="cfl-data"' in cf and "Revisa los configlets antes de usarlos" in cf and 'class="wl-full"' in cf and "Foro de la comunidad" in cf and "data-warn-log" in cf)
 cdata = json.loads(re.search(r'<script type="application/json" id="cfl-data">(.*?)</script>', cf, re.S).group(1))
 cid = cdata["items"][0]["id"]
 vid = next((c["id"] for c in cdata["items"] if "{{" in c["body"] and c["kind"] != "exec"), cid)
 run = adm.get(f"{B}/configlets/{vid}/run").text
 check("ejecutar configlet: la vista previa ya no muestra código JavaScript", "x.dataset.var +" not in run and 'data-j="' in run, run[-600:])
-check("ejecutar configlet: aviso corto y casilla obligatoria antes de «Crear solicitud»",
-      "Revisa los comandos antes de usarlos en producción" in run and "data-ack" in run and "data-needs-ack disabled" in run)
+check("ejecutar configlet: aviso completo y casilla obligatoria antes de «Crear solicitud»",
+      "Revisa los comandos antes de usarlos en producción" in run and "Foro de la comunidad" in run and "data-ack" in run
+      and "data-needs-ack disabled" in run)
+r = adm.post(B + "/warn/ack", json={"title": "Revisa los comandos antes de usarlos en producción.", "where": "R1", "page": "/configlets/1/run"})
+check("marcar la casilla del aviso queda en Auditoría (quién, qué aviso y dónde)", r.json().get("ok")
+      and "warn_ack" in adm.get(B + "/audit").text and "en R1" in adm.get(B + "/audit").text)
 r = adm.post(f"{B}/configlets/{cid}/verify", json={"verified_on": "IOS 15.2(7)E"}).json()
 check("configlets: el administrador pone el sello", r.get("ok") and "IOS 15.2(7)E" in adm.get(B + "/configlets").text, r)
 adm.post(f"{B}/configlets/{cid}/verify", json={"verified_on": ""})

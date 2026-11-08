@@ -23,6 +23,9 @@
   <section class="card c4" style="display:flex;flex-direction:column;gap:12px"><span class="qi info">{{ icon('grid') }}</span>
     <div><b style="font-size:15px">{{ _('Puertos sin uso') }}</b><div class="muted sm">{{ _('Puertos de los switches sin enlace hace más de 30, 60 o 90 días, capacidad de cada switch y apagado como solicitud de cambio') }}</div></div>
     <div class="row" style="margin-top:auto"><a class="btn s pri" href="/reports/unused">{{ icon('eye', 's') }}{{ _('Ver') }}</a><a class="btn s" href="/reports/unused/csv">{{ icon('dl', 's') }}CSV</a></div></section>
+  <section class="card c4" style="display:flex;flex-direction:column;gap:12px"><span class="qi info">{{ icon('globe') }}</span>
+    <div><b style="font-size:15px">{{ _('Equipos del mapa') }}</b><div class="muted sm">{{ _('Los equipos que se ven en el mapa: cuáles ya están agregados y respaldados y cuáles no, con dónde escribir la IP de los que faltan') }}</div></div>
+    <div class="row" style="margin-top:auto"><a class="btn s pri" href="/reports/mapinv">{{ icon('eye', 's') }}{{ _('Ver') }}</a><a class="btn s" href="/reports/mapinv/pdf">{{ icon('file', 's') }}PDF</a><a class="btn s" href="/reports/mapinv/csv">{{ icon('dl', 's') }}CSV</a></div></section>
   <section class="card c4" style="display:flex;flex-direction:column;gap:12px"><span class="qi info">{{ icon('book') }}</span>
     <div><b style="font-size:15px">{{ _('Documento de la red') }}</b><div class="muted sm">{{ _('Inventario, mapa, VLAN e IP, enlaces, cumplimiento y respaldos en un PDF o un Word para entregar') }}</div></div>
     <div class="row" style="margin-top:auto"><a class="btn s pri" href="/reports/netdoc">{{ icon('file', 's') }}{{ _('Generar') }}</a></div></section>

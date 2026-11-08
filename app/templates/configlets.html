@@ -19,14 +19,14 @@
 <script type="application/json" id="cfl-data">{{ {'items': data['items'], 'plats': data.plats, 'admin': user.role == 'admin', 'can_run': can_run, 'open': open_id,
   'forum': FORUM_URL, 'issues': ISSUES_URL, 'version': VERSION,
   't': {'yours': _('Tus equipos'), 'for_yours': _('Para tus equipos'), 'for_yours_s': _('Solo lo que puedes ejecutar'), 'not_yours': _('No aplican a tus equipos'),
-        'dim_note': _('Estos se ven atenuados: no hay en tu inventario equipos donde ejecutarlos.'), 'dev_1': _('1 equipo tuyo'), 'dev_n': _('{0} equipos tuyos'), 'none_dev': _('ningún equipo tuyo'),
+        'dim_note': _('No hay en tu inventario equipos donde ejecutarlos.'), 'dev_1': _('1 equipo tuyo'), 'dev_n': _('{0} equipos tuyos'), 'none_dev': _('ningún equipo tuyo'),
         'g_cfg': _('Configlets · cambian la configuración'), 'g_exec': _('Scripts · solo consulta'), 'show': _('Mostrar'), 'hide': _('Ocultar'),
         'found': _('{0} con «{1}»'), 'no_res': _('No hay configlets ni scripts con «{0}».'), 'none': _('No hay configlets para tus equipos.'), 'pick': _('Elige un configlet o un script para verlo.'),
         'k_cfg': _('Configlet · cambia la configuración'), 'k_exec': _('Script · solo consulta'), 'serves': _('Sirve para'), 'seal': _('Sello'), 'used': _('Usado'),
         'times_1': _('1 vez'), 'times_n': _('{0} veces'), 'none_for': _('Todavía no hay configlets para {0}.'),
         'new_for': _('Nuevo configlet para {0}'), 'new_t': _('Nuevo configlet'), 'see_recipes': _('Ver sus recetas'), 'v_pill': _('Verificada · {0}'), 'v_short': _('Verificada'), 'v_none': _('Sin verificar'),
         'v_set': _('Marcar como verificado'), 'v_unset': _('Quitar el sello'), 'v_ask': _('Versión del sistema en la que se probaron todos los comandos (por ejemplo, «VOSS 9.3.0.0»):'),
-        'w_short': _('Revisa los comandos antes de usarlos en producción.'), 'forum': _('Foro'),
+        'w_title': _('Revisa los configlets antes de usarlos en producción.'), 'w_short': _('Revisa los comandos antes de usarlos en producción.'), 'forum': _('Foro'),
         'gh_title': _('Configlet: {0}'), 'gh_l': [_('Configlet: {0}'), _('Plataforma: {0}'), _('Sello: {0}'), _('Versión de OpenNCCM: {0}'), _('Qué pasó:'), _('Versión del sistema de mi equipo:')],
         'run': _('Ejecutar'), 'run_t': _('Ejecutar «{0}»'), 'edit': _('Editar'), 'edit_t': _('Editar «{0}»'), 'dup': _('Duplicar')}}|tojson }}</script>
 <script src="/static/configlets.js?v={{ VERSION }}"></script>

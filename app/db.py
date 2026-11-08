@@ -4,11 +4,14 @@ from sqlalchemy import (Boolean, DateTime, Float, ForeignKey, Integer, String, T
                         event, select)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
-from .config import DATA_DIR, DATABASE_URL
+from .config import DATA_DIR, DATABASE_URL, WORKERS
 
 if DATABASE_URL.startswith("sqlite"):
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False, "timeout": 30})
+    # el grupo de conexiones por omisión (5 + 10) es menor que los trabajos a la vez (respaldos, tareas, páginas):
+    # se dimensiona con NCM_WORKERS para que nunca falte una conexión
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False, "timeout": 30},
+                           pool_size=WORKERS + 8, max_overflow=WORKERS + 8, pool_timeout=60)
 
     @event.listens_for(engine, "connect")
     def _sqlite_pragmas(conn, _):

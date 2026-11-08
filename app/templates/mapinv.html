@@ -1,0 +1,34 @@
+{% extends "base.html" %}{% block title %}{{ _('Equipos del mapa') }}{% endblock %}
+{% block crumbs %}<a href="/reports">{{ _('Informes') }}</a>{{ icon('right', 's') }}<b>{{ _('Equipos del mapa') }}</b>{% endblock %}
+{% block content %}
+{% set CLS = {'new': 'crit', 'fail': 'major', 'never': 'warn', 'ok': 'ok'} %}
+<div class="ph"><div class="grow"><h1>{{ _('Equipos del mapa: agregados y sin agregar') }}</h1>
+  <div class="sub">{{ _('Los equipos que se ven en el mapa de la red (vecinos LLDP/CDP/MNDP y RoMON) cruzados con Dispositivos: cuáles ya están agregados y respaldados y cuáles no.') }}</div></div>
+  <a class="btn" href="/reports/mapinv/csv">{{ icon('dl', 's') }}CSV</a>
+  <a class="btn pri" href="/reports/mapinv/pdf">{{ icon('file', 's') }}{{ _('PDF para llenar') }}</a></div>
+<div class="bento">
+  {% for k in ['new', 'fail', 'never', 'ok'] %}<section class="card c3 mi-n"><span class="tag {{ CLS[k] }}">{{ label(k) }}</span><b>{{ m.n[k] }}</b></section>{% endfor %}
+</div>
+{% set new = m.rows|selectattr('state', 'eq', 'new')|list %}
+<section class="card">
+  <h2>{{ _f('No están agregados ({0})', new|length) }}</h2>
+  {% if new %}
+  <p class="muted sm">{{ _('Escriba la IP de cada uno y use «Agregar»: se abre el alta del equipo con el nombre y la IP. En el PDF cada uno trae un campo para escribir la IP desde la PC.') }}</p>
+  <div class="tbl-wrap"><table class="tbl"><thead><tr><th>{{ _('Equipo') }}</th><th>{{ _('Modelo o plataforma') }}</th><th>{{ _('Visto desde') }}</th><th>{{ _('IP para agregarlo') }}</th></tr></thead><tbody>
+  {% for r in new %}<tr><td><b>{{ r.name }}</b></td><td class="muted">{{ r.platform or '—' }}</td><td class="sm">{{ r.seen|join(', ') }}</td>
+    <td>{% if user.role == 'admin' %}<form class="row nowrap" method="get" action="/devices/new" style="gap:6px"><input type="hidden" name="name" value="{{ r.name if not r.name.startswith(_('Sin nombre')) else '' }}">
+      <label class="input" style="width:150px"><input name="host" placeholder="{{ _('IP') }}" inputmode="decimal" aria-label="{{ _f('IP de {0}', r.name) }}" required></label>
+      <button class="btn s">{{ icon('plus', 's') }}{{ _('Agregar') }}</button></form>{% else %}<span class="muted sm">{{ _('Un administrador puede agregarlo.') }}</span>{% endif %}</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% else %}<p class="muted">{{ _('Todos los equipos del mapa ya están en Dispositivos.') }}</p>{% endif %}
+</section>
+{% set have = m.rows|rejectattr('state', 'eq', 'new')|list %}
+<section class="card">
+  <h2>{{ _f('Ya están en Dispositivos ({0})', have|length) }}</h2>
+  <div class="tbl-wrap"><table class="tbl"><thead><tr><th>{{ _('Equipo') }}</th><th>{{ _('Modelo o plataforma') }}</th><th>{{ _('Estado') }}</th><th>{{ _('Último respaldo') }}</th></tr></thead><tbody>
+  {% for r in have %}<tr><td><a href="/devices/{{ r.id }}"><b>{{ r.name }}</b></a></td><td class="muted">{{ r.platform or '—' }}</td>
+    <td><span class="tag {{ CLS[r.state] }}">{{ label(r.state) }}</span></td><td class="sm" title="{{ r.at|dt if r.at else '' }}">{{ r.at|ago if r.at else '—' }}</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+<style>.mi-n{display:flex;flex-direction:column;gap:8px;align-items:flex-start}.mi-n b{font:700 28px/1 var(--f-sans)}.tag.ok{background:var(--ok-soft);color:var(--ok)}.tag.major{background:var(--major-soft);color:var(--major)}.tag.warn{background:var(--warn-soft);color:var(--warn)}</style>
+{% endblock %}

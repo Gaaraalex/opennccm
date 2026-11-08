@@ -1,5 +1,5 @@
 /* Configlets y scripts en tres columnas, como Recetas: a la izquierda «Para tus equipos» y las plataformas (las que
-   no están en tu inventario, atenuadas), en el medio los configlets y los scripts, y a la derecha el elegido. */
+   no están en tu inventario, aparte), en el medio los configlets y los scripts, y a la derecha el elegido. */
 (function () {
   var D = JSON.parse(document.getElementById('cfl-data').textContent), T = D.t;
   var $ = function (id) { return document.getElementById(id); };
@@ -89,8 +89,7 @@
       (c.desc ? '<p class="muted sm rc-intro">' + esc(c.desc) + '</p>' : '') +
       '<dl class="cf-dl"><dt>' + esc(T.serves) + '</dt><dd>' + esc(c.serves) + ' · ' + esc(c.compat ? nf(c.compat, T.dev_1, T.dev_n) : T.none_dev) + '</dd>' +
       '<dt>' + esc(T.seal) + '</dt><dd>' + pill(c, false) + '</dd><dt>' + esc(T.used) + '</dt><dd>' + esc(nf(c.uses, T.times_1, T.times_n)) + '</dd></dl>' +
-      '<div class="wl-short">' + ic('alert') + '<span>' + esc(T.w_short) + (D.forum ? ' <a href="' + esc(D.forum) + '" target="_blank" rel="noopener">' + esc(T.forum) + '</a>' : '') +
-        (D.issues ? ' · <a href="' + esc(ghUrl(c)) + '" target="_blank" rel="noopener">GitHub</a>' : '') + '</span></div>' +
+      (window.ocWarn ? window.ocWarn({title: T.w_title, gh: D.issues ? ghUrl(c) : '', where: c.name}) : '') +
       '<pre class="cf-body mono">' + varmark(c.body) + '</pre>' +
       (D.admin ? '<div><button type="button" class="btn s ghost" id="cf-verify">' + ic('shield') + esc(c.verified_on ? T.v_unset : T.v_set) + '</button></div>' : '') +
       '<div class="rc-acts">' + (D.can_run ? '<a class="btn pri" href="/configlets/' + c.id + '/run" data-sheet data-wide data-title="' + esc(T.run_t.replace('{0}', c.name)) + '">' + ic('play') + esc(T.run) + '</a>' : '') +

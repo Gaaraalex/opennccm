@@ -49,7 +49,7 @@
         <div class="muted sm">{{ _('Solo se ejecutan comandos de consulta. Si es un cambio, se crea una solicitud de cambio para aprobar, con respaldo y reversión.') }}</div>
         {% import "_warn.html" as w with context %}{{ w.warn_short() }}
         <div class="banner warn" id="mu-change" hidden>{{ icon('alert') }}<div class="grow stack" style="gap:8px"><span id="mu-change-t"></span>
-          <label class="ck wl-ack"><input type="checkbox" id="mu-ack"> <span>{{ _f('Revisé los comandos y entiendo que OpenNCCM no los probó en todas las plataformas. Los aplico bajo mi responsabilidad en {0}.', _('los equipos elegidos')) }}</span></label></div>
+          <label class="ck wl-ack"><input type="checkbox" id="mu-ack" data-warn-log> <span>{{ _f('Revisé los comandos y entiendo que OpenNCCM no los probó en todas las plataformas. Los aplico bajo mi responsabilidad en {0}.', _('los equipos elegidos')) }}</span></label></div>
           <button type="button" class="btn s" id="mu-cr" disabled>{{ _('Crear solicitud de cambio') }}</button></div>
       </div>
       <div class="card stack" id="mu-res" hidden>
@@ -66,17 +66,13 @@
   <div class="rc-top"><div class="input grow">{{ icon('search', 's') }}<input id="rc-q" type="search" placeholder="{{ _('Busca en todas las recetas: «vlan», «ssh», «syslog»…') }}" aria-label="{{ _('Buscar recetas') }}"></div>
     <div class="seg" id="rc-view" role="group" aria-label="{{ _('Ordenar las recetas') }}"><button type="button" data-v="eq" class="on" aria-pressed="true">{{ _('Por equipo') }}</button><button type="button" data-v="tk" aria-pressed="false">{{ _('Por tarea') }}</button></div>
     {% if ROLES[user.role] >= 1 %}<button type="button" class="btn pri" id="rc-new">+ {{ _('Nueva') }}</button>{% endif %}</div>
-  <div class="rc-line" id="rc-warn">{{ icon('alert', 's') }}<b>{{ _('Revisa cada receta antes de usarla en producción.') }}</b><span class="grow">{{ _('OpenNCCM no tiene todas las plataformas para probar; las que tienen el sello Verificada ya se probaron.') }}</span><button type="button" class="linkbtn" id="rc-warn-open">{{ _('Ver el aviso') }}</button></div>
+  {% import "_warn.html" as w with context %}<div id="rc-warn">{{ w.warn_full(_('Revisa cada receta antes de usarla en producción.')) }}</div>
   <div class="rc-cols" id="rc-cols">
     <div class="rc-col l" id="rc-left"></div>
     <div class="rc-col m" id="rc-mid"></div>
     <div class="rc-col r" id="rc-detail"></div>
     <div class="rc-col wide" id="rc-results" hidden></div>
   </div>
-  <dialog class="dlg rc-wdlg" id="rc-warn-dlg" aria-labelledby="rc-warn-h"><div class="stack">
-    <div class="row">{{ icon('alert') }}<h2 id="rc-warn-h" class="grow" style="margin:0">{{ _('Revisa cada receta antes de usarla en producción') }}</h2></div>
-    <div id="rc-warn-body" class="stack" style="gap:8px"></div>
-    <div class="row end"><button type="button" class="btn" data-close>{{ _('Cerrar') }}</button></div></div></dialog>
   <dialog class="dlg" id="rc-edit" aria-labelledby="rc-edit-h"><form class="stack" id="rc-form">
     <h2 id="rc-edit-h" style="margin:0">{{ _('Receta') }}</h2>
     <div class="f2"><div class="field"><label for="rf-name">{{ _('Título') }}</label><div class="input"><input id="rf-name" required maxlength="200"></div></div>
@@ -94,7 +90,8 @@
     <p class="muted sm" style="margin:0">{{ _('Se crea una solicitud de cambio con los pasos que cambian la configuración (los de consulta y comprobación no). Pasa por aprobación, con respaldo antes y después.') }}</p>
     <div class="cc-mlist" id="rc-apply-devs"></div>
     <div id="rc-apply-ver"></div>
-    <label class="ck rc-ack"><input type="checkbox" id="rc-ack"> <span id="rc-ack-t"></span></label>
+    {{ w.warn_full(_('Revisa cada receta antes de usarla en producción.'), check=False) }}
+    <label class="ck rc-ack"><input type="checkbox" id="rc-ack" data-warn-log> <span id="rc-ack-t"></span></label>
     <div class="row end"><button type="button" class="btn ghost" data-close>{{ _('Cancelar') }}</button><button class="btn pri" id="rc-apply-go" disabled>{{ _('Enviar a aprobación') }}</button></div>
   </form></dialog>
 </section>
@@ -188,7 +185,7 @@
         'w_p3': _('¿Encontraste un error o probaste una receta en tu equipo? Cuéntanos por cualquiera de estas dos vías: así la verificamos para todos.'),
         'f_t': _('Foro de la comunidad'), 'f_s': _('Comenta o pregunta a otros usuarios'), 'gh_t': _('Reportar en GitHub'), 'gh_s': _('Abre un reporte con el nombre de la receta'),
         'gh_title': _('Receta: {0}'), 'gh_l': [_('Receta: {0} ({1})'), _('Plataforma: {0}'), _('Sello: {0}'), _('Versión de OpenNCCM: {0}'), _('Qué pasó:'), _('Versión del sistema de mi equipo:')], 'w_hide': _('Ocultar'), 'w_show': _('Ver el aviso completo'),
-        'w_short': _('OpenNCCM es gratuito y de código abierto: no tenemos todas las plataformas para probar. Verifica los comandos antes de usarlos en producción.'),
+        'w_title': _('Revisa cada receta antes de usarla en producción.'), 'w_short': _('OpenNCCM es gratuito y de código abierto: no tenemos todas las plataformas para probar. Verifica los comandos antes de usarlos en producción.'),
         'w_report': _('Reportar un problema con esta receta:'),
         'yours': _('Tus equipos'), 'n_plats': _('{0} plataformas'), 'n_plat1': _('1 plataforma'), 'brands': _('Todas las marcas'), 'brand_q': _('Buscar marca o plataforma'),
         'dev_n': _('{0} equipos tuyos'), 'dev_1': _('1 equipo tuyo'), 'n_recs': _('{0} recetas'), 'n_ver': _('{0} verificadas'), 'pin': _('Fijar'), 'pinned': _('Fijada'),

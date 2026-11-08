@@ -423,6 +423,22 @@ async def recipe_save(request: Request):
     return JSONResponse({"ok": True, "id": rid})
 
 
+@router.post("/warn/ack")
+async def warn_ack(request: Request):
+    """Alguien marcó la casilla del aviso «revisa los comandos antes de usarlos en producción»: queda en Auditoría
+    quién, qué aviso, dónde (equipo o equipos) y en qué página."""
+    user = require(request)
+    try:
+        d = await request.json()
+    except ValueError:
+        d = {}
+    clip = lambda k, n: re.sub(r"\s+", " ", str(d.get(k) or "")).strip()[:n]  # noqa: E731
+    detail = " · ".join(x for x in (clip("title", 120), clip("where", 120) and _f("en {0}", clip("where", 120)),
+                                    clip("page", 160)) if x)
+    audit(user.username, "warn_ack", detail or "—")
+    return JSONResponse({"ok": True})
+
+
 @router.post("/console/recipes/verify")
 async def recipe_verify(request: Request):
     """Poner o quitar el sello «Verificada» de una receta (solo administradores; queda en Auditoría)."""
