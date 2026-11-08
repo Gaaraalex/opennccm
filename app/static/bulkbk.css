@@ -27,7 +27,7 @@
 #devtable tr.bk-now{background:var(--brand-soft)}
 #devtable tr.bk-flash{background:var(--ok-soft)}
 #devtable tr.bk-flashE{background:var(--crit-soft)}
-.pill.bk-run{background:var(--brand-soft);color:var(--brand);display:inline-flex;align-items:center;gap:6px}
+#devtable .pill.bk-run{background:color-mix(in srgb,var(--brand) 22%,var(--surface));color:var(--brand);gap:6px;padding:0 10px 0 8px}#devtable .pill.bk-run::before{content:none;display:none}
 .pill.bk-q{background:var(--surface-3);color:var(--muted)}
 .bk-chg{margin-left:6px;font:600 11px var(--f-sans);color:var(--warn);white-space:nowrap}
 .btn.bk-busy{opacity:.6;cursor:default}
