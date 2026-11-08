@@ -21,7 +21,7 @@ from .config import NVD_API_KEY, WORKERS
 from .crypto import decrypt, encrypt, try_decrypt
 from .db import (ChangeRequest, ComplianceResult, ConfigVersion, Device, Event, Policy, SessionLocal,
                  Vulnerability, audit, get_setting, now)
-from .drivers import FASTPATH, IOS, clean_config, compare_text, get_profile, parse_inventory, telnet_supported
+from .drivers import FASTPATH, IOS, clean_config, compare_text, config_serial, get_profile, parse_inventory, telnet_supported
 from .drivers import HTTP_ONLY as _HTTP_ONLY
 from .rollback import fastpath_style, rollback_plan
 from .i18n import N_
@@ -676,7 +676,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
         changed = prev is None or (prev.sha256 != sha and not same_config(prev_text, running, prof))
         # otro aparato con la misma dirección (RMA o cambio de equipo): el número de serie ya no es el guardado
         old_serial = dev.serial
-        new_serial = parse_inventory(inventory, prof)["serial"] if inventory else None
+        new_serial = (parse_inventory(inventory, prof)["serial"] if inventory else None) or config_serial(running)
         replaced = replaced_serial(old_serial, new_serial)
         result = "unchanged"
         if changed:
@@ -743,7 +743,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None) -> str:
             # sin modelo en el inventario (EdgeSwitch de chip Realtek): la cabecera de su configuración lo dice
             sysdesc = re.search(r"(?m)^! System Description:\s*(?:RTK\s+)?(\S+)", running)
             dev.model = inv["model"] or (sysdesc.group(1) if sysdesc else None) or dev.model
-            dev.serial = inv["serial"] or dev.serial
+            dev.serial = inv["serial"] or config_serial(running) or dev.serial
             dev.inventory_raw_enc = encrypt(inventory)
 
         new_drift = False

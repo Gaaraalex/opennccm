@@ -82,6 +82,14 @@ from app.drivers import get_profile, parse_inventory  # noqa: E402
 inv = parse_inventory("Loader Version   : 1.3.5\nLoader Date      : Jan 17 2025\nFirmware Version : 1.11.1\n",
                       get_profile("ubiquiti_edgeswitch"))
 check("EdgeSwitch Realtek: el firmware es 1.11.1, no la versión del cargador", inv["os_version"] == "1.11.1", inv)
+# MikroTik: la serie sale de «/system routerboard print» y, si no, de la cabecera del /export (CRS326 con 7.17 del usuario)
+from app.drivers import config_serial  # noqa: E402
+RB = "  version: 7.17\n  board-name: CRS326-24S+2Q+\n\n  routerboard: yes\n  model: CRS326-24S+2Q+\n  serial-number: HN30BV2EWHP\n"
+inv = parse_inventory(RB, get_profile("mikrotik_routeros"))
+check("MikroTik: serie de «/system routerboard print»", inv["serial"] == "HN30BV2EWHP" and inv["model"] == "CRS326-24S+2Q+", inv)
+check("MikroTik: serie de la cabecera del /export", config_serial("#\n# model = RB760iGS\n# serial number = HN30BV2EWHP\n/interface bridge\n") == "HN30BV2EWHP")
+inv = parse_inventory("  version: 7.24.5\n  board-name: CHR\nbad command name routerboard (line 1 column 9)\n", get_profile("mikrotik_routeros"))
+check("MikroTik CHR (sin RouterBOARD): sin serie y sin romper el resto", inv["serial"] is None and inv["os_version"] == "7.24.5", inv)
 
 # Huawei VRP «display interface brief»
 HW = """PHY: Physical
