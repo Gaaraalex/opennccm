@@ -3461,6 +3461,8 @@ from . import impact, netreports  # noqa: E402  (análisis de impacto; puertos s
 
 app.include_router(impact.router)
 app.include_router(netreports.router)
+from . import mapreport  # noqa: E402  (equipos del mapa: agregados y sin agregar)
+app.include_router(mapreport.router)
 from . import favorites  # noqa: E402  (comandos favoritos de la consola)
 
 app.include_router(favorites.router)
