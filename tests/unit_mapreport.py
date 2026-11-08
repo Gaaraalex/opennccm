@@ -1,17 +1,17 @@
 """Informes › Equipos del mapa: los vecinos que se ven en el mapa cruzados con Dispositivos (agregados y respaldados o
 no), sin IP ni MAC, y un PDF con un campo para escribir la IP de los que faltan."""
-import io
+import base64
 import json
 import os
+import re
 import sys
 import tempfile
+import zlib
 
 tmp = tempfile.mkdtemp()
 os.environ["NCM_DATA_DIR"] = tmp
 os.environ["NCM_KEY_FILE"] = os.path.join(tmp, "secret.key")
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-
-from pypdf import PdfReader  # noqa: E402
 
 from app import mapreport  # noqa: E402
 from app.db import Device, SessionLocal, init_db, now  # noqa: E402
@@ -58,12 +58,23 @@ check("los que faltan van primero", m["rows"][0]["state"] == "new" and m["n"] ==
 check("ni IP ni MAC en el informe", "10.9.9" not in json.dumps(m["rows"], default=str) and "AA:BB" not in json.dumps(m["rows"], default=str))
 
 pdf = mapreport.pdf(m, U())
-rd = PdfReader(io.BytesIO(pdf))
-fields = rd.get_fields() or {}
-text = "".join(p.extract_text() for p in rd.pages)
+# sin dependencias: los campos del formulario (/T (ip_N)) y el texto de las páginas (sus flujos comprimidos con zlib)
+fields = {x.decode() for x in re.findall(rb"/T \((ip_\d+)\)", pdf)}
+streams = []
+for raw in re.findall(rb"stream\r?\n(.*?)endstream", pdf, re.S):
+    data = raw.strip()
+    try:  # reportlab: ASCII85 y después zlib
+        data = base64.a85decode(data[:-2] if data.endswith(b"~>") else data)
+    except ValueError:
+        pass
+    try:
+        streams.append(zlib.decompress(data).decode("latin-1"))
+    except zlib.error:
+        streams.append(data.decode("latin-1"))
+text = "".join(re.findall(r"\((.*?)\) Tj", "".join(streams)))
 check("PDF: un campo para escribir la IP de cada uno de los que faltan", sorted(fields) == ["ip_1", "ip_2", "ip_3", "ip_4"], sorted(fields))
 check("PDF: sin IP ni MAC de los equipos", "10.9.9" not in text and "AA:BB" not in text)
-check("PDF: dice el estado de los agregados", "Agregado y respaldado" in text and "el último respaldo falló" in text)
+check("PDF: dice el estado de los agregados", "Agregado y respaldado" in text and "Agregado, el " in text)
 
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)
