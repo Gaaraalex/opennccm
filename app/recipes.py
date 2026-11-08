@@ -141,6 +141,11 @@ VERIFIED = {
     "ros-user": "RouterOS 6.49.23 / 7.24.5",
     "ros-vlan": "RouterOS 6.49.23 / 7.24.5",
     "ros6-ntp": "RouterOS 6.49.23",
+    # Extreme EXOS 33.6.1.14 (EXOS-VM en GNS3), 3 rondas seguidas, 2026-11-07
+    "exos-ssh": "EXOS 33.6.1.14", "exos-sysname": "EXOS 33.6.1.14", "exos-user": "EXOS 33.6.1.14",
+    "exos-password": "EXOS 33.6.1.14", "exos-https": "EXOS 33.6.1.14", "exos-snmp": "EXOS 33.6.1.14",
+    "exos-syslog": "EXOS 33.6.1.14", "exos-radius": "EXOS 33.6.1.14", "exos-sntp": "EXOS 33.6.1.14",
+    "exos-vlan": "EXOS 33.6.1.14", "exos-vlan-ip": "EXOS 33.6.1.14", "exos-ports": "EXOS 33.6.1.14",
 }
 
 
