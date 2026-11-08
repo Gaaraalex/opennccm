@@ -14,6 +14,21 @@
 <script>(function (h) { h.classList.add('tabs-wait'); addEventListener('load', function () { h.classList.remove('tabs-wait'); }); })(document.documentElement)  /* shell.js lo quita antes, al armar las pestañas */</script>
 </head>
 <body{% block body_attr %}{% endblock %}>
+{% if user %}{% import "_warn.html" as wtpl with context %}<template id="oc-warn-tpl">{{ wtpl.warn_full(_('Revisa los comandos antes de usarlos en producción.')) }}</template>
+<script>/* el aviso completo para lo que se arma en el navegador (recetas, configlets, asistente): el mismo de _warn.html,
+   guardado una vez por página en #oc-warn-tpl; va aquí (no en warn.js) para que exista antes de los scripts de la página */
+window.ocWarn = function (o) {
+  o = o || {};
+  var t = document.getElementById('oc-warn-tpl'); if (!t) return '';
+  var box = document.createElement('div'); box.innerHTML = t.innerHTML;
+  var w = box.firstElementChild;
+  if (o.title) { w.dataset.warnTitle = o.title; w.querySelector('.wl-h b').textContent = o.title; }
+  var gh = w.querySelector('[data-gh]'); if (gh && o.gh) gh.href = o.gh;
+  var ck = w.querySelector('.wl-ack');
+  if (o.check === false && ck) ck.remove();
+  else if (ck && o.where) ck.querySelector('input').dataset.where = o.where;
+  return box.innerHTML;
+};</script>{% endif %}
 <a class="skip" href="#contenido">Saltar al contenido</a>
 {% if user and not compact %}
 {% set navp = request.url.path %}

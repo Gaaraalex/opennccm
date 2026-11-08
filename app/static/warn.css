@@ -72,11 +72,14 @@
 .wl-short{display:flex;gap:8px;align-items:flex-start;padding:9px 11px;border-radius:10px;background:var(--warn-soft);color:var(--warn);font-size:12.5px;line-height:1.45}
 .wl-short span{color:var(--ink)}.wl-short a{font-weight:600}.wl-short>.ico{flex:none;margin-top:1px}
 .wl-ack{align-items:flex-start;font-size:13px;line-height:1.45;gap:8px}.wl-ack input{margin-top:3px;flex:none}
+.wl-full{display:flex;flex-direction:column;gap:6px;margin:8px 0;padding:12px 14px;border:1px solid color-mix(in srgb,var(--warn) 35%,transparent);border-radius:12px;background:var(--warn-soft);color:var(--ink);font-size:13px;line-height:1.5}
+.wl-full p{margin:0;color:var(--ink-2)}.wl-full .wl-h{display:flex;align-items:center;gap:8px;color:var(--warn)}.wl-full .wl-h b{color:var(--ink);font-size:14px}
+.wl-full .rc-reps{margin-top:6px}.wl-full .wl-ack{margin-top:6px;color:var(--ink)}.wl-full .wl-ack.done span{color:var(--ok)}
 .wl-gray{color:var(--muted);font-size:12px}
 @media (max-width:1100px){.wl-line{flex-wrap:wrap}.wl-line span{white-space:normal}}
 
 /* Configlets y scripts en columnas */
-.rc-pl.dim,.rc-row.dim{opacity:.5}.rc-pl.dim:hover,.rc-row.dim:hover{opacity:.8}
+/* plataformas y configlets sin equipos donde ejecutarlos: se ven igual que en Recetas (sin atenuar), con su nota */
 .cf-mine{display:grid;place-items:center;width:28px;height:28px;border-radius:8px;background:var(--brand-soft);color:var(--brand);flex:none}
 .cf-mine.big{width:36px;height:36px}
 .cf-note{margin:0 4px 6px}

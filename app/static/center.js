@@ -438,10 +438,6 @@
     return '<div class="rc-reps' + (small ? ' sm' : '') + '">' + (D.forum ? one('forum', D.forum, 'chat2', T.f_t, T.f_s, r ? r.name : '') : '') +
       (D.issues ? one('gh', ghUrl(r), 'issue', T.gh_t, T.gh_s, '') : '') + '</div>';
   }
-  $('rc-warn-open').addEventListener('click', function () {
-    $('rc-warn-body').innerHTML = '<p>' + esc(T.w_p1) + '</p><p>' + esc(T.w_p2).replace('{0}', '<b>' + esc(T.w_v) + '</b>') + '</p><p>' + esc(T.w_p3) + '</p>' + reportLinks(cur, false);
-    $('rc-warn-dlg').showModal();
-  });
   function scopeL(r) { return r.scope === 'mine' ? T.mine : r.scope === 'team' ? T.team : T.opennccm; }
   var cur = null;
   function vals() { var o = {}; Array.prototype.forEach.call(document.querySelectorAll('#rc-detail [data-var]'), function (i) { o[i.dataset.var] = i.value; }); return o; }
@@ -456,7 +452,7 @@
     var el = $('rc-detail'), p = PL[r.os || 'generic'];
     el.innerHTML = '<div class="rc-dh">' + vlogo(p ? p.vl : r.vl, 36) + '<div class="grow"><div class="muted sm">' + esc(p ? p.label : r.os_label || '') + ' · ' + esc(D.cats[r.cat] || '') + (r.scope !== 'opennccm' ? ' · ' + esc(scopeL(r)) : '') + '</div>' +
       '<h3>' + esc(r.short || r.name) + '</h3></div></div><div>' + pillV(r) + '</div>' +
-      '<div class="rc-avs">' + ccIcon('alert') + '<span>' + esc(T.w_short2) + ' <a href="' + esc(D.forum) + '" target="_blank" rel="noopener">' + esc(T.forum) + '</a> · <a href="' + esc(ghUrl(r)) + '" target="_blank" rel="noopener">' + esc(T.github) + '</a></span></div>' +
+      (window.ocWarn ? window.ocWarn({title: T.w_title, gh: D.issues ? ghUrl(r) : '', where: r.name}) : '') +
       '<p class="muted sm rc-intro">' + esc(r.intro) + (r.doc ? ' <a href="' + esc(r.doc) + '" target="_blank" rel="noopener">' + esc(T.doc) + '</a>' : '') + '</p>' +
       (D.role === 'admin' ? '<div><button type="button" class="btn s ghost" id="rc-verify">' + ccIcon('shield') + esc(r.verified_on ? T.v_unset : T.v_set) + '</button></div>' : '') +
       (r.vars.length ? '<div class="rc-vars">' + r.vars.map(function (v) { return '<div class="field"><label>' + esc(v.l) + '</label><div class="input mono s"><input data-var="' + esc(v.n) + '" value="' + esc(v.v) + '" aria-label="' + esc(v.l) + '"></div></div>'; }).join('') + '</div>' : '') +

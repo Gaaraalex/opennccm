@@ -5284,5 +5284,8 @@
 "Coincidencia anterior": "Previous match",
 "Coincidencia siguiente": "Next match",
 "Siguiente (Intro)": "Next (Enter)",
-"{0} de {1} líneas": "{0} of {1} lines"
+"{0} de {1} líneas": "{0} of {1} lines",
+"Leí el aviso: revisaré los comandos antes de usarlos en equipos en producción.": "I read the notice: I will review the commands before using them on production devices.",
+"No hay en tu inventario equipos donde ejecutarlos.": "There are no devices in your inventory to run them on.",
+"en {0}": "on {0}"
 }
