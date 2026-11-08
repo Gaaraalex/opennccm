@@ -13,7 +13,17 @@ KINDS = {"configlet": "configlet_verified", "rule": "rule_verified"}
 
 # Correcciones de cumplimiento probadas enteras en un equipo del laboratorio: (política, regla) → versión del sistema.
 # Solo se agrega una cuando su corrección se aplicó y la regla pasó a cumplir en esa versión, tres rondas seguidas.
-RULES = {}
+RULES = {
+    # MikroTik RouterOS 6.49.23 y 7.24.5 (CHR en GNS3), 3 rondas seguidas sin fallos, 2026-11-07
+    ("MikroTik RouterOS · Seguridad básica", "Acceso por MAC (MAC-Telnet/MAC-Winbox) limitado"): "RouterOS 6.49.23 / 7.24.5",
+    ("MikroTik RouterOS · Seguridad básica", "Descubrimiento de vecinos limitado"): "RouterOS 6.49.23 / 7.24.5",
+    ("MikroTik RouterOS · Seguridad básica", "SSH con cifrado fuerte"): "RouterOS 7.24.5",
+    ("MikroTik RouterOS · Seguridad básica", "Sin API sin cifrar"): "RouterOS 6.49.23 / 7.24.5",
+    ("MikroTik RouterOS · Seguridad básica", "Sin FTP"): "RouterOS 6.49.23 / 7.24.5",
+    ("MikroTik RouterOS · Seguridad básica", "Sin Telnet"): "RouterOS 6.49.23 / 7.24.5",
+    ("MikroTik RouterOS · Seguridad básica", "Sin servidor de bandwidth-test"): "RouterOS 6.49.23 / 7.24.5",
+    ("MikroTik RouterOS · Seguridad básica", "Sin web HTTP (www)"): "RouterOS 6.49.23 / 7.24.5",
+}
 
 
 def _overrides(kind: str) -> dict:

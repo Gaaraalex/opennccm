@@ -127,6 +127,20 @@ VERIFIED = {
     # Extreme VOSS / Fabric Engine 9.3.0.0 (5520-24T), 2026-11-06
     "voss-sysname": "VOSS 9.3.0.0", "voss-ssh": "VOSS 9.3.0.0", "voss-password": "VOSS 9.3.0.0", "voss-banner": "VOSS 9.3.0.0",
     "voss-route": "VOSS 9.3.0.0", "voss-save": "VOSS 9.3.0.0", "voss-diag": "VOSS 9.3.0.0",
+    # MikroTik RouterOS 6.49.23 y 7.24.5 (CHR en GNS3), 3 rondas seguidas sin fallos, 2026-11-07
+    "ros-dns": "RouterOS 6.49.23 / 7.24.5",
+    "ros-flap": "RouterOS 6.49.23 / 7.24.5",
+    "ros-https": "RouterOS 6.49.23 / 7.24.5",
+    "ros-identity": "RouterOS 6.49.23 / 7.24.5",
+    "ros-ntp": "RouterOS 7.24.5",
+    "ros-password": "RouterOS 6.49.23 / 7.24.5",
+    "ros-radius": "RouterOS 6.49.23 / 7.24.5",
+    "ros-services": "RouterOS 6.49.23 / 7.24.5",
+    "ros-snmp": "RouterOS 6.49.23 / 7.24.5",
+    "ros-syslog": "RouterOS 6.49.23 / 7.24.5",
+    "ros-user": "RouterOS 6.49.23 / 7.24.5",
+    "ros-vlan": "RouterOS 6.49.23 / 7.24.5",
+    "ros6-ntp": "RouterOS 6.49.23",
 }
 
 
