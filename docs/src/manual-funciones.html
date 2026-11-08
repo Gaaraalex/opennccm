@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.31.0<br>Para administradores y operadores de red<br>Noviembre de 2026</div>
+  <div class="meta">Versión del software: 2.32.0<br>Para administradores y operadores de red<br>Noviembre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -158,7 +158,14 @@ grupo.</p>
   <li><b>Buscar y filtrar:</b> por nombre, IP, modelo, serie, versión o ubicación; por grupo, <b>nodo</b> y <b>marca</b>; y por
   estado (ok, error, pendiente, startup ≠ running, fuera de línea base). Cada equipo lleva el <b>logo de su marca</b>; la fila
   <b>MARCA</b> muestra cuántos hay de cada una y filtra con un toque.</li>
-  <li><b>Respaldar todos:</b> lanza en segundo plano el respaldo de todos los equipos (o del grupo filtrado).</li>
+  <li><b>Respaldar todos:</b> respalda todos los equipos (o los del grupo filtrado, o los marcados), 4 a la vez. Se ve el
+    progreso con su porcentaje: un panel con la barra, cuántos van correctos, con error, respaldándose y en cola, y quién se
+    respalda ahora; cada fila de la lista dice su paso («Conectando…», «Leyendo la configuración…», «Guardando…») y se actualiza
+    sola al terminar. El respaldo corre en el servidor: se puede salir de la página (la píldora con el porcentaje queda junto a
+    «Dispositivos» en el menú) y al terminar avisa. <b>Cancelar</b> no lanza los que faltan; al terminar, los que dieron error
+    salen con su motivo y <b>Reintentar</b> respalda solo esos. Un respaldo que falla por algo pasajero (el equipo cortó la sesión
+    con el puerto respondiendo, la base de OpenNCCM ocupada) se comprueba y se reintenta solo; si el equipo no responde o rechaza
+    la contraseña, se avisa sin reintentar.</li>
   <li><b>Acciones de la fila:</b> al pasar el ratón aparecen respaldar, consola e interfaz web del equipo.</li>
   <li><b>Acciones masivas:</b> marque varias filas y use la barra inferior para respaldarlas, auditarlas, moverlas a un grupo o
   <b>asignarlas a un nodo</b> (administradores).</li>
@@ -365,7 +372,9 @@ una pestaña por tipo de equipo, arrastrar para cambiar el orden, editar, quitar
   probaron (por ejemplo «Verificada · VOSS 9.3.0.0»); las demás dicen «Sin verificar» y salen de la documentación del
   fabricante. El chip <b>Solo verificadas</b> filtra las primeras. Un administrador puede poner o quitar el sello desde la
   receta, con la versión en la que la probó (queda en Auditoría). Al aplicar una receta como solicitud de cambio hay que marcar
-  «Revisé los comandos…», y si el equipo tiene otra versión que la del sello se avisa. «Reportar un problema» abre el foro de la
+  «Revisé los comandos…», y si el equipo tiene otra versión que la del sello se avisa. El aviso completo (con el Foro, GitHub y
+  la casilla) se ve igual en Recetas, Configlets, Cumplimiento, Multi-equipo, la ficha del equipo y el asistente, y cada vez que
+  alguien marca la casilla queda en Auditoría. «Reportar un problema» abre el foro de la
   comunidad o un reporte de GitHub con el nombre de la receta ya escrito.</td></tr>
   <tr><td>Grabaciones</td><td>Cada sesión: usuario, equipo, hora, duración y comandos, con marca roja si hubo un comando que
   corta el servicio. Busca en lo escrito y en lo visto (por ejemplo «reload»). El reproductor tiene línea de tiempo con esas
@@ -1222,7 +1231,14 @@ el mapa en cada respaldo: no agrega consultas a los equipos.</p>
   <tr><td>Auditoría de usuarios</td><td>Inicios de sesión y acciones (solo administradores)</td></tr>
   <tr><td>Puertos sin uso</td><td>Puertos de acceso de los switches sin enlace hace más de 30, 60 o 90 días (ver abajo)</td></tr>
   <tr><td>Documento de la red</td><td>PDF o Word con lo que OpenNCCM sabe de la red (ver abajo)</td></tr>
+  <tr><td>Equipos del mapa</td><td>Los equipos que se ven en el mapa (vecinos LLDP/CDP/MNDP y RoMON) cruzados con Dispositivos: cuáles ya están agregados y respaldados y cuáles no (ver abajo)</td></tr>
 </table>
+<h2 id="equipos-del-mapa">Equipos del mapa</h2>
+<p><b>Informes → Equipos del mapa</b> dice, de cada equipo que aparece en el mapa de la red, si <b>no está agregado</b>, si está
+<b>agregado y respaldado</b>, <b>agregado con el último respaldo fallido</b> o <b>agregado sin respaldo todavía</b>, y desde qué
+equipo y puerto se ve. No muestra IP ni MAC: para los que faltan, escriba la IP en la página y use <b>Agregar</b> (abre el alta
+del equipo con el nombre y la IP), o descargue el <b>PDF para llenar</b>, que trae un campo para escribir la IP de cada uno
+desde la PC (o imprimirlo y escribirla a mano).</p>
 <h2 id="puertos-sin-uso">Puertos sin uso</h2>
 <p><b>Informes → Puertos sin uso</b> muestra, por switch, cuántos puertos de acceso están <b>en uso</b>, <b>sin enlace</b> hace más
 de 30, 60 o 90 días y <b>libres</b> (apagados o marcados «SIN-USO»), con los «switches casi llenos» (menos del 10&nbsp;% libre).

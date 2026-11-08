@@ -1,5 +1,20 @@
 # Historial de versiones
 
+## 2.32.0
+- [arreglo] **Errores falsos de SSH:** Equipos en línea quedaban con error («QueuePool limit of size 5 overflow 10 reached») y
+  había que respaldarlos a mano: con muchos respaldos a la vez OpenNCCM se quedaba sin conexiones a su base. Ahora cada respaldo
+  la suelta mientras habla con el equipo, y la página de Dispositivos ya no se queda en negro durante «Respaldar todos».
+- [nuevo] **Respaldar todos con su progreso:** Un panel con el porcentaje, la barra, los correctos, con error, en curso y en
+  cola, y cada fila de la lista que se actualiza sola con su paso. Se puede salir de la página, cancelar y, al terminar,
+  reintentar solo los que fallaron.
+- [mejora] **Los respaldos que fallan se comprueban solos:** Si la falla fue pasajera (sesión cortada con el puerto respondiendo,
+  base ocupada) se reintenta; si el equipo no responde o rechaza la contraseña, se avisa con lo que se comprobó.
+- [nuevo] **Informe «Equipos del mapa»:** Los equipos del mapa de la red cruzados con Dispositivos: cuáles ya están agregados y
+  respaldados y cuáles no, sin IP ni MAC, con dónde escribir la IP de los que faltan (en la página o en un PDF para llenar).
+- [mejora] **El aviso completo en todos lados:** Recetas, Configlets, Cumplimiento, Multi-equipo, la ficha y el asistente
+  muestran el aviso entero con el Foro, GitHub y la casilla, y cada aceptación queda en Auditoría.
+- [arreglo] **Configlets:** Las plataformas sin equipos ya no se ven apagadas: se ven igual que en Recetas.
+
 ## 2.31.0
 - [arreglo] **Respaldar todos sin «Internal Server Error»:** Con varios respaldos a la vez, uno podía terminar en error
   («database is locked») y su versión no se guardaba. Ahora cada respaldo espera su turno para escribir.
