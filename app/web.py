@@ -28,7 +28,7 @@ templates.env.globals["CX_HASH"] = __import__("hashlib").md5(b"".join(
 )).hexdigest()[:8]
 # aviso «revisa los comandos», sello y casilla (static/warn.*) y la página de configlets
 templates.env.globals["WARN_HASH"] = __import__("hashlib").md5(b"".join(
-    (BASE_DIR / "static" / f).read_bytes() for f in ("warn.css", "warn.js", "configlets.js"))).hexdigest()[:8]
+    (BASE_DIR / "static" / f).read_bytes() for f in ("warn.css", "warn.js", "configlets.js", "bulkbk.js", "bulkbk.css"))).hexdigest()[:8]
 # muestras del selector de acento de la barra superior: (claro, oscuro), los mismos valores que senal.css
 templates.env.globals["ACCENT_SWATCHES"] = {
     "cobalto": ("#2347e8", "#7c96ff"), "bosque": ("#1f7a4d", "#5fd09a"), "oceano": ("#0b7f86", "#3cc6c0"),

@@ -384,7 +384,7 @@ def backup_device(device_id: int, trigger="manual", username: str | None = None)
 #   El resto (contraseña rechazada, clave SSH cambiada, sin credencial, comando no reconocido) necesita a una persona.
 RETRY_INTERNAL = re.compile(r"(?i)QueuePool limit|database is locked|OperationalError|disk I/O error|"
                             r"El equipo está ocupado")
-RETRY_NETWORK = re.compile(r"(?i)timed? ?out|timeout|No existing session|Error reading SSH protocol banner|"
+RETRY_NETWORK = re.compile(r"(?i)timed? ?out|timeout|TCP connection to device failed|No existing session|Error reading SSH protocol banner|"
                            r"Connection reset|forzado la interrupci|EOFError|Socket is closed|Pattern not detected|"
                            r"incompleta|vacía o inválida|SSH session not active")
 RETRY_WAITS = (8, 25)  # segundos antes del 2.º y del 3.er intento
@@ -428,7 +428,7 @@ def _check_and_retry(device_id: int, trigger: str, username: str | None) -> str:
             steps.append(f"{n}.º intento: " + (again[0][:200] if again else "sin detalle"))
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
-        if result == "error":
+        if result == "error" and len(steps) > 1:  # lo que se comprobó, debajo del error
             dev.last_error = ((dev.last_error or "") + "\n\n" + "\n".join(steps))[:2000]
             db.commit()
             if not kind:  # sin reintentos: la alarma de siempre, con lo que se comprobó
@@ -684,6 +684,18 @@ def _take_write_lock(db, device_id: int) -> None:
     db.execute(sql_text("UPDATE devices SET id = id WHERE id = :i"), {"i": device_id})
 
 
+STEP = threading.local()  # paso del respaldo en curso de este hilo, para «Respaldar todos» (app/bulkbackup.py)
+
+
+def _step(name: str) -> None:
+    cb = getattr(STEP, "cb", None)
+    if cb:
+        try:
+            cb(name)
+        except Exception:  # noqa: BLE001 - el progreso nunca hace fallar el respaldo
+            pass
+
+
 def _backup_device(device_id: int, trigger: str, username: str | None, report: bool = True) -> str:
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
@@ -700,7 +712,9 @@ def _backup_device(device_id: int, trigger: str, username: str | None, report: b
                 running, inventory = swos.backup(dev, cred)
                 startup = neighbors_raw = ports_raw = license_raw = tables_raw = None
             else:
+                _step("connect")
                 with connect(dev) as conn:
+                    _step("read")
                     running = conn.send_command(dev.custom_backup_cmd or prof.backup, read_timeout=prof.backup_timeout)
                     startup = conn.send_command(prof.startup, read_timeout=prof.backup_timeout) if prof.startup else None
                     inventory = "\n\n".join(conn.send_command(c, read_timeout=60) for c in prof.inventory.split("\n")
@@ -726,6 +740,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None, report: b
                 add_event("major", "Respaldo fallido", f"{dev.name} ({dev.host}): {e}", dev.id)
             return "error"
 
+        _step("save")
         running = clean_config(running, prof)
         if len(running.strip()) < 10 or device_error(running):
             dev.last_status, dev.last_error = "error", "Salida de configuración vacía o inválida"

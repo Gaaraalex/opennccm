@@ -693,10 +693,10 @@ async def devices_bulk(request: Request):
     if not ids:
         flash(request, _("Seleccione al menos un dispositivo"), "error")
         return go(back)
-    if action == "backup":
-        services.jobs.submit(services.backup_many, ids, "manual", user.username)
-        log_action(request, user, "backup_selected", f"{ids}")
-        flash(request, _f("Respaldo de {0} equipos lanzado en segundo plano", len(ids)))
+    if action == "backup":  # el mismo progreso que «Respaldar todos» (app/bulkbackup.py)
+        from . import bulkbackup
+        if not bulkbackup.start_selected(user, ids, request):
+            flash(request, _("Ya hay un respaldo en curso"), "error")
     elif action == "audit":
         def _audit():
             for i in ids:
@@ -1174,18 +1174,6 @@ async def device_mikrotik_backup(request: Request, dev_id: int):
     fname = re.sub(r"[^\w.-]+", "_", name) + "_" + fname.removeprefix("opennccm-")
     return Response(data, media_type="application/octet-stream",
                     headers={"Content-Disposition": f'attachment; filename="{fname}"'})
-
-
-@app.post("/backup/all")
-async def backup_all(request: Request):
-    user = require(request, "operator")
-    form = await request.form()
-    gid = int(form.get("group") or 0) or None
-    ids = filter_ids(user, services.device_ids(gid))
-    services.jobs.submit(services.backup_many, ids, "manual", user.username)
-    log_action(request, user, "backup_all", f"{len(ids)} equipos")
-    flash(request, _f("Respaldo de {0} equipos lanzado en segundo plano", len(ids)))
-    return go("/devices")
 
 
 @app.post("/devices/{dev_id}/compliance")
@@ -3463,6 +3451,8 @@ app.include_router(impact.router)
 app.include_router(netreports.router)
 from . import mapreport  # noqa: E402  (equipos del mapa: agregados y sin agregar)
 app.include_router(mapreport.router)
+from . import bulkbackup  # noqa: E402  (Respaldar todos con su progreso)
+app.include_router(bulkbackup.router)
 from . import favorites  # noqa: E402  (comandos favoritos de la consola)
 
 app.include_router(favorites.router)

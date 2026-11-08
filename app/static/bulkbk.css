@@ -1,0 +1,34 @@
+/* «Respaldar todos» con su progreso (static/bulkbk.js, app/bulkbackup.py). Maqueta de Diseño UX «Dispositivos: progreso
+   de Respaldar todos»: panel con borde azul, barra apilada de 10 px, contadores, filas que se actualizan en vivo. */
+.bk-spin{animation:bk-sp .9s linear infinite;flex:none}@keyframes bk-sp{to{transform:rotate(360deg)}}
+.bk-pill{margin-left:auto;display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:99px;background:var(--brand-soft);color:var(--brand);font:700 10px var(--f-sans)}
+.bk-pill[hidden]{display:none}
+.bk-pp{margin-top:14px;padding:14px 16px;border-radius:14px;border:1px solid var(--brand);background:var(--surface);box-shadow:0 0 0 3px var(--brand-soft)}
+.bk-pp.done{border-color:color-mix(in srgb,var(--ok) 45%,transparent);box-shadow:0 0 0 3px var(--ok-soft)}
+.bk-pp.cancelled{border-color:var(--line-strong);box-shadow:none}
+.bk-hd{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.bk-ic{flex:none;display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:var(--brand-soft);color:var(--brand)}
+.bk-ic.g{background:var(--ok-soft);color:var(--ok)}
+.bk-t{flex:1 1 260px;min-width:0}.bk-t b{display:block;font:700 15px var(--f-sans);color:var(--ink)}.bk-t span{font-size:12px;color:var(--muted)}
+.bk-bar{display:flex;height:10px;border-radius:99px;background:var(--surface-3);overflow:hidden;margin-top:12px}
+.bk-bar i{display:block;height:100%;transition:width .5s ease}
+.bk-bar i.ok{background:var(--ok)}.bk-bar i.er{background:var(--crit)}.bk-bar i.rn{background:var(--brand);opacity:.55}
+.bk-cnt{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:9px;font:500 12.5px var(--f-sans);color:var(--ink-2)}
+.bk-cnt b{color:var(--ink)}.bk-cnt .bk-now{margin-left:auto;color:var(--muted)}.bk-cnt .bk-now b{color:var(--ink)}
+.bk-d{display:inline-block;width:8px;height:8px;border-radius:99px;margin-right:6px}
+.bk-d.ok{background:var(--ok)}.bk-d.er{background:var(--crit)}.bk-d.rn{background:var(--brand)}.bk-d.q{background:var(--line-strong)}
+.bk-note{margin-top:6px;font-size:11.5px;color:var(--muted)}
+.bk-errs{display:flex;flex-direction:column;gap:4px;margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--crit-soft);font:500 12.5px var(--f-sans);color:var(--ink)}
+.bk-errs>b{color:var(--crit);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+.bk-errs span b{color:var(--ink)}
+.bk-retry{display:inline-flex;align-items:center;gap:6px;margin-top:4px;color:var(--brand);font-weight:600;cursor:pointer;background:none;border:0;padding:0;box-shadow:none;min-height:0;height:auto}
+/* filas de la lista */
+#devtable tr[data-dev]{transition:background .4s}
+#devtable tr.bk-now{background:var(--brand-soft)}
+#devtable tr.bk-flash{background:var(--ok-soft)}
+#devtable tr.bk-flashE{background:var(--crit-soft)}
+.pill.bk-run{background:var(--brand-soft);color:var(--brand);display:inline-flex;align-items:center;gap:6px}
+.pill.bk-q{background:var(--surface-3);color:var(--muted)}
+.bk-chg{margin-left:6px;font:600 11px var(--f-sans);color:var(--warn);white-space:nowrap}
+.btn.bk-busy{opacity:.6;cursor:default}
+.bk-toast{position:fixed;right:22px;bottom:22px;z-index:90;display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;background:var(--ink);color:var(--surface);font:600 13px var(--f-sans);box-shadow:0 12px 30px -10px rgba(0,0,0,.5)}

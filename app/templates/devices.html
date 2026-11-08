@@ -7,7 +7,7 @@
 {% set qb = ('&q=' ~ q|urlencode if q else '') ~ ('&group=' ~ group if group else '') ~ ('&status=' ~ status if status else '') ~ qn %}
 {% set qg = ('&q=' ~ q|urlencode if q else '') ~ ('&group=' ~ group if group else '') ~ ('&status=' ~ status if status else '') ~ ('&brand=' ~ brand if brand else '') %}
 <div class="ph"><div class="grow"><h1>Dispositivos</h1>
-  <div class="sub">{{ _f('{0} equipos en {1} grupos', counts[''], n_groups) }}{% if last_global %} · {{ _f('último respaldo global {0}', last_global|ago) }}{% endif %}</div></div>
+  <div class="sub">{{ _f('{0} equipos en {1} grupos', counts[''], n_groups) }}<span id="bk-sub">{% if last_global %} · {{ _f('último respaldo global {0}', last_global|ago) }}{% endif %}</span></div></div>
   <a class="btn" href="/config-reference">{{ icon('star', 's') }}{{ _('Configuración de referencia') }}</a>
   {% if user.role == 'admin' %}<a class="btn" href="/credentials#groups">{{ icon('folder', 's') }}Grupos</a>
   <span class="dropw"><button type="button" class="btn" data-drop="add-menu" aria-haspopup="true" aria-expanded="false">{{ icon('plus', 's') }}Agregar {{ icon('down', 's') }}</button>
@@ -16,15 +16,16 @@
       <a href="/devices/import" data-sheet data-title="Importar equipos desde CSV">{{ icon('ul', 's') }}<span><b>Importar CSV</b><span class="desc">Muchos equipos de una vez</span></span></a>
       <a href="/devices/import/zabbix">{{ icon('dl', 's') }}<span><b>{{ _('Importar desde Zabbix') }}</b><span class="desc">{{ _('Nombre, IP y descripción de sus hosts') }}</span></span></a>
     </div></span>{% endif %}
-  {% if can_run %}<form class="inline" method="post" action="/backup/all"><input type="hidden" name="group" value="{{ group }}">
-    <button class="btn pri" onclick="return confirm('{{ (_('¿Respaldar ahora todos los equipos del grupo?') if group else _('¿Respaldar ahora todos los equipos?'))|jsq }}')">{{ icon('backup', 's') }}Respaldar todos</button></form>{% endif %}
+  {% if can_run %}<form class="inline" method="post" action="/backup/all" id="bk-form" data-confirm="{{ (_('¿Respaldar ahora todos los equipos del grupo?') if group else _('¿Respaldar ahora todos los equipos?')) }}"><input type="hidden" name="group" value="{{ group }}">
+    <button class="btn pri" id="bk-all">{{ icon('backup', 's') }}<span>{{ _('Respaldar todos') }}</span></button></form>{% endif %}
 </div>
+<div id="bk-panel" hidden aria-live="polite"></div>
 
 <form class="row" method="get" role="search" id="devf">
   <label class="input" style="width:min(320px,100%)" for="devq">{{ icon('search', 's') }}<input id="devq" name="q" value="{{ q }}" placeholder="Nombre, IP, modelo, serie o ubicación" aria-label="Buscar equipos"></label>
   {% if group %}<input type="hidden" name="group" value="{{ group }}">{% endif %}{% if brand %}<input type="hidden" name="brand" value="{{ brand }}">{% endif %}{% if node %}<input type="hidden" name="node" value="{{ node }}">{% endif %}{% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
   {% for st, label in [('', _('Todos')), ('error', _('Con error')), ('drift', _('Difieren de la base')), ('pending', _('Pendientes')), ('eol', _('Sin soporte'))] %}
-  <a class="chip {{ 'on' if status == st }}" href="?status={{ st }}{{ qs }}" {{ 'aria-current="true"'|safe if status == st }}>{{ label }} <span class="n">{{ counts[st] }}</span></a>
+  <a class="chip {{ 'on' if status == st }}" href="?status={{ st }}{{ qs }}" data-chip="{{ st }}" {{ 'aria-current="true"'|safe if status == st }}>{{ label }} <span class="n">{{ counts[st] }}</span></a>
   {% endfor %}
   <span class="dropw"><button type="button" class="chip {{ 'on' if group }}" data-drop="grp-menu" aria-haspopup="true" aria-expanded="false">{% if group %}{% for g in groups if g.id == group %}{{ _f('Grupo: {0}', g.name) }}{% endfor %}{% else %}Grupo{% endif %} {{ icon('down', 's') }}</button>
     <div class="drop left" id="grp-menu" hidden>
@@ -51,15 +52,15 @@
   <th>Equipo</th><th>Dirección</th><th>Modelo · firmware</th><th>Grupo</th><th>Último respaldo</th><th>Estado</th><th><span class="vh">Acciones</span></th></tr></thead><tbody data-pager>
 {% for d in devices %}
 {% set prof = profile_map[d.device_type] if d.device_type in profile_map else none %}
-<tr class="click" data-href="/devices/{{ d.id }}" data-text="{{ [d.name, d.host, d.model or '', d.serial or '', d.os_version or '', d.location or '', prof.label if prof else d.device_type]|join(' ')|lower }}">
+<tr class="click" data-href="/devices/{{ d.id }}" data-dev="{{ d.id }}" data-drift="{{ 1 if d.baseline_drift else 0 }}" data-text="{{ [d.name, d.host, d.model or '', d.serial or '', d.os_version or '', d.location or '', prof.label if prof else d.device_type]|join(' ')|lower }}">
   {% if can_run %}<td data-stop><input type="checkbox" name="ids" value="{{ d.id }}" form="bulk" aria-label="{{ _f('Seleccionar {0}', d.name) }}"></td>{% endif %}
   <td><div class="dev">{{ vlogo(d.device_type, 30) }}<div><a href="/devices/{{ d.id }}" style="color:var(--ink)">{{ d.name }}</a>{% if not d.enabled %} <span class="tag">deshabilitado</span>{% endif %}
     <div class="muted sm" style="font-weight:400">{{ prof.label if prof else d.device_type }}</div></div></div></td>
   <td class="mono" style="white-space:nowrap">{{ d.host }}{% if d.port != (23 if d.protocol == 'telnet' else 22) %}<span class="muted">:{{ d.port }}</span>{% endif %}{% if d.protocol == 'telnet' %} <span class="tag crit">telnet</span>{% endif %}</td>
-  <td style="white-space:nowrap">{{ d.model or '—' }} <span class="mono muted">{{ d.os_version or '—' }}</span></td>
+  <td style="white-space:nowrap">{{ d.model or '—' }} <span class="mono muted" data-bk-fw>{{ d.os_version or '—' }}</span></td>
   <td>{{ d.group.name if d.group else '—' }}</td>
-  <td style="white-space:nowrap">{% if d.last_backup_at %}<span title="{{ d.last_backup_at|dt }}">{{ d.last_backup_at|ago }}</span>{% if src.get(d.id) %}<div class="muted sm">{{ trig.get(src[d.id], src[d.id]) }}</div>{% endif %}{% elif d.last_status == 'error' %}Nunca{% else %}En cola{% endif %}</td>
-  <td><div class="row" style="gap:4px;flex-wrap:nowrap">
+  <td style="white-space:nowrap" data-bk-at>{% if d.last_backup_at %}<span title="{{ d.last_backup_at|dt }}">{{ d.last_backup_at|ago }}</span>{% if src.get(d.id) %}<div class="muted sm">{{ trig.get(src[d.id], src[d.id]) }}</div>{% endif %}{% elif d.last_status == 'error' %}Nunca{% else %}En cola{% endif %}</td>
+  <td><div class="row" style="gap:4px;flex-wrap:nowrap" data-bk-st data-proto="{{ d.protocol }}">
     {% if d.last_status == 'error' %}<span class="pill crit" title="{{ (d.last_error or '')[:200] }}">{{ _('Error SSH') if d.protocol == 'ssh' else _('Error') }}</span>
     {% elif d.baseline_drift %}<span class="pill major">Difiere de la base</span>
     {% elif d.last_status == 'ok' %}<span class="pill ok live">Respaldo OK</span>

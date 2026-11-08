@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="/static/style.css?v={{ VERSION }}-{{ CSS_HASH }}">
 <link rel="stylesheet" href="/static/senal.css?v={{ VERSION }}-{{ SENAL_HASH }}">
 <link rel="stylesheet" href="/static/warn.css?v={{ VERSION }}-{{ WARN_HASH }}">
+<link rel="stylesheet" href="/static/bulkbk.css?v={{ VERSION }}-{{ WARN_HASH }}">
 <script>(function (h) { h.classList.add('tabs-wait'); addEventListener('load', function () { h.classList.remove('tabs-wait'); }); })(document.documentElement)  /* shell.js lo quita antes, al armar las pestañas */</script>
 </head>
 <body{% block body_attr %}{% endblock %}>
@@ -41,7 +42,7 @@ window.ocWarn = function (o) {
     <button type="button" class="collapse" data-mini aria-label="Plegar menú" title="Plegar menú">{{ icon('panel', 's') }}</button></div>
   <div class="grp">
     <a href="/" class="nav {{ 'on' if navp == '/' }}" title="Panel">{{ icon('grid') }}<span class="txt">Panel</span></a>
-    <a href="/devices" class="nav {{ 'on' if navp.startswith(('/devices', '/versions')) }}" title="Dispositivos">{{ icon('server') }}<span class="txt">Dispositivos</span></a>
+    <a href="/devices" class="nav {{ 'on' if navp.startswith(('/devices', '/versions')) }}" title="Dispositivos">{{ icon('server') }}<span class="txt">Dispositivos</span><span class="bk-pill" id="bk-pill" hidden></span></a>
     <a href="/search" class="nav {{ 'on' if navp.startswith(('/search', '/diff')) }}" title="Buscar en configs">{{ icon('search') }}<span class="txt">Buscar en configs</span></a>
   </div>
   <div class="grp"><span class="label">Operar</span>
@@ -174,6 +175,21 @@ window.ocWarn = function (o) {
                 [_('Ver atajos de teclado'), '', 'kbd', 'help'], [_('Cerrar sesión'), '/logout', 'logout', '']]}|tojson }};</script>
 <script src="/static/shell.js?v={{ VERSION }}-{{ SHELL_HASH }}" defer></script>
 <script src="/static/warn.js?v={{ VERSION }}-{{ WARN_HASH }}" defer></script>
+{% if user %}<script type="application/json" id="bk-t">{{ {'busy': _('Respaldando… {0} %'), 'all': _('Respaldar todos'),
+  'title': _('Respaldando {0} equipos · {1} %'), 'title1': _('Respaldando 1 equipo · {1} %'), 'line': _('{0} de {1} listos · {2} a la vez'), 'eta': _('quedan unos {0} s'), 'eta_m': _('quedan unos {0} min'),
+  'ok': _('Correctos'), 'err': _('Con error'), 'run': _('Respaldando'), 'q': _('En cola'), 'now': _('Ahora:'), 'min': _('Minimizar'), 'cancel': _('Cancelar'),
+  'note': _('Puedes seguir trabajando o salir de esta página: el respaldo sigue en el servidor y te avisa al terminar.'),
+  'cancelled': _('Respaldo cancelado: los que ya terminaron quedan guardados.'), 'inprog': _('respaldo en curso…'),
+  'last_now': _('último respaldo global hace unos segundos'), 'secs': _('hace unos segundos'), 'failed': _('falló ahora'), 'by': _('Respaldar todos'),
+  'changed': _('● cambió'), 'okp': _('Respaldo OK'), 'ssh': _('Error SSH'), 'error': _('Error'), 'queued': _('En cola'),
+  'done_ok1': _('Respaldo terminado: 1 correcto'), 'done_ok': _('Respaldo terminado: {0} correctos'), 'done_both': _('Respaldo terminado: {0} y {1}'),
+  'c1': _('1 correcto'), 'cn': _('{0} correctos'), 'e1': _('1 con error'), 'en': _('{0} con error'),
+  'sum': _('{0} equipos en {1}'), 'chg1': _('1 configuración cambió desde el respaldo anterior'), 'chgn': _('{0} configuraciones cambiaron desde el respaldo anterior'),
+  'chg0': _('ninguna configuración cambió'), 'upd': _('la lista ya está actualizada'), 'see_err1': _('Ver el 1 con error'), 'see_errn': _('Ver los {0} con error'),
+  'see_chg1': _('Ver el cambio'), 'see_chgn': _('Ver los {0} cambios'), 'close': _('Cerrar'), 'errbox': _('Con error'), 'retry1': _('Reintentar el 1'), 'retryn': _('Reintentar los {0}'),
+  'toast': _('Respaldo terminado · la lista se actualizó sola'), 'already': _('Ya hay un respaldo en curso'), 'm': _('{0} min {1} s'), 's': _('{0} s'),
+  'open': _('Ver el progreso')}|tojson }}</script>
+<script src="/static/bulkbk.js?v={{ VERSION }}-{{ WARN_HASH }}" defer></script>{% endif %}
 {% if ai_top %}<link rel="stylesheet" href="/static/console.css?v={{ VERSION }}-{{ CX_HASH }}"><script type="application/json" id="ai-t">{{ ai_top.t|tojson }}</script><template id="ai-logo">{{ ai_logo(ai_top.p, 36) }}</template><script src="/static/chat.js?v={{ VERSION }}-{{ CX_HASH }}" defer></script>{% endif %}
 {% endif %}
 {% if update_popup %}
