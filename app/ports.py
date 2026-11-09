@@ -43,7 +43,10 @@ COMMANDS = {
     "netgear_prosafe": ["show interfaces status all", "show interfaces status"],
     **{k: [pt.LINUX_CMD] for k in LINUX},
 }
-GENERIC = ["show interfaces status", "show interface status", "show interfaces brief", "show interface brief"]
+# (al final «show ip interface brief»: los routers IOS / IOS-XE, como el CSR1000v o un ISR, no tienen «show interfaces
+# status»; sin esto la ficha mostraba solo «habilitado» o «apagado» de la configuración, sin el enlace)
+GENERIC = ["show interfaces status", "show interface status", "show interfaces brief", "show interface brief",
+           "show ip interface brief"]
 VYOS_LIKE = ("vyos", "ubiquiti_edgerouter", "ubiquiti_usg")
 
 
@@ -524,7 +527,7 @@ def model_ports(model: str | None) -> int | None:
 
 
 def _parse_section(cmd: str, text: str, device_type: str, model: str | None = None) -> list[dict]:
-    if cmd == "show interface ip brief":
+    if cmd in ("show interface ip brief", "show ip interface brief"):
         return _asa(text)
     if cmd == "show interfaces terse":
         return _junos(text)

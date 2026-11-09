@@ -808,6 +808,12 @@ def _backup_device(device_id: int, trigger: str, username: str | None, report: b
         if neighbors_raw is not None:
             from . import topology
             nbrs = topology.parse(neighbors_raw, dev.device_type)
+            # el propio equipo como vecino (un lazo: CDP/LLDP que vuelve por otro puerto, «S-1.lab.local» visto desde
+            # S-1) no es un vecino: no se dibuja ni da la alarma «Vecino perdido» cuando se deja de ver. Se reconoce por
+            # el nombre y la IP del propio equipo (dos MikroTik de fábrica se llaman igual y sí son vecinos)
+            me = (dev.name or "").split(".")[0].lower()
+            nbrs = [n for n in nbrs if not (me and (n.get("remote_name") or "").split(".")[0].lower() == me
+                                            and n.get("remote_ip") == dev.host)]
             dev.neighbors = json.dumps(nbrs)
             try:  # aviso de vecino nuevo o perdido (app/nbwatch.py)
                 from . import nbwatch
@@ -970,11 +976,16 @@ def push_commands(device_id: int, commands: list[str], exec_mode=False) -> str:
 #   Broadcom FastPath/EdgeSwitch/Netgear/Dell N («Failed to ...», «An invalid ...»), HP ProCurve («Invalid input:»).
 DEVICE_ERROR = re.compile(
     r"(?im)^\s*(%+\s*(Invalid|Incomplete|Ambiguous|Unrecognized|Unknown|Error|Bad|Wrong|Failed|Cannot)|!!%|"
-    r"syntax error|unknown command|error:|Error\b|Failed to |An invalid |Invalid (input|command|syntax|value)|"
+    # («Failed to generate persistent self-signed certificate» es un aviso de IOS sin NVRAM para el certificado: el
+    # comando se aplica igual. «Command rejected: …» sí es un rechazo de Cisco, p. ej. «switchport mode trunk» con la
+    # encapsulación en «Auto»)
+    r"syntax error|unknown command|error:|Error\b|Failed to (?!generate persistent self-signed)|An invalid |"
+    r"Command rejected|Invalid (input|command|syntax|value)|"
     r"Incomplete command|Unrecognized command|Command not found|Command fail|Unknown action|bad command name|"
     r"expected end of command|failure:|input does not match|entry not found|value parse error|Server error|"
     r"no such item|invalid value|ambiguous value|already have|value of \S+ out of range|missing value|bad argument|"
     r"(MINOR|MAJOR|CRITICAL): |CLINFR\d+|(Set|Delete|Commit) failed|Cannot |Unable to |Incorrect usage)")
+SAVE_CMD = re.compile(r"(?i)(write( memory)?|wr( mem)?|copy run(ning-config)? start(up-config)?)")
 # fin de la respuesta a un comando: el prompt del equipo (# > $ ]) o una pregunta de confirmación
 PROMPT_END = r"([#>$\]]\s*$|\[confirm\]\s*$|[\[(](y/n|yes/no|Y/N)[\])]\s*[?:]?\s*$)"
 CONFIRM = re.compile(r"(\[confirm\]|[\[(](y/n|yes/no|Y/N)[\])])\s*[?:]?\s*$")
@@ -1052,7 +1063,12 @@ def _push_stepwise(conn, commands: list[str], prof) -> str:
     pendientes para no dejarlos a medias en la configuración candidata."""
     out = conn.config_mode()
     for i, cmd in enumerate(commands):
-        resp = conn.send_command(cmd, expect_string=PROMPT_END, read_timeout=60, strip_prompt=False,
+        if prof.family == IOS and SAVE_CMD.fullmatch(cmd.strip()):
+            # «write memory» en el modo de configuración da «% Invalid input» (receta «Guardar la configuración» en un
+            # IOSvL2); OpenNCCM ya guarda al terminar, así que no se manda
+            out += f"\n{cmd.strip()}  (se guarda al terminar)"
+            continue
+        resp = conn.send_command(cmd, expect_string=PROMPT_END, read_timeout=180, strip_prompt=False,
                                  strip_command=False, cmd_verify=False)
         resp = _ros_wait_progress(conn, resp)
         out += f"\n{resp}"

@@ -115,8 +115,11 @@ PROFILES: list[Profile] = [
             "show configuration | display set | no-more", None, family=SET, commit=True, save=False,
             telnet=True, ignore=[r"^## Last commit", r"^## Last changed"], cpe="cpe:2.3:o:juniper:junos",
             cpe_format="junos",
+            # «show version» no trae la serie: está en la línea Chassis de «show chassis hardware», antes de la
+            # descripción («Chassis   [REV 07  750-021778]  JN11E3A6EAFA   MX80»); sin serie (vMX: «Chassis  VMX») no se toma
+            inventory="show version\nshow chassis hardware",
             version_re=[r"Junos: (\S+)", r"JUNOS .*\[(\S+)\]"], model_re=[r"Model: (\S+)"],
-            serial_re=[r"Chassis\s+(\S+)"]),
+            serial_re=[r"(?m)^Chassis[ \t]+(?:REV[ \t]+\S+[ \t]+)?(?:\d{3}-\d{6}[ \t]+)?(\S+)[ \t]+\S"]),
     # ---------------- Arista ----------------
     Profile("arista_eos", "Arista EOS", "Arista", "show running-config", "show startup-config",
             telnet=True, ignore=[r"^! Command:", r"^! Startup-config last modified", r"^! device:"],
@@ -536,7 +539,9 @@ for _k, _fw in _FW.items():
 GENERIC_VERSION = [r"[Vv]ersion[:\s]+([\w.()\-]+)"]
 # [ \t]* y no \s*: un valor vacío («Model: ») no debe tomar la línea siguiente como valor
 GENERIC_MODEL = [r"[Mm]odel(?: [Nn]umber)?[ \t]*[:=][ \t]*(\S+)", r"Hardware[ \t]*:[ \t]*(\S+)"]
-GENERIC_SERIAL = [r"[Ss]erial[ _-]?(?:[Nn]umber|[Nn]o\.?|#)[ \t]*[:=]?[ \t]*(\S+)", r"Processor board ID (\S+)",
+# (no la cabecera de una tabla: «Item  Version  Part number  Serial number  Description» de «show chassis hardware»)
+GENERIC_SERIAL = [r"[Ss]erial[ _-]?(?:[Nn]umber|[Nn]o\.?|#)[ \t]*[:=]?[ \t]*(?!(?:Description|Model|Part|Version)\b)(\S+)",
+                  r"Processor board ID (\S+)",
                   r"\bS/N[ \t]*[:=][ \t]*(\S+)"]  # «HW S/N: …» (EdgeRouter y otros)
 
 
