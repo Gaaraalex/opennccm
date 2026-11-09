@@ -92,7 +92,7 @@
       (window.ocWarn ? window.ocWarn({title: T.w_title, gh: D.issues ? ghUrl(c) : '', where: c.name}) : '') +
       '<pre class="cf-body mono">' + varmark(c.body) + '</pre>' +
       (D.admin ? '<div><button type="button" class="btn s ghost" id="cf-verify">' + ic('shield') + esc(c.verified_on ? T.v_unset : T.v_set) + '</button></div>' : '') +
-      '<div class="rc-acts">' + (D.can_run ? '<a class="btn pri" href="/configlets/' + c.id + '/run" data-sheet data-wide data-title="' + esc(T.run_t.replace('{0}', c.name)) + '">' + ic('play') + esc(T.run) + '</a>' : '') +
+      '<div class="rc-acts">' + (D.can_run ? '<a class="btn pri" data-needs-page-ack href="/configlets/' + c.id + '/run" data-sheet data-wide data-title="' + esc(T.run_t.replace('{0}', c.name)) + '">' + ic('play') + esc(T.run) + '</a>' : '') +
       (D.admin ? '<a class="btn" href="/configlets/' + c.id + '/edit" data-sheet data-title="' + esc(T.edit_t.replace('{0}', c.name)) + '">' + ic('edit') + esc(T.edit) + '</a>' +
         '<a class="btn ghost" href="/configlets/new?from=' + c.id + '" data-sheet data-title="' + esc(T.dup) + '">' + esc(T.dup) + '</a>' : '') + '</div>';
     if ($('cf-verify')) $('cf-verify').addEventListener('click', function () {

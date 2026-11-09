@@ -114,6 +114,11 @@ CHANGE_PATTERNS = re.compile("|".join([
     # consulta ni de la sesión (OpenNCCM entra con «disable clipaging»)
     r"\bcli: \S+ \(\w+\) \S+: (?!(?:show|disable clipaging|enable clipaging|exit|logout|quit|ping|traceroute|history|"
     r"clear|ssh|telnet|top|ls|cd|cat|tftp get|download|upload)\b)\w",
+    # FastPath (EdgeSwitch, UniFi Switch): con «logging cli-command» registra cada comando (salida real de un EdgeSwitch
+    # 16 150W con 1.9.3: «CMDLOGGER[emWeb]: cmd_logger_api.c(83) 3681 %% CLI:10.0.0.5:ubnt:vlan 250»). Cuenta un
+    # comando que no sea de consulta, de la sesión ni de cambio de modo
+    r"CMDLOGGER\[[^\]]*\]: \S+ \d+ %% CLI:[^:\s]+:[^:\s]+:(?!(?:show|terminal|enable|disable|exit|end|configure|"
+    r"vlan database|interface|User |ping|traceroute|logout|quit|clear|copy|write|dir|help|history)\b)\w",
 ]), re.IGNORECASE)
 
 _last_trigger: dict[int, float] = {}

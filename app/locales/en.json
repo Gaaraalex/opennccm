@@ -4587,6 +4587,7 @@
 "Servidor NTP (IP)": "NTP server (IP)",
 "Servidor NTP y zona horaria.": "NTP server and time zone.",
 "Servidor syslog por el puerto 514.": "Syslog server on port 514.",
+"Servidor syslog por el puerto 514, con los avisos de cada comando (sin «info» solo manda los críticos).": "Syslog server on port 514, with a message for each command (without «info» it only sends critical ones).",
 "Servidores DNS que usa el propio equipo (actualizaciones, NTP por nombre).": "DNS servers the device itself uses (updates, NTP by name).",
 "Solo AP UniFi: le dice al AP la dirección del controlador UniFi Network para que lo adopte.": "UniFi APs only: tells the AP the UniFi Network controller address so it can be adopted.",
 "Subinterfaz etiquetada (vif) sobre un puerto, con su IP y descripción.": "Tagged subinterface (vif) on a port, with its IP and description.",

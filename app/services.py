@@ -9,6 +9,7 @@ import re
 import smtplib
 import threading
 import time
+import types
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from email.message import EmailMessage
@@ -41,8 +42,10 @@ def device_lock(device_id: int) -> threading.Lock:
 
 
 # --------------------------------------------------------------------------- conexión
+# «Signature verification (ssh-rsa) failed»: el saludo SSH de un EdgeSwitch 16 150W (1.9.3) falla de vez en cuando
+# al entrar (antes de enviar nada); al segundo intento entra bien
 TRANSIENT_SSH = re.compile(r"(?i)no existing session|error reading ssh protocol banner|connection reset|"
-                           r"forzado la interrupci|eoferror|socket is closed")
+                           r"forzado la interrupci|eoferror|socket is closed|signature verification \(\S+\) failed")
 
 
 def _connect_retry(handler, params: dict, tries: int = 3):
@@ -66,12 +69,38 @@ def _release_db(dev) -> None:
     con «QueuePool limit of size 5 overflow 10 reached» (un falso error de SSH en equipos que estaban bien) y las
     páginas se quedaban esperando una conexión (pantalla en negro durante «Respaldar todos»)."""
     from sqlalchemy.orm import object_session
-    s = object_session(dev)
+    from sqlalchemy.orm.exc import UnmappedInstanceError
+    try:
+        s = object_session(dev)
+    except UnmappedInstanceError:  # un equipo armado a mano (imagen .fxi de WatchGuard, restaurar en otro): sin sesión
+        return
     if s is not None and not (s.new or s.dirty or s.deleted) and s.in_transaction():
         try:
             s.commit()
         except Exception as e:  # noqa: BLE001 - nunca impide conectar
             log.info("No se pudo soltar la conexión a la base antes del SSH: %s", e)
+
+
+def _fireware_logout(conn, command: str = "") -> None:
+    """Fireware no cierra la sesión de administración al cortarse el SSH: queda abierta hasta que vence su tiempo de
+    inactividad (se ve en «who»). Cada respaldo dejaba una más y una solicitud que fallaba dentro de «configure» dejaba
+    el modo de edición tomado: el Firebox rechazaba la imagen .fxi y los cambios de cualquier otro administrador con
+    «The Device Administrator admin from … has selected Edit Mode» (visto en un T40 con Fireware 12.8.1). Al cerrar se
+    sale de «configure» y se cierra la sesión con «exit», como un administrador."""
+    for _ in range(4):
+        try:
+            if not conn.check_config_mode():
+                break
+            conn.write_channel("exit" + conn.RETURN)
+            time.sleep(0.5)
+            conn.read_channel()
+        except Exception:  # noqa: BLE001 - la sesión puede estar ya cortada
+            return
+    try:
+        conn.write_channel("exit" + conn.RETURN)
+        time.sleep(0.5)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def connect(dev: Device):
@@ -117,6 +146,8 @@ def connect(dev: Device):
                 "(Credenciales → Enable / secret).") from e2
         log.info("%s: enable aceptó la contraseña de ingreso (la credencial no tiene contraseña de enable)",
                  dev.name)
+    if dev.device_type == "watchguard_fireware":
+        conn.cleanup = types.MethodType(_fireware_logout, conn)
     if prof.family not in (IOS, FASTPATH):  # Juniper, Huawei, MikroTik, Linux...: no tienen modo «enable»
         return conn
     try:
@@ -808,6 +839,17 @@ def _backup_device(device_id: int, trigger: str, username: str | None, report: b
         if neighbors_raw is not None:
             from . import topology
             nbrs = topology.parse(neighbors_raw, dev.device_type)
+            # el propio equipo como vecino (un lazo: CDP/LLDP que vuelve por otro puerto, «S-1.lab.local» visto desde
+            # S-1) no es un vecino: no se dibuja ni da la alarma «Vecino perdido» cuando se deja de ver. Se reconoce por
+            # el nombre y una IP del propio equipo: la de gestión o una de su configuración (CDP anuncia la de otra
+            # interfaz, p. ej. la Vlan1). Dos MikroTik de fábrica se llaman igual y sí son vecinos.
+            me = (dev.name or "").split(".")[0].lower()
+
+            def _own_ip(ip):
+                return bool(ip) and (ip == dev.host or bool(re.search(rf"(?<![\d.]){re.escape(ip)}(?![\d.])", running or "")))
+            # (o el nombre con su dominio, «S-1.lab.local»: CDP lo anuncia así y la IP puede ser una que ya no tiene)
+            nbrs = [n for n in nbrs if not (me and (n.get("remote_name") or "").split(".")[0].lower() == me
+                                            and (_own_ip(n.get("remote_ip")) or "." in (n.get("remote_name") or "")))]
             dev.neighbors = json.dumps(nbrs)
             try:  # aviso de vecino nuevo o perdido (app/nbwatch.py)
                 from . import nbwatch
@@ -970,11 +1012,16 @@ def push_commands(device_id: int, commands: list[str], exec_mode=False) -> str:
 #   Broadcom FastPath/EdgeSwitch/Netgear/Dell N («Failed to ...», «An invalid ...»), HP ProCurve («Invalid input:»).
 DEVICE_ERROR = re.compile(
     r"(?im)^\s*(%+\s*(Invalid|Incomplete|Ambiguous|Unrecognized|Unknown|Error|Bad|Wrong|Failed|Cannot)|!!%|"
-    r"syntax error|unknown command|error:|Error\b|Failed to |An invalid |Invalid (input|command|syntax|value)|"
+    # («Failed to generate persistent self-signed certificate» es un aviso de IOS sin NVRAM para el certificado: el
+    # comando se aplica igual. «Command rejected: …» sí es un rechazo de Cisco, p. ej. «switchport mode trunk» con la
+    # encapsulación en «Auto»)
+    r"syntax error|unknown command|error:|Error\b|Failed to (?!generate persistent self-signed)|An invalid |"
+    r"Command rejected|Invalid (input|command|syntax|value)|VLAN does not exist|"
     r"Incomplete command|Unrecognized command|Command not found|Command fail|Unknown action|bad command name|"
     r"expected end of command|failure:|input does not match|entry not found|value parse error|Server error|"
     r"no such item|invalid value|ambiguous value|already have|value of \S+ out of range|missing value|bad argument|"
     r"(MINOR|MAJOR|CRITICAL): |CLINFR\d+|(Set|Delete|Commit) failed|Cannot |Unable to |Incorrect usage)")
+SAVE_CMD = re.compile(r"(?i)(write( memory)?|wr( mem)?|copy run(ning-config)? start(up-config)?)")
 # fin de la respuesta a un comando: el prompt del equipo (# > $ ]) o una pregunta de confirmación
 PROMPT_END = r"([#>$\]]\s*$|\[confirm\]\s*$|[\[(](y/n|yes/no|Y/N)[\])]\s*[?:]?\s*$)"
 CONFIRM = re.compile(r"(\[confirm\]|[\[(](y/n|yes/no|Y/N)[\])])\s*[?:]?\s*$")
@@ -1044,6 +1091,77 @@ def _ros_wait_progress(conn, resp: str) -> str:
     return resp
 
 
+ONLY_PROMPT = re.compile(r"\s*[^\s#>$\]]*(\([^)]*\))?[#>$\]]\s*")
+
+
+def _late_prompt(conn, cmd: str, resp: str) -> str:
+    """El prompt de antes del comando a veces llega tarde (el de «configure terminal») y se tomaba como la respuesta
+    del comando: el rechazo del equipo llegaba después, quedaba en la salida del «end» y la solicitud terminaba «bien»
+    sin haberlo aplicado (VOSS 9.3: «vlan create 199 …» → «Error: The specified VLAN ID is invalid or already in use»).
+    Si solo se leyó un prompt, sin el eco del comando, se sigue leyendo hasta el prompt de después del comando."""
+    head = cmd.strip()[:20]
+    if not head or head in resp or not ONLY_PROMPT.fullmatch(resp):
+        return resp
+    try:
+        return resp + conn.read_until_pattern(pattern=re.escape(head) + r"[\s\S]*?" + PROMPT_END, read_timeout=30)
+    except Exception:  # noqa: BLE001 - el equipo no repite el comando: se queda con lo leído
+        return resp
+
+
+# en FastPath son del modo privilegiado (van antes de «configure» en la configuración; en «configure» dan «Invalid
+# input»: visto en un EdgeSwitch 16 150W con 1.9.3 con la receta «Activar SSH y HTTPS»)
+FP_EXEC_ONLY = re.compile(r"(?i)^(no\s+)?(hostname|ip ssh server|ip ssh protocol|ip http (secure-)?server|"
+                          r"ip http secure-protocol|ip telnet server)\b")
+FP_EXEC = re.compile(r"(?i)^(show|write|copy|ping|traceroute|clear|reload)\b|" + FP_EXEC_ONLY.pattern[4:])
+FP_SUBMODE = re.compile(r"(?i)^(interface|line|router|policy-map|class-map|ip access-list|mac access-list)\b")
+
+
+def fastpath_modes(commands: list[str]) -> list[str]:
+    """FastPath (EdgeSwitch, UniFi Switch, Netgear): la solicitud se aplica dentro de «configure», pero las VLAN se
+    crean en «vlan database», que se abre desde el modo privilegiado. Se mandaba «vlan database» dentro de «configure»
+    y el switch lo ignoraba: «vlan 210» daba «VLAN does not exist.» y la receta «Crear una VLAN» fallaba (visto en un
+    EdgeSwitch 16 150W con 1.9.3). Aquí se sale de «configure» antes de «vlan database» y se vuelve a entrar después,
+    y se quitan el «enable» y el «configure» del principio que traen las recetas (la solicitud ya está en ese modo)."""
+    out, mode, depth = [], "config", 0
+    for raw in commands:
+        c = raw.strip()
+        lc = c.lower()
+        if lc == "enable":
+            continue
+        if lc in ("configure", "configure terminal", "conf t"):
+            if mode != "config":
+                out.append(raw)
+                mode, depth = "config", 0
+            continue
+        if lc == "vlan database":
+            if mode == "config":
+                out += ["exit"] * (depth + 1)
+            out.append(raw)
+            mode, depth = "vlan", 0
+            continue
+        if lc in ("exit", "end"):
+            if mode == "vlan":
+                out.append(raw)
+                mode = "exec"
+            elif mode == "config" and depth:
+                out.append(raw)
+                depth -= 1
+            elif mode == "config":
+                out.append(raw)
+                mode = "exec"
+            continue  # (en el modo privilegiado un «exit» cerraría la sesión: no se manda)
+        if mode == "config" and FP_EXEC_ONLY.match(c):
+            out += ["exit"] * (depth + 1)
+            mode, depth = "exec", 0
+        if mode == "exec" and not FP_EXEC.match(c):
+            out.append("configure")
+            mode, depth = "config", 0
+        if mode == "config" and FP_SUBMODE.match(c):
+            depth += 1
+        out.append(raw)
+    return out
+
+
 def _push_stepwise(conn, commands: list[str], prof) -> str:
     """Envía los comandos de uno en uno y se detiene en el primero que el equipo rechace.
 
@@ -1051,9 +1169,17 @@ def _push_stepwise(conn, commands: list[str], prof) -> str:
     siguientes y no se guarda (write memory / commit). En plataformas con commit se descartan los cambios
     pendientes para no dejarlos a medias en la configuración candidata."""
     out = conn.config_mode()
+    if getattr(prof, "family", None) == FASTPATH:
+        commands = fastpath_modes(commands)
     for i, cmd in enumerate(commands):
-        resp = conn.send_command(cmd, expect_string=PROMPT_END, read_timeout=60, strip_prompt=False,
+        if getattr(prof, "family", None) in (IOS, FASTPATH) and SAVE_CMD.fullmatch(cmd.strip()):
+            # «write memory» en el modo de configuración da «% Invalid input» (receta «Guardar la configuración» en un
+            # IOSvL2); OpenNCCM ya guarda al terminar, así que no se manda
+            out += f"\n{cmd.strip()}  (se guarda al terminar)"
+            continue
+        resp = conn.send_command(cmd, expect_string=PROMPT_END, read_timeout=180, strip_prompt=False,
                                  strip_command=False, cmd_verify=False)
+        resp = _late_prompt(conn, cmd, resp)
         resp = _ros_wait_progress(conn, resp)
         out += f"\n{resp}"
         problem = None

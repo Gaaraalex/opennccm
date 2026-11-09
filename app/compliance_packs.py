@@ -112,14 +112,19 @@ PACKS = {
                                                       "Controles de seguridad de referencia para switches Ubiquiti "
                                                       "(cuenta por defecto, servicios de gestión, SNMP, registros y hora)", [
         ("Sin la cuenta por defecto «ubnt»", "must_not_contain", r'^username "?ubnt"?\s', "critical", None),
-        ("SSH habilitado", "must_contain", r"^ip ssh server enable", "major", "ip ssh server enable"),
+        # «show running-config» de FastPath solo trae lo que difiere de fábrica: el SSH, la web por HTTP y el cliente
+        # SNTP vienen encendidos y no aparecen; apagados se ven «no ip ssh server enable», «no ip http server»… (visto en
+        # un EdgeSwitch 16 150W con 1.9.3: las reglas buscaban las líneas encendidas y daban «SSH» y «SNTP» sin cumplir
+        # y «HTTP» cumplido, al revés de lo que tenía el switch)
+        ("SSH habilitado", "must_not_contain", r"^no ip ssh server enable", "major", "ip ssh server enable"),
         ("Sin Telnet", "must_not_contain", r"^ip telnet server enable", "critical", "no ip telnet server enable"),
         # sin corrección automática: «ip http secure-server» necesita un certificado y, sin él, se perdería la web
-        ("Sin HTTP sin cifrar", "must_not_contain", r"^ip http server\b", "major", None),
+        ("Sin HTTP sin cifrar", "must_contain", r"^no ip http server\b", "major", None),
         ("Sin comunidades SNMP por defecto", "must_not_contain", r'^snmp-server community "?(public|private)"?(\s|$)',
          "critical", None),
         ("Envío de logs a syslog", "must_contain", r"^logging host \S+", "major", None),
-        ("Sincronización horaria (SNTP)", "must_contain", r"^sntp server ", "major",
+        # el cliente SNTP viene en «unicast» con un servidor de fábrica (2.ubnt.pool.ntp.org) que no aparece
+        ("Sincronización horaria (SNTP)", "must_not_contain", r"^no sntp client mode", "major",
          None),
     ]),
     # MikroTik RouterOS («/export terse»: solo aparece lo que difiere de fábrica; Telnet, FTP, www y API vienen activos)
@@ -329,6 +334,35 @@ def drop_example_fixes(db) -> int:
             old = EXAMPLE_FIXES.get((p.name, r.name))
             if old and (r.remediation or "").strip() == old.strip():
                 r.remediation = None
+                n += 1
+    if n:
+        db.commit()
+    return n
+
+
+# Reglas publicadas con la condición al revés (FastPath no muestra lo que viene de fábrica): se corrigen en las
+# instalaciones que las tengan sin modificar. (política, regla): (tipo y patrón publicados) → (tipo y patrón nuevos)
+PATTERN_FIXES = {
+    ('Ubiquiti EdgeSwitch/UniFi · Seguridad básica', 'SSH habilitado'):
+        (("must_contain", r"^ip ssh server enable"), ("must_not_contain", r"^no ip ssh server enable")),
+    ('Ubiquiti EdgeSwitch/UniFi · Seguridad básica', 'Sin HTTP sin cifrar'):
+        (("must_not_contain", r"^ip http server\b"), ("must_contain", r"^no ip http server\b")),
+    ('Ubiquiti EdgeSwitch/UniFi · Seguridad básica', 'Sincronización horaria (SNTP)'):
+        (("must_contain", r"^sntp server "), ("must_not_contain", r"^no sntp client mode")),
+}
+
+
+def fix_rule_patterns(db) -> int:
+    """Corrige esas reglas, solo si siguen exactamente como se publicaron (una que alguien cambió no se toca)."""
+    from sqlalchemy import select
+
+    from .db import Policy
+    n = 0
+    for p in db.scalars(select(Policy).where(Policy.name.in_({k[0] for k in PATTERN_FIXES}))):
+        for r in p.rules:
+            fix = PATTERN_FIXES.get((p.name, r.name))
+            if fix and (r.kind, r.pattern) == fix[0]:
+                r.kind, r.pattern = fix[1]
                 n += 1
     if n:
         db.commit()

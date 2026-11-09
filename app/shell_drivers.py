@@ -30,11 +30,17 @@ OSC = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?")
 class FreeBSDFirewallSSH(LinuxSSH):
     """pfSense / OPNsense."""
 
-    def _read_until(self, pattern: re.Pattern, timeout: float) -> str:
-        out, end = "", time.time() + timeout
+    def _read_until(self, pattern: re.Pattern, timeout: float, quiet: float = 1.0) -> str:
+        """Lee hasta ver el patrón al final y que el equipo deje de mandar texto (quiet segundos): el aviso de entrada
+        de OPNsense 26.7 llega en trozos y uno puede terminar en «->» («LAN (vtnet0)    -> v4: …»), que parecía un
+        prompt; se mandaba «exec /bin/sh» al menú y el respaldo fallaba con «Pattern not detected»."""
+        out, end, last = "", time.time() + timeout, time.time()
         while time.time() < end:
-            out += self.read_channel()
-            if pattern.search(out):
+            got = self.read_channel()
+            if got:
+                out += got
+                last = time.time()
+            elif pattern.search(out) and time.time() - last >= quiet:
                 return out
             time.sleep(0.2)
         return out

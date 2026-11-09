@@ -210,8 +210,10 @@ def lines_of(text: str, device_type: str, hosts: list[str]) -> list[tuple[str, s
         if not ln.startswith((" ", "\t")):
             s = ln.strip()
             w = s.split()
-            skip_block = bool(re.match(r"crypto (pki|ca) certificate", s))
-            if skip_block or w[0] in ("hostname", "sysname", "prompt"):
+            # lo propio de cada equipo Cisco: su certificado autofirmado (trustpoint «TP-self-signed-<n.º>»; borrarlo
+            # pide confirmar) y la licencia con su serie («license udi pid CSR1000V sn …»)
+            skip_block = bool(re.match(r"crypto (pki|ca) certificate|crypto pki trustpoint TP-self-signed-", s))
+            if skip_block or w[0] in ("hostname", "sysname", "prompt") or re.match(r"license udi\b", s):
                 parent = s
                 continue
             parent, psec = s, _section(w[0], " ".join(w[1:]))
@@ -223,6 +225,8 @@ def lines_of(text: str, device_type: str, hosts: list[str]) -> list[tuple[str, s
         if s.startswith(("description ", "name ")) and parent.lower().startswith(("interface", "vlan")):
             continue
         if re.match(r"^(certificate|quit)\b", s) or re.fullmatch(r"[0-9A-Fa-f ]{16,}", s):
+            continue
+        if re.match(r"ip dhcp client client-id ascii \S+$", s):  # (lleva la serie del equipo)
             continue
         out.append((psec or _("Otros"), _mask(f"{parent}{SEP}{s}" if parent else s, hosts)))
     return out
@@ -311,25 +315,50 @@ def commands(device_type: str, c: dict) -> tuple[str, int]:
                 skipped += 1
             else:
                 lines.append(k)
+        from .rollback import set_deletes
+        extra = []
         for _s, k in c["extra"]:
             if "***" in k or "{IP}" in k:
                 skipped += 1
             else:
-                lines.append("delete " + k[4:])
+                extra.append(k)
+        keep = [k for _s, k in c["ref_lines"]] + [k for _s, k in c["dev_lines"] if k in c["skip"]]
+        # las interfaces del equipo no se borran enteras: su descripción (propia de cada equipo) no se compara
+        keep += sorted({" ".join(k.split()[:3]) + " description" for k in extra if k.startswith("set interfaces ")})
+        lines = set_deletes(extra, keep) + lines  # (lo que sobra se borra antes de poner lo que falta)
         return "\n".join(lines), skipped
     by_parent: dict[str, list[str]] = {}
     tops: list[str] = []
+
+    def neg(line: str) -> str | None:
+        if device_type in EXIT_BLOCKS:  # VOSS: «vlan create 20 …» se quita con «vlan delete 20», no con «no vlan create»
+            from .rollback_vendor import _voss_negate
+            return _voss_negate(line)
+        # lo que sobra y ya es un «no …» («no ip address» de una interfaz) no se niega otra vez («no no ip address»)
+        from .rollback import IOS_KEEP
+        return None if line.startswith("no ") or line in IOS_KEEP else "no " + line
+    gone = {k for _s, k in c["extra"] if SEP not in k}  # bloques que se quitan enteros: sus líneas no se tocan
     for sign, items in (("+", c["missing"]), ("no ", c["extra"])):
         for _s, k in items:
             if "***" in k or "{IP}" in k:
                 skipped += 1
                 continue
             parent, sep, child = k.partition(SEP)
+            if sep and sign != "+" and parent in gone:
+                continue
+            if not sep and device_type not in EXIT_BLOCKS:  # AAA encendido/apagado no se cambia al igualar
+                from .rollback import IOS_KEEP
+                if parent in IOS_KEEP or parent.removeprefix("no ") in IOS_KEEP:
+                    skipped += 1
+                    continue
+            line = (child if sep else parent) if sign == "+" else neg(child if sep else parent)
+            if line is None:
+                continue
             if sep:
-                by_parent.setdefault(parent, []).append(child if sign == "+" else "no " + child)
+                by_parent.setdefault(parent, []).append(line)
             else:
-                tops.append(parent if sign == "+" else "no " + parent)
-    for t in tops:
+                tops.append(line)
+    for t in dict.fromkeys(tops):  # (VOSS: «banner custom» y «banner "…"» se quitan con un solo «no banner»)
         lines.append(t)
     for p, ch in by_parent.items():
         lines.append(p)

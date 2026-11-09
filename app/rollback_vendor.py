@@ -386,8 +386,9 @@ def exos(current: str, target: str, mgmt: str | None = None) -> tuple[list[str],
 
 # --------------------------------------------------------------------------------------------- Extreme VOSS / Fabric
 # «show running-config»: órdenes de nivel superior y bloques «interface GigabitEthernet 1/1 … exit».
+# «radius …» son órdenes de una línea (no abren bloque): «radius server host X key ****** …», «radius enable».
 VOSS_OPEN = re.compile(r"^(interface |router |mgmt |isis$|spbm \d|vlan \d+ |route-map |ip prefix-list |"
-                       r"radius |application$|logical-intf )")
+                       r"application$|logical-intf )")
 VOSS_SINGLE = [r"^snmp-server name ", r"^snmp-server location ", r"^snmp-server contact ", r"^prompt ",
                r"^sys name ", r"^clock time-zone ", r"^ip domain-name ", r"^default-vlan-id ", r"^ip address ",
                r"^name ", r"^encapsulation ", r"^speed ", r"^duplex ", r"^auto-negotiate "]
@@ -439,6 +440,12 @@ def _voss_negate(line: str) -> str:
         return f"no ip route {m.group(1)}"
     if line == "shutdown":
         return "no shutdown"
+    m = re.match(r"^radius server host (\S+)(?:.*?\b(used-by \S+))?", line)
+    if m:  # la clave sale enmascarada («key ******»): no va en la negación. «used-by» es obligatorio y la
+        # configuración no lo muestra cuando es el de omisión («cli»; VOSS 9.3: «no radius server host X» → Incomplete)
+        return f"no radius server host {m.group(1)} {m.group(2) or 'used-by cli'}"
+    if re.match(r"banner\b", line):  # «banner custom» y «banner "texto"»: VOSS 9.3 no tiene «no banner custom»
+        return "no banner"
     if line.startswith("no "):
         return line[3:]
     return "no " + line
@@ -465,7 +472,7 @@ def voss(current: str, target: str, mgmt: str | None = None) -> tuple[list[str],
         add = [l for l in new if l not in old and not skip(header, l)]
         rem = [_voss_negate(l) for l in old if l not in new and not (_voss_key(l) and _voss_key(l) in new_keys)
                and not skip(header, l)]
-        return [r for r in rem if r not in add], add
+        return list(dict.fromkeys(r for r in rem if r not in add)), add
 
     def vlan_of(l):
         m = re.match(r"^vlan (?:create |delete |members (?:add|remove) |i-sid )(\d+)", l) or \

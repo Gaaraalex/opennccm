@@ -83,6 +83,10 @@ async def lifespan(_app):
                 n = drop_example_fixes(db)
                 if n:
                     log.info("Quitadas %d correcciones de cumplimiento con direcciones de ejemplo", n)
+                from .compliance_packs import fix_rule_patterns
+                n = fix_rule_patterns(db)
+                if n:
+                    log.info("Corregidas %d reglas de cumplimiento con la condición al revés", n)
     except Exception:  # noqa: BLE001
         log.exception("No se pudieron cargar los paquetes de cumplimiento nuevos")
     scheduler.start()

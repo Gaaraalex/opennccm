@@ -116,26 +116,31 @@ ip ssh server enable
 ip ssh protocol 2
 no ip telnet server enable
 ip http secure-server
+no ip http server
 snmp-server community "Red-Lectura-7x" ro
 sntp client mode unicast
 sntp server "192.0.2.1"
 logging host 192.0.2.10 ipv4 514 info
 """
+# FastPath solo muestra lo que difiere de fábrica: la web por HTTP encendida no aparece; el SSH y el SNTP apagados sí
 UBNT_DEFAULT = """!Current Configuration:
 hostname "UBNT"
 username "ubnt" password 8d7a1c level 15 encrypted
+no ip ssh server enable
 ip telnet server enable
-ip http server
 snmp-server community "public" ro
+no sntp client mode
 """
 check("Ubiquiti: una configuración segura pasa todas las reglas", failed_rules(UBNT, UBNT_SECURE) == [],
       failed_rules(UBNT, UBNT_SECURE))
 bad = failed_rules(UBNT, UBNT_DEFAULT)
 for rule in ("Sin la cuenta por defecto «ubnt»", "SSH habilitado", "Sin Telnet", "Sin HTTP sin cifrar",
              "Sin comunidades SNMP por defecto", "Envío de logs a syslog", "Sincronización horaria (SNTP)"):
-    check(f"Ubiquiti de fábrica: falla «{rule}»", rule in bad, bad)
-check("Ubiquiti: «ip http secure-server» no cuenta como HTTP sin cifrar",
-      "Sin HTTP sin cifrar" not in failed_rules(UBNT, "ip http secure-server\n"))
+    check(f"Ubiquiti inseguro: falla «{rule}»", rule in bad, bad)
+check("Ubiquiti: con «no ip http server» (y la web por HTTPS) no hay HTTP sin cifrar",
+      "Sin HTTP sin cifrar" not in failed_rules(UBNT, "ip http secure-server\nno ip http server\n"))
+check("Ubiquiti: «ip http secure-server» solo no apaga la web por HTTP (viene encendida de fábrica)",
+      "Sin HTTP sin cifrar" in failed_rules(UBNT, "ip http secure-server\n"))
 check("Ubiquiti: un usuario llamado «ubnt-admin» no es la cuenta por defecto",
       "Sin la cuenta por defecto «ubnt»" not in failed_rules(UBNT, 'username "ubnt-admin" password x level 15\n'))
 check("los filtros de equipo apuntan a los perfiles correctos",
