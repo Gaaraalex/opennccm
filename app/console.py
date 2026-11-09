@@ -298,6 +298,25 @@ async def _refuse(ws: WebSocket, why: str, log_detail: str):
     await ws.close(code=1008)
 
 
+def fireware_logout(chan, tries: int = 4) -> int:
+    """Fireware no cierra la sesión de administración al cortarse el SSH (queda en «who» hasta que vence su tiempo de
+    inactividad, y si quedó en «configure», con el modo de edición tomado para los demás). Al cerrar la consola se sale
+    con «exit» hasta que el Firebox corta (de «configure» al modo principal y de ahí se cierra la sesión)."""
+    sent = 0
+    for _i in range(tries):
+        try:
+            if chan.closed or chan.exit_status_ready():
+                break
+            chan.send("exit\n")
+            sent += 1
+            time.sleep(0.6)
+            while chan.recv_ready():
+                chan.recv(4096)
+        except Exception:  # noqa: BLE001 - el canal ya se cerró
+            break
+    return sent
+
+
 def _next_version(dev_id: int) -> int:
     with SessionLocal() as db:
         return (db.scalar(select(func.count()).select_from(ConfigVersion).where(ConfigVersion.device_id == dev_id)) or 0) + 1
@@ -573,6 +592,8 @@ async def console_ws(ws: WebSocket, dev_id: int):
             LIVE.pop(sid, None)
         for w in list(live.watchers):
             asyncio.run_coroutine_threadsafe(_safe_send(w, json.dumps({"t": "n", "k": "warn", "d": _("La sesión terminó.")})), loop)
+        if dev_type == "watchguard_fireware":
+            await asyncio.to_thread(fireware_logout, chan)
         try:
             chan.close()
             client.close()

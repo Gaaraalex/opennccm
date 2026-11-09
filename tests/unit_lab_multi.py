@@ -128,11 +128,132 @@ check("IOS: «Command rejected: …» es un rechazo", bool(services.DEVICE_ERROR
 check("IOS: «write memory» de una receta no se manda en el modo de configuración (OpenNCCM guarda al final)",
       all(services.SAVE_CMD.fullmatch(c) for c in ("write memory", "wr", "copy running-config startup-config"))
       and not services.SAVE_CMD.fullmatch("write erase"))
+from types import SimpleNamespace  # noqa: E402
+
+try:  # la imagen .fxi de WatchGuard conecta con un equipo armado a mano (no está en la base)
+    services._release_db(SimpleNamespace(name="WG-1", host="10.0.0.254"))
+    ok_rel = True
+except Exception as e:  # noqa: BLE001
+    ok_rel = e
+check("WatchGuard .fxi: conectar con un equipo que no es de la base no falla («Class SimpleNamespace is not mapped»)",
+      ok_rel is True, ok_rel)
+
+
+class FwConn:
+    """Un Firebox: «exit» sale de «configure» y, en el modo principal, cierra la sesión."""
+    RETURN = "\n"
+
+    def __init__(self, depth):
+        self.depth, self.sent, self.logged_out = depth, [], False
+
+    def check_config_mode(self):
+        return self.depth > 0
+
+    def write_channel(self, t):
+        self.sent.append(t.strip())
+        if t.strip() == "exit":
+            if self.depth:
+                self.depth -= 1
+            else:
+                self.logged_out = True
+
+    def read_channel(self):
+        return ""
+
+
+for depth in (0, 2):
+    fw = FwConn(depth)
+    services._fireware_logout(fw)
+    check(f"WatchGuard: al cerrar se sale de «configure» y se cierra la sesión (dentro de {depth} niveles)",
+          fw.logged_out and fw.depth == 0 and fw.sent == ["exit"] * (depth + 1), fw.sent)
+
+
+class FwChan:
+    """El canal de la consola web con un Firebox: «exit» sale de cada nivel y, en el principal, el equipo corta."""
+
+    def __init__(self, depth):
+        self.depth, self.closed, self.sent = depth, False, 0
+
+    def exit_status_ready(self):
+        return self.closed
+
+    def send(self, t):
+        self.sent += 1
+        if self.depth:
+            self.depth -= 1
+        else:
+            self.closed = True
+
+    def recv_ready(self):
+        return False
+
+
+from app import console  # noqa: E402
+
+for depth in (0, 2):
+    ch_ = FwChan(depth)
+    console.fireware_logout(ch_)
+    check(f"WatchGuard: al cerrar la consola web se cierra la sesión del Firebox (dentro de {depth} niveles de configure)",
+          ch_.closed and ch_.sent == depth + 1, (ch_.closed, ch_.sent))
+
+
+class LateConn:
+    """La respuesta del comando llega después de un prompt atrasado (el de «configure terminal»)."""
+
+    def __init__(self, first, rest):
+        self.first, self.rest = first, rest
+
+    def send_command(self, *_a, **_k):
+        return self.first
+
+    def read_until_pattern(self, pattern, read_timeout=0):
+        if not re.search(pattern, self.rest):
+            raise TimeoutError
+        return self.rest
+
+
+late = LateConn("Y-1:1(config)#", "\nvlan create 199 name labvolver type port-mstprstp 0\n\n"
+                "Error: The specified VLAN ID is invalid or already in use \n\nY-1:1(config)#")
+r = services._late_prompt(late, "vlan create 199 name labvolver type port-mstprstp 0", late.first)
+check("VOSS: un prompt atrasado no se toma como la respuesta; el rechazo que llega después se ve",
+      bool(services.DEVICE_ERROR.search(r)), r)
+ok = LateConn("R1(config)#\ninterface Loopback1\nR1(config-if)#", "")
+check("y una respuesta normal no espera de más", services._late_prompt(ok, "interface Loopback1", ok.first) == ok.first)
+check("ni un prompt solo de un equipo que no repite el comando (se queda con lo leído)",
+      services._late_prompt(LateConn("R1(config)#", "nada"), "hostname R1", "R1(config)#") == "R1(config)#")
+
 cur = "interface Loopback10\n description DATOS\n no ip address\n"
 tgt = "interface Loopback10\n description DATOS\n ip address 192.168.10.1 255.255.255.0\n"
 out = rollback.build_rollback(cur, tgt, IOS)
 check("IOS: un «no ip address» que se reemplaza no se niega («ip address» sola)", " ip address" not in out
       and " ip address 192.168.10.1 255.255.255.0" in out, out)
+
+out = rollback.build_rollback("hostname S-2\naaa new-model\nusername admin privilege 15 secret 9 x\n", "hostname S-1\n", IOS)
+check("IOS: restaurar no manda «no aaa new-model» (IOS no lo permite y pide confirmar)", "no aaa new-model" not in out and "no aaa session-id common" not in out, out)
+from app import rollback_vendor  # noqa: E402
+
+cmds, _n = rollback_vendor.voss('snmp-server name "V-2"\nbanner custom\nbanner "Acceso solo para personal autorizado"\n',
+                                'snmp-server name "V-1"\n')
+check("VOSS: el banner que sobra se quita con un solo «no banner» (no existe «no banner custom»)",
+      cmds.count("no banner") == 1 and not any("banner custom" in c for c in cmds), cmds)
+
+neg = rollback_vendor._voss_negate("radius server host 10.0.0.250 key ****** ")
+check("VOSS: el RADIUS que sobra se quita sin la clave enmascarada y con «used-by»",
+      neg == "no radius server host 10.0.0.250 used-by cli", neg)
+
+cur = ('snmp-server name "V-1"\nradius server host 10.0.0.250 key ****** \nradius enable\nntp server 162.159.200.1\n'
+       "interface GigabitEthernet 1/5\nname Puesto-1\nexit\n")
+cmds, _n = rollback_vendor.voss(cur, 'snmp-server name "V-2"\nntp server 162.159.200.1\ninterface GigabitEthernet 1/5\nname Puesto-1\nexit\n')
+check("VOSS: restaurar en otro quita el RADIUS que sobra con «used-by» y sin la clave (no es un bloque)",
+      "no radius server host 10.0.0.250 used-by cli" in cmds and "no radius enable" in cmds
+      and not any("key" in c for c in cmds) and not any("ntp" in c for c in cmds), cmds)
+
+from app import topology  # noqa: E402
+
+nb = topology.parse("Local Interface    Parent Interface    Chassis Id          Port info          System Name\n"
+                    "ge-0/0/0           -                   2c:6b:f5:aa:bb:cc   ge-0/0/0           F-2\n\n"
+                    "# commit confirmed will be rolled back in 5 minutes\n", "juniper_junos")
+check("Junos: el aviso «# commit confirmed …» en la salida de LLDP no es un vecino", [n["remote_name"] for n in nb] == ["F-2"], nb)
 
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)

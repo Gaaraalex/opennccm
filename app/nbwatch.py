@@ -222,8 +222,13 @@ def update(db, dev: Device, nbrs: list[dict], config: str = "") -> dict:
                     e.acknowledged = True
                     e.message = (e.message or "") + "\n" + _f("Volvió a verse {0} después.", duration(r.back_after))
                 r.event_id = None
+    me = (dev.name or "").split(".")[0].lower()
     for k, r in rows.items():
         if k in seen:
+            continue
+        rn = r.name or ""
+        if me and "." in rn and rn.split(".")[0].lower() == me:  # el propio equipo (visto por un lazo): no es vecino
+            db.delete(r)
             continue
         if r.romon and not romon_read:  # sin leer RoMON esta vez: no cuenta como ausencia
             continue

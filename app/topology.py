@@ -292,6 +292,9 @@ def parse(text: str, device_type: str) -> list[dict]:
         elif device_type == "ubiquiti_edgeswitch":
             found += _table(out, {"local": 0, "port": 3, "name": 4}, r"Interface\s+RemID")
         elif device_type == "juniper_junos":
+            # Junos mete en la salida los avisos a la sesión («# commit confirmed will be rolled back in 5 minutes»,
+            # mientras OpenNCCM confirma un cambio): eran un vecino «minutes» en el puerto «#»
+            out = "\n".join(ln for ln in out.splitlines() if not ln.lstrip().startswith("#"))
             found += [dict(r, remote_name=r["remote_name"]) for r in
                       _table(out, {"local": 0, "port": -2, "name": -1}, r"Local Interface")]
         else:

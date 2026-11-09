@@ -86,13 +86,18 @@ def _hw_spec(ids: set[int]) -> str:
 # su certificado autofirmado («crypto pki trustpoint/certificate chain TP-self-signed-<n.º>», borrarlo pide confirmar
 # y se detenía la restauración), la licencia con su serie y el client-id de DHCP con la serie (CSR1000v en GNS3)
 IOS_OWN = re.compile(r"^(crypto pki (trustpoint|certificate chain) TP-self-signed-|license udi )")
+# lo que IOS no deja quitar: «no aaa new-model» responde «Changing configuration back to no aaa new-model is not
+# supported. Continue?[confirm]» y la restauración se detenía ahí
+IOS_KEEP = {"aaa new-model", "aaa session-id common"}  # (la segunda la pone IOS con la primera: «Cannot negate a default configuration»)
 IOS_OWN_CHILD = re.compile(r"^\s*ip dhcp client client-id ascii \S+$")
 
 
 def _hierarchical(current: str, target: str, neg: str, exit_cmd: str) -> list[str]:
     cur_list, tgt = _blocks(current), _blocks(target)
     if neg == "no ":
-        cur_list, tgt = ([(h, [c for c in ch if not IOS_OWN_CHILD.match(c)]) for h, ch in b if not IOS_OWN.match(h)]
+        # (tampoco «no aaa new-model» del destino: IOS lo muestra en la configuración cuando AAA está apagado)
+        cur_list, tgt = ([(h, [c for c in ch if not IOS_OWN_CHILD.match(c)]) for h, ch in b
+                          if not IOS_OWN.match(h) and h not in IOS_KEEP and h.removeprefix("no ") not in IOS_KEEP]
                          for b in (cur_list, tgt))
     pre: list[str] = []   # antes de todo: VLAN que hacen falta
     post: list[str] = []  # al final: VLAN que sobran (antes de eso los puertos todavía las usan)
@@ -114,7 +119,7 @@ def _hierarchical(current: str, target: str, neg: str, exit_cmd: str) -> list[st
     # 1) eliminar lo que sobra (salvo lo que se reemplaza y las VLAN, que van al final)
     new_keys = {_h_key(h) for h in tgt_map if h not in cur} - {None}
     for header in cur:
-        if header in tgt_map or _h_key(header) in new_keys:
+        if header in tgt_map or _h_key(header) in new_keys or (neg == "no " and header in IOS_KEEP):
             continue
         (post if VLAN_HEADER.match(header) else out).append(_negate(header, neg))
     # 2) agregar / ajustar lo que falta

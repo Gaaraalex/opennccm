@@ -335,7 +335,8 @@ def commands(device_type: str, c: dict) -> tuple[str, int]:
             from .rollback_vendor import _voss_negate
             return _voss_negate(line)
         # lo que sobra y ya es un «no …» («no ip address» de una interfaz) no se niega otra vez («no no ip address»)
-        return None if line.startswith("no ") else "no " + line
+        from .rollback import IOS_KEEP
+        return None if line.startswith("no ") or line in IOS_KEEP else "no " + line
     gone = {k for _s, k in c["extra"] if SEP not in k}  # bloques que se quitan enteros: sus líneas no se tocan
     for sign, items in (("+", c["missing"]), ("no ", c["extra"])):
         for _s, k in items:
@@ -345,6 +346,11 @@ def commands(device_type: str, c: dict) -> tuple[str, int]:
             parent, sep, child = k.partition(SEP)
             if sep and sign != "+" and parent in gone:
                 continue
+            if not sep and device_type not in EXIT_BLOCKS:  # AAA encendido/apagado no se cambia al igualar
+                from .rollback import IOS_KEEP
+                if parent in IOS_KEEP or parent.removeprefix("no ") in IOS_KEEP:
+                    skipped += 1
+                    continue
             line = (child if sep else parent) if sign == "+" else neg(child if sep else parent)
             if line is None:
                 continue
@@ -352,7 +358,7 @@ def commands(device_type: str, c: dict) -> tuple[str, int]:
                 by_parent.setdefault(parent, []).append(line)
             else:
                 tops.append(line)
-    for t in tops:
+    for t in dict.fromkeys(tops):  # (VOSS: «banner custom» y «banner "…"» se quitan con un solo «no banner»)
         lines.append(t)
     for p, ch in by_parent.items():
         lines.append(p)

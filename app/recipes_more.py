@@ -235,7 +235,7 @@ MORE = [
       N_("Activa el syslog y agrega OpenNCCM como servidor, para ver y respaldar cada cambio al momento."),
       [("opennccm", N_("IP del servidor OpenNCCM"), "10.0.0.10"), ("n", N_("Número de servidor (1 a 10)"), "1")],
       [(N_("Activar el syslog y el servidor."), "enable\nconfigure terminal\nsyslog enable\nsyslog host {{n}}\nsyslog host {{n}} address {{opennccm}}\nsyslog host {{n}} enable", ""),
-       (N_("Comprobar."), "show syslog", "c")],
+       (N_("Comprobar."), "show syslog host {{n}}", "c")],
       "https://documentation.extremenetworks.com/Fabric%20Engine%20v9.1%20User%20Guide/GUID-F8C555E8-434A-4A0D-A600-0BF8D0441FA7.shtml"),
     R("voss-radius", VOSS, "seguridad", N_("Entrar con RADIUS (VOSS / Fabric Engine)"),
       N_("Agrega el servidor RADIUS para las entradas a la CLI y activa RADIUS."),
