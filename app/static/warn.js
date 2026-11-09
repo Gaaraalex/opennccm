@@ -53,4 +53,39 @@
   document.addEventListener('change', function (e) { var d = e.target.closest && e.target.closest('dialog.cfix'); if (d && e.target.closest('.cfix-r')) fixSync(d); });
   document.addEventListener('oc-sheet', function (e) { init(e.detail); });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { init(); }); else init();
+
+  // El aviso de la página (configlets, recetas, el asistente): sus botones que ejecutan o aplican (data-needs-page-ack)
+  // quedan desactivados hasta marcar la casilla. Es el mismo aviso arriba y en el panel: marcar una vale para la página
+  // (y para el panel que se vuelve a dibujar al elegir otro). Si en la página no hay ninguna casilla, no se bloquea nada.
+  var pageOK = false;
+  function syncPage() {
+    var acks = document.querySelectorAll('[data-ack-page]');
+    Array.prototype.forEach.call(acks, function (a) {
+      if (pageOK && !a.checked) { a.checked = true; var l = a.closest('label'); if (l) l.classList.add('done'); }
+    });
+    var off = !pageOK && acks.length > 0;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-needs-page-ack]'), function (b) {
+      if (b.tagName === 'A') { if (off) b.setAttribute('aria-disabled', 'true'); else b.removeAttribute('aria-disabled'); b.classList.toggle('is-off', off); }
+      else b.disabled = off || b.hasAttribute('data-blocked');
+    });
+  }
+  document.addEventListener('change', function (e) {
+    if (!e.target.matches || !e.target.matches('[data-ack-page]')) return;
+    pageOK = e.target.checked;
+    if (!pageOK) Array.prototype.forEach.call(document.querySelectorAll('[data-ack-page]'), function (a) { a.checked = false; });
+    syncPage();
+  });
+  // un enlace «Ejecutar» desactivado: no abre nada y lleva a la casilla del aviso
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-needs-page-ack]');
+    if (!b || pageOK || !document.querySelector('[data-ack-page]')) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    var a = (b.closest('.rc-col, .ai-msg, form, dialog') || document).querySelector('[data-ack-page]') || document.querySelector('[data-ack-page]');
+    if (a) { a.scrollIntoView({block: 'center', behavior: 'smooth'}); a.focus(); var l = a.closest('label'); if (l) { l.classList.remove('wl-flash'); void l.offsetWidth; l.classList.add('wl-flash'); } }
+  }, true);
+  var pend = 0;
+  // (setTimeout y no requestAnimationFrame: este no corre con la pestaña en segundo plano)
+  new MutationObserver(function () { if (!pend) pend = setTimeout(function () { pend = 0; syncPage(); }, 0); })
+    .observe(document.documentElement, {childList: true, subtree: true});
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', syncPage); else syncPage();
 })();

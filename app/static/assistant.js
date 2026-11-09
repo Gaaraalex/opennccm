@@ -103,8 +103,8 @@
           if (s.k === 'text') return para(s.t);
           return '<div class="ai-cmd"><pre>' + color(s.t) + '</pre><div class="row"><span class="ai-risk ' + s.risk + '">' + esc(T.risk[s.risk]) + '</span><span class="grow"></span>' +
             '<button type="button" class="btn s ghost" data-copy="' + esc(s.t) + '">' + esc(T.copy) + '</button>' +
-            (window.CXinsert || window.ocAiInsert ? '<button type="button" class="btn s ghost" data-ins="' + esc(s.t) + '">' + esc(T.insert) + '</button>' : '') +
-            (s.risk !== 'read' && body.device_id ? '<button type="button" class="btn s" data-cr="' + esc(s.t) + '">' + esc(T.cr) + '</button>' : '') + '</div></div>';
+            (window.CXinsert || window.ocAiInsert ? '<button type="button" class="btn s ghost" data-ins="' + esc(s.t) + '"' + (s.risk !== 'read' ? ' data-needs-page-ack' : '') + '>' + esc(T.insert) + '</button>' : '') +
+            (s.risk !== 'read' && body.device_id ? '<button type="button" class="btn s" data-cr="' + esc(s.t) + '" data-needs-page-ack>' + esc(T.cr) + '</button>' : '') + '</div></div>';
         }).join('') + (j.segments.some(function (s) { return s.k !== 'text' && s.risk !== 'read'; }) && T.wshort ?
           '<div class="ai-warn">' + (window.ocWarn ? window.ocWarn({}) : esc(T.wshort)) + '</div>' : '') +
           '<div class="meta">' + (j.source ? esc(T.source.replace('{0}', j.source)) + ' · ' : '') + esc(j.model) + ' · ' + esc(j.who) + ' · ' + j.ms + ' ms</div>';

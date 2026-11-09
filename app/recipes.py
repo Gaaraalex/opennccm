@@ -152,6 +152,11 @@ VERIFIED = {
     "junos-desc": "Junos 14.1R1.10", "junos-flap": "Junos 14.1R1.10", "junos-hostname": "Junos 14.1R1.10",
     "junos-ntp": "Junos 14.1R1.10", "junos-rollback": "Junos 14.1R1.10", "junos-route": "Junos 14.1R1.10",
     "junos-snmp": "Junos 14.1R1.10", "junos-ssh": "Junos 14.1R1.10", "junos-syslog": "Junos 14.1R1.10",
+    # Ubiquiti EdgeSwitch 16 150W con 1.9.3 (equipo físico), 3 rondas seguidas sin fallos, 2026-11-09
+    "fp-hostname": "EdgeSwitch 1.9.3", "fp-user": "EdgeSwitch 1.9.3", "fp-ssh": "EdgeSwitch 1.9.3", "fp-snmp": "EdgeSwitch 1.9.3",
+    "fp-syslog": "EdgeSwitch 1.9.3", "fp-sntp": "EdgeSwitch 1.9.3", "fp-vlan": "EdgeSwitch 1.9.3", "fp-access": "EdgeSwitch 1.9.3",
+    "fp-trunk": "EdgeSwitch 1.9.3", "fp-desc": "EdgeSwitch 1.9.3", "fp-shutdown": "EdgeSwitch 1.9.3", "fp-flap": "EdgeSwitch 1.9.3",
+    "fp-mac": "EdgeSwitch 1.9.3",
 }
 
 

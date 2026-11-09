@@ -234,12 +234,23 @@ def _fp_negate(line: str) -> str:
     t = line.split()
     if t[:1] == ["no"]:
         return line[3:].strip()
-    if t[:2] == ["vlan", "participation"] and len(t) > 3 and t[2] in ("include", "exclude"):
+    if t[:2] == ["vlan", "participation"] and len(t) > 3 and t[2] in ("include", "exclude", "auto"):
+        # valor de fábrica: la VLAN 1 «include» y las demás «auto» («no vlan participation …» no existe)
+        ids = _vlan_ids(t[3])
+        if 1 in ids:
+            rest = ids - {1}
+            return "vlan participation include 1" + (f"\nvlan participation auto {_vlan_spec(rest)}" if rest else "")
         return f"vlan participation auto {t[3]}"
     if t[:1] == ["username"] and len(t) > 1:
         return f"no username {t[1]}"
     if t[:2] == ["vlan", "name"] and len(t) > 2:
         return f"no vlan name {t[2]}"
+    if t[:2] == ["snmp-server", "community"] and len(t) > 2:  # «no snmp-server community NOMBRE» (sin «ro»/«rw»)
+        return f"no snmp-server community {t[2]}"
+    if t[:2] in (["snmp-server", "location"], ["snmp-server", "contact"]):
+        # EdgeSwitch 1.9.3 no tiene cómo borrarlas: «no snmp-server location» da «Invalid input», vacía no se admite y
+        # «""» guarda dos comillas. Solo se pueden cambiar por otro valor: no se manda nada
+        return None
     for pref in FP_SINGLE:
         if tuple(t[:len(pref)]) == pref:
             return "no " + " ".join(pref)
@@ -307,7 +318,13 @@ def _fp_flat(cur: list[str], tgt: list[str]) -> list[str]:
     removed = [l for l in cur if l not in tgt]
     added = [l for l in tgt if l not in cur]
     added_keys = {_fp_key(a) for a in added} - {None}
-    return [_fp_negate(r) for r in removed if _fp_key(r) not in added_keys] + added
+    # un servidor syslog se quita por su número («logging host remove N»; «no logging host "IP" …» da «Invalid input»
+    # en un EdgeSwitch 1.9.3): el número es su orden en la configuración. De mayor a menor, para que no se corran.
+    hosts = [l for l in cur if l.startswith("logging host ")]
+    gone_hosts = sorted((hosts.index(r) + 1 for r in removed if r in hosts), reverse=True)
+    neg = [_fp_negate(r) for r in removed if r not in hosts and _fp_key(r) not in added_keys]
+    neg = [x for n in neg if n is not None for x in n.split("\n")]
+    return [f"logging host remove {n}" for n in gone_hosts] + neg + added
 
 
 def _vlan_ids(spec: str) -> set[int]:

@@ -197,6 +197,87 @@ for depth in (0, 2):
           ch_.closed and ch_.sent == depth + 1, (ch_.closed, ch_.sent))
 
 
+fp = services.fastpath_modes(["enable", "vlan database", "vlan 210", 'vlan name 210 "lab210"', "exit", "write memory"])
+check("EdgeSwitch: «vlan database» se abre saliendo de «configure» (y sin el «enable» de la receta)",
+      fp == ["exit", "vlan database", "vlan 210", 'vlan name 210 "lab210"', "exit", "write memory"], fp)
+fp = services.fastpath_modes(["enable", "configure", "interface 0/5", "vlan pvid 10", "exit", "exit", "write memory"])
+check("EdgeSwitch: el «configure» de la receta no se repite y su «exit» final no cierra la sesión",
+      fp == ["interface 0/5", "vlan pvid 10", "exit", "exit", "write memory"], fp)
+fp = services.fastpath_modes(["vlan database", "vlan 30", "exit", "interface 0/3", "vlan participation include 30", "exit"])
+check("EdgeSwitch: después de «vlan database» se vuelve a «configure» para los puertos",
+      fp == ["exit", "vlan database", "vlan 30", "exit", "configure", "interface 0/3", "vlan participation include 30", "exit"], fp)
+fp = services.fastpath_modes(["enable", "configure", 'hostname "SW-1"', "exit", "write memory"])
+check("EdgeSwitch: «hostname» se manda en el modo privilegiado (en «configure» da «Invalid input»)",
+      fp == ["exit", 'hostname "SW-1"', "write memory"], fp)
+fp = services.fastpath_modes(['hostname "SW-1"', "interface 0/4", 'description "x"', "exit"])
+check("EdgeSwitch: y después vuelve a «configure» para lo demás",
+      fp == ["exit", 'hostname "SW-1"', "configure", "interface 0/4", 'description "x"', "exit"], fp)
+rb = ["exit", "vlan database", "vlan 40", "exit", "configure", "interface 0/2", "exit"]
+check("EdgeSwitch: la restauración (que ya trae sus «exit»/«configure») no cambia", services.fastpath_modes(rb) == rb,
+      services.fastpath_modes(rb))
+check("EdgeSwitch: «VLAN does not exist.» es un rechazo", bool(services.DEVICE_ERROR.search("vlan 210\nVLAN does not exist.\n")))
+
+
+base = ('!\nhostname "SW"\nvlan database\nvlan 10\nexit\nconfigure\nlogging host "10.0.0.9" ipv4 514 info\n'
+        "snmp-server sysname \"SW\"\ninterface 0/1\nexit\nexit\n")
+dirty = base.replace('logging host "10.0.0.9" ipv4 514 info\n', 'logging host "10.0.0.9" ipv4 514 info\nlogging host "10.0.0.5" ipv4 514 info\n'
+                     'snmp-server community "lab-ro" ro\nlogging cli-command\n')
+out = rollback.build_rollback(dirty, base, rollback.FASTPATH if hasattr(rollback, "FASTPATH") else "fastpath")
+check("EdgeSwitch: volver a una versión quita el syslog que sobra por su número («logging host remove 2»)",
+      "logging host remove 2" in out and not any(o.startswith("no logging host") for o in out), out)
+check("EdgeSwitch: y la comunidad SNMP con «no snmp-server community lab-ro»", 'no snmp-server community "lab-ro"' in out
+      and "no logging cli-command" in out, out)
+out = rollback.build_rollback(base.replace("interface 0/1", 'snmp-server location "Sala"\nsnmp-server contact "noc"\ninterface 0/1'),
+                              base, "fastpath")
+check("EdgeSwitch: la ubicación y el contacto SNMP no se pueden borrar: no se manda nada (ni «no …» ni «\"\"»)",
+      not any("location" in o or "contact" in o for o in out), out)
+p_cur = base.replace("interface 0/1\nexit", "interface 0/1\nvlan participation exclude 1,10\nvlan participation include 30\nexit")
+out = rollback.build_rollback(p_cur, base, "fastpath")
+check("EdgeSwitch: un puerto vuelve a la VLAN 1 con «include 1» y a las demás con «auto»",
+      "vlan participation include 1" in out and "vlan participation auto 10" in out and "vlan participation auto 30" in out
+      and not any(o.startswith("no vlan participation") for o in out), out)
+from app import scheduler  # noqa: E402
+
+check("EdgeSwitch: el syslog de un comando de configuración cuenta como cambio",
+      bool(scheduler.CHANGE_PATTERNS.search("<13> Nov  9 16:41:53 SW CMDLOGGER[emWeb]: cmd_logger_api.c(83) 3681 %% CLI:10.0.0.5:ubnt:vlan 250")))
+check("y una consulta o el cambio de modo no",
+      not any(scheduler.CHANGE_PATTERNS.search(f"CMDLOGGER[emWeb]: cmd_logger_api.c(83) 1 %% CLI:10.0.0.5:ubnt:{c}")
+              for c in ("show running-config", "terminal length 0", "enable", "configure", "vlan database", "exit",
+                        "User ubnt logged in to enable mode.")))
+fp = services.fastpath_modes(["enable", "ip ssh server enable", "ip http secure-server", "no ip telnet server enable", "no ip http server"])
+check("EdgeSwitch: «ip ssh server», «ip http …» e «ip telnet server» van en el modo privilegiado",
+      fp == ["exit", "ip ssh server enable", "ip http secure-server", "no ip telnet server enable", "no ip http server"], fp)
+
+
+check("EdgeSwitch: «Signature verification (ssh-rsa) failed» al entrar es pasajero y se reintenta",
+      bool(services.TRANSIENT_SSH.search("SSHException: Signature verification (ssh-rsa) failed.")))
+check("y una contraseña mala no", not services.TRANSIENT_SSH.search("AuthenticationException: Authentication failed."))
+
+
+# ---- cumplimiento del EdgeSwitch: FastPath no muestra lo que viene de fábrica (configuración real de un ES-16-150W)
+from app import compliance_packs  # noqa: E402
+
+ES_CFG = ('!System Description "EdgeSwitch 16 150W, 1.9.3"\nhostname "UBNT EdgeSwitch 3"\nvlan database\nvlan 10,20\nexit\n'
+          'configure\nusername "ubnt" password abc level 15 encrypted\nline ssh\nexit\nsnmp-server sysname "SW"\nexit\n')
+rules = {r[0]: r for r in compliance_packs.PACKS["Ubiquiti EdgeSwitch/UniFi · Seguridad básica"][2]}
+
+
+def passes(name, cfg):
+    _n, kind, pat, _s, _r = rules[name]
+    hit = re.search(pat, cfg, re.M) is not None
+    return hit if kind == "must_contain" else not hit
+
+
+check("EdgeSwitch de fábrica: el SSH (encendido, sin línea) cumple", passes("SSH habilitado", ES_CFG))
+check("y apagado («no ip ssh server enable») no", not passes("SSH habilitado", ES_CFG + "no ip ssh server enable\n"))
+check("EdgeSwitch de fábrica: la web por HTTP (encendida, sin línea) no cumple «Sin HTTP sin cifrar»", not passes("Sin HTTP sin cifrar", ES_CFG))
+check("y con «no ip http server» cumple", passes("Sin HTTP sin cifrar", ES_CFG + "no ip http server\n"))
+check("EdgeSwitch de fábrica: el SNTP (unicast con el servidor de fábrica, sin línea) cumple", passes("Sincronización horaria (SNTP)", ES_CFG))
+fixes = compliance_packs.PATTERN_FIXES
+check("las reglas ya instaladas con la condición vieja se corrigen a la nueva",
+      all((rules[k[1]][1], rules[k[1]][2]) == v[1] for k, v in fixes.items()))
+
+
 class LateConn:
     """La respuesta del comando llega después de un prompt atrasado (el de «configure terminal»)."""
 

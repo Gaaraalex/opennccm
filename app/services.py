@@ -42,8 +42,10 @@ def device_lock(device_id: int) -> threading.Lock:
 
 
 # --------------------------------------------------------------------------- conexión
+# «Signature verification (ssh-rsa) failed»: el saludo SSH de un EdgeSwitch 16 150W (1.9.3) falla de vez en cuando
+# al entrar (antes de enviar nada); al segundo intento entra bien
 TRANSIENT_SSH = re.compile(r"(?i)no existing session|error reading ssh protocol banner|connection reset|"
-                           r"forzado la interrupci|eoferror|socket is closed")
+                           r"forzado la interrupci|eoferror|socket is closed|signature verification \(\S+\) failed")
 
 
 def _connect_retry(handler, params: dict, tries: int = 3):
@@ -1014,7 +1016,7 @@ DEVICE_ERROR = re.compile(
     # comando se aplica igual. «Command rejected: …» sí es un rechazo de Cisco, p. ej. «switchport mode trunk» con la
     # encapsulación en «Auto»)
     r"syntax error|unknown command|error:|Error\b|Failed to (?!generate persistent self-signed)|An invalid |"
-    r"Command rejected|Invalid (input|command|syntax|value)|"
+    r"Command rejected|Invalid (input|command|syntax|value)|VLAN does not exist|"
     r"Incomplete command|Unrecognized command|Command not found|Command fail|Unknown action|bad command name|"
     r"expected end of command|failure:|input does not match|entry not found|value parse error|Server error|"
     r"no such item|invalid value|ambiguous value|already have|value of \S+ out of range|missing value|bad argument|"
@@ -1106,6 +1108,60 @@ def _late_prompt(conn, cmd: str, resp: str) -> str:
         return resp
 
 
+# en FastPath son del modo privilegiado (van antes de «configure» en la configuración; en «configure» dan «Invalid
+# input»: visto en un EdgeSwitch 16 150W con 1.9.3 con la receta «Activar SSH y HTTPS»)
+FP_EXEC_ONLY = re.compile(r"(?i)^(no\s+)?(hostname|ip ssh server|ip ssh protocol|ip http (secure-)?server|"
+                          r"ip http secure-protocol|ip telnet server)\b")
+FP_EXEC = re.compile(r"(?i)^(show|write|copy|ping|traceroute|clear|reload)\b|" + FP_EXEC_ONLY.pattern[4:])
+FP_SUBMODE = re.compile(r"(?i)^(interface|line|router|policy-map|class-map|ip access-list|mac access-list)\b")
+
+
+def fastpath_modes(commands: list[str]) -> list[str]:
+    """FastPath (EdgeSwitch, UniFi Switch, Netgear): la solicitud se aplica dentro de «configure», pero las VLAN se
+    crean en «vlan database», que se abre desde el modo privilegiado. Se mandaba «vlan database» dentro de «configure»
+    y el switch lo ignoraba: «vlan 210» daba «VLAN does not exist.» y la receta «Crear una VLAN» fallaba (visto en un
+    EdgeSwitch 16 150W con 1.9.3). Aquí se sale de «configure» antes de «vlan database» y se vuelve a entrar después,
+    y se quitan el «enable» y el «configure» del principio que traen las recetas (la solicitud ya está en ese modo)."""
+    out, mode, depth = [], "config", 0
+    for raw in commands:
+        c = raw.strip()
+        lc = c.lower()
+        if lc == "enable":
+            continue
+        if lc in ("configure", "configure terminal", "conf t"):
+            if mode != "config":
+                out.append(raw)
+                mode, depth = "config", 0
+            continue
+        if lc == "vlan database":
+            if mode == "config":
+                out += ["exit"] * (depth + 1)
+            out.append(raw)
+            mode, depth = "vlan", 0
+            continue
+        if lc in ("exit", "end"):
+            if mode == "vlan":
+                out.append(raw)
+                mode = "exec"
+            elif mode == "config" and depth:
+                out.append(raw)
+                depth -= 1
+            elif mode == "config":
+                out.append(raw)
+                mode = "exec"
+            continue  # (en el modo privilegiado un «exit» cerraría la sesión: no se manda)
+        if mode == "config" and FP_EXEC_ONLY.match(c):
+            out += ["exit"] * (depth + 1)
+            mode, depth = "exec", 0
+        if mode == "exec" and not FP_EXEC.match(c):
+            out.append("configure")
+            mode, depth = "config", 0
+        if mode == "config" and FP_SUBMODE.match(c):
+            depth += 1
+        out.append(raw)
+    return out
+
+
 def _push_stepwise(conn, commands: list[str], prof) -> str:
     """Envía los comandos de uno en uno y se detiene en el primero que el equipo rechace.
 
@@ -1113,8 +1169,10 @@ def _push_stepwise(conn, commands: list[str], prof) -> str:
     siguientes y no se guarda (write memory / commit). En plataformas con commit se descartan los cambios
     pendientes para no dejarlos a medias en la configuración candidata."""
     out = conn.config_mode()
+    if getattr(prof, "family", None) == FASTPATH:
+        commands = fastpath_modes(commands)
     for i, cmd in enumerate(commands):
-        if getattr(prof, "family", None) == IOS and SAVE_CMD.fullmatch(cmd.strip()):
+        if getattr(prof, "family", None) in (IOS, FASTPATH) and SAVE_CMD.fullmatch(cmd.strip()):
             # «write memory» en el modo de configuración da «% Invalid input» (receta «Guardar la configuración» en un
             # IOSvL2); OpenNCCM ya guarda al terminar, así que no se manda
             out += f"\n{cmd.strip()}  (se guarda al terminar)"

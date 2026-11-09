@@ -20,6 +20,9 @@
 .rc-cols{display:flex;gap:14px;margin-top:8px;min-height:460px}
 .rc-col{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:10px 12px;box-sizing:border-box;overflow:auto;display:flex;flex-direction:column;min-height:0}
 .rc-col.l{width:282px;flex:none}.rc-col.m{flex:1;min-width:0}.rc-col.r{width:392px;flex:none;gap:10px}.rc-col.wide{flex:1}
+/* el panel de la derecha baja con su barra: sus partes no se encogen (los comandos de un configlet quedaban en una
+   franja de una línea con su propia barra, debajo del aviso, y no se veía qué se iba a ejecutar) */
+.rc-col.r>*,.rc-col.wide>*{flex-shrink:0}
 .rc-col[hidden]{display:none}
 .rc-lh{font:700 10.5px var(--f-sans);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding:2px 4px 8px}.rc-lh span{font-weight:600;letter-spacing:0;text-transform:none}
 .rc-lh.gap{margin-top:14px}
@@ -74,6 +77,9 @@
 .wl-ack{align-items:flex-start;font-size:13px;line-height:1.45;gap:8px}.wl-ack input{margin-top:3px;flex:none}
 .wl-full{display:flex;flex-direction:column;gap:6px;margin:8px 0;padding:12px 14px;border:1px solid color-mix(in srgb,var(--warn) 35%,transparent);border-radius:12px;background:var(--warn-soft);color:var(--ink);font-size:13px;line-height:1.5}
 .wl-full p{margin:0;color:var(--ink-2)}.wl-full .wl-h{display:flex;align-items:center;gap:8px;color:var(--warn)}.wl-full .wl-h b{color:var(--ink);font-size:14px}
+a.btn.is-off{opacity:.45;cursor:not-allowed}
+@keyframes wl-flash{0%,100%{background:transparent}30%{background:color-mix(in srgb,var(--warn) 28%,transparent)}}
+.wl-ack.wl-flash{animation:wl-flash 1.2s ease 2;border-radius:6px}
 .wl-full .rc-reps{margin-top:6px}.wl-full .wl-ack{margin-top:6px;color:var(--ink)}.wl-full .wl-ack.done span{color:var(--ok)}
 .wl-gray{color:var(--muted);font-size:12px}
 @media (max-width:1100px){.wl-line{flex-wrap:wrap}.wl-line span{white-space:normal}}

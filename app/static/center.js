@@ -457,7 +457,7 @@
       (D.role === 'admin' ? '<div><button type="button" class="btn s ghost" id="rc-verify">' + ccIcon('shield') + esc(r.verified_on ? T.v_unset : T.v_set) + '</button></div>' : '') +
       (r.vars.length ? '<div class="rc-vars">' + r.vars.map(function (v) { return '<div class="field"><label>' + esc(v.l) + '</label><div class="input mono s"><input data-var="' + esc(v.n) + '" value="' + esc(v.v) + '" aria-label="' + esc(v.l) + '"></div></div>'; }).join('') + '</div>' : '') +
       '<ol class="cc-steps" id="rc-steps"></ol>' +
-      '<div class="rc-acts"><button type="button" class="btn pri" id="rc-run"></button><button type="button" class="btn" id="rc-multi">' + esc(T.multi) + '</button>' +
+      '<div class="rc-acts"><button type="button" class="btn pri" id="rc-run" data-needs-page-ack></button><button type="button" class="btn" id="rc-multi" data-needs-page-ack>' + esc(T.multi) + '</button>' +
       (D.role !== 'viewer' ? (r.mine ? '<button type="button" class="btn ghost" id="rc-edit-b">' + esc(T.edit) + '</button><button type="button" class="btn ghost dz" id="rc-del">' + esc(T.del) + '</button>' : '<button type="button" class="btn ghost" id="rc-dup">' + esc(T.dup) + '</button>') : '') + '</div>';
     steps();
     if ($('rc-verify')) $('rc-verify').addEventListener('click', function () {
