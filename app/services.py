@@ -119,6 +119,26 @@ def ensure_enabled(dev) -> None:
         raise DeviceDisabled()
 
 
+def _connect_arubaos(dev, handler, params: dict, cred_name: str, secret: str, password: str):
+    """ArubaOS (controladoras y Mobility Access Switch como el S2500) entra en «(nombre) >» y Netmiko pasa a «enable»
+    al conectar. Si la contraseña de enable falta o no sirve, el equipo la vuelve a pedir y todo terminaba en
+    «Pattern not detected: '\\(nombre\\)\\ '», sin decir qué faltaba. Sin enable en la credencial se prueba la de
+    ingreso (muy habitual) y, si no sirve, se explica qué hacer."""
+    from netmiko.exceptions import ReadTimeout
+    try:
+        conn = _connect_retry(handler, dict(secret=secret or password, **params))
+    except (ReadTimeout, ValueError) as e:
+        if secret:
+            raise RuntimeError(f"El equipo no aceptó la contraseña de enable de la credencial «{cred_name}». "
+                               "Corríjala en Credenciales → Enable / secret.") from e
+        raise RuntimeError(
+            "El equipo pide contraseña para el modo privilegiado (enable) y no aceptó la de ingreso. Escriba la "
+            f"contraseña de enable en la credencial «{cred_name}» (Credenciales → Enable / secret).") from e
+    if not secret:
+        log.info("%s: enable aceptó la contraseña de ingreso (la credencial no tiene contraseña de enable)", dev.name)
+    return conn
+
+
 def connect(dev: Device):
     from netmiko import ConnectHandler
 
@@ -143,6 +163,8 @@ def connect(dev: Device):
                   password=password, conn_timeout=20, timeout=60, auth_timeout=30, banner_timeout=30,
                   fast_cli=False)
     _release_db(dev)
+    if dev.device_type == "aruba_os":
+        return _connect_arubaos(dev, ConnectHandler, params, cred.name, secret, password)
     try:
         conn = _connect_retry(ConnectHandler, dict(secret=secret, **params))
     except ValueError as e:

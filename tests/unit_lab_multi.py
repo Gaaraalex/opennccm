@@ -391,7 +391,48 @@ with SessionLocal() as db:
     db.commit()
     n2 = configlets_seed.seed_new_configlets(db)
     left = db.query(Configlet).count()
-check("Los configlets nuevos llegan una vez; uno borrado no vuelve", n1 == 50 and n2 == 0 and left == 49, (n1, n2, left))
+check("Los configlets nuevos llegan una vez; uno borrado no vuelve", n1 == 60 and n2 == 0 and left == 59, (n1, n2, left))
+
+# --- ArubaOS (Aruba S2500-48P con ArubaOS 7.4.0.7, de un usuario)
+aru = configlets_seed.CONFIGLETS_235
+check("ArubaOS: 10 configlets y scripts, solo para «aruba_os» (no para Aruba OS-Switch)",
+      len(aru) == 10 and all(re.search(i[2], "aruba_os") and not re.search(i[2], "aruba_osswitch") for i in aru)
+      and not set(i[0] for i in aru) & set(i[0] for i in items))
+from app.drivers import PROFILE_MAP, parse_inventory  # noqa: E402
+
+inv = parse_inventory("Aruba Operating System Software.\nArubaOS (MODEL: ArubaS2500-48P), Version 7.4.0.7\n"
+                      "ROM: System Bootstrap, Version CPBoot 1.0.46.0 (build 43231)\n", PROFILE_MAP["aruba_os"])
+check("ArubaOS: modelo y versión desde «show version» (S2500-48P, 7.4.0.7)",
+      inv["model"] == "S2500-48P" and inv["os_version"] == "7.4.0.7", inv)
+check("ArubaOS: el inventario también lee «show inventory» (la serie)", "show inventory" in (PROFILE_MAP["aruba_os"].inventory or ""))
+
+
+class _NoEnable:  # ArubaOS sin la contraseña de enable: Netmiko espera el prompt y se agota el tiempo
+    calls = []
+
+    def __init__(self, **kw):
+        from netmiko.exceptions import ReadTimeout
+        _NoEnable.calls.append(kw.get("secret"))
+        if kw.get("secret") != "la-de-enable":
+            raise ReadTimeout("Pattern not detected: '\\(SW\\)\\ ' in output.")
+
+
+for sec, want in (("", "no aceptó la de ingreso"), ("mala", "no aceptó la contraseña de enable")):
+    _NoEnable.calls = []
+    try:
+        services._connect_arubaos(SimpleNamespace(name="SW"), _NoEnable, {"host": "h"}, "SW ARUBA", sec, "la-de-ingreso")
+        err = ""
+    except RuntimeError as e:
+        err = str(e)
+    check(f"ArubaOS: enable {'vacío' if not sec else 'incorrecto'} da un mensaje claro (no «Pattern not detected»)",
+          want in err and "SW ARUBA" in err and "Pattern" not in err, err)
+_NoEnable.calls = []
+c = services._connect_arubaos(SimpleNamespace(name="SW"), _NoEnable, {"host": "h"}, "SW ARUBA", "", "la-de-enable")
+check("ArubaOS: sin enable en la credencial prueba la contraseña de ingreso", _NoEnable.calls == ["la-de-enable"])
+
+js = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "static", "shell.js"), encoding="utf-8").read()
+check("Panel lateral: el formulario se identifica con getAttribute('id') (un <input name=\"id\"> tapa form.id)",
+      "f.setAttribute('id', 'sheet-form-'" in js and "form.getAttribute('id')" in js and "f.id = 'sheet-form-'" not in js)
 
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)

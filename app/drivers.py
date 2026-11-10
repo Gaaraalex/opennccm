@@ -138,8 +138,13 @@ PROFILES: list[Profile] = [
             ignore=[r"^Current configuration:", r"^!Version ArubaOS-CX", r"^!export-password"],
             cpe="cpe:2.3:o:arubanetworks:arubaos-cx",
             version_re=[r"Version\s*:\s*(\S+)"], serial_re=[r"Serial Number\s*:\s*(\S+)"]),
+    # ArubaOS: controladoras y Mobility Access Switch (S2500, S3500…). «show version» trae «ArubaOS (MODEL: ArubaS2500-48P),
+    # Version 7.4.0.7»; la serie sale de «show inventory» («System Serial#» o, en controladoras, «SC Serial#»)
     Profile("aruba_os", "Aruba Controller (ArubaOS)", "HPE Aruba", "show running-config", None,
-            version_re=[r"Version (\S+)"]),
+            inventory="show version\nshow inventory",
+            version_re=[r"Version (\d+\.\d+\.\d+\.\d+)", r"Version (\S+)"],
+            model_re=[r"MODEL:\s*(?:Aruba)?([\w-]+)\)", r"System Model#?\s*:\s*(\S+)", r"SC Model#\s*:\s*(\S+)"],
+            serial_re=[r"System Serial#\s*:\s*(\w+)", r"SC Serial#\s*:\s*(\w+)", r"Serial#?\s*:\s*(\w+)"]),
     # ---------------- Huawei ----------------
     Profile("huawei", "Huawei VRP", "Huawei", "display current-configuration", "display saved-configuration",
             inventory="display version", family=HUAWEI, telnet=True,

@@ -635,7 +635,7 @@ cuántos equipos suyos lo pueden ejecutar; los que no aplican a sus equipos qued
 <p><b>Revisa los configlets antes de usarlos en producción.</b> Como las recetas, un configlet probado completo en un equipo lleva el
 sello <b>Verificada</b> con la versión del sistema; solo un administrador lo pone o lo quita, y queda en Auditoría. Los de ejemplo
 salen «Sin verificar». Desde la 2.34 se incluyen diez configlets y scripts para cada una de estas plataformas: MikroTik RouterOS,
-Extreme EXOS, Extreme VOSS / Fabric Engine, Ubiquiti EdgeSwitch y WatchGuard Fireware. Llegan una sola vez, y si borra uno no vuelve.</p>
+Extreme EXOS, Extreme VOSS / Fabric Engine, Ubiquiti EdgeSwitch y WatchGuard Fireware, y desde la 2.35 también para ArubaOS (controladoras y switches S2500/S3500). Llegan una sola vez, y si borra uno no vuelve.</p>
 <figure><img src="img/10-configlets.png"><figcaption>Lista de configlets (se incluyen ejemplos para cambiar contraseñas, VLAN, NTP, syslog y diagnósticos).</figcaption></figure>
 <h2>Variables</h2>
 <p>Los comandos son plantillas Jinja2. Puede usar datos del equipo y variables propias que se piden al ejecutar:</p>
@@ -839,6 +839,7 @@ corregir las infracciones.</p>
   <tr><td>Ubuntu / Debian · Seguridad básica</td><td>8</td><td>SSH sin root con contraseña ni contraseñas vacías; solo root con UID 0; sudo sin contraseña solo para comandos concretos; cortafuegos activo; actualizaciones automáticas de seguridad; NTP; sin Telnet, rsh ni TFTP</td></tr>
   <tr><td>FortiGate · Seguridad básica</td><td>11</td><td>Sin Telnet ni HTTP en interfaces; sesión ≤ 15 min; hosts de confianza; política de contraseñas; cifrado fuerte; SNMP; syslog/FortiAnalyzer; NTP</td></tr>
   <tr><td>WatchGuard Fireware · Seguridad básica</td><td>10</td><td>Web UI y administración (WSM y CLI) no abiertas a Internet; bloqueo de cuentas; sesión inactiva ≤ 15 min; SNMP sin comunidades por defecto y v3; NTP; envío de logs; bloqueo de paquetes falsificados; aviso antes del inicio de sesión. Sin corrección automática: se corrige en la Web UI o en Policy Manager</td></tr>
+  <tr><td>Aruba ArubaOS · Seguridad básica</td><td>6</td><td>Sin Telnet; SNMP sin comunidades por defecto; contraseña de enable; NTP; syslog remoto; aviso de inicio de sesión (controladoras y Mobility Access Switch)</td></tr>
   <tr><td>Hardening básico (Cisco, Huawei, Juniper, FortiGate)</td><td>3 – 9</td><td>Controles esenciales por fabricante</td></tr>
 </table>
 <p class="small">Las reglas son controles técnicos de referencia. El cumplimiento normativo completo requiere además procesos y evidencias

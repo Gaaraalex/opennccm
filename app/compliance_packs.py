@@ -235,6 +235,19 @@ PACKS = {
         ("Aviso antes del inicio de sesión", "must_contain", r"<logon-banner>(?:(?!</logon-banner>)[\s\S])*?<enable>1</enable>",
          "minor", None),
     ]),
+    # ArubaOS (controladoras y Mobility Access Switch como el S2500). «show running-config» solo muestra lo que se
+    # cambió de fábrica: cada regla mira una línea que aparece cuando la opción está activa (Telnet y las comunidades
+    # SNMP solo salen si alguien las puso). Sin corrección automática hasta verificarlas en un equipo.
+    "Aruba ArubaOS · Seguridad básica": (r"^aruba_os$", "Controles de seguridad de referencia para ArubaOS "
+                                         "(controladoras y Mobility Access Switch): acceso, SNMP, registros y hora", [
+        ("Sin Telnet de gestión", "must_not_contain", r"^\s*telnet (cli|soe)\b", "critical", None),
+        ("Sin comunidades SNMP por defecto", "must_not_contain", r"^\s*snmp-server community \"?(public|private)\b",
+         "critical", None),
+        ("Contraseña de enable configurada", "must_contain", r"^\s*enable secret\b", "major", None),
+        ("Sincronización horaria NTP", "must_contain", r"^\s*ntp server\s+\S+", "major", None),
+        ("Envío de logs a un servidor syslog", "must_contain", r"^\s*logging \d{1,3}(\.\d{1,3}){3}\b", "major", None),
+        ("Aviso antes del inicio de sesión", "must_contain", r"^\s*banner motd\b", "minor", None),
+    ]),
     # Ubuntu Server / Debian: reglas sobre el respaldo («### archivo» + contenido). Sin corrección automática: en un
     # servidor estos cambios se hacen a mano (un error en SSH o en el cortafuegos puede dejarlo sin acceso).
     "Ubuntu / Debian · Seguridad básica": (r"^ubuntu_server", "Controles de seguridad de referencia para servidores "
@@ -274,7 +287,7 @@ PACKS = {
 ADDED_LATER = {"Extreme VOSS · Seguridad básica": "2.2.1", "Ubiquiti EdgeSwitch/UniFi · Seguridad básica": "2.2.1",
                "MikroTik RouterOS · Seguridad básica": "2.3.0", "Juniper Junos · Seguridad básica": "2.3.0",
                "FortiGate · Seguridad básica": "2.3.0", "Ubuntu / Debian · Seguridad básica": "2.7.0",
-               "WatchGuard Fireware · Seguridad básica": "2.19.0"}
+               "WatchGuard Fireware · Seguridad básica": "2.19.0", "Aruba ArubaOS · Seguridad básica": "2.35.0"}
 
 
 def _seeded() -> set:

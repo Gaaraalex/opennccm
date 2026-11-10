@@ -345,14 +345,16 @@
       $$(':scope > *', main).forEach(function (n) { body.appendChild(document.importNode(n, true)); });
       $$('form', body).forEach(function (f, i) {  // sin action, el formulario se enviaría a la página de fondo
         if (!f.getAttribute('action')) f.setAttribute('action', href);
-        if (!f.id) f.id = 'sheet-form-' + i;
+        // getAttribute y no f.id: un campo <input name="id"> (el de editar una credencial o un grupo) tapa la propiedad
+        // y el botón «Guardar» del pie quedaba unido a un formulario inexistente, sin hacer nada
+        if (!f.getAttribute('id')) f.setAttribute('id', 'sheet-form-' + i);
       });
       var foot = $('[data-sheet-foot]', body);  // la fila de botones pasa al pie fijo del panel
       if (foot) {
         var form = foot.closest('form');
         var footer = document.createElement('footer');
         while (foot.firstChild) footer.appendChild(foot.firstChild);
-        $$('button:not([form]), input[type=submit]', footer).forEach(function (b) { if (form && !b.closest('form')) b.setAttribute('form', form.id); });
+        $$('button:not([form]), input[type=submit]', footer).forEach(function (b) { if (form && !b.closest('form')) b.setAttribute('form', form.getAttribute('id')); });
         foot.remove();
         sheet.appendChild(footer);
       }

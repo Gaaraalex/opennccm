@@ -131,6 +131,32 @@ ip telnet server enable
 snmp-server community "public" ro
 no sntp client mode
 """
+# ArubaOS (Mobility Access Switch S2500 / controladoras): «show running-config» solo trae lo que cambió de fábrica
+ARUBA = "Aruba ArubaOS · Seguridad básica"
+ARUBA_SECURE = """version 7.4
+enable secret "******"
+hostname "SW-CORE-01"
+clock timezone America/Santo_Domingo -4
+ntp server 192.0.2.1
+logging 192.0.2.10
+banner motd "Acceso solo para personal autorizado"
+snmp-server community "Red-Lectura-7x"
+"""
+ARUBA_BAD = """version 7.4
+hostname "SW-CORE-01"
+telnet cli
+snmp-server community "public"
+"""
+check("ArubaOS: una configuración segura pasa todas las reglas", failed_rules(ARUBA, ARUBA_SECURE) == [],
+      failed_rules(ARUBA, ARUBA_SECURE))
+bad = failed_rules(ARUBA, ARUBA_BAD)
+for rule in ("Sin Telnet de gestión", "Sin comunidades SNMP por defecto", "Contraseña de enable configurada",
+             "Sincronización horaria NTP", "Envío de logs a un servidor syslog", "Aviso antes del inicio de sesión"):
+    check(f"ArubaOS inseguro: falla «{rule}»", rule in bad, bad)
+check("ArubaOS: el paquete solo aplica a «aruba_os» (no a Aruba OS-Switch ni a AOS-CX)",
+      re.search(PACKS[ARUBA][0], "aruba_os") and not re.search(PACKS[ARUBA][0], "aruba_osswitch")
+      and not re.search(PACKS[ARUBA][0], "aruba_aoscx"))
+
 check("Ubiquiti: una configuración segura pasa todas las reglas", failed_rules(UBNT, UBNT_SECURE) == [],
       failed_rules(UBNT, UBNT_SECURE))
 bad = failed_rules(UBNT, UBNT_DEFAULT)
