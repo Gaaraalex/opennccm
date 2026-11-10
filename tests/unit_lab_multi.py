@@ -336,5 +336,62 @@ nb = topology.parse("Local Interface    Parent Interface    Chassis Id          
                     "# commit confirmed will be rolled back in 5 minutes\n", "juniper_junos")
 check("Junos: el aviso «# commit confirmed …» en la salida de LLDP no es un vecino", [n["remote_name"] for n in nb] == ["F-2"], nb)
 
+# --- 2.34: pfSense y OPNsense por separado, recetas de OPNsense y WatchGuard probadas, configlets nuevos
+from app import consolecore as cc  # noqa: E402
+from app import recipes  # noqa: E402
+from app.db import Configlet, SessionLocal, init_db  # noqa: E402
+
+init_db()
+check("pfSense y OPNsense son plataformas distintas", cc.os_of("pfsense") == "pfsense" and cc.os_of("opnsense") == "opnsense"
+      and cc.OS_LABEL["pfsense"] == "pfSense" and cc.OS_LABEL["opnsense"] == "OPNsense" and "bsdfw" not in cc.OS_LABEL)
+opn = {k: r for k, r in recipes.BY_KEY.items() if k.startswith("opn-")}
+pfs = {k: r for k, r in recipes.BY_KEY.items() if k.startswith("pfs-")}
+check("OPNsense y pfSense tienen sus 11 recetas cada uno, sin recetas compartidas",
+      len(opn) == 11 and len(pfs) == 11 and not any(k.startswith("bsd-") for k in recipes.BY_KEY)
+      and all(r["os"] == "opnsense" for r in opn.values()) and all(r["os"] == "pfsense" for r in pfs.values()))
+cmds = lambda rs: "\n".join(s["c"] for r in rs.values() for s in r["steps"])  # noqa: E731
+check("Cada uno con sus rutas: config.xml, versión y registro",
+      "/conf/config.xml" in cmds(opn) and "/cf/" not in cmds(opn) and "opnsense-version" in cmds(opn)
+      and "/cf/conf/config.xml" in cmds(pfs) and "opnsense" not in cmds(pfs) and "/etc/version" in cmds(pfs))
+check("Las 11 recetas de OPNsense tienen el sello de OPNsense 26.7", all(recipes.verified_on(k) == "OPNsense 26.7" for k in opn))
+for c in ("ifconfig", "ifconfig -a", "ifconfig vtnet0", "sockstat -4 -l", "tail -n 100 /var/log/system/latest.log",
+          "ls -l /root/config-antes.xml", "pfctl -sr", "pfctl -si", "arp -an", "opnsense-version", "netstat -rn", "df -h"):
+    check(f"OPNsense / pfSense: «{c}» es una consulta (la consola y Multi-equipo no lo bloquean)",
+          cc.risk("opnsense", c, "opnsense") == "read" and cc.risk("pfsense", c, "pfsense") == "read")
+for c, k in (("ifconfig vtnet0 down", "change"), ("cp /conf/config.xml /root/x", "change"), ("pfctl -e", "change"),
+             ("sysctl net.inet.ip.forwarding=1", "change"), ("pfctl -d", "outage"), ("reboot", "outage")):
+    check(f"OPNsense / pfSense: «{c}» es {k}", cc.risk("opnsense", c, "opnsense") == k, cc.risk("opnsense", c, "opnsense"))
+
+fw = {k: "\n".join(s["c"] for s in r["steps"]) for k, r in recipes.BY_KEY.items() if k.startswith("fireware-")}
+check("Fireware: nombre con «system name» en una línea (no hay submodo «system»)",
+      "system name {{nombre}}" in fw["fireware-hostname"] and "\nsystem\n" not in fw["fireware-hostname"])
+check("Fireware: comandos que existen en 12.8 (sin «show log», «show connection» ni «show system usage»)",
+      "show log-cache tail" in fw["fireware-logs"] and fw["fireware-sessions"].strip().endswith("show connection count")
+      and "show system usage" not in fw["fireware-cpu"] and "show login-user" in fw["fireware-users"])
+check("Las 12 recetas de WatchGuard tienen el sello de Fireware 12.8.1",
+      len(fw) == 12 and all(recipes.verified_on(k) == "Fireware 12.8.1" for k in fw))
+check("Fireware: el ping de la receta termina (-c 4)", "ping -c 4 {{destino}}" in fw["fireware-ping"])
+check("Fireware: la receta de NTP avisa del máximo de 3 servidores",
+      any("3 servidores NTP" in s["t"] for s in recipes.BY_KEY["fireware-ntp"]["steps"]))
+
+from app import configlets_seed  # noqa: E402
+from app.drivers import PROFILES  # noqa: E402
+
+items = configlets_seed.CONFIGLETS_234
+check("50 configlets nuevos, 10 por plataforma, con nombre único",
+      len(items) == 50 and len({i[0] for i in items}) == 50
+      and all(sum(1 for i in items if i[2] == f) == 10 for f in {i[2] for i in items}) and len({i[2] for i in items}) == 5)
+check("El filtro de cada configlet sirve a un tipo de equipo existente",
+      all(any(re.search(i[2], p.key) for p in PROFILES) for i in items))
+check("Variables con la sintaxis de los configlets ({{ variable }})",
+      all(re.findall(r"\{\{ \w+ \}\}", i[4]) or "{{" not in i[4] for i in items) and not any(re.search(r"\{\{\w", i[4]) for i in items))
+with SessionLocal() as db:
+    n1 = configlets_seed.seed_new_configlets(db)
+    db.delete(db.query(Configlet).filter(Configlet.name == items[0][0]).one())
+    db.commit()
+    n2 = configlets_seed.seed_new_configlets(db)
+    left = db.query(Configlet).count()
+check("Los configlets nuevos llegan una vez; uno borrado no vuelve", n1 == 50 and n2 == 0 and left == 49, (n1, n2, left))
+
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)

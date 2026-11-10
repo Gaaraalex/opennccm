@@ -235,3 +235,15 @@ def page(request: Request, family: str = ""):
     tabs = [{"family": f, "label": family_label(f), "n": sum(r["family"] == f for r in rows)} for f in order]
     cur = family if family in order else (order[0] if order else ALL)
     return render(request, "favorites.html", user, tabs=tabs, items=rows, cur=cur)
+
+
+def split_bsd_family(db) -> int:
+    """Hasta 2.33 pfSense y OPNsense compartían la familia «bsdfw»: sus favoritos pasan a las dos familias nuevas."""
+    rows = list(db.scalars(select(ConsoleFavorite).where(ConsoleFavorite.family == "bsdfw")))
+    for f in rows:
+        db.add(ConsoleFavorite(owner=f.owner, shared=f.shared, family="pfsense", name=f.name, command=f.command,
+                               mode=f.mode, pos=f.pos, created_at=f.created_at))
+        f.family = "opnsense"
+    if rows:
+        db.commit()
+    return len(rows)

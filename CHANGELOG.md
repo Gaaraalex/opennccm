@@ -1,5 +1,20 @@
 # Historial de versiones
 
+## 2.34.0
+- [mejora] **pfSense y OPNsense por separado:** Cada uno es su propia plataforma en la consola, en Recetas y en Configlets,
+  con sus recetas y sus rutas (config.xml, versión y registro). Los favoritos de consola que ya tenía se copian a los dos.
+- [arreglo] **Consola de pfSense y OPNsense:** `ifconfig`, `sockstat`, `tail`, `ls`, `arp -an` y otros comandos de consulta se
+  bloqueaban como si cambiaran la configuración (en Multi-equipo y en solo lectura). Ahora son consultas; reiniciar, apagar
+  pf o borrar archivos se avisan como cortes de servicio.
+- [arreglo] **Recetas de WatchGuard Fireware:** Probadas en un Firebox T40 real. El nombre del equipo usaba un submodo que no
+  existe, «show log» y «show connection» daban error, «show system usage» no existe y el ping no terminaba nunca. La receta de
+  NTP avisa del máximo de 3 servidores.
+- [mejora] **Recetas verificadas:** 23 recetas más con el sello «Verificada» tras 3 rondas seguidas sin fallos: OPNsense 26.7
+  (11) y WatchGuard Fireware 12.8.1 en un equipo físico (12).
+- [nuevo] **50 configlets y scripts nuevos:** Diez para cada una de estas plataformas: MikroTik RouterOS, Extreme EXOS, Extreme
+  VOSS / Fabric Engine, Ubiquiti EdgeSwitch y WatchGuard Fireware. Llegan también a las instalaciones que ya existen, una sola
+  vez: si borra uno, no vuelve. Salen «Sin verificar» hasta que se prueben.
+
 ## 2.33.0
 - [mejora] **«Ejecutar» espera la casilla del aviso:** En Configlets, Recetas y el asistente, los botones que ejecutan o aplican
   comandos quedan desactivados hasta marcar «Leí el aviso…». Con marcarla una vez basta para toda la página.

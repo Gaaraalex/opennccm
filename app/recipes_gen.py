@@ -219,28 +219,41 @@ GEN += family("zyxel", ("Zyxel", "zyxel", "Zyxel"), {
 }, save="write memory", vars_override={"desc": [("puerto", N_("Puerto"), "1"), ("desc", N_("Descripción"), "Uplink")],
                                        "shutdown": [("puerto", N_("Puerto"), "8")]})
 
-# pfSense y OPNsense (shell de FreeBSD)
-GEN += family("bsd", ("pfSense / OPNsense", "bsdfw", "pfSense / OPNsense"), {
-    "version": ("cat /etc/version 2>/dev/null || opnsense-version", ""),
-    "ports": ("ifconfig", ""), "routes": ("netstat -rn", ""),
-    "logs": ("tail -n 100 /var/log/system.log 2>/dev/null || tail -n 100 /var/log/system/latest.log", ""),
-    "ping": ("ping -c 4 {{destino}}", ""),
-}, extra=[
-    R("bsd-rules", ("pfSense / OPNsense", "bsdfw", "pfSense / OPNsense"), "diagnostico", N_("Ver las reglas cargadas del cortafuegos (pfSense / OPNsense)"),
-      N_("Las reglas de pf en uso, tal como las aplica el sistema."), [], [(N_("Reglas."), "pfctl -sr", "c")]),
-    R("bsd-states", ("pfSense / OPNsense", "bsdfw", "pfSense / OPNsense"), "diagnostico", N_("Ver los estados y contadores del cortafuegos (pfSense / OPNsense)"),
-      N_("Conexiones en la tabla de estados y contadores de pf."), [], [(N_("Información de pf."), "pfctl -si", "c")]),
-    R("bsd-listen", ("pfSense / OPNsense", "bsdfw", "pfSense / OPNsense"), "diagnostico", N_("Ver qué puertos escuchan (pfSense / OPNsense)"),
-      N_("Servicios en escucha y su proceso."), [], [(N_("Puertos en escucha."), "sockstat -4 -l", "c")]),
-    R("bsd-resources", ("pfSense / OPNsense", "bsdfw", "pfSense / OPNsense"), "diagnostico", N_("Ver disco y carga (pfSense / OPNsense)"),
-      N_("Espacio en disco y carga del procesador."), [], [(N_("Disco."), "df -h", ""), (N_("Carga y tiempo encendido."), "uptime", "c")]),
-    R("bsd-backup", ("pfSense / OPNsense", "bsdfw", "pfSense / OPNsense"), "sistema", N_("Guardar una copia local de la configuración (pfSense / OPNsense)"),
-      N_("Copia config.xml antes de un cambio grande (OpenNCCM ya guarda sus versiones)."), [],
-      [(N_("Copiar."), "cp /cf/conf/config.xml /root/config-antes.xml 2>/dev/null || cp /conf/config.xml /root/config-antes.xml", ""),
-       (N_("Comprobar."), "ls -l /root/config-antes.xml", "c")]),
-    R("bsd-arp", ("pfSense / OPNsense", "bsdfw", "pfSense / OPNsense"), "diagnostico", N_("Ver la tabla ARP (pfSense / OPNsense)"),
-      N_("Direcciones IP y MAC vistas en cada interfaz."), [], [(N_("Tabla ARP."), "arp -an", "c")]),
-])
+# pfSense (Netgate) y OPNsense (Deciso): los dos usan el shell de FreeBSD y pf, pero cada uno guarda la configuración,
+# la versión y el registro en su sitio, así que cada uno tiene sus recetas.
+def _bsd(key, plat, tasks, conf, names):
+    n_rules, n_states, n_listen, n_res, n_backup, n_arp = names
+    return family(key, plat, tasks, extra=[
+        R(f"{key}-rules", plat, "diagnostico", n_rules,
+          N_("Las reglas de pf en uso, tal como las aplica el sistema."), [], [(N_("Reglas."), "pfctl -sr", "c")]),
+        R(f"{key}-states", plat, "diagnostico", n_states,
+          N_("Conexiones en la tabla de estados y contadores de pf."), [], [(N_("Información de pf."), "pfctl -si", "c")]),
+        R(f"{key}-listen", plat, "diagnostico", n_listen,
+          N_("Servicios en escucha y su proceso."), [], [(N_("Puertos en escucha."), "sockstat -4 -l", "c")]),
+        R(f"{key}-resources", plat, "diagnostico", n_res,
+          N_("Espacio en disco y carga del procesador."), [], [(N_("Disco."), "df -h", ""), (N_("Carga y tiempo encendido."), "uptime", "c")]),
+        R(f"{key}-backup", plat, "sistema", n_backup,
+          N_("Copia config.xml antes de un cambio grande (OpenNCCM ya guarda sus versiones)."), [],
+          [(N_("Copiar."), f"cp {conf} /root/config-antes.xml", ""), (N_("Comprobar."), "ls -l /root/config-antes.xml", "c")]),
+        R(f"{key}-arp", plat, "diagnostico", n_arp,
+          N_("Direcciones IP y MAC vistas en cada interfaz."), [], [(N_("Tabla ARP."), "arp -an", "c")]),
+    ])
+
+
+GEN += _bsd("pfs", ("Netgate", "pfsense", "pfSense"), {
+    "version": ("cat /etc/version", ""), "ports": ("ifconfig", ""), "routes": ("netstat -rn", ""),
+    "logs": ("tail -n 100 /var/log/system.log", ""), "ping": ("ping -c 4 {{destino}}", ""),
+}, "/cf/conf/config.xml", (
+    N_("Ver las reglas cargadas del cortafuegos (pfSense)"), N_("Ver los estados y contadores del cortafuegos (pfSense)"),
+    N_("Ver qué puertos escuchan (pfSense)"), N_("Ver disco y carga (pfSense)"),
+    N_("Guardar una copia local de la configuración (pfSense)"), N_("Ver la tabla ARP (pfSense)")))
+GEN += _bsd("opn", ("Deciso", "opnsense", "OPNsense"), {
+    "version": ("opnsense-version", ""), "ports": ("ifconfig", ""), "routes": ("netstat -rn", ""),
+    "logs": ("tail -n 100 /var/log/system/latest.log", ""), "ping": ("ping -c 4 {{destino}}", ""),
+}, "/conf/config.xml", (
+    N_("Ver las reglas cargadas del cortafuegos (OPNsense)"), N_("Ver los estados y contadores del cortafuegos (OPNsense)"),
+    N_("Ver qué puertos escuchan (OPNsense)"), N_("Ver disco y carga (OPNsense)"),
+    N_("Guardar una copia local de la configuración (OPNsense)"), N_("Ver la tabla ARP (OPNsense)")))
 # Check Point Gaia (clish)
 GEN += family("gaia", ("Check Point", "gaia", "Check Point Gaia"), {
     "hostname": ("set hostname {{nombre}}", "show hostname"),

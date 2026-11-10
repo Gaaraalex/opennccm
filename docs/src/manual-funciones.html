@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.33.0<br>Para administradores y operadores de red<br>Noviembre de 2026</div>
+  <div class="meta">Versión del software: 2.34.0<br>Para administradores y operadores de red<br>Noviembre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -628,7 +628,8 @@ cuántos equipos suyos lo pueden ejecutar; los que no aplican a sus equipos qued
 <b>Ejecutar</b>, <b>Editar</b> y <b>Duplicar</b>. El buscador mira el nombre y los comandos.</p>
 <p><b>Revisa los configlets antes de usarlos en producción.</b> Como las recetas, un configlet probado completo en un equipo lleva el
 sello <b>Verificada</b> con la versión del sistema; solo un administrador lo pone o lo quita, y queda en Auditoría. Los de ejemplo
-salen «Sin verificar».</p>
+salen «Sin verificar». Desde la 2.34 se incluyen diez configlets y scripts para cada una de estas plataformas: MikroTik RouterOS,
+Extreme EXOS, Extreme VOSS / Fabric Engine, Ubiquiti EdgeSwitch y WatchGuard Fireware. Llegan una sola vez, y si borra uno no vuelve.</p>
 <figure><img src="img/10-configlets.png"><figcaption>Lista de configlets (se incluyen ejemplos para cambiar contraseñas, VLAN, NTP, syslog y diagnósticos).</figcaption></figure>
 <h2>Variables</h2>
 <p>Los comandos son plantillas Jinja2. Puede usar datos del equipo y variables propias que se piden al ejecutar:</p>
@@ -1564,6 +1565,7 @@ Sistema › Backup and Restore Image, importar el .fxi y escribir su clave.</p>
 <p><b>pfSense y OPNsense</b> tienen perfil propio: OpenNCCM atraviesa el menú de consola (opción «8) Shell») y respalda el archivo
 <code>config.xml</code> completo, el mismo que exporta la web. Use el usuario <code>admin</code>/<code>root</code> (el archivo solo lo lee
 root); el inventario trae versión, modelo y número de serie. Los cambios se siguen haciendo desde la web del cortafuegos.
+Desde la 2.34 cada uno es su propia plataforma en la consola, en Recetas y en Configlets, con sus recetas.
 <b>Alpine Linux</b> respalda red, DNS, paquetes instalados (<code>apk world</code>), servicios, SSH y reglas del cortafuegos.</p>
 <p><b>Ubuntu Server / Debian</b> (Ubuntu 26.04, 24.04 y 22.04 LTS; Debian 12 y 13) respalda solo configuración en texto: nombre,
 red (netplan o <code>/etc/network/interfaces</code>), DNS, SSH, cuentas y grupos, sudo, repositorios, paquetes instalados a mano

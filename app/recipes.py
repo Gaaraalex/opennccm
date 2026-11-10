@@ -157,6 +157,13 @@ VERIFIED = {
     "fp-syslog": "EdgeSwitch 1.9.3", "fp-sntp": "EdgeSwitch 1.9.3", "fp-vlan": "EdgeSwitch 1.9.3", "fp-access": "EdgeSwitch 1.9.3",
     "fp-trunk": "EdgeSwitch 1.9.3", "fp-desc": "EdgeSwitch 1.9.3", "fp-shutdown": "EdgeSwitch 1.9.3", "fp-flap": "EdgeSwitch 1.9.3",
     "fp-mac": "EdgeSwitch 1.9.3",
+    # OPNsense 26.7 (máquina virtual en GNS3), 3 rondas seguidas sin fallos, 2026-11-09
+    "opn-version": "OPNsense 26.7", "opn-ports": "OPNsense 26.7", "opn-routes": "OPNsense 26.7", "opn-logs": "OPNsense 26.7",
+    "opn-ping": "OPNsense 26.7", "opn-rules": "OPNsense 26.7", "opn-states": "OPNsense 26.7", "opn-listen": "OPNsense 26.7",
+    "opn-resources": "OPNsense 26.7", "opn-backup": "OPNsense 26.7", "opn-arp": "OPNsense 26.7",
+    # WatchGuard Firebox T40 con Fireware 12.8.1 (equipo físico), 3 rondas seguidas sin fallos, 2026-11-09
+    **{f"fireware-{t}": "Fireware 12.8.1" for t in ("hostname", "ntp", "version", "ports", "routes", "arp", "logs", "sessions",
+                                                    "users", "cpu", "ping", "trace")},
 }
 
 
