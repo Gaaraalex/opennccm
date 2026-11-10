@@ -329,13 +329,18 @@ REST += family("stoneos", ("Hillstone", "stoneos", "Hillstone StoneOS"), {
 
 # WatchGuard Fireware: la CLI sirve sobre todo para consultas; los cambios se suelen hacer en Fireware Web UI.
 REST += family("fireware", ("WatchGuard", "fireware", "WatchGuard Fireware"), {
-    "hostname": ("configure\nsystem\nname {{nombre}}\nexit\nexit", "show sysinfo"),
+    # (probadas en un T40 con Fireware 12.8.1: «system name» va en una línea; «ping» sin -c no termina nunca)
+    "hostname": ("configure\nsystem name {{nombre}}\nexit", "show sysinfo"),
     "ntp": ("configure\nntp enable\nntp server ip {{ntp}}\nexit", "show ntp"),
     "version": ("show sysinfo", ""), "ports": ("show interface", ""), "routes": ("show route", ""),
-    "arp": ("show arp", ""), "logs": ("show log", ""), "sessions": ("show connection", ""),
-    "users": ("show users", ""), "cpu": ("show system usage", ""), "ping": ("ping {{destino}}", ""),
+    "arp": ("show arp", ""), "logs": ("show log-cache tail 100", ""), "sessions": ("show connection count", ""),
+    "users": ("show login-user", ""), "cpu": ("show sysinfo", ""), "ping": ("ping -c 4 {{destino}}", ""),
     "trace": ("traceroute {{destino}}", ""),
 }, note=N_("Fireware guarda los cambios de la CLI al momento. La mayoría de la configuración se hace en Fireware Web UI o WatchGuard Cloud."))
+for _r in REST:
+    if _r["key"] == "fireware-ntp":  # con 3 servidores, «ntp server» da «The maximum number of NTP server allowed is 3»
+        _r["steps"].insert(1, {"t": N_("Fireware admite hasta 3 servidores NTP. Si «show ntp» ya muestra 3, quite uno antes en configure con «no ntp server domain NOMBRE» o «no ntp server ip DIRECCIÓN»."),
+                               "c": "", "warn": True, "check": False})
 
 # Prisma SD-WAN (CloudGenix ION): la configuración viene del controlador en la nube; en el equipo solo se consulta.
 REST += family("ion", ("Palo Alto", "ion", "Prisma SD-WAN ION"), {

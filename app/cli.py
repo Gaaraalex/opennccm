@@ -141,6 +141,8 @@ def seed():
             if not db.scalars(select(Configlet).where(Configlet.name == name)).first():
                 db.add(Configlet(name=name, kind=kind, device_type_filter=flt, description=desc, body=body))
         db.commit()
+        from .configlets_seed import seed_new_configlets
+        seed_new_configlets(db)
         from .compliance_packs import seed_packs
         seed_packs(db)
     print("Políticas (incl. PCI DSS, HIPAA, SOX, Cisco IOS) y configlets de ejemplo cargados.")

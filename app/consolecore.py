@@ -17,7 +17,7 @@ OS_LABEL = {"ros": "RouterOS", "ios": "Cisco IOS", "nxos": "NX-OS", "eos": "Aris
             "comware": "H3C / HPE Comware", "huaweiolt": "Huawei OLT", "fortios": "FortiOS", "panos": "PAN-OS",
             "asa": "Cisco ASA", "ftd": "Cisco FTD", "iosxr": "IOS-XR", "procurve": "ProCurve / Aruba OS-Switch",
             "aoscx": "Aruba AOS-CX", "ioslike": "CLI tipo Cisco", "dellos10": "Dell OS10", "sonic": "SONiC", "sros": "Nokia SR OS",
-            "srl": "Nokia SR Linux", "omniswitch": "OmniSwitch AOS", "enterasys": "Enterasys", "zyxel": "Zyxel", "bsdfw": "pfSense / OPNsense",
+            "srl": "Nokia SR Linux", "omniswitch": "OmniSwitch AOS", "enterasys": "Enterasys", "zyxel": "Zyxel", "pfsense": "pfSense", "opnsense": "OPNsense",
             "gaia": "Check Point Gaia", "tmsh": "F5 BIG-IP", "netscaler": "NetScaler", "aireos": "Cisco WLC", "arubaos": "ArubaOS",
             "sfos": "Sophos SFOS", "viptela": "Cisco SD-WAN vEdge", "bfos": "Brocade FOS", "wing": "Extreme WiNG",
             "adva": "ADVA FSP 150CC", "saos": "Ciena SAOS 6/8", "saos10": "Ciena SAOS 10", "calixexa": "Calix EXA",
@@ -70,7 +70,7 @@ def os_of(device_type: str) -> str:
     fam = {"fortinet": "fortios", "paloalto_panos": "panos", "cisco_asa": "asa", "cisco_ftd": "ftd", "cisco_xr": "iosxr",
            "hp_procurve": "procurve", "aruba_osswitch": "procurve", "aruba_aoscx": "aoscx", "cisco_ap": "ios",
            "dell_os10": "dellos10", "dell_sonic": "sonic", "edgecore_sonic": "sonic", "nokia_sros": "sros", "nokia_srl": "srl",
-           "alcatel_aos": "omniswitch", "enterasys": "enterasys", "zyxel_os": "zyxel", "pfsense": "bsdfw", "opnsense": "bsdfw",
+           "alcatel_aos": "omniswitch", "enterasys": "enterasys", "zyxel_os": "zyxel", "pfsense": "pfsense", "opnsense": "opnsense",
            "checkpoint_gaia": "gaia", "f5_tmsh": "tmsh", "netscaler": "netscaler", "cisco_wlc": "aireos", "aruba_os": "arubaos",
            "sophos_sfos": "sfos", "cisco_viptela": "viptela", "brocade_fos": "bfos", "extreme_wing": "wing",
            "adva_fsp150f2": "adva", "adva_fsp150f3": "adva", "ciena_saos": "saos", "ciena_saos10": "saos10",
@@ -128,6 +128,11 @@ _QUERY = {
              r"hostname\s*$|whoami|id\s*$|journalctl|dmesg|tail|head|grep|less|more|pwd|date|who|w\s*$|systemctl status)\b",
     "generic": r"(show|sh\b|display|dis\b|ping|trace(route)?|tracert|get\b|exit|quit)\b",
 }
+# pfSense y OPNsense: shell de FreeBSD (ifconfig o sysctl con argumentos de cambio, o pfctl fuera de «-s», son cambios)
+_QUERY["pfsense"] = _QUERY["opnsense"] = (
+    r"(ls|cat|ifconfig(\s+-a)?(\s+[\w.]+)?\s*$|netstat|sockstat|pfctl\s+-v*s|arp\s+-an?\s*$|df|uptime|tail|head|grep|"
+    r"ping|traceroute|uname|ps|top\s+-b|date|who|w\s*$|pwd|id\s*$|whoami|hostname\s*$|kenv\s+-q|sysctl\s+[\w.]+\s*$|"
+    r"opnsense-version|pkg\s+(info|version)|exit)\b")
 _ROS_CHANGE = re.compile(r"(^|\s|/)(add|set|remove|enable|disable|unset|move|import|reset|reboot|shutdown|upgrade|"
                          r"reset-configuration|install|uninstall|comment|edit)(\s|$)")
 _DANGER = {
@@ -143,10 +148,13 @@ _DANGER = {
     "linux": r"^\s*(sudo\s+)?(reboot|shutdown|halt|poweroff|init\s+[06]|rm\s+-rf?\s+/)",
     "generic": r"^\s*(reload|reboot|shutdown|halt|erase|format|factory)",
 }
+_DANGER["pfsense"] = _DANGER["opnsense"] = (r"^\s*(reboot|shutdown|halt|poweroff|rm\s+-rf?\s+/|pfctl\s+-(d|F\s*all)\b|"
+                                           r"opnsense-(update|revert)|/etc/rc\.reload_all)")
 DANGER_WHY = {
     "ros": N_("reinicia o borra la configuración del equipo: corta todo el tráfico que pasa por él"),
     "linux": N_("apaga o reinicia el servidor, o borra archivos del sistema"),
 }
+DANGER_WHY["pfsense"] = DANGER_WHY["opnsense"] = N_("reinicia o apaga el cortafuegos, apaga pf o borra archivos: corta el tráfico que pasa por él")
 DANGER_WHY_DEFAULT = N_("reinicia el equipo o borra su configuración: corta el servicio mientras tanto")
 
 

@@ -87,6 +87,14 @@ async def lifespan(_app):
                 n = fix_rule_patterns(db)
                 if n:
                     log.info("Corregidas %d reglas de cumplimiento con la condición al revés", n)
+                from .favorites import split_bsd_family
+                n = split_bsd_family(db)
+                if n:
+                    log.info("Favoritos de pfSense / OPNsense repartidos entre las dos familias: %d", n)
+                from .configlets_seed import seed_new_configlets
+                n = seed_new_configlets(db)
+                if n:
+                    log.info("Agregados %d configlets y scripts nuevos", n)
     except Exception:  # noqa: BLE001
         log.exception("No se pudieron cargar los paquetes de cumplimiento nuevos")
     scheduler.start()
