@@ -8,6 +8,7 @@
 {% set qg = ('&q=' ~ q|urlencode if q else '') ~ ('&group=' ~ group if group else '') ~ ('&status=' ~ status if status else '') ~ ('&brand=' ~ brand if brand else '') %}
 <div class="ph"><div class="grow"><h1>Dispositivos</h1>
   <div class="sub">{{ _f('{0} equipos en {1} grupos', counts[''], n_groups) }}<span id="bk-sub">{% if last_global %} · {{ _f('último respaldo global {0}', last_global|ago) }}{% endif %}</span></div></div>
+  {% if retired_n %}<a class="btn" href="/retired" title="{{ _('Dañados, reemplazados o dados de baja, con su historial') }}">{{ icon('undo', 's') }}{{ _f('Retirados ({0})', retired_n) }}</a>{% endif %}
   <a class="btn" href="/config-reference">{{ icon('star', 's') }}{{ _('Configuración de referencia') }}</a>
   {% if user.role == 'admin' %}<a class="btn" href="/credentials#groups">{{ icon('folder', 's') }}Grupos</a>
   <span class="dropw"><button type="button" class="btn" data-drop="add-menu" aria-haspopup="true" aria-expanded="false">{{ icon('plus', 's') }}Agregar {{ icon('down', 's') }}</button>
@@ -20,6 +21,7 @@
     <button class="btn pri" id="bk-all">{{ icon('backup', 's') }}<span>{{ _('Respaldar todos') }}</span></button></form>{% endif %}
 </div>
 <div id="bk-panel" hidden aria-live="polite"></div>
+{% if retired_hits %}<div class="banner info" role="status" style="margin-bottom:12px">{{ icon('info') }}<span class="grow">{{ _('1 equipo retirado coincide con la búsqueda.') if retired_hits == 1 else _f('{0} equipos retirados coinciden con la búsqueda.', retired_hits) }}</span><a class="btn s" href="/retired?q={{ q|urlencode }}">{{ _('Ver en Retirados') }}</a></div>{% endif %}
 
 <form class="row" method="get" role="search" id="devf">
   <label class="input" style="width:min(320px,100%)" for="devq">{{ icon('search', 's') }}<input id="devq" name="q" value="{{ q }}" placeholder="Nombre, IP, modelo, serie o ubicación" aria-label="Buscar equipos"></label>

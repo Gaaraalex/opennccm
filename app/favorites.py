@@ -227,7 +227,7 @@ def page(request: Request, family: str = ""):
     user = _console_user(request)
     with SessionLocal() as db:
         rows = [_row(f, user) for f in _visible(db, user)]
-        types = {t for (t,) in db.execute(select(Device.device_type).distinct())}
+        types = {t for (t,) in db.execute(select(Device.device_type).where(Device.retired_at.is_(None)).distinct())}
     fams = ({family_of(t) for t in types} | {r["family"] for r in rows}) - {ALL}
     if family and family != ALL:
         fams.add(family)

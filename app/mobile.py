@@ -138,7 +138,7 @@ def mobile_me(request: Request):
 # --------------------------------------------------------------------------- panel, equipos, alarmas y cambios
 def _visible(db, user):
     scope = device_scope(user)
-    return [d for d in db.scalars(select(Device).order_by(Device.name)) if scope is None or d.id in scope]
+    return [d for d in db.scalars(select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)) if scope is None or d.id in scope]
 
 
 @router.get("/api/mobile/summary")
@@ -284,7 +284,7 @@ def _cr_json(cr, names: dict) -> dict:
 def mobile_changes(request: Request, limit: int = 100):
     require(request)
     with SessionLocal() as db:
-        names = dict(db.execute(select(Device.id, Device.name)).all())
+        names = dict(db.execute(select(Device.id, Device.name)).all())  # (historial: también los retirados)
         return [_cr_json(cr, names) for cr in db.scalars(select(ChangeRequest).order_by(ChangeRequest.id.desc())
                                                            .limit(min(max(limit, 1), 300)))]
 
@@ -296,7 +296,7 @@ def mobile_change(request: Request, cr_id: int):
         cr = db.get(ChangeRequest, cr_id)
         if cr is None:
             return JSONResponse({"error": "not_found"}, 404)
-        names = dict(db.execute(select(Device.id, Device.name)).all())
+        names = dict(db.execute(select(Device.id, Device.name)).all())  # (historial: también los retirados)
         out = _cr_json(cr, names)
         out.update({"body": cr.body, "result": (cr.result or "")[-6000:]})
         return out

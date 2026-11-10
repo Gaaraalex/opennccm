@@ -45,7 +45,7 @@ GO_PATHS = re.compile(r"^/(devices|versions|diff|changes|compliance|events|conso
 # --------------------------------------------------------------------------- funciones de solo lectura
 def _devs(db, user):
     scope = device_scope(user)
-    q = select(Device).order_by(Device.name)
+    q = select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)
     return [d for d in db.scalars(q) if scope is None or d.id in scope]
 
 

@@ -375,7 +375,7 @@ def overview(user, key: str = "") -> dict:
     rf = refs()
     ign = ignores()
     with SessionLocal() as db:
-        devs = [d for d in db.scalars(select(Device).order_by(Device.name)) if scope is None or d.id in scope]
+        devs = [d for d in db.scalars(select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)) if scope is None or d.id in scope]
         types: dict[str, list[Device]] = {}
         for d in devs:
             types.setdefault(type_key(d), []).append(d)
@@ -483,7 +483,7 @@ def ignored_page(request: Request, t: str = ""):
     user = require(request, "operator")
     ign = ignores()
     with SessionLocal() as db:
-        names = {d.id: d.name for d in db.scalars(select(Device))}
+        names = {d.id: d.name for d in db.scalars(select(Device).where(Device.retired_at.is_(None)))}
     devs = {k: v for k, v in ign.items() if k.startswith("dev:")}
     return render(request, "reference_ignored.html", user, t=t, label=type_label(t) if t else "", all_lines=ign.get(t, []),
                   devs={names.get(int(k[4:]), k): (k, v) for k, v in devs.items() if v}, ago=ago)

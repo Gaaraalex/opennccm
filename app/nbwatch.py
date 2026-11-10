@@ -94,7 +94,7 @@ def known_count() -> int:
 
 def settings_values() -> dict:
     with SessionLocal() as db:
-        locs = sorted({d.location for d in db.scalars(select(Device)) if d.location})
+        locs = sorted({d.location for d in db.scalars(select(Device).where(Device.retired_at.is_(None))) if d.location})
     c = cfg()
     return {**c, "interval": interval_min(), "known_n": known_count(), "locations": locs, "sevs": SEVS,
             "proto_labels": PROTO_LABEL}
@@ -149,7 +149,7 @@ def _is_ours(db, name: str) -> Device | None:
     if not name:
         return None
     nn = topology.norm_name(name)
-    return next((d for d in db.scalars(select(Device)) if topology.norm_name(d.name) == nn), None)
+    return next((d for d in db.scalars(select(Device).where(Device.retired_at.is_(None))) if topology.norm_name(d.name) == nn), None)
 
 
 def texts(db, dev: Device, r: NeighborState, kind: str) -> tuple[str, str]:
@@ -269,7 +269,7 @@ def marks(dev_ids: list[int]) -> dict:
     if not dev_ids:
         return out
     with SessionLocal() as db:
-        names = {d.id: d.name for d in db.scalars(select(Device).where(Device.id.in_(dev_ids)))}
+        names = {d.id: d.name for d in db.scalars(select(Device).where(Device.retired_at.is_(None), Device.id.in_(dev_ids)))}
         rows = db.scalars(select(NeighborState).where(NeighborState.device_id.in_(dev_ids)))
         for r in rows:
             base = {"id": r.id, "dev": r.device_id, "dev_name": names.get(r.device_id, ""), "name": r.name or r.mac or r.ip,
@@ -428,7 +428,7 @@ def known_page(request: Request):
     user = require(request, "operator")
     scope = device_scope(user)
     with SessionLocal() as db:
-        names = {d.id: d.name for d in db.scalars(select(Device))}
+        names = {d.id: d.name for d in db.scalars(select(Device).where(Device.retired_at.is_(None)))}
         rows = [r for r in db.scalars(select(NeighborState).where(NeighborState.known.is_(True))
                                       .order_by(NeighborState.device_id, NeighborState.port))
                 if scope is None or r.device_id in scope]
@@ -455,5 +455,5 @@ def api_changes(request: Request):
     user = require(request)
     scope = device_scope(user)
     with SessionLocal() as db:
-        ids = [d.id for d in db.scalars(select(Device)) if scope is None or d.id in scope]
+        ids = [d.id for d in db.scalars(select(Device).where(Device.retired_at.is_(None))) if scope is None or d.id in scope]
     return JSONResponse(marks(ids))

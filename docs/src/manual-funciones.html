@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.34.0<br>Para administradores y operadores de red<br>Noviembre de 2026</div>
+  <div class="meta">Versión del software: 2.35.0<br>Para administradores y operadores de red<br>Noviembre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -231,6 +231,25 @@ historial.</p>
 ahora: el equipo está aislado y OpenNCCM no se conecta con él. Un administrador lo vuelve a activar con <b>Activar</b>, en la
 propia ficha. En la lista de Dispositivos, al marcar varios equipos, <b>Activar</b> y <b>Desactivar</b> lo hacen con todos a la
 vez (solo administradores; queda en Auditoría).</p>
+<h3>Equipos retirados (dañados o reemplazados)</h3>
+<p>Cuando un equipo se daña, se reemplaza por otro que hará su misma función o se da de baja, no hace falta borrarlo:
+en su ficha, menú <b>⋯ → Retirar o reemplazar…</b> (solo administradores). Se elige el motivo (dañado, reemplazado,
+devuelto u otro) y, si se quiere, una nota.</p>
+<ul>
+  <li>El equipo se renombra con un número de secuencia por nombre: el primero que se retira de <code>SW-CORE-01</code> queda
+  como <code>SW-CORE-01 (1)</code>, el siguiente como <code>SW-CORE-01 (2)</code>, y así.</li>
+  <li>Queda <b>sin dirección</b>: el nombre y la IP quedan libres para el equipo nuevo. El nombre y la IP originales se guardan
+  y se puede buscar por ellos (en Dispositivos, en Retirados y con Ctrl K).</li>
+  <li>Queda <b>desactivado y aislado</b> (OpenNCCM no se conecta con él) y fuera de todo lo activo: panel, mapa, alarmas,
+  informes, tareas y la API. Sus alarmas abiertas se cierran y sus versiones no se purgan.</li>
+  <li>Conserva <b>todo su historial</b> para auditarlo: versiones y respaldos, cumplimiento, vulnerabilidades, eventos y puertos.</li>
+  <li>Con <b>Dar de alta el equipo que lo reemplaza</b> (activado por omisión), en el mismo paso se crea el equipo nuevo con el
+  nombre, la IP, el tipo, la credencial, el grupo, el nodo y la ubicación del retirado, y se lanza su primer respaldo. Su ficha
+  dice a quién reemplaza y ofrece <b>Comparar</b> su respaldo con el último del retirado, para ver si quedó configurado igual.</li>
+</ul>
+<p>Los retirados se ven en <b>Dispositivos › Retirados</b>, con su nombre e IP originales, el motivo, quién y cuándo lo retiró y
+qué equipo lo reemplazó. Un retirado no se edita: con <b>Reincorporar</b> vuelve al servicio con el nombre y la IP que se
+indiquen (por omisión, los originales, si están libres) y, si se marca, activado.</p>
 <figure><img src="img/05-dispositivo.png"><figcaption>Ficha del dispositivo R1, pestaña Resumen.</figcaption></figure>
 <h3>Puertos del equipo</h3>
 <p>Entre la cabecera y las pestañas, una <b>franja de puertos</b> dibuja el frente del equipo con un icono por puerto en su orden
@@ -636,6 +655,10 @@ cuántos equipos suyos lo pueden ejecutar; los que no aplican a sus equipos qued
 sello <b>Verificada</b> con la versión del sistema; solo un administrador lo pone o lo quita, y queda en Auditoría. Los de ejemplo
 salen «Sin verificar». Desde la 2.34 se incluyen diez configlets y scripts para cada una de estas plataformas: MikroTik RouterOS,
 Extreme EXOS, Extreme VOSS / Fabric Engine, Ubiquiti EdgeSwitch y WatchGuard Fireware, y desde la 2.35 también para ArubaOS (controladoras y switches S2500/S3500). Llegan una sola vez, y si borra uno no vuelve.</p>
+<p><b>ArubaOS</b> (controladoras y Mobility Access Switch como el S2500): al conectar, OpenNCCM pasa al modo privilegiado
+con la contraseña de <b>Enable / secret</b> de la credencial; si no tiene, prueba la de ingreso y, si tampoco sirve, lo dice.
+El modelo sale de <code>show version</code>, la serie de <code>show inventory</code> y los puertos de <code>show port status</code>
+(en el S2500-48P, los 48 de cobre y los 4 SFP+).</p>
 <figure><img src="img/10-configlets.png"><figcaption>Lista de configlets (se incluyen ejemplos para cambiar contraseñas, VLAN, NTP, syslog y diagnósticos).</figcaption></figure>
 <h2>Variables</h2>
 <p>Los comandos son plantillas Jinja2. Puede usar datos del equipo y variables propias que se piden al ejecutar:</p>

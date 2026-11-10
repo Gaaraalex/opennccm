@@ -430,6 +430,31 @@ _NoEnable.calls = []
 c = services._connect_arubaos(SimpleNamespace(name="SW"), _NoEnable, {"host": "h"}, "SW ARUBA", "", "la-de-enable")
 check("ArubaOS: sin enable en la credencial prueba la contraseña de ingreso", _NoEnable.calls == ["la-de-enable"])
 
+# --- ArubaOS S2500-48P: «show port status» con los 52 puertos (48 de cobre 0/0/N y 4 SFP+ 0/1/N) y su atrás
+from app import ports as _ports  # noqa: E402
+
+_rows = []
+for i in range(48):
+    up = i % 3 != 0
+    _rows.append(f"0/0/{i:<7}GE        Enabled     {'Up  ' if up else 'Down'}       Enabled  Yes      Forwarding    Access    "
+                f"{'1 Gbps' if up else 'Auto  '}    Full")
+for i in range(4):
+    _rows.append(f"0/1/{i}      10GE      {'Disabled' if i == 0 else 'Enabled '}    Down       N/A      Yes      Disabled      Trunk     Auto      Auto")
+text = ("Port Status\n-----------\nSlot-Port  PortType  AdminState  OperState  PoE      Trusted  SpanningTree  PortMode  Speed     Duplex\n"
+        "---------  --------  ----------  ---------  ---      -------  ------------  --------  -----     ------\n" + "\n".join(_rows) + "\n")
+_p, _ok = _ports.parse(_ports.MARK + "show port status\n" + text, "aruba_os", "", "S2500-48P")
+check("ArubaOS: «show port status» da los 52 puertos (48 de cobre y 4 SFP) con su estado",
+      len(_p) == 52 and _ok and sum(1 for x in _p if x["k"] == "sfp") == 4 and _p[1]["s"] == "up" and _p[1]["sp"] == "1 Gbps"
+      and _p[0]["s"] == "down" and _p[48]["s"] == "off", (len(_p), _p[:2]))
+check("ArubaOS: es la primera orden que se prueba y si falla quedan las habituales",
+      _ports.commands("aruba_os")[0] == "show port status" and "show interface brief" in _ports.commands("aruba_os"))
+check("ArubaOS: un «% Invalid input» no da puertos (se prueba la siguiente orden)",
+      _ports.pt.arubaos("% Invalid input detected at '^' marker.") == [])
+_lay = _ports.layout("S2500-48P", _p)
+check("S2500-48P: dos filas, SFP a la derecha y atrás la entrada de corriente",
+      _lay["rows"] == 2 and _lay["sfp"] == "row" and _ports.copper_count("S2500-48P") == 48
+      and (_ports.rear_from_model("S2500-48P", True) or {}).get("psu", [{}])[0].get("s") == "ok")
+
 js = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "static", "shell.js"), encoding="utf-8").read()
 check("Panel lateral: el formulario se identifica con getAttribute('id') (un <input name=\"id\"> tapa form.id)",
       "f.setAttribute('id', 'sheet-form-'" in js and "form.getAttribute('id')" in js and "f.id = 'sheet-form-'" not in js)

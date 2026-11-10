@@ -152,6 +152,16 @@ class Device(Base):
     tables_note: Mapped[str | None] = mapped_column(String(255))
     # aviso de vecino nuevo o perdido (app/nbwatch.py): ya se tomó la primera lectura como conocida
     nb_tracked: Mapped[bool] = mapped_column(Boolean, default=False)
+    # equipo retirado (dañado, reemplazado, devuelto: app/retire.py). Queda desactivado y aislado, con todo su historial,
+    # renombrado «NOMBRE (n)» y sin dirección, para que su reemplazo use el nombre y la IP; aquí quedan los originales
+    retired_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    retired_by: Mapped[str | None] = mapped_column(String(64))
+    retired_reason: Mapped[str | None] = mapped_column(String(16))  # damaged | replaced | returned | other
+    retired_note: Mapped[str | None] = mapped_column(Text)
+    orig_name: Mapped[str | None] = mapped_column(String(128), index=True)
+    orig_host: Mapped[str | None] = mapped_column(String(255))
+    replaced_by_id: Mapped[int | None] = mapped_column(Integer)  # el equipo que lo reemplazó
+    replaces_id: Mapped[int | None] = mapped_column(Integer)     # (en el reemplazo) el retirado al que reemplaza
 
     credential = relationship("Credential", foreign_keys=[credential_id])
     group = relationship("DeviceGroup")

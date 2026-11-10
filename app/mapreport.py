@@ -28,7 +28,7 @@ def collect(user) -> dict:
     types = get_setting("topology_types", "")
     allowed = {f for f, _l in topology.FAMILIES} if not types else set(types.split(","))
     with SessionLocal() as db:
-        devs = [d for d in db.scalars(select(Device).order_by(Device.name)) if scope is None or d.id in scope]
+        devs = [d for d in db.scalars(select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)) if scope is None or d.id in scope]
         hosts = [d.host.lower() for d in devs]
         by_ip = {d.host.lower(): d for d in devs if hosts.count(d.host.lower()) == 1}
         by_name = {topology.norm_name(d.name): d for d in devs}

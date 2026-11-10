@@ -165,7 +165,7 @@ class Graph:
 
 def _graph() -> Graph:
     with SessionLocal() as db:
-        devs = list(db.scalars(select(Device).order_by(Device.name)))
+        devs = list(db.scalars(select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)))
         return Graph(devs)
 
 
@@ -415,7 +415,7 @@ def plan(g: Graph, ids: list[int], user=None, target: str = "") -> dict:
     ws = waves(g, ids)
     rows, n = [], 0
     with SessionLocal() as db:
-        devs = {d.id: d for d in db.scalars(select(Device).where(Device.id.in_(ids)))}
+        devs = {d.id: d for d in db.scalars(select(Device).where(Device.retired_at.is_(None), Device.id.in_(ids)))}
     for wave in ws:
         n += 1
         for i in wave:

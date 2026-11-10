@@ -133,7 +133,7 @@ def _device_for_ip(ip: str) -> int | None:
     if time.time() - _ip_cache_at > 300:
         cache = {}
         with SessionLocal() as db:
-            for d in db.scalars(select(Device).where(Device.enabled.is_(True))):
+            for d in db.scalars(select(Device).where(Device.retired_at.is_(None), Device.enabled.is_(True))):
                 cache[d.host] = d.id
                 try:
                     cache[socket.gethostbyname(d.host)] = d.id
@@ -210,7 +210,7 @@ def purge_old_versions():
     if keep <= 0:
         return
     with SessionLocal() as db:
-        for dev_id in db.scalars(select(Device.id)):
+        for dev_id in db.scalars(select(Device.id).where(Device.retired_at.is_(None))):
             for kind in ("running", "startup"):
                 old = db.scalars(select(ConfigVersion).where(
                     ConfigVersion.device_id == dev_id, ConfigVersion.kind == kind, ConfigVersion.label.is_(None))

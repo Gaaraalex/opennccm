@@ -43,7 +43,7 @@ def _in(scope, dev_id):
 def build(kind: str, scope: set[int] | None = None, days: int = 30) -> tuple[list[str], list[tuple]]:
     since = now() - timedelta(days=days)
     with SessionLocal() as db:
-        devs = [d for d in db.scalars(select(Device).order_by(Device.name)) if _in(scope, d.id)]
+        devs = [d for d in db.scalars(select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)) if _in(scope, d.id)]
         if kind == "inventory":
             return (["nombre", "ip", "fabricante", "tipo", "modelo", "serie", "versión", "grupo", "ubicación",
                      "estado", "último respaldo", "conflicto startup", "desvío baseline"],
@@ -117,7 +117,7 @@ def email_reports(kinds: list[str], days: int = 7) -> list[str]:
 def analytics(scope: set[int] | None, days: int = 30) -> dict:
     since = now() - timedelta(days=days)
     with SessionLocal() as db:
-        devs = [d for d in db.scalars(select(Device)) if _in(scope, d.id)]
+        devs = [d for d in db.scalars(select(Device).where(Device.retired_at.is_(None))) if _in(scope, d.id)]
         versions = [v for v in db.scalars(select(ConfigVersion).where(ConfigVersion.created_at >= since,
                                                                       ConfigVersion.kind == "running"))
                     if _in(scope, v.device_id)]

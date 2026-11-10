@@ -26,6 +26,8 @@ MAX_MONITOR = 64        # MikroTik: puertos a consultar uno por uno con «monito
 # orden(es) que dan el estado de los puertos, por tipo de equipo; se prueban en orden hasta que una da la tabla
 LINUX = ("linux", "ubuntu_server", "alpine_linux", "cumulus_linux", "dell_sonic", "edgecore_sonic", "opengear_linux",
          "ubiquiti_airos", "ubiquiti_airfiber", "ubiquiti_unifi_ap")
+GENERIC_FALLBACK = ["show interfaces status", "show interface status", "show interfaces brief", "show interface brief",
+                    "show ip interface brief"]
 COMMANDS = {
     "cisco_asa": ["show interface ip brief"], "cisco_ftd": ["show interface ip brief"],
     "juniper_junos": ["show interfaces terse"], "juniper": ["show interfaces terse"],
@@ -37,6 +39,9 @@ COMMANDS = {
     "fortinet": ["get system interface physical"], "paloalto_panos": ["show interface all"],
     "checkpoint_gaia": ["show interfaces all"], "nokia_sros": ["show port"],
     "pfsense": ["ifconfig -a"], "opnsense": ["ifconfig -a"],
+    # ArubaOS (S2500 y demás Mobility Access Switch): todos los puertos, 0/0/N cobre y 0/1/N uplinks SFP; si el equipo no
+    # la tiene se prueban las habituales
+    "aruba_os": ["show port status"] + GENERIC_FALLBACK,
     "watchguard_fireware": [],  # se leen con read_fireware(): «show status-report» (enlace y velocidad) + el XML
     "ubiquiti_unifiswitch": ["show interfaces status all", "show port all"],
     "broadcom_icos": ["show interfaces status all", "show port all"],
@@ -469,6 +474,10 @@ LAYOUTS = [
                                        "leds": {"left": ["Failover"], "port_rows": ["1000", "10/100"], "row_colors": ["y", ""], "order": "desc",
                                                 "right": [["Status", "Mode"], ["Attn", "power"]]},
                                        "rear": {"psu": ["54 V DC"]}}),
+    # Aruba S2500-48P / 48T (ArubaOS): 48 de cobre en dos filas de 12 por bloque y 4 uplinks SFP+ a la derecha. Atrás: la
+    # entrada de corriente (fuente interna, sin sensores por SSH), con el puerto de gestión, la consola y el USB
+    (r"(?i)^(Aruba)?S2500-48", {"rows": 2, "grp": 6, "sfp": "row", "cu": 48, "rear": {"psu": ["100-240 V AC"]}}),
+    (r"(?i)^(Aruba)?S2500-24", {"rows": 2, "grp": 6, "sfp": "row", "cu": 24, "rear": {"psu": ["100-240 V AC"]}}),
     # firewalls de escritorio: una fila
     (r"(?i)^(FortiGate|FG-?\d|FGT|PA-?2\d\d|PA-?4\d\d|PA-?1[45]\d\d|SG-\d|Netgate|XG\s?\d|Firebox)", {"rows": 1, "sfp": "row"}),
 ]
@@ -545,6 +554,8 @@ def _parse_section(cmd: str, text: str, device_type: str, model: str | None = No
         return pt.bsd(text)
     if cmd.startswith("show interfaces GigabitEthernet 1-"):
         return _esx(text)
+    if cmd == "show port status" and device_type == "aruba_os":
+        return pt.arubaos(text)
     ports = pt.from_table(text, model_ports(model))
     if get_profile(device_type).family == FASTPATH or cmd in ("show interfaces status all", "show port all"):
         # FastPath (EdgeSwitch, UniFi): los puertos del frente son 0/N; 3/N son agregados (LAG) y 4/N, VLAN

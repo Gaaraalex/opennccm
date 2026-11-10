@@ -1,5 +1,20 @@
 # Historial de versiones
 
+## 2.35.0
+- [nuevo] **Equipos retirados:** Un equipo dañado, reemplazado o dado de baja se retira en lugar de borrarlo (ficha › ⋯ ›
+  Retirar o reemplazar). Se renombra «NOMBRE (n)», queda sin IP, aislado y fuera de todo lo activo, con todo su historial para
+  auditarlo, y se busca por su nombre e IP originales. En el mismo paso se puede dar de alta el reemplazo con sus datos y
+  comparar sus respaldos. Se ven en Dispositivos › Retirados y se pueden reincorporar.
+- [mejora] **Equipo desactivado = aislado:** OpenNCCM ya no se conecta con un equipo desactivado por ninguna vía (respaldos,
+  consola, SFTP, Multi-equipo, recetas, solicitudes, firmware, imagen .fxi, API). La ficha lo dice y ofrece «Activar».
+- [nuevo] **Activar y desactivar en lote:** En Dispositivos, al marcar varios equipos (solo administradores).
+- [arreglo] **Credenciales:** «Guardar» al editar una credencial no hacía nada; tampoco al editar un grupo, una política o
+  una ficha de ciclo de vida en el panel lateral. Había que borrarla y crearla de nuevo.
+- [mejora] **ArubaOS (S2500 y controladoras):** Sin contraseña de enable prueba la de ingreso y, si no sirve, lo explica en
+  lugar de «Pattern not detected». Lee el modelo, la serie y todos los puertos (en el S2500-48P, 48 de cobre y 4 SFP+) y
+  muestra su parte trasera.
+- [nuevo] **ArubaOS: configlets y cumplimiento:** 10 configlets y scripts y el paquete «Aruba ArubaOS · Seguridad básica».
+
 ## 2.34.0
 - [mejora] **pfSense y OPNsense por separado:** Cada uno es su propia plataforma en la consola, en Recetas y en Configlets,
   con sus recetas y sus rutas (config.xml, versión y registro). Los favoritos de consola que ya tenía se copian a los dos.

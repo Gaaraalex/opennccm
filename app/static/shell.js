@@ -407,10 +407,12 @@
   function loadDevices() {
     if (devices !== null) return;
     devices = [];
-    fetch('/api/devices', {credentials: 'same-origin'}).then(function (r) { return r.ok ? r.json() : []; }).then(function (list) {
+    // también los retirados: se encuentran por su nombre y su IP originales (Dispositivos › Retirados)
+    fetch('/api/devices?retired=1', {credentials: 'same-origin'}).then(function (r) { return r.ok ? r.json() : []; }).then(function (list) {
       devices = list.map(function (d) {
-        return {i: 'server', vl: d.brand, t: d.name, sub: [d.host, d.platform || d.device_type].filter(Boolean).join(' · '), r: T.device, href: '/devices/' + d.id,
-                key: norm([d.name, d.host, d.model, d.serial, d.version, d.device_type].join(' '))};
+        var sub = d.retired ? [(T.retired || '{0}').replace('{0}', d.orig_name || ''), d.orig_host] : [d.host, d.platform || d.device_type];
+        return {i: 'server', vl: d.brand, t: d.name, sub: sub.filter(Boolean).join(' · '), r: d.retired ? (T.retiredR || T.device) : T.device,
+                href: '/devices/' + d.id, key: norm([d.name, d.host, d.model, d.serial, d.version, d.device_type, d.orig_name, d.orig_host].join(' '))};
       });
       if (overlay && overlay.classList.contains('palw')) palFill();
     }).catch(function () { devices = []; });

@@ -65,7 +65,7 @@ def match_entry(dev: Device, entries: list[EolEntry]) -> EolEntry | None:
 def report(device_ids: set[int] | None = None) -> list[tuple[Device, EolEntry | None, str]]:
     with SessionLocal() as db:
         entries = list(db.scalars(select(EolEntry).order_by(EolEntry.id)))
-        q = select(Device).order_by(Device.name)
+        q = select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)
         rows = []
         for d in db.scalars(q):
             if device_ids is not None and d.id not in device_ids:
@@ -110,7 +110,7 @@ def cisco_eox_sync() -> tuple[int, list[str]]:
     tok.raise_for_status()
     headers = {"Authorization": f"Bearer {tok.json()['access_token']}", "Accept": "application/json"}
     with SessionLocal() as db:
-        models = sorted({d.model.strip() for d in db.scalars(select(Device)) if d.model
+        models = sorted({d.model.strip() for d in db.scalars(select(Device).where(Device.retired_at.is_(None))) if d.model
                          and get_profile(d.device_type).vendor == "Cisco"})
     created, errors = 0, []
     for i in range(0, len(models), 20):  # la API acepta hasta 20 PID por consulta
