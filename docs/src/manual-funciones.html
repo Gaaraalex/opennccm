@@ -196,8 +196,8 @@ con error se omiten y las válidas se importan; los grupos que no existen se cre
   inventario, el modelo, el n.º de serie y la ubicación. Opcionalmente, una credencial y un grupo para todos.</li>
 </ol>
 <p>Las credenciales SSH no están en Zabbix. Si no elige una para todos, los equipos se crean <b>desactivados</b> (no se respaldan ni
-generan errores) hasta que edite cada uno, le asigne su credencial y su grupo, y lo active. Volver a importar más adelante solo
-añade los hosts nuevos.</p>
+generan errores) hasta que edite cada uno, le asigne su credencial y su grupo, y lo active. Para activar varios a la vez,
+márquelos en la lista de Dispositivos y pulse <b>Activar</b>. Volver a importar más adelante solo añade los hosts nuevos.</p>
 <h2>Alta de un dispositivo</h2>
 <table>
   <tr><th>Campo</th><th>Descripción</th></tr>
@@ -214,7 +214,9 @@ añade los hosts nuevos.</p>
   <tr><td>Nodo</td><td>Lugar del equipo (torre, sucursal, centro de datos). Se elige de la lista o con «+ Crear nodo nuevo…».</td></tr>
   <tr><td>Tipo en el mapa</td><td>(Administradores) Router, switch, antena / AP o firewall, si el mapa lo pone en la columna
   equivocada. «Automático» lo deduce del modelo; un MikroTik con una wlan o wifi activa cuenta como inalámbrico.</td></tr>
-  <tr><td>Habilitado</td><td>Si se desmarca, el equipo no entra en tareas programadas ni respaldos masivos.</td></tr>
+  <tr><td>Habilitado</td><td>Si se desmarca, el equipo queda <b>aislado</b>: OpenNCCM no se conecta con él por ninguna vía (respaldos,
+  consola, Multi-equipo, recetas, solicitudes de cambio, firmware, imagen .fxi ni la API) hasta que se vuelva a activar. Sus
+  respaldos y su historial se conservan.</td></tr>
   <tr><td>Revertir automáticamente</td><td>Deshace los cambios no autorizados que se detecten (sección 12).</td></tr>
 </table>
 <figure><img src="img/04-dispositivo-nuevo.png" style="max-height:150mm"><figcaption>Formulario de alta.</figcaption></figure>
@@ -225,6 +227,10 @@ añade los hosts nuevos.</p>
 editar, comparar con otro equipo, ver las diferencias con la línea base, volver a ella (si el equipo aún no tiene línea base,
 permite marcar la última versión) y eliminar. Para eliminar un equipo hay que escribir su nombre, porque se borra con todo su
 historial.</p>
+<p><b>Equipo desactivado.</b> En lugar de «En línea» dice <b>Desactivado</b> y no ofrece Consola, Interfaz web ni Respaldar
+ahora: el equipo está aislado y OpenNCCM no se conecta con él. Un administrador lo vuelve a activar con <b>Activar</b>, en la
+propia ficha. En la lista de Dispositivos, al marcar varios equipos, <b>Activar</b> y <b>Desactivar</b> lo hacen con todos a la
+vez (solo administradores; queda en Auditoría).</p>
 <figure><img src="img/05-dispositivo.png"><figcaption>Ficha del dispositivo R1, pestaña Resumen.</figcaption></figure>
 <h3>Puertos del equipo</h3>
 <p>Entre la cabecera y las pestañas, una <b>franja de puertos</b> dibuja el frente del equipo con un icono por puerto en su orden

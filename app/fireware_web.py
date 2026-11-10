@@ -107,6 +107,8 @@ def _first_get(s: requests.Session, base: str) -> requests.Response:
 
 def read_summary(dev, user: str, password: str) -> dict:
     """Modelo, serie y firma de System › Feature Key. Siempre cierra la sesión que abre."""
+    from .services import ensure_enabled
+    ensure_enabled(dev)  # equipo desactivado: aislado, no se entra en su Web UI
     base = base_url(dev)
     s = requests.Session()
     s.verify = False

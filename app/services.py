@@ -103,10 +103,28 @@ def _fireware_logout(conn, command: str = "") -> None:
         pass
 
 
+DISABLED_MSG = N_("El equipo está desactivado: OpenNCCM no se comunica con él. Actívalo en Editar → «Habilitado» para usarlo.")
+
+
+class DeviceDisabled(RuntimeError):
+    """Un equipo desactivado queda aislado: OpenNCCM no abre ninguna conexión con él (SSH, Telnet, HTTP, SFTP ni FTP)."""
+
+    def __init__(self):
+        super().__init__(DISABLED_MSG)
+
+
+def ensure_enabled(dev) -> None:
+    """Corta antes de tocar el equipo físico si está desactivado (todas las conexiones pasan por aquí)."""
+    if getattr(dev, "enabled", True) is False:
+        raise DeviceDisabled()
+
+
 def connect(dev: Device):
     from netmiko import ConnectHandler
 
     from app import legacy_ssh
+
+    ensure_enabled(dev)
 
     legacy_ssh.enable()  # equipos antiguos que solo ofrecen ssh-rsa / kex SHA-1 (p. ej. Ubiquiti EdgeSwitch)
 
@@ -390,6 +408,13 @@ def versions_differ(a, b, prof) -> bool:
 
 # --------------------------------------------------------------------------- respaldo
 def backup_device(device_id: int, trigger="manual", username: str | None = None) -> str:
+    with SessionLocal() as db:  # desactivado: no se toca el equipo ni se cuenta como fallo
+        d = db.get(Device, device_id)
+        if d is not None and not d.enabled:
+            log.info("Respaldo del equipo %s [%s]: desactivado, no se conecta", device_id, trigger)
+            if trigger == "push":
+                end_maintenance(device_id)
+            return "disabled"
     lock = device_lock(device_id)
     if not lock.acquire(timeout=300):
         log.warning("Respaldo del equipo %s [%s]: ocupado, se omite", device_id, trigger)

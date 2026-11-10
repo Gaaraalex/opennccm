@@ -133,6 +133,8 @@ def live_list(request: Request):
 
 # --------------------------------------------------------------------------- archivos (SFTP)
 def _sftp(dev: Device):
+    from .services import ensure_enabled
+    ensure_enabled(dev)  # desactivado: aislado, no se abre SFTP
     cred = dev.credential
     if cred is None:
         raise RuntimeError(_("El equipo no tiene credencial asignada."))

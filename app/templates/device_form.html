@@ -53,7 +53,7 @@
       const sync = () => { const no = NO.has(sel.value); sw.disabled = no; if (no) sw.checked = false; msg.hidden = !no; };
       sel.addEventListener('change', sync); sync();
     })();</script>
-    <label class="swrow"><span><span class="b">Habilitado</span><span class="muted sm" style="display:block">Si lo desactivas, el equipo no entra en tareas programadas ni respaldos masivos.</span></span>
+    <label class="swrow"><span><span class="b">Habilitado</span><span class="muted sm" style="display:block">{{ _("Si lo desactivas, queda aislado: OpenNCCM no se conecta con él (ni respaldos, ni consola, ni comandos, ni cambios) hasta que lo actives.") }}</span></span>
       <input type="checkbox" class="sw" role="switch" name="enabled" {{ 'checked' if not device or device.enabled }}></label>
     <details><summary class="sm b" style="cursor:pointer">Avanzado</summary><div class="field" style="margin-top:12px"><label for="dcmd">Comando de respaldo personalizado</label>
       <div class="input mono"><input id="dcmd" name="custom_backup_cmd" value="{{ device.custom_backup_cmd or '' if device }}" placeholder="show running-config"></div>

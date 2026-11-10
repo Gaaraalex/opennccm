@@ -695,10 +695,10 @@ def devices(request: Request, q: str = "", group: int = 0, status: str = "", bra
 
 @app.post("/devices/bulk")
 async def devices_bulk(request: Request):
-    """Acciones sobre los equipos seleccionados en la lista: respaldar, auditar o mover a un grupo."""
+    """Acciones sobre los equipos seleccionados en la lista: respaldar, auditar, mover a un grupo, activar o desactivar."""
     form = await request.form()
     action = form.get("action", "")
-    user = require(request, "admin" if action in ("move", "node") else "operator")
+    user = require(request, "admin" if action in ("move", "node", "enable", "disable") else "operator")
     ids = filter_ids(user, [int(i) for i in form.getlist("ids") if str(i).isdigit()])
     back = form.get("next") or "/devices"
     back = back if back.startswith("/") and not back.startswith("//") else "/devices"
@@ -720,6 +720,21 @@ async def devices_bulk(request: Request):
         services.jobs.submit(services.scan_cves_many, ids)
         log_action(request, user, "cve_selected", f"{ids}")
         flash(request, _f("Búsqueda de CVE lanzada para {0} equipos", len(ids)))
+    elif action in ("enable", "disable"):  # desactivado = aislado: OpenNCCM no se conecta con el equipo por ninguna vía
+        on = action == "enable"
+        with SessionLocal() as db:
+            devs = [d for d in db.scalars(select(Device).where(Device.id.in_(ids))) if d.enabled != on]
+            for d in devs:
+                d.enabled = on
+            db.commit()
+            names = [d.name for d in devs]
+        log_action(request, user, "devices_enable" if on else "devices_disable", ", ".join(names) or "-")
+        if not names:
+            flash(request, _("Los equipos elegidos ya estaban activados") if on else _("Los equipos elegidos ya estaban desactivados"))
+        elif on:
+            flash(request, _f("{0} equipos activados: vuelven a respaldarse y a aceptar consola, comandos y cambios", len(names)))
+        else:
+            flash(request, _f("{0} equipos desactivados: OpenNCCM ya no se conecta con ellos", len(names)))
     elif action == "move":
         gid = int(form.get("group_id") or 0) or None
         with SessionLocal() as db:
@@ -1149,8 +1164,9 @@ def device_backup(request: Request, dev_id: int):
     log_action(request, user, "backup", f"device={dev_id} -> {res}")
     msgs = {"changed": _("Respaldo realizado: se detectaron cambios"), "unchanged": _("Respaldo realizado: sin cambios"),
             "first": _("Primer respaldo guardado"), "error": _("El respaldo falló (ver detalle)"),
-            "busy": _("El equipo está ocupado con otra tarea")}
-    flash(request, msgs.get(res, res), "error" if res in ("error", "busy") else "ok")
+            "busy": _("El equipo está ocupado con otra tarea"),
+            "disabled": _("El equipo está desactivado: OpenNCCM no se conecta con él. Actívalo para respaldarlo.")}
+    flash(request, msgs.get(res, res), "error" if res in ("error", "busy", "disabled") else "ok")
     return go(f"/devices/{dev_id}")
 
 
@@ -3397,7 +3413,7 @@ async def api_device_create(request: Request):
 
 @app.post("/api/devices/{dev_id}/backup")
 def api_device_backup(request: Request, dev_id: int):
-    """Respalda el equipo ahora y devuelve el resultado (first, changed, unchanged o error)."""
+    """Respalda el equipo ahora y devuelve el resultado (first, changed, unchanged, error o disabled si está desactivado)."""
     user = require(request, "operator")
     check_device(user, dev_id)
     result = services.backup_device(dev_id, "api", user.username)

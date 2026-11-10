@@ -54,7 +54,7 @@
 {% set prof = profile_map[d.device_type] if d.device_type in profile_map else none %}
 <tr class="click" data-href="/devices/{{ d.id }}" data-dev="{{ d.id }}" data-drift="{{ 1 if d.baseline_drift else 0 }}" data-text="{{ [d.name, d.host, d.model or '', d.serial or '', d.os_version or '', d.location or '', prof.label if prof else d.device_type]|join(' ')|lower }}">
   {% if can_run %}<td data-stop><input type="checkbox" name="ids" value="{{ d.id }}" form="bulk" aria-label="{{ _f('Seleccionar {0}', d.name) }}"></td>{% endif %}
-  <td><div class="dev">{{ vlogo(d.device_type, 30) }}<div><a href="/devices/{{ d.id }}" style="color:var(--ink)">{{ d.name }}</a>{% if not d.enabled %} <span class="tag">deshabilitado</span>{% endif %}
+  <td><div class="dev">{{ vlogo(d.device_type, 30) }}<div><a href="/devices/{{ d.id }}" style="color:var(--ink)">{{ d.name }}</a>{% if not d.enabled %} <span class="tag" title="{{ _('OpenNCCM no se conecta con este equipo') }}">{{ _('desactivado') }}</span>{% endif %}
     <div class="muted sm" style="font-weight:400">{{ prof.label if prof else d.device_type }}</div></div></div></td>
   <td class="mono" style="white-space:nowrap">{{ d.host }}{% if d.port != (23 if d.protocol == 'telnet' else 22) %}<span class="muted">:{{ d.port }}</span>{% endif %}{% if d.protocol == 'telnet' %} <span class="tag crit">telnet</span>{% endif %}</td>
   <td style="white-space:nowrap">{{ d.model or '—' }} <span class="mono muted" data-bk-fw>{{ d.os_version or '—' }}</span></td>
@@ -91,7 +91,9 @@
   {% if user.role == 'admin' and net_nodes %}<select name="node_id" aria-label="{{ _('Nodo de destino') }}"><option value="0">{{ _('— Sin nodo —') }}</option>{% for nd in net_nodes %}<option value="{{ nd.id }}" {{ 'selected' if nd.id == assign }}>{{ nd.name }}</option>{% endfor %}</select>
   <button class="btn s {{ 'pri' if assign }}" name="action" value="node">{{ icon('pin', 's') }}{{ _('Asignar al nodo') }}</button>{% endif %}
   {% if user.role == 'admin' %}<select name="group_id" aria-label="Grupo de destino"><option value="0">Sin grupo</option>{% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}</select>
-  <button class="btn s" name="action" value="move">{{ icon('folder', 's') }}Mover</button>{% endif %}
+  <button class="btn s" name="action" value="move">{{ icon('folder', 's') }}Mover</button>
+  <button class="btn s" name="action" value="enable" title="{{ _('Vuelven a respaldarse y a aceptar consola, comandos y cambios') }}">{{ _('Activar') }}</button>
+  <button class="btn s" name="action" value="disable" title="{{ _('Quedan aislados: OpenNCCM no se conecta con ellos (ni respaldos, ni consola, ni comandos, ni cambios)') }}">{{ _('Desactivar') }}</button>{% endif %}
   <button class="btn s sig" name="action" value="backup">Respaldar</button>
   <button type="button" class="btn s icon" id="bulk-clear" aria-label="Quitar selección">{{ icon('x', 's') }}</button>
 </form>
