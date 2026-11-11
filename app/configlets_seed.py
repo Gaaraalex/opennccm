@@ -179,6 +179,43 @@ CONFIGLETS_234 = [
 ]
 
 
+ARUBAOS = r"^aruba_os$"  # (no «aruba_osswitch»)
+# ArubaOS 7 / 8: controladoras y Mobility Access Switch (S2500, S3500). Llegan con la 2.35, sin verificar todavía.
+CONFIGLETS_235 = [
+    ("Cambiar el nombre del equipo (ArubaOS)", "config", ARUBAOS,
+     "Nombre que sale en el prompt «(nombre) #», en SNMP y en el inventario.",
+     "hostname {{ nombre }}"),
+    ("Configurar NTP (ArubaOS)", "config", ARUBAOS,
+     "Hora correcta en los registros y los respaldos.",
+     "ntp server {{ ntp_server }}"),
+    ("Enviar el syslog a OpenNCCM (ArubaOS)", "config", ARUBAOS,
+     "Registros del equipo hacia OpenNCCM.",
+     "logging {{ servidor_ncm }}"),
+    ("Configurar los servidores DNS (ArubaOS)", "config", ARUBAOS,
+     "Servidor DNS y dominio del equipo.",
+     "ip name-server {{ dns }}\nip domain-name {{ dominio }}"),
+    ("Habilitar SNMP de solo lectura (ArubaOS)", "config", ARUBAOS,
+     "Comunidad SNMP v2c para el monitoreo.",
+     "snmp-server community {{ comunidad }}"),
+    ("Estado general del equipo (ArubaOS)", "exec", ARUBAOS,
+     "Modelo, versión, tiempo encendido, serie, fuentes y ventiladores.",
+     "show version\nshow inventory"),
+    ("VLAN y tabla MAC (ArubaOS)", "exec", ARUBAOS,
+     "VLAN del equipo y las MAC aprendidas en cada puerto.",
+     "show vlan\nshow mac-address-table"),
+    ("Vecinos LLDP (ArubaOS)", "exec", ARUBAOS,
+     "Equipos conectados que se anuncian por LLDP.",
+     "show lldp neighbor"),
+    ("Ver el registro reciente (ArubaOS)", "exec", ARUBAOS,
+     "Las últimas 50 entradas del registro del sistema.",
+     "show log system 50"),
+    ("Interfaces IP, rutas y carga (ArubaOS)", "exec", ARUBAOS,
+     "Direcciones IP, tabla de rutas, uso de CPU y memoria.",
+     "show ip interface brief\nshow ip route\nshow cpuload\nshow memory"),
+]
+ALL = CONFIGLETS_234 + CONFIGLETS_235
+
+
 def seed_new_configlets(db) -> int:
     """Agrega los configlets de esta lista que todavía no se ofrecieron en esta instalación (por nombre)."""
     from .db import Configlet, get_setting, set_setting
@@ -188,7 +225,7 @@ def seed_new_configlets(db) -> int:
         offered = set()
     have = set(db.scalars(select(Configlet.name)))
     n = 0
-    for name, kind, flt, desc, body in CONFIGLETS_234:
+    for name, kind, flt, desc, body in ALL:
         if name in offered:
             continue
         if name not in have:

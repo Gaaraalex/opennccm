@@ -305,7 +305,7 @@ def refresh(ids: list[int], limit_s: int = 90) -> dict:
 # --------------------------------------------------------------------------- búsqueda
 def _visible_devices(db, user) -> list[Device]:
     scope = device_scope(user)
-    devs = list(db.scalars(select(Device).where(Device.enabled.is_(True))))
+    devs = list(db.scalars(select(Device).where(Device.retired_at.is_(None), Device.enabled.is_(True))))
     return [d for d in devs if scope is None or d.id in scope]
 
 

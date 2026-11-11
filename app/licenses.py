@@ -118,7 +118,7 @@ def report(scope: set[int] | None = None, days: int = LIST_DAYS, today: date | N
     """(equipo, modelo, servicio, vence, días) de lo que vence en ese plazo o ya venció, lo más urgente primero."""
     rows = []
     with SessionLocal() as db:
-        for d in db.scalars(select(Device).where(Device.license_enc.is_not(None)).order_by(Device.name)):
+        for d in db.scalars(select(Device).where(Device.retired_at.is_(None), Device.license_enc.is_not(None)).order_by(Device.name)):
             if scope is not None and d.id not in scope:
                 continue
             for g in groups(try_decrypt(d.license_enc) or "", today):

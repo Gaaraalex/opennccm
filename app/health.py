@@ -31,7 +31,7 @@ def _in(scope, dev_id):
 def summary(scope: set[int] | None, is_admin: bool = False, server: dict | None = None) -> dict:
     since = now() - timedelta(hours=24)
     with SessionLocal() as db:
-        devs = [d for d in db.scalars(select(Device).order_by(Device.name)) if _in(scope, d.id) and d.enabled]
+        devs = [d for d in db.scalars(select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)) if _in(scope, d.id) and d.enabled]
         ids = {d.id for d in devs}
         results = [r for r in db.scalars(select(ComplianceResult)) if r.device_id in ids]
         fails = defaultdict(list)

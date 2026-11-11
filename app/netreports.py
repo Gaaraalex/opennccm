@@ -99,7 +99,7 @@ def unused(user, days: int = 30, site: str = "", vlan: str = "") -> dict:
     switches, nostatus, sites, vlans = [], [], set(), set()
     oldest = None
     with SessionLocal() as db:
-        for d in db.scalars(select(Device).order_by(Device.name)):
+        for d in db.scalars(select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)):
             if (scope is not None and d.id not in scope) or not d.ports or not _sw(d):
                 continue
             if d.location:
@@ -301,7 +301,7 @@ def netdoc_page(request: Request):
     from . import netdoc
     scope = device_scope(user)
     with SessionLocal() as db:
-        devs = [d for d in db.scalars(select(Device)) if scope is None or d.id in scope]
+        devs = [d for d in db.scalars(select(Device).where(Device.retired_at.is_(None))) if scope is None or d.id in scope]
     sites = {}
     for d in devs:
         if d.location:

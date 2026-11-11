@@ -26,6 +26,8 @@ def _base(dev) -> str:
 
 
 def _get(dev, cred, path: str) -> str:
+    from .services import ensure_enabled
+    ensure_enabled(dev)  # equipo desactivado: aislado, no se le pide nada
     url = _base(dev) + path
     try:
         r = requests.get(url, timeout=TIMEOUT)

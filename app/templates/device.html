@@ -19,15 +19,20 @@
 </style>
 <div class="ph devph"><div class="grow row nowrap dh" style="gap:16px">{{ vlogo(device.device_type, 56, 'dvl', vbrand(device.device_type)) }}
   <div style="min-width:0" class="dt"><div class="row"><h1>{{ device.name }}</h1>
-    {% if device.last_status == 'ok' %}<span class="pill ok live">En línea</span>{% elif device.last_status == 'error' %}<span class="pill crit">Sin conexión</span>{% else %}<span class="pill warn">Pendiente</span>{% endif %}
+    {% if device.retired_at %}<span class="pill" title="{{ _('Retirado: aislado y conservado para auditarlo.') }}">{{ _('Retirado') }}</span>{% elif not device.enabled %}<span class="pill" title="{{ _('OpenNCCM no se comunica con este equipo: ni respaldos, ni consola, ni comandos, ni cambios.') }}">{{ _('Desactivado') }}</span>{% elif device.last_status == 'ok' %}<span class="pill ok live">En línea</span>{% elif device.last_status == 'error' %}<span class="pill crit">Sin conexión</span>{% else %}<span class="pill warn">Pendiente</span>{% endif %}
     {% if device.baseline_drift %}<span class="pill major">Difiere de la base</span>{% endif %}
     {% if device.startup_conflict %}<span class="pill warn">Startup ≠ running</span>{% endif %}
     {% if fwu and fwu.status == 'update' %}<a class="pill info" href="#firmware" data-tab-link title="{{ _('Ver qué mejora y cómo obtenerla') }}">{{ _f('Firmware {0} disponible', fwu.target) }}</a>{% endif %}
-    {% if not device.enabled %}<span class="tag">deshabilitado</span>{% endif %}</div>
-    <div class="muted dsub" style="margin-top:2px">{{ profile.label }} · <span class="mono">{{ device.host }}{{ ':' ~ device.port if device.port != (23 if device.protocol == 'telnet' else 22) }}</span> ({{ device.protocol|upper }}) · {{ _f('respaldado {0}', device.last_backup_at|ago) if device.last_backup_at else _('sin respaldar todavía') }}</div></div></div>
+</div>
+    <div class="muted dsub" style="margin-top:2px">{{ profile.label }} · {% if device.retired_at %}{{ _('IP original') }} <span class="mono">{{ device.orig_host or '—' }}</span>{% else %}<span class="mono">{{ device.host }}{{ ':' ~ device.port if device.port != (23 if device.protocol == 'telnet' else 22) }}</span> ({{ device.protocol|upper }}){% endif %} · {{ _f('respaldado {0}', device.last_backup_at|ago) if device.last_backup_at else _('sin respaldar todavía') }}</div></div></div>
+  {% if device.retired_at %}{% if user.role == 'admin' %}<a class="btn pri" href="/devices/{{ device.id }}/reinstate" data-sheet data-title="{{ _f('Reincorporar «{0}»', device.name) }}">{{ icon('undo', 's') }}{{ _('Reincorporar') }}</a>{% endif %}
+  {% elif not device.enabled %}<span class="muted sm" style="max-width:260px">{{ _('Desactivado: aislado de OpenNCCM, que no se conecta con él.') }}</span>
+  {% if user.role == 'admin' %}<form class="inline" method="post" action="/devices/bulk"><input type="hidden" name="ids" value="{{ device.id }}"><input type="hidden" name="next" value="/devices/{{ device.id }}"><button class="btn pri" name="action" value="enable">{{ icon('check', 's') }}{{ _('Activar') }}</button></form>{% endif %}
+  {% else %}
   {% if can_console and device.protocol == 'ssh' %}<a class="btn" href="/devices/{{ device.id }}/console" target="_blank" rel="noopener" data-console="{{ device.id }}" data-name="{{ device.name }}" data-vl="{{ vkey(device.device_type) }}" aria-label="{{ _f('Consola SSH de {0}', device.name) }}">{{ icon('term', 's') }}Consola</a>{% endif %}
   {% if device.web_enabled != false %}<a class="btn" href="{{ device.web_url or 'https://' ~ device.host ~ '/' }}" target="_blank" rel="noopener noreferrer" onclick="return abrirVentana(this.href, 'web-{{ device.id }}', 1280, 820)" aria-label="Interfaz web del equipo (ventana nueva)">{{ icon('globe', 's') }}Interfaz web</a>{% endif %}
   {% if can_run %}<form class="inline" method="post" action="/devices/{{ device.id }}/backup"><button class="btn pri">{{ icon('backup', 's') }}Respaldar ahora</button></form>{% endif %}
+  {% endif %}
   <span class="dropw"><button type="button" class="btn icon" data-drop="dev-menu" aria-haspopup="true" aria-expanded="false" aria-label="Más acciones" title="Más acciones">{{ icon('more', 's') }}</button>
     <div class="drop" id="dev-menu" hidden>
       {% if can_run %}<form method="post" action="/devices/{{ device.id }}/compliance"><button>{{ icon('shield', 's') }}Auditar cumplimiento</button></form>
@@ -36,7 +41,8 @@
       {% if device.device_type == 'mikrotik_routeros' %}<hr>
       {% if latest_run %}<a href="/versions/{{ latest_run }}?raw=1">{{ icon('dl', 's') }}{{ _('Descargar .rsc (último respaldo)') }}</a>{% endif %}
       {% if can_run %}<button type="button" data-dialog="mtbk-dlg">{{ icon('dl', 's') }}{{ _('Descargar .backup del equipo…') }}</button>{% endif %}<hr>{% endif %}
-      {% if is_admin %}<a href="/devices/{{ device.id }}/edit" data-sheet data-title="{{ _f('Editar {0}', device.name) }}">{{ icon('edit', 's') }}Editar</a>{% endif %}
+      {% if is_admin and not device.retired_at %}<a href="/devices/{{ device.id }}/edit" data-sheet data-title="{{ _f('Editar {0}', device.name) }}">{{ icon('edit', 's') }}Editar</a>
+      <a href="/devices/{{ device.id }}/retire" data-sheet data-title="{{ _f('Retirar «{0}»', device.name) }}">{{ icon('undo', 's') }}{{ _('Retirar o reemplazar…') }}</a>{% endif %}
       {% if latest_run %}<a href="/diff?a={{ latest_run }}&b={{ latest_run }}">{{ icon('branch', 's') }}Comparar con otro equipo</a>{% endif %}
       {% if can_run %}<form method="post" action="/config-reference/set"><input type="hidden" name="device_id" value="{{ device.id }}"><button>{{ icon('star', 's') }}{{ _('Usar como referencia') }}</button></form>{% endif %}
       {% if latest_run and is_admin %}<a href="/versions/{{ latest_run }}/restore">{{ icon('server', 's') }}{{ _('Restaurar en otro equipo…') }}</a>{% endif %}
@@ -50,6 +56,11 @@
       {% if is_admin %}<button type="button" class="dz" data-dialog="del-dlg">{{ icon('trash', 's') }}Eliminar equipo…</button>{% endif %}
     </div></span>
 </div>
+{% if device.retired_at %}<div class="banner warn" role="status" style="margin-bottom:14px">{{ icon('info') }}<span class="grow"><b>{{ _f('Retirado {0} por {1} · {2}', device.retired_at|ago, device.retired_by or '—', ret.reason) }}</b>
+  <br>{{ _f('Nombre original «{0}», IP {1}. Aislado: OpenNCCM no se conecta con él; su historial se conserva para auditarlo.', device.orig_name or '—', device.orig_host or '—') }}
+  {% if device.retired_note %}<br><span class="muted">{{ device.retired_note }}</span>{% endif %}
+  {% if ret.rep %}<br>{{ _('Lo reemplaza') }} <a href="/devices/{{ ret.rep.id }}">{{ ret.rep.name }}</a>{% if ret.cmp %} · <a href="{{ ret.cmp }}">{{ _('Comparar su último respaldo con el del reemplazo') }}</a>{% endif %}{% endif %}</span></div>
+{% elif ret.prev %}<div class="banner info" role="status" style="margin-bottom:14px">{{ icon('info') }}<span class="grow">{{ _('Reemplaza a') }} <a href="/devices/{{ ret.prev.id }}">{{ ret.prev.name }}</a> ({{ _('retirado') }}){% if ret.cmp %} · <a href="{{ ret.cmp }}">{{ _('Comparar su último respaldo con el de este equipo') }}</a>{% endif %}</span></div>{% endif %}
 {% if ports %}{% include "_ports.html" %}{% endif %}
 
 <nav class="tabs" data-tabs aria-label="Secciones del equipo">
@@ -71,12 +82,12 @@
   {% if eol_bad %}<div class="banner warn">{{ icon('clock') }}<span class="grow">Este equipo está <b>{{ _('sin soporte del fabricante') if eol_status == 'sin_soporte' else _('sin parches de software') }}</b>{% if eol_entry and eol_entry.end_of_support %} {{ _f('desde el {0}', eol_entry.end_of_support|fecha) }}{% endif %}.{% if eol_entry and eol_entry.replacement %} {{ _f('Reemplazo sugerido: {0}.', eol_entry.replacement) }}{% endif %}</span>
     <a class="btn s" href="/eol">Ver ciclo de vida</a></div>{% endif %}
   {% if device.last_status == 'error' and device.last_error %}<div class="banner crit">{{ icon('alert') }}<span class="grow"><b>No se pudo conectar.</b> <span style="white-space:pre-line">{{ device.last_error[:800] }}</span></span>
-    {% if is_admin %}<a class="btn s" href="/devices/{{ device.id }}/edit" data-sheet data-title="{{ _f('Editar {0}', device.name) }}">Revisar datos</a>{% endif %}</div>{% endif %}
+    {% if is_admin and not device.retired_at %}<a class="btn s" href="/devices/{{ device.id }}/edit" data-sheet data-title="{{ _f('Editar {0}', device.name) }}">Revisar datos</a>{% endif %}</div>{% endif %}
   {% if key_error %}<div class="banner warn" role="alert">{{ icon('alert') }}<span class="grow">{{ _('Algunas versiones de este equipo se cifraron con otra clave (secret.key) y no se pueden leer: restaure el secret.key del servidor original. Los respaldos nuevos se guardan con la clave actual.') }}</span></div>{% endif %}
   {% if profile.note and not device.custom_backup_cmd %}<div class="banner info">{{ icon('info') }}<span class="grow">{{ profile.note }}</span></div>{% endif %}
   <div class="bento">
-    <section class="card c5"><div class="card-h"><h2>Inventario</h2>{% if is_admin %}<a class="btn s ghost" href="/devices/{{ device.id }}/edit" data-sheet data-title="{{ _f('Editar {0}', device.name) }}">{{ icon('edit', 's') }}Editar</a>{% endif %}</div>
-      <dl class="kv"><dt>Host</dt><dd class="mono">{{ device.host }}:{{ device.port }} ({{ device.protocol }})</dd><dt>Fabricante</dt><dd><span class="row nowrap" style="gap:8px">{{ vlogo(device.device_type, 18) }}{{ profile.label }}</span></dd>
+    <section class="card c5"><div class="card-h"><h2>Inventario</h2>{% if is_admin and not device.retired_at %}<a class="btn s ghost" href="/devices/{{ device.id }}/edit" data-sheet data-title="{{ _f('Editar {0}', device.name) }}">{{ icon('edit', 's') }}Editar</a>{% endif %}</div>
+      <dl class="kv"><dt>Host</dt><dd class="mono">{% if device.retired_at %}{{ device.orig_host or '—' }}:{{ device.port }} <span class="muted">({{ _('retirado') }})</span>{% else %}{{ device.host }}:{{ device.port }} ({{ device.protocol }}){% endif %}</dd><dt>Fabricante</dt><dd><span class="row nowrap" style="gap:8px">{{ vlogo(device.device_type, 18) }}{{ profile.label }}</span></dd>
         <dt>Modelo</dt><dd>{{ device.model or '—' }}</dd><dt>Nº de serie</dt><dd class="mono">{{ device.serial or '—' }}</dd>
         <dt>Firmware</dt><dd class="mono">{{ device.os_version or '—' }}</dd><dt>Grupo</dt><dd>{% if device.group %}<a href="/devices?group={{ device.group.id }}">{{ device.group.name }}</a>{% else %}—{% endif %}</dd>
         <dt>Ubicación</dt><dd>{{ device.location or '—' }}</dd><dt>Credencial</dt><dd>{{ device.credential.name if device.credential else '—' }}{% if device.credential and can_view_creds(user) %} · <a href="/devices/{{ device.id }}/credential/view" data-sheet data-title="{{ _f('Credencial «{0}»', device.credential.name) }}">{{ _('Ver') }}</a>{% endif %}</dd>

@@ -115,7 +115,7 @@ def _clean_steps(raw) -> tuple[list[dict], int]:
 
 # --------------------------------------------------------------------------- datos de un caso
 def _devices(db, case_id: int) -> list[Device]:
-    return list(db.scalars(select(Device).join(KbCaseDevice, KbCaseDevice.device_id == Device.id)
+    return list(db.scalars(select(Device).where(Device.retired_at.is_(None)).join(KbCaseDevice, KbCaseDevice.device_id == Device.id)
                            .where(KbCaseDevice.case_id == case_id).order_by(Device.name)))
 
 
@@ -567,7 +567,7 @@ def kb_case(request: Request, case_id: int, v: int = 0):
             ver = db.scalar(select(KbVersion).where(KbVersion.case_id == c.id, KbVersion.n == v))
             if ver is not None:
                 data, shown_v = json.loads(ver.data), v
-                devs = list(db.scalars(select(Device).where(Device.id.in_(data.get("devices") or []))))
+                devs = list(db.scalars(select(Device).where(Device.retired_at.is_(None), Device.id.in_(data.get("devices") or []))))
         versions = list(db.scalars(select(KbVersion).where(KbVersion.case_id == c.id).order_by(KbVersion.n.desc())))
         comments = list(db.scalars(select(KbComment).where(KbComment.case_id == c.id).order_by(KbComment.id)))
         roles = dict(db.execute(select(User.username, User.role)).all())
@@ -721,7 +721,7 @@ def _prefill(db, user, pending: KbPending) -> dict:
 def _editor(request: Request, user, data: dict, case: KbCase | None, mode: str, pending_id: int | None = None):
     from . import assistant
     with SessionLocal() as db:
-        devs = {d.id: d.name for d in db.scalars(select(Device).order_by(Device.name))}
+        devs = {d.id: d.name for d in db.scalars(select(Device).where(Device.retired_at.is_(None)).order_by(Device.name))}
         origins = []
         if data.get("source_kind"):
             o = _source_label(db, data["source_kind"], data.get("source_id"))

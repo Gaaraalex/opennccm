@@ -341,6 +341,9 @@ async def console_ws(ws: WebSocket, dev_id: int):
         dev = db.get(Device, dev_id)
         if dev is None:
             return await _refuse(ws, _("El equipo ya no existe."), f"equipo {dev_id} inexistente")
+        if not dev.enabled:  # desactivado: aislado, la consola no se conecta
+            from .services import DISABLED_MSG
+            return await _refuse(ws, _(DISABLED_MSG), f"equipo {dev_id} desactivado")
         ok, acc = _open_allowed(user, dev)
         if not ok:
             return await _refuse(ws, _("Este grupo de equipos exige aprobación para abrir la consola. Pídala con su motivo y plazo."),

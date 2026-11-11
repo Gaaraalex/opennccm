@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% block title %}{{ _('Equipos retirados') }}{% endblock %}
+{% block crumbs %}<a href="/devices">{{ _('Dispositivos') }}</a>{{ icon('right', 's') }}<b>{{ _('Retirados') }}</b>{% endblock %}
+{% block content %}
+<div class="ph"><div class="grow"><h1>{{ _('Equipos retirados') }}</h1>
+  <div class="sub">{{ _('Dañados, reemplazados o dados de baja: aislados, con todo su historial para auditarlos.') }}</div></div>
+  <a class="btn" href="/devices">{{ icon('left', 's') }}{{ _('Equipos en servicio') }}</a></div>
+<form class="row" method="get" role="search">
+  <label class="input" style="width:min(360px,100%)" for="rq">{{ icon('search', 's') }}<input id="rq" name="q" value="{{ q }}" placeholder="{{ _('Nombre actual u original, IP original, modelo o serie') }}" aria-label="{{ _('Buscar retirados') }}"></label>
+  {% if q %}<a class="btn ghost s" href="/retired">{{ _('Quitar el filtro') }}</a>{% endif %}
+</form>
+<section class="card flush">
+  {% if rows %}<div class="tw"><table class="t"><thead><tr><th>{{ _('Equipo') }}</th><th>{{ _('Nombre e IP originales') }}</th><th>{{ _('Motivo') }}</th><th>{{ _('Retirado') }}</th><th>{{ _('Lo reemplaza') }}</th></tr></thead><tbody data-pager>
+  {% for r in rows %}{% set d = r.d %}<tr>
+    <td><div class="dev">{{ vlogo(d.device_type, 30) }}<div><a href="/devices/{{ d.id }}" style="color:var(--ink)">{{ d.name }}</a><div class="muted sm">{{ d.model or '' }}{{ ' · ' ~ d.serial if d.serial }}</div></div></div></td>
+    <td><b>{{ d.orig_name or '—' }}</b><div class="muted sm mono">{{ d.orig_host or '' }}</div></td>
+    <td>{{ r.reason }}{% if d.retired_note %}<div class="muted sm">{{ d.retired_note }}</div>{% endif %}</td>
+    <td>{{ d.retired_at|ago }}<div class="muted sm">{{ d.retired_by or '' }}</div></td>
+    <td>{% if r.rep %}<a href="/devices/{{ r.rep.id }}">{{ r.rep.name }}</a>{% else %}<span class="muted">—</span>{% endif %}</td></tr>
+  {% endfor %}</tbody></table></div>
+  {% else %}<div class="empty">{{ empty_art('search') }}<h2>{{ _('Ningún equipo retirado coincide') if q else _('No hay equipos retirados') }}</h2>
+    <p>{{ _('Para retirar un equipo dañado o reemplazado, en su ficha: menú ⋯ → Retirar o reemplazar.') }}</p></div>{% endif %}
+</section>
+{% endblock %}

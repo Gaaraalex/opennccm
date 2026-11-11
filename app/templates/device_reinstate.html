@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% block title %}{{ _f('Reincorporar «{0}»', device.name) }}{% endblock %}
+{% block content %}
+<h1>{{ _f('Reincorporar «{0}»', device.name) }}</h1>
+<p class="muted sm" data-sheet-sub>{{ _('Vuelve al servicio con su historial completo.') }}</p>
+<form method="post" action="/devices/{{ device.id }}/reinstate" class="stack" autocomplete="off">
+  {% if name_busy or host_busy %}<div class="banner warn">{{ icon("alert") }}<div class="grow">{% if name_busy %}<div>{{ _f('El nombre «{0}» lo usa ahora «{1}».', device.orig_name, name_busy) }}</div>{% endif %}
+    {% if host_busy %}<div>{{ _f('La IP {0} la usa ahora «{1}».', device.orig_host, host_busy) }}</div>{% endif %}
+    <div class="sm" style="margin-top:4px">{{ _('Elige otro nombre u otra dirección para que no choquen.') }}</div></div></div>{% endif %}
+  <div class="field"><label for="rin">{{ _('Nombre') }}</label><div class="input"><input id="rin" name="name" required maxlength="128" value="{{ device.name if name_busy else device.orig_name }}"></div></div>
+  <div class="field"><label for="rih">{{ _('IP / hostname') }}</label><div class="input mono"><input id="rih" name="host" required maxlength="255" value="{{ '' if host_busy else (device.orig_host or '') }}"></div></div>
+  <label class="swrow"><span><span class="b">{{ _('Activado') }}</span><span class="muted sm" style="display:block">{{ _('Si lo dejas desactivado, sigue aislado hasta que lo actives.') }}</span></span>
+    <input type="checkbox" class="sw" role="switch" name="enabled"></label>
+  <div class="row" data-sheet-foot><span class="grow"></span><a class="btn ghost" href="/devices/{{ device.id }}" data-cancel>{{ _('Cancelar') }}</a><button class="btn pri">{{ _('Reincorporar') }}</button></div>
+</form>
+{% endblock %}

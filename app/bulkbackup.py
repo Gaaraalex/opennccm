@@ -57,7 +57,8 @@ def start(ids: list[int], username: str, what: str = "all") -> tuple[bool, dict]
     """Lanza el respaldo de esos equipos. (False, el que corre) si ya hay uno en curso."""
     global _job
     with SessionLocal() as db:
-        devs = [d for d in db.scalars(select(Device).where(Device.id.in_(ids)).order_by(Device.name))]
+        # los desactivados no entran: están aislados (OpenNCCM no se conecta con ellos)
+        devs = [d for d in db.scalars(select(Device).where(Device.id.in_(ids), Device.enabled.is_(True)).order_by(Device.name))]
         rows = [{"id": d.id, "name": d.name, "st": "q", "step": "", "why": "", "changed": False, "fw": d.os_version or "",
                  "prev_at": d.last_backup_at.isoformat() if d.last_backup_at else None} for d in devs]
     with _lock:

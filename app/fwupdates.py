@@ -569,9 +569,9 @@ def check_all(device_ids: list[int] | None = None) -> int:
     """Comprueba los equipos, calcula los CVE que corrige cada versión nueva y avisa una vez por versión."""
     from .crypto import decrypt
     with SessionLocal() as db:
-        q = select(Device).where(Device.enabled.is_(True))
+        q = select(Device).where(Device.retired_at.is_(None), Device.enabled.is_(True))
         if device_ids:
-            q = select(Device).where(Device.id.in_(device_ids))
+            q = select(Device).where(Device.retired_at.is_(None), Device.id.in_(device_ids))
         devs = list(db.scalars(q.order_by(Device.name)))
         raws = {}
         for d in devs:
@@ -735,7 +735,7 @@ def for_device(device_id: int) -> dict | None:
 
 def all_rows(scope=None) -> list[dict]:
     with SessionLocal() as db:
-        devs = {d.id: d for d in db.scalars(select(Device)) if scope is None or d.id in scope}
+        devs = {d.id: d for d in db.scalars(select(Device).where(Device.retired_at.is_(None))) if scope is None or d.id in scope}
         ids = [r.device_id for r in db.scalars(select(FirmwareUpdate)) if r.device_id in devs]
         names = {i: (devs[i].name, devs[i].device_type) for i in ids}
     out = []

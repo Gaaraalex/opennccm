@@ -109,7 +109,7 @@ def _load(user, device_id: int | None, cid: int | None):
             target = cred.name if cred else ""
             if cred is not None:
                 target = f"{cred.name} · " + _f("la usan {0} equipos", db.scalar(
-                    select(func.count(Device.id)).where(Device.credential_id == cred.id)) or 0)
+                    select(func.count(Device.id)).where(Device.retired_at.is_(None), Device.credential_id == cred.id)) or 0)
     if cred is None:
         raise Forbidden()
     return cred, target

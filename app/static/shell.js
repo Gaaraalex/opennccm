@@ -345,14 +345,16 @@
       $$(':scope > *', main).forEach(function (n) { body.appendChild(document.importNode(n, true)); });
       $$('form', body).forEach(function (f, i) {  // sin action, el formulario se enviaría a la página de fondo
         if (!f.getAttribute('action')) f.setAttribute('action', href);
-        if (!f.id) f.id = 'sheet-form-' + i;
+        // getAttribute y no f.id: un campo <input name="id"> (el de editar una credencial o un grupo) tapa la propiedad
+        // y el botón «Guardar» del pie quedaba unido a un formulario inexistente, sin hacer nada
+        if (!f.getAttribute('id')) f.setAttribute('id', 'sheet-form-' + i);
       });
       var foot = $('[data-sheet-foot]', body);  // la fila de botones pasa al pie fijo del panel
       if (foot) {
         var form = foot.closest('form');
         var footer = document.createElement('footer');
         while (foot.firstChild) footer.appendChild(foot.firstChild);
-        $$('button:not([form]), input[type=submit]', footer).forEach(function (b) { if (form && !b.closest('form')) b.setAttribute('form', form.id); });
+        $$('button:not([form]), input[type=submit]', footer).forEach(function (b) { if (form && !b.closest('form')) b.setAttribute('form', form.getAttribute('id')); });
         foot.remove();
         sheet.appendChild(footer);
       }
@@ -405,10 +407,12 @@
   function loadDevices() {
     if (devices !== null) return;
     devices = [];
-    fetch('/api/devices', {credentials: 'same-origin'}).then(function (r) { return r.ok ? r.json() : []; }).then(function (list) {
+    // también los retirados: se encuentran por su nombre y su IP originales (Dispositivos › Retirados)
+    fetch('/api/devices?retired=1', {credentials: 'same-origin'}).then(function (r) { return r.ok ? r.json() : []; }).then(function (list) {
       devices = list.map(function (d) {
-        return {i: 'server', vl: d.brand, t: d.name, sub: [d.host, d.platform || d.device_type].filter(Boolean).join(' · '), r: T.device, href: '/devices/' + d.id,
-                key: norm([d.name, d.host, d.model, d.serial, d.version, d.device_type].join(' '))};
+        var sub = d.retired ? [(T.retired || '{0}').replace('{0}', d.orig_name || ''), d.orig_host] : [d.host, d.platform || d.device_type];
+        return {i: 'server', vl: d.brand, t: d.name, sub: sub.filter(Boolean).join(' · '), r: d.retired ? (T.retiredR || T.device) : T.device,
+                href: '/devices/' + d.id, key: norm([d.name, d.host, d.model, d.serial, d.version, d.device_type, d.orig_name, d.orig_host].join(' '))};
       });
       if (overlay && overlay.classList.contains('palw')) palFill();
     }).catch(function () { devices = []; });

@@ -49,7 +49,7 @@ def _fw_page(request: Request, tab: str, status: str = "", img: int = 0, vend: s
     user = require(request)
     scope = device_scope(user)
     with SessionLocal() as db:
-        alldevs = [d for d in db.scalars(select(Device).order_by(Device.name)) if scope is None or d.id in scope]
+        alldevs = [d for d in db.scalars(select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)) if scope is None or d.id in scope]
         devs = [d for d in alldevs if firmware.supports_upgrade(d.device_type)]
         for d in devs:
             d.group.name if d.group else None  # carga la relación antes de cerrar la sesión
@@ -198,7 +198,7 @@ async def firmware_upgrade(request: Request):
         return go("/firmware")
     with SessionLocal() as db:
         img = db.get(FirmwareImage, int(form["image_id"]))
-        bad = [d.name for d in db.scalars(select(Device).where(Device.id.in_(ids)))
+        bad = [d.name for d in db.scalars(select(Device).where(Device.retired_at.is_(None), Device.id.in_(ids)))
                if not firmware.supports_upgrade(d.device_type)
                or (img.device_type_filter and not re.search(img.device_type_filter, d.device_type))]
     if bad:
@@ -224,7 +224,7 @@ async def firmware_routeros_online(request: Request):
         raise Forbidden()
     channel = form.get("channel") if form.get("channel") in ("stable", "long-term", "testing") else "stable"
     with SessionLocal() as db:
-        bad = [d.name for d in db.scalars(select(Device).where(Device.id.in_(ids))) if d.device_type != "mikrotik_routeros"]
+        bad = [d.name for d in db.scalars(select(Device).where(Device.retired_at.is_(None), Device.id.in_(ids))) if d.device_type != "mikrotik_routeros"]
     if not ids or bad:
         flash(request, _("Elija al menos un equipo MikroTik RouterOS") if not ids else _f("No son MikroTik RouterOS: {0}", ", ".join(bad)), "error")
         return go("/firmware")
@@ -244,7 +244,7 @@ def eol_page(request: Request, status: str = "", vend: str = ""):
 
 def _models() -> dict:
     with SessionLocal() as db:
-        return {d.name: d.model or "" for d in db.scalars(select(Device).order_by(Device.name))}
+        return {d.name: d.model or "" for d in db.scalars(select(Device).where(Device.retired_at.is_(None)).order_by(Device.name))}
 
 
 @router.get("/eol/new")

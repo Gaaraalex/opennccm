@@ -234,6 +234,29 @@ def fortigate(text: str) -> list[dict]:
     return [p for p in ports if not is_virtual(p["n"])]
 
 
+# --------------------------------------------------------------------------- ArubaOS «show port status»
+# Mobility Access Switch (S2500, S3500) y controladoras: «Slot-Port  PortType  AdminState  OperState  PoE … Speed  Duplex».
+# Los del frente son 0/0/N (cobre) y los uplink 0/1/N (SFP / SFP+). Tolerante: cualquier fila «S/M/P … Enabled|Disabled
+# Up|Down» sirve, aunque cambien las demás columnas.
+_ARUBA_ROW = re.compile(r"^\s*(\d+/\d+/\d+)\s+(\S+)\s+(Enabled|Disabled)\s+(Up|Down)(?![A-Za-z])(.*)$", re.I)
+
+
+def arubaos(text: str) -> list[dict]:
+    ports = []
+    for l in text.splitlines():
+        m = _ARUBA_ROW.match(l)
+        if not m:
+            continue
+        n, ptype, admin, oper, rest = m.groups()
+        sfp = n.split("/")[1] != "0" or bool(re.search(r"(?i)10G|XE|SFP|TE", ptype))
+        sp = re.search(r"(?i)(\d+(?:\.\d+)?)\s*([GM])bps", rest)
+        st = "off" if admin.lower() == "disabled" else ("up" if oper.lower() == "up" else "down")
+        ports.append({"n": "GE" + n, "k": "sfp" if sfp else "cu", "s": st,
+                      "sp": (sp.group(1) + (" Gbps" if sp.group(2).upper() == "G" else " Mbps")) if sp and st == "up" else "",
+                      "d": "", "net": "", "mod": "", "st": " ".join(l.split())})
+    return ports
+
+
 # --------------------------------------------------------------------------- PAN-OS «show interface all»
 def panos(text: str) -> list[dict]:
     ports = []

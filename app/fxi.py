@@ -409,7 +409,7 @@ def _run(device_id: int, trigger: str, username: str | None, test: bool, over: d
         key = decrypt(dev.fxi_key_enc) if dev.fxi_key_enc else ""
         name, host = dev.name, dev.host
         target = SimpleNamespace(name=dev.name, device_type=dev.device_type, protocol=dev.protocol, host=dev.host,
-                                 port=dev.port, credential=cred)
+                                 port=dev.port, credential=cred, enabled=dev.enabled)  # desactivado: connect() no entra
         addr = c["addr"] or local_addr(dev.host, dev.port)
     pasv = parse_pasv(c["pasv"]) or PASV
     lock = device_lock(device_id)

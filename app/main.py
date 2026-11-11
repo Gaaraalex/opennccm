@@ -521,10 +521,15 @@ def dashboard(request: Request):
     user = require(request)
     scope = device_scope(user)
 
+    retired: set[int] = set()
+
     def scoped(stmt, col):
+        if retired:  # los retirados no cuentan en el panel (cambios, cumplimiento, alarmas, CVE, eventos)
+            stmt = stmt.where(col.not_in(retired))
         return stmt if scope is None else stmt.where(col.in_(scope))
     with SessionLocal() as db:
-        cnt = lambda *w: db.scalar(scoped(select(func.count(Device.id)).where(*w), Device.id)) or 0  # noqa: E731
+        retired.update(db.scalars(select(Device.id).where(Device.retired_at.is_not(None))))
+        cnt = lambda *w: db.scalar(scoped(select(func.count(Device.id)).where(Device.retired_at.is_(None), *w), Device.id)) or 0  # noqa: E731
         total, ok = cnt(), cnt(Device.last_status == "ok")
         err, conflicts = cnt(Device.last_status == "error"), cnt(Device.startup_conflict.is_(True))
         drift = cnt(Device.baseline_drift.is_(True))
@@ -548,7 +553,7 @@ def dashboard(request: Request):
         for e in events:
             e.device.name if e.device else None  # carga la relación antes de cerrar la sesión
         # indicadores del panel «Señal»: nombres de los equipos afectados y tendencia de equipos (8 semanas)
-        devs = db.scalars(scoped(select(Device), Device.id).order_by(Device.name)).all()
+        devs = db.scalars(scoped(select(Device).where(Device.retired_at.is_(None)), Device.id).order_by(Device.name)).all()
         week_ago = now() - timedelta(days=7)
         # fecha de alta de cada equipo = la de su primera versión respaldada
         first = dict(db.execute(select(ConfigVersion.device_id, func.min(ConfigVersion.created_at))
@@ -628,7 +633,7 @@ def _server_panel() -> dict:
 def devices(request: Request, q: str = "", group: int = 0, status: str = "", brand: str = "", node: int = 0, assign: int = 0):
     user = require(request)
     with SessionLocal() as db:
-        stmt = select(Device).order_by(Device.name)
+        stmt = select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)
         if q:
             like = f"%{q}%"
             stmt = stmt.where(or_(Device.name.ilike(like), Device.host.ilike(like), Device.model.ilike(like),
@@ -669,7 +674,7 @@ def devices(request: Request, q: str = "", group: int = 0, status: str = "", bra
         from .db import NetNode
         net_nodes = db.scalars(select(NetNode).order_by(NetNode.name)).all()
         # recuentos de los chips de estado (sobre los equipos visibles, sin el filtro de estado)
-        base = select(Device)
+        base = select(Device).where(Device.retired_at.is_(None))
         if scope is not None:
             base = base.where(Device.id.in_(scope))
         if group:
@@ -687,7 +692,9 @@ def devices(request: Request, q: str = "", group: int = 0, status: str = "", bra
         last_global = max((d.last_backup_at for d in every if d.last_backup_at), default=None)
         n_groups = len({d.group_id for d in every if d.group_id})
     from .console import console_allowed
+    from . import retire as _ret
     return render(request, "devices.html", user, devices=devs, groups=groups, q=q, group=group, status=status,
+                  retired_n=_ret.retired_count(user), retired_hits=_ret.retired_hits(user, q),
                   brand=brand, brands=brands, brand_names={k: vendorlogos.name(k) for k in vendorlogos.BRANDS}, counts=counts,
                   node=node, assign=assign if user.role == "admin" else 0, net_nodes=net_nodes,
                   node_names={n.id: n.name for n in net_nodes}, can_console=console_allowed(user), src=src, last_global=last_global, n_groups=n_groups)
@@ -695,10 +702,10 @@ def devices(request: Request, q: str = "", group: int = 0, status: str = "", bra
 
 @app.post("/devices/bulk")
 async def devices_bulk(request: Request):
-    """Acciones sobre los equipos seleccionados en la lista: respaldar, auditar o mover a un grupo."""
+    """Acciones sobre los equipos seleccionados en la lista: respaldar, auditar, mover a un grupo, activar o desactivar."""
     form = await request.form()
     action = form.get("action", "")
-    user = require(request, "admin" if action in ("move", "node") else "operator")
+    user = require(request, "admin" if action in ("move", "node", "enable", "disable") else "operator")
     ids = filter_ids(user, [int(i) for i in form.getlist("ids") if str(i).isdigit()])
     back = form.get("next") or "/devices"
     back = back if back.startswith("/") and not back.startswith("//") else "/devices"
@@ -720,6 +727,21 @@ async def devices_bulk(request: Request):
         services.jobs.submit(services.scan_cves_many, ids)
         log_action(request, user, "cve_selected", f"{ids}")
         flash(request, _f("Búsqueda de CVE lanzada para {0} equipos", len(ids)))
+    elif action in ("enable", "disable"):  # desactivado = aislado: OpenNCCM no se conecta con el equipo por ninguna vía
+        on = action == "enable"
+        with SessionLocal() as db:
+            devs = [d for d in db.scalars(select(Device).where(Device.id.in_(ids), Device.retired_at.is_(None))) if d.enabled != on]
+            for d in devs:
+                d.enabled = on
+            db.commit()
+            names = [d.name for d in devs]
+        log_action(request, user, "devices_enable" if on else "devices_disable", ", ".join(names) or "-")
+        if not names:
+            flash(request, _("Los equipos elegidos ya estaban activados") if on else _("Los equipos elegidos ya estaban desactivados"))
+        elif on:
+            flash(request, _f("{0} equipos activados: vuelven a respaldarse y a aceptar consola, comandos y cambios", len(names)))
+        else:
+            flash(request, _f("{0} equipos desactivados: OpenNCCM ya no se conecta con ellos", len(names)))
     elif action == "move":
         gid = int(form.get("group_id") or 0) or None
         with SessionLocal() as db:
@@ -773,7 +795,11 @@ def device_new(request: Request, name: str = "", host: str = ""):
 def device_edit(request: Request, dev_id: int):
     user = require(request, "admin")
     with SessionLocal() as db:
-        return render(request, "device_form.html", user, device=db.get(Device, dev_id), **_device_form_ctx(db))
+        dev = db.get(Device, dev_id)
+        if dev is not None and dev.retired_at is not None:
+            flash(request, _("El equipo está retirado: reincorpóralo para editarlo."), "error")
+            return go(f"/devices/{dev_id}")
+        return render(request, "device_form.html", user, device=dev, **_device_form_ctx(db))
 
 
 def _apply_device_form(dev: Device, form):
@@ -813,6 +839,11 @@ async def device_save(request: Request, dev_id: int | None = None):
     form = await request.form()
     with SessionLocal() as db:
         dev = db.get(Device, dev_id) if dev_id else Device()
+        if dev is None:
+            return go("/devices")
+        if dev.retired_at is not None:  # un retirado no se edita: se reincorpora (no puede recuperar la IP ni activarse así)
+            flash(request, _("El equipo está retirado: reincorpóralo para editarlo."), "error")
+            return go(f"/devices/{dev_id}")
         _apply_device_form(dev, form)
         new_group = (form.get("new_group") or "").strip()[:100]
         if new_group:  # crear el grupo desde el propio formulario (o reutilizar uno con ese nombre)
@@ -1121,7 +1152,9 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
         prof_l.license_mark, try_decrypt(dev.license_enc, "") or ""))
     from . import licenses as _lic  # servicios de la licencia y su vencimiento
     license_groups = _lic.groups(try_decrypt(dev.license_enc, "") or "") if dev.license_enc else []
+    from . import retire as _ret
     return render(request, "device.html", user, key_error=key_error, can_console=console_allowed(user, dev.id), device=dev,
+                  ret=_ret.links(dev),
                   ports=pinfo, license_partial=license_partial, license_groups=license_groups, license_soon=_lic.SOON,
                   versions=versions, comp=comp, vulns=vulns, comp_groups=comp_groups,
                   comp_fails=sum(g["fails"] for g in comp_groups),
@@ -1149,8 +1182,9 @@ def device_backup(request: Request, dev_id: int):
     log_action(request, user, "backup", f"device={dev_id} -> {res}")
     msgs = {"changed": _("Respaldo realizado: se detectaron cambios"), "unchanged": _("Respaldo realizado: sin cambios"),
             "first": _("Primer respaldo guardado"), "error": _("El respaldo falló (ver detalle)"),
-            "busy": _("El equipo está ocupado con otra tarea")}
-    flash(request, msgs.get(res, res), "error" if res in ("error", "busy") else "ok")
+            "busy": _("El equipo está ocupado con otra tarea"),
+            "disabled": _("El equipo está desactivado: OpenNCCM no se conecta con él. Actívalo para respaldarlo.")}
+    flash(request, msgs.get(res, res), "error" if res in ("error", "busy", "disabled") else "ok")
     return go(f"/devices/{dev_id}")
 
 
@@ -1563,7 +1597,7 @@ def topology_page(request: Request, group: int = 0, node: int = 0):
         from .db import NetNode
         net_nodes = db.scalars(select(NetNode).order_by(NetNode.name)).all()
         # con un nodo: se leen también los demás equipos, para mostrar atenuados los vecinos de otros nodos
-        devs = [d for d in db.scalars(select(Device).order_by(Device.name))
+        devs = [d for d in db.scalars(select(Device).where(Device.retired_at.is_(None)).order_by(Device.name))
                 if (scope is None or d.id in scope) and (not group or d.group_id == group)]
         node_names = {n.id: n.name for n in net_nodes}
         mine_ids = {f"d{d.id}" for d in devs if not node or d.node_id == node}
@@ -1787,7 +1821,7 @@ def _ipam_data(user, group: int = 0):
     scope = device_scope(user)
     rows, vrows = [], {}
     with SessionLocal() as db:
-        for d in db.scalars(select(Device).order_by(Device.name)):
+        for d in db.scalars(select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)):
             if (scope is not None and d.id not in scope) or (group and d.group_id != group):
                 continue
             v = services.latest_version(db, d.id)
@@ -1857,7 +1891,7 @@ def search(request: Request, q: str = "", regex: int = 0, cs: int = 0, group: in
                 err = _f("La expresión regular no es válida: {0}", e)
                 pat = None
             scope = device_scope(user)
-            for dev in db.scalars(select(Device).order_by(Device.name)) if pat else []:
+            for dev in db.scalars(select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)) if pat else []:
                 if (scope is not None and dev.id not in scope) or (group and dev.group_id != group):
                     continue
                 vs = [services.latest_version(db, dev.id)] if latest else db.scalars(
@@ -1885,7 +1919,7 @@ def credentials(request: Request):
     with SessionLocal() as db:
         creds = db.scalars(select(Credential).order_by(Credential.name)).all()
         usage: dict[int, dict] = {}
-        for d in db.scalars(select(Device)):
+        for d in db.scalars(select(Device).where(Device.retired_at.is_(None))):
             if d.credential_id:
                 u = usage.setdefault(d.credential_id, {"n": 0, "ok": 0, "err": 0})
                 u["n"] += 1
@@ -1907,7 +1941,7 @@ def credential_edit(request: Request, cid: int):
     user = require(request, "admin")
     with SessionLocal() as db:
         c = db.get(Credential, cid)
-        used = db.scalar(select(func.count(Device.id)).where(Device.credential_id == cid)) or 0
+        used = db.scalar(select(func.count(Device.id)).where(Device.retired_at.is_(None), Device.credential_id == cid)) or 0
     if c is None:
         return go("/credentials")
     return render(request, "cred_edit.html", user, c=c, used=used)
@@ -1918,7 +1952,7 @@ def groups_page(request: Request):
     user = require(request, "admin")
     with SessionLocal() as db:
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
-        counts = dict(db.execute(select(Device.group_id, func.count(Device.id)).group_by(Device.group_id)).all())
+        counts = dict(db.execute(select(Device.group_id, func.count(Device.id)).where(Device.retired_at.is_(None)).group_by(Device.group_id)).all())
     return render(request, "groups.html", user, groups=groups, counts=counts)
 
 
@@ -1967,7 +2001,7 @@ def group_edit(request: Request, gid: int):
     user = require(request, "admin")
     with SessionLocal() as db:
         g = db.get(DeviceGroup, gid)
-        used = db.scalar(select(func.count(Device.id)).where(Device.group_id == gid)) or 0
+        used = db.scalar(select(func.count(Device.id)).where(Device.retired_at.is_(None), Device.group_id == gid)) or 0
     if g is None:
         return go("/groups")
     return render(request, "group_edit.html", user, g=g, used=used)
@@ -2054,7 +2088,7 @@ def configlet_form(request: Request, cid: int | None = None):
             if o:
                 c = Configlet(name=_f("{0} (copia)", o.name), description=o.description, kind=o.kind, body=o.body,
                               device_type_filter=o.device_type_filter)
-        types = [d.device_type for d in db.scalars(select(Device))]
+        types = [d.device_type for d in db.scalars(select(Device).where(Device.retired_at.is_(None)))]
     return render(request, "configlet_form.html", user, c=c, types=types)
 
 
@@ -2375,16 +2409,17 @@ def compliance(request: Request):
             p.rules  # carga la relación antes de cerrar la sesión
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
         scope = device_scope(user)
+        retired = set(db.scalars(select(Device.id).where(Device.retired_at.is_not(None))))  # fuera de lo activo
         fails = [f for f in db.scalars(select(ComplianceResult).where(ComplianceResult.passed.is_(False))
-                                       .order_by(ComplianceResult.device_id)) if scope is None or f.device_id in scope]
+                                       .order_by(ComplianceResult.device_id)) if (scope is None or f.device_id in scope) and f.device_id not in retired]
         for f in fails:
             (f.device.name, f.rule.name, f.policy.name)  # carga la relación antes de cerrar la sesión
         summary = [s for s in db.execute(select(ComplianceResult.device_id,
                                                 func.sum(case((ComplianceResult.passed.is_(True), 1), else_=0)),
                                                 func.count()).group_by(ComplianceResult.device_id)).all()
-                   if scope is None or s[0] in scope]
+                   if (scope is None or s[0] in scope) and s[0] not in retired]
         # «Señal»: mapa equipo × política y barras por gravedad de cada política (sobre los equipos visibles)
-        results = [r for r in db.scalars(select(ComplianceResult)) if scope is None or r.device_id in scope]
+        results = [r for r in db.scalars(select(ComplianceResult)) if (scope is None or r.device_id in scope) and r.device_id not in retired]
         sev_of = {r.id: r.severity for p in policies for r in p.rules}
         cell: dict[tuple, list] = {}
         pstat = {p.id: {"ok": 0, "critical": 0, "major": 0, "minor": 0, "fix": 0} for p in policies}
@@ -2439,8 +2474,8 @@ def policy_new(request: Request):
     user = require(request, "admin")
     with SessionLocal() as db:
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
-        devs = [d for d in db.scalars(select(Device).order_by(Device.name)) if services.latest_version(db, d.id)]
-        types = [d.device_type for d in db.scalars(select(Device))]
+        devs = [d for d in db.scalars(select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)) if services.latest_version(db, d.id)]
+        types = [d.device_type for d in db.scalars(select(Device).where(Device.retired_at.is_(None)))]
     return render(request, "policy.html", user, p=None, groups=groups, test_devices=devs, types=types)
 
 
@@ -2505,9 +2540,9 @@ def policy_detail(request: Request, pid: int):
         p.rules  # carga la relación antes de cerrar la sesión
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
         scope = device_scope(user)
-        devs = [d for d in db.scalars(select(Device).order_by(Device.name))
+        devs = [d for d in db.scalars(select(Device).where(Device.retired_at.is_(None)).order_by(Device.name))
                 if (scope is None or d.id in scope) and (not p.device_type_filter or re.search(p.device_type_filter, d.device_type))]
-        types = [d.device_type for d in db.scalars(select(Device))]
+        types = [d.device_type for d in db.scalars(select(Device).where(Device.retired_at.is_(None)))]
     return render(request, "policy.html", user, p=p, groups=groups, test_devices=devs, types=types)
 
 
@@ -2672,7 +2707,7 @@ def schedules(request: Request):
         try:
             g = impact._graph()
             with SessionLocal() as db:
-                alldevs = list(db.scalars(select(Device)))
+                alldevs = list(db.scalars(select(Device).where(Device.retired_at.is_(None))))
             for s in items:
                 c = rebooting.get(s.configlet_id) if s.action == "configlet" else None
                 if c is None:
@@ -2931,7 +2966,7 @@ def vulns(request: Request, f: str = "all"):
         scope = device_scope(user)
         items = [v for v in db.scalars(select(Vulnerability).order_by(Vulnerability.score.desc().nulls_last())
                                        .limit(5000)) if scope is None or v.device_id in scope][:2000]
-        devs = {d.id: d for d in db.scalars(select(Device)) if scope is None or d.id in scope}
+        devs = {d.id: d for d in db.scalars(select(Device).where(Device.retired_at.is_(None))) if scope is None or d.id in scope}
         images = db.scalars(select(FirmwareImage).order_by(FirmwareImage.uploaded_at.desc())).all()
         last = max((v.found_at for v in items), default=None)
 
@@ -3315,16 +3350,19 @@ def report_email(request: Request):
 
 # --------------------------------------------------------------------------- API JSON mínima
 @app.get("/api/devices")
-def api_devices(request: Request):
+def api_devices(request: Request, retired: int = 0):
+    """Los equipos en servicio. Con «?retired=1» también los retirados, con «retired», «orig_name» y «orig_host»."""
     user = require(request)
     scope = device_scope(user)
+    cond = [] if retired else [Device.retired_at.is_(None)]
     with SessionLocal() as db:
         return [{"id": d.id, "name": d.name, "host": d.host, "type": d.device_type, "model": d.model,
+                 **({"retired": d.retired_at is not None, "orig_name": d.orig_name, "orig_host": d.orig_host} if retired else {}),
                  "serial": d.serial, "version": d.os_version, "status": d.last_status,
                  "platform": PROFILE_MAP[d.device_type].label if d.device_type in PROFILE_MAP else d.device_type,
                  "brand": __import__("app.vendorlogos", fromlist=["x"]).key(d.device_type),
                  "last_backup": d.last_backup_at.isoformat() if d.last_backup_at else None}
-                for d in db.scalars(select(Device).order_by(Device.name)) if scope is None or d.id in scope]
+                for d in db.scalars(select(Device).where(*cond).order_by(Device.name)) if scope is None or d.id in scope]
 
 
 @app.get("/api/devices/{dev_id}")
@@ -3397,7 +3435,7 @@ async def api_device_create(request: Request):
 
 @app.post("/api/devices/{dev_id}/backup")
 def api_device_backup(request: Request, dev_id: int):
-    """Respalda el equipo ahora y devuelve el resultado (first, changed, unchanged o error)."""
+    """Respalda el equipo ahora y devuelve el resultado (first, changed, unchanged, error o disabled si está desactivado)."""
     user = require(request, "operator")
     check_device(user, dev_id)
     result = services.backup_device(dev_id, "api", user.username)
@@ -3417,7 +3455,7 @@ def api_config_search(request: Request, q: str = ""):
         return []
     ql, scope, hits = q.lower(), device_scope(user), []
     with SessionLocal() as db:
-        for dev in db.scalars(select(Device).order_by(Device.name)):
+        for dev in db.scalars(select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)):
             if scope is not None and dev.id not in scope:
                 continue
             v = services.latest_version(db, dev.id)
@@ -3457,6 +3495,9 @@ app.include_router(fxi.router)
 from . import credview  # noqa: E402  (ver credenciales con MFA y contraseña)
 
 app.include_router(credview.router)
+from . import retire  # noqa: E402  (equipos retirados: dañados, reemplazados o devueltos)
+
+app.include_router(retire.router)
 from . import impact, netreports  # noqa: E402  (análisis de impacto; puertos sin uso y documento de la red)
 
 app.include_router(impact.router)

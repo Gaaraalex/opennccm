@@ -66,7 +66,7 @@ def collect(user, opts: dict) -> dict:
     scope = device_scope(user)
     hide = opts.get("hide_public")
     with SessionLocal() as db:
-        devs = [d for d in db.scalars(select(Device).order_by(Device.name)) if scope is None or d.id in scope]
+        devs = [d for d in db.scalars(select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)) if scope is None or d.id in scope]
         groups = {g.id: g.name for g in db.scalars(select(DeviceGroup))}
         if opts["scope"] == "site":
             devs = [d for d in devs if (d.location or "") == opts["site"]]

@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% block title %}{{ _f('Retirar «{0}»', device.name) }}{% endblock %}
+{% block content %}
+<h1>{{ _f('Retirar «{0}»', device.name) }}</h1>
+<p class="muted sm" data-sheet-sub>{{ _('Para un equipo dañado, reemplazado por otro o dado de baja. No se borra nada.') }}</p>
+<form method="post" action="/devices/{{ device.id }}/retire" class="stack" autocomplete="off">
+  <div class="banner info">{{ icon("info") }}<div class="grow" style="text-align:left"><b>{{ _('Qué pasa al retirarlo') }}</b>
+    <ul class="sm" style="margin:6px 0 0 18px">
+      <li>{{ _f('Se renombra «{0}» y queda sin dirección: el nombre «{1}» y la IP {2} quedan libres para el equipo que lo reemplaza.', new_name, device.name, device.host) }}</li>
+      <li>{{ _('Queda desactivado y aislado: OpenNCCM no se conecta con él por ninguna vía.') }}</li>
+      <li>{{ _('Conserva todo su historial para auditarlo: versiones y respaldos, cumplimiento, vulnerabilidades, eventos y puertos. Se encuentra por su nombre y su IP originales en Dispositivos › Retirados.') }}</li>
+      <li>{{ _('Sale del panel, el mapa, las alarmas, los informes y las tareas. Sus alarmas abiertas se cierran.') }}</li>
+      <li>{{ _('Se puede reincorporar cuando haga falta.') }}</li>
+    </ul></div></div>
+  <div class="field"><label for="rr">{{ _('Motivo') }}</label><div class="input"><select id="rr" name="reason">
+    {% for k, v in reasons.items() %}<option value="{{ k }}" {{ 'selected' if k == 'replaced' }}>{{ _(v) }}</option>{% endfor %}</select></div></div>
+  <div class="field"><label for="rn">{{ _('Nota (opcional)') }}</label><div class="input"><textarea id="rn" name="note" rows="3" maxlength="2000" placeholder="{{ _('Por ejemplo: fuente quemada; garantía, caso 12345') }}"></textarea></div></div>
+  <label class="swrow"><span><span class="b">{{ _('Dar de alta el equipo que lo reemplaza') }}</span><span class="muted sm" style="display:block">{{ _f('Con el nombre «{0}», la IP {1} y los mismos tipo, credencial, grupo, nodo y ubicación. Se respalda en seguida; su inventario y su historial empiezan de cero.', device.name, device.host) }}</span></span>
+    <input type="checkbox" class="sw" role="switch" name="replace" checked></label>
+  <label class="ck"><input type="checkbox" name="confirm" required> {{ _f('Confirmo que quiero retirar «{0}»', device.name) }}</label>
+  <div class="row" data-sheet-foot><span class="grow"></span><a class="btn ghost" href="/devices/{{ device.id }}" data-cancel>{{ _('Cancelar') }}</a><button class="btn pri">{{ _('Retirar') }}</button></div>
+</form>
+{% endblock %}

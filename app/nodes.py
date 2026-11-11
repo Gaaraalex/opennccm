@@ -18,7 +18,7 @@ def page(request: Request):
     user = require(request, "admin")
     with SessionLocal() as db:
         nodes = db.scalars(select(NetNode).order_by(NetNode.name)).all()
-        counts = dict(db.execute(select(Device.node_id, func.count(Device.id)).group_by(Device.node_id)).all())
+        counts = dict(db.execute(select(Device.node_id, func.count(Device.id)).where(Device.retired_at.is_(None)).group_by(Device.node_id)).all())
     return render(request, "nodes.html", user, nodes=nodes, counts=counts)
 
 
@@ -33,7 +33,7 @@ def edit_form(request: Request, nid: int):
     user = require(request, "admin")
     with SessionLocal() as db:
         n = db.get(NetNode, nid)
-        used = db.scalar(select(func.count(Device.id)).where(Device.node_id == nid)) or 0
+        used = db.scalar(select(func.count(Device.id)).where(Device.retired_at.is_(None), Device.node_id == nid)) or 0
     if n is None:
         return go("/nodes")
     return render(request, "node_edit.html", user, n=n, used=used)

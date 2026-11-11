@@ -126,7 +126,7 @@ def export(device_ids: list[int] | None = None, message: str = "") -> tuple[int,
     from .db import Device, SessionLocal, select
     with _lock, SessionLocal() as db:
         _prepare(cfg)
-        q = select(Device) if device_ids is None else select(Device).where(Device.id.in_(device_ids))
+        q = select(Device).where(Device.retired_at.is_(None)) if device_ids is None else select(Device).where(Device.retired_at.is_(None), Device.id.in_(device_ids))
         n = sum(_write(db, d, cfg) for d in db.scalars(q))
         pushed = _commit_push(cfg, message or _f("OpenNCCM: {0} equipos", n))
     return n, pushed
