@@ -89,9 +89,10 @@ try:
     lista = s.get(B + "/devices").text
     check("lista: botón web solo en los equipos con web",
           "Interfaz web de FW-pfSense" in lista and "Interfaz web de SW-EXOS" not in lista)
-    # sin el campo (API o formularios anteriores) el botón sigue apareciendo, como antes
+    # sin el campo (API o formularios anteriores) el botón sigue apareciendo, como antes (activado: desde la 2.35 un
+    # equipo desactivado queda aislado y su ficha no ofrece la interfaz web)
     r = s.post(B + "/devices/new", data={"name": "SinCampoWeb", "host": "127.0.0.9", "device_type": "cisco_ios",
-                                         "protocol": "ssh", "port": "22", "credential_id": cred})
+                                         "protocol": "ssh", "port": "22", "credential_id": cred, "enabled": "on"})
     check("sin el campo web_enabled el botón se muestra", 'aria-label="Interfaz web del equipo (ventana nueva)"' in s.get(r.url).text)
     s.post(r.url + "/delete")
 finally:
