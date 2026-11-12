@@ -14,6 +14,7 @@ from datetime import timedelta
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, or_, select
+from sqlalchemy.orm import joinedload
 
 from . import __version__, services
 from .auth import ROLES, check_device, device_scope, require
@@ -155,22 +156,25 @@ def panel(request: Request):
         err = [d for d in devs if d.last_status == "error"]
         drift = [d for d in devs if d.baseline_drift]
         backed = sum(1 for d in devs if d.last_status == "ok" and d.last_backup_at and d.last_backup_at >= since)
-        res = [r for r in db.scalars(select(ComplianceResult)) if r.device_id in ids]
+        # (solo las columnas que hacen falta: con miles de filas, cargar los objetos enteros era lo lento)
+        res = [r for r in db.execute(select(ComplianceResult.device_id, ComplianceResult.passed)) if r.device_id in ids]
         comp = round(100 * sum(r.passed for r in res) / len(res)) if res else None
-        crit = [v for v in db.scalars(select(Vulnerability).where(Vulnerability.severity == "CRITICAL")) if v.device_id in ids]
+        crit = [v for v in db.execute(select(Vulnerability.device_id, Vulnerability.cve_id).where(Vulnerability.severity == "CRITICAL"))
+                if v.device_id in ids]
         crit_devs: dict[int, list] = {}
         for v in crit:
             crit_devs.setdefault(v.device_id, []).append(v.cve_id)
         pending = db.scalar(select(func.count(ChangeRequest.id)).where(ChangeRequest.status == "pending")) or 0
-        alarms = sum(1 for e in db.scalars(select(Event).where(Event.acknowledged.is_(False), Event.severity != "info"))
-                     if e.device_id is None or e.device_id in ids)
+        alarms = sum(1 for dev_id in db.scalars(select(Event.device_id).where(Event.acknowledged.is_(False), Event.severity != "info"))
+                     if dev_id is None or dev_id in ids)
         by_id = {d.id: d for d in devs}
         attention = [{"kind": "backup", "device_id": d.id, "name": d.name,
                       "text": (d.last_error or "").splitlines()[0][:160] if d.last_error else ""} for d in err[:6]]
         attention += [{"kind": "cve", "device_id": i, "name": by_id[i].name, "n": len(set(c)),
                        "version": by_id[i].os_version or ""} for i, c in list(crit_devs.items())[:4] if i in by_id]
         recent = []
-        for v in db.scalars(select(ConfigVersion).where(ConfigVersion.kind == "running").order_by(ConfigVersion.id.desc()).limit(40)):
+        for v in db.execute(select(ConfigVersion.device_id, ConfigVersion.added, ConfigVersion.removed, ConfigVersion.created_at,
+                                   ConfigVersion.trigger).where(ConfigVersion.kind == "running").order_by(ConfigVersion.id.desc()).limit(40)):
             if v.device_id in ids and len(recent) < 6:
                 recent.append({"device_id": v.device_id, "name": by_id[v.device_id].name, "added": v.added, "removed": v.removed,
                                "at": _iso(v.created_at), "trigger": v.trigger})
@@ -407,7 +411,8 @@ def more(request: Request):
     with SessionLocal() as db:
         devs = _visible(db, user)
         ids = {d.id for d in devs}
-        res = [r for r in db.scalars(select(ComplianceResult)) if r.device_id in ids]
+        # (solo las columnas que hacen falta: con miles de filas, cargar los objetos enteros era lo lento)
+        res = [r for r in db.execute(select(ComplianceResult.device_id, ComplianceResult.passed)) if r.device_id in ids]
         nbs = sum(1 for e in db.scalars(select(Event).where(Event.acknowledged.is_(False))) if "vecino" in (e.category or "").lower())
         out = {
             "user": user.username, "role": user.role, "server": __version__,
@@ -502,7 +507,10 @@ def compliance(request: Request):
     user = require(request)
     with SessionLocal() as db:
         ids = {d.id for d in _visible(db, user)}
-        res = [r for r in db.scalars(select(ComplianceResult)) if r.device_id in ids]
+        # (las fallas muestran el equipo, la regla y la política: se cargan en la misma consulta)
+        res = [r for r in db.scalars(select(ComplianceResult).options(
+            joinedload(ComplianceResult.device).load_only(Device.id, Device.name), joinedload(ComplianceResult.rule),
+            joinedload(ComplianceResult.policy))) if r.device_id in ids]
         by_pol: dict[int, list] = {}
         for r in res:
             by_pol.setdefault(r.policy_id, []).append(r)

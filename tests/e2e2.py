@@ -91,7 +91,10 @@ cr = re.search(r"/changes/(\d+)", r.url).group(1)
 s.post(f"{B}/changes/{cr}/review", data={"decision": "approve"})
 st, _ = wait_cr(cr)
 check("reversión a baseline ejecutada", st == "done", st)
-time.sleep(4)
+for _ in range(30):  # el respaldo de después del cambio corre aparte: en una máquina lenta tarda más de 4 s
+    time.sleep(1)
+    if "difiere de la línea base" not in s.get(B + "/devices/1").text:
+        break
 check("equipo vuelve a coincidir con baseline", "difiere de la línea base" not in s.get(B + "/devices/1").text)
 
 # ---------------------------------------------------------------- paquetes de cumplimiento

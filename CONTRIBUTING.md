@@ -1,5 +1,8 @@
 # Cómo contribuir
 
+La [Guía del desarrollador](docs/desarrollo/README.md) explica la arquitectura, el mapa del código, cómo agregar una
+plataforma, las pruebas, el laboratorio y cómo se publica. Aquí, lo mínimo:
+
 ## Agregar un fabricante
 
 1. Añada un `Profile(...)` en `app/drivers.py` con un `device_type` de

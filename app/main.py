@@ -17,6 +17,7 @@ from starlette.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import case, delete, func, or_, select
+from sqlalchemy.orm import defer, joinedload, selectinload
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import reports, scheduler, services
@@ -111,6 +112,25 @@ app.add_middleware(SessionMiddleware, secret_key=session_secret(), same_site="st
                    https_only=os.environ.get("NCM_SECURE_COOKIE", "0") == "1", max_age=30 * 24 * 3600,  # cada sesión lleva su caducidad (auth.start_session)
                    session_cookie="opennccm")
 
+
+class _Gzip:
+    """Comprime las respuestas (la lista de 2000 equipos son 4 MB de HTML; comprimida, unos 200 KB; también el JSON de
+    la app y los .css/.js). No las que llegan en vivo línea a línea (ping, traceroute de la consola): gzip las
+    retendría hasta juntar bastante y dejarían de verse al momento."""
+    LIVE = ("/console/tools",)
+
+    def __init__(self, app):
+        from starlette.middleware.gzip import GZipMiddleware
+        self.app, self.gz = app, GZipMiddleware(app, minimum_size=1024, compresslevel=5)
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and not scope.get("path", "").startswith(self.LIVE):
+            return await self.gz(scope, receive, send)
+        return await self.app(scope, receive, send)
+
+
+app.add_middleware(_Gzip)
+
 # Cabeceras de seguridad en todas las respuestas (también sin nginx)
 CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
        "img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; "
@@ -129,6 +149,9 @@ async def security_headers(request: Request, call_next):
     h.setdefault("Cross-Origin-Opener-Policy", "same-origin")
     if not request.url.path.startswith("/static/") and resp.headers.get("content-type", "").startswith("text/html"):
         h.setdefault("Cache-Control", "no-store")  # páginas con datos: no quedan en caché tras cerrar sesión
+    elif request.url.path.startswith("/static/") and request.query_params.get("v") and resp.status_code == 200:
+        # «?v=versión-hash» cambia con cada versión: el navegador no vuelve a preguntar por el archivo en cada página
+        h["Cache-Control"] = "public, max-age=31536000, immutable"
     return resp
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
@@ -556,7 +579,9 @@ def dashboard(request: Request):
         for e in events:
             e.device.name if e.device else None  # carga la relación antes de cerrar la sesión
         # indicadores del panel «Señal»: nombres de los equipos afectados y tendencia de equipos (8 semanas)
-        devs = db.scalars(scoped(select(Device).where(Device.retired_at.is_(None)), Device.id).order_by(Device.name)).all()
+        devs = db.execute(scoped(select(Device.id, Device.name, Device.last_status, Device.last_backup_at, Device.baseline_drift,
+                                        Device.startup_conflict, Device.group_id).where(Device.retired_at.is_(None)),
+                                 Device.id).order_by(Device.name)).all()
         week_ago = now() - timedelta(days=7)
         # fecha de alta de cada equipo = la de su primera versión respaldada
         first = dict(db.execute(select(ConfigVersion.device_id, func.min(ConfigVersion.created_at))
@@ -632,11 +657,18 @@ def _server_panel() -> dict:
 
 
 # --------------------------------------------------------------------------- dispositivos
+# columnas con textos grandes que las listas de equipos no muestran (se leen solo en la ficha del equipo)
+LIST_DEFER = (Device.inventory_raw_enc, Device.neighbors, Device.ports, Device.port_seen, Device.license_enc,
+              Device.fxi_key_enc, Device.custom_backup_cmd, Device.notes, Device.retired_note)
+
+
 @app.get("/devices")
 def devices(request: Request, q: str = "", group: int = 0, status: str = "", brand: str = "", node: int = 0, assign: int = 0):
     user = require(request)
     with SessionLocal() as db:
-        stmt = select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)
+        # la lista no usa los textos grandes de cada equipo (inventario, vecinos, puertos, licencia): no se leen
+        stmt = (select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)
+                .options(selectinload(Device.group), *(defer(c) for c in LIST_DEFER)))
         if q:
             like = f"%{q}%"
             stmt = stmt.where(or_(Device.name.ilike(like), Device.host.ilike(like), Device.model.ilike(like),
@@ -671,18 +703,17 @@ def devices(request: Request, q: str = "", group: int = 0, status: str = "", bra
         brand = brand if brand in vendorlogos.BRANDS else ""
         if brand:
             devs = [d for d in devs if vendorlogos.key(d.device_type) == brand]
-        for d in devs:
-            d.group.name if d.group else None  # carga la relación antes de cerrar la sesión
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
         from .db import NetNode
         net_nodes = db.scalars(select(NetNode).order_by(NetNode.name)).all()
         # recuentos de los chips de estado (sobre los equipos visibles, sin el filtro de estado)
-        base = select(Device).where(Device.retired_at.is_(None))
+        base = select(Device.id, Device.last_status, Device.startup_conflict, Device.baseline_drift, Device.last_backup_at,
+                      Device.group_id).where(Device.retired_at.is_(None))
         if scope is not None:
             base = base.where(Device.id.in_(scope))
         if group:
             base = base.where(Device.group_id == group)
-        every = db.scalars(base).all()
+        every = db.execute(base).all()
         counts = {"": len(every), "ok": sum(d.last_status == "ok" for d in every),
                   "error": sum(d.last_status == "error" for d in every),
                   "pending": sum(d.last_status == "pending" for d in every),
@@ -1839,26 +1870,41 @@ def topology_page(request: Request, group: int = 0, node: int = 0):
 
 
 # --------------------------------------------------------------------------- inventario de IP y VLAN
+_IPAM_CACHE: dict = {}   # (versión, tipo) -> (IP, VLAN): una versión guardada no cambia, se lee una sola vez
+
+
+def _ipam_parse(v, device_type: str):
+    from . import ipam
+    key = (v.id, device_type)
+    if key not in _IPAM_CACHE:
+        text = try_decrypt(v.content_enc) or ""
+        if len(_IPAM_CACHE) > 20000:
+            _IPAM_CACHE.clear()
+        _IPAM_CACHE[key] = (ipam.ips(text, device_type), ipam.vlans(text, device_type)) if text else ([], [])
+    return _IPAM_CACHE[key]
+
+
 def _ipam_data(user, group: int = 0):
     """IP y VLAN de la última configuración de cada equipo, con IP repetidas y VLAN con nombres distintos."""
     import ipaddress
 
-    from . import ipam
     scope = device_scope(user)
     rows, vrows = [], {}
     with SessionLocal() as db:
-        for d in db.scalars(select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)):
-            if (scope is not None and d.id not in scope) or (group and d.group_id != group):
+        devs = [d for d in db.execute(select(Device.id, Device.name, Device.device_type, Device.group_id)
+                                      .where(Device.retired_at.is_(None)).order_by(Device.name))
+                if not ((scope is not None and d.id not in scope) or (group and d.group_id != group))]
+        last = services.latest_versions(db, None if scope is None and not group else [d.id for d in devs])
+        for d in devs:
+            v = last.get(d.id)
+            if not v:
                 continue
-            v = services.latest_version(db, d.id)
-            text = try_decrypt(v.content_enc) if v else None
-            if not text:
-                continue
-            for x in ipam.ips(text, d.device_type):
+            ips, vls = _ipam_parse(v, d.device_type)
+            for x in ips:
                 net = ipaddress.IPv4Network(f"{x['ip']}/{x['prefix']}", strict=False)
                 rows.append({"dev": d.name, "dev_id": d.id, "iface": x["interface"], "ip": x["ip"], "prefix": x["prefix"],
                              "net": str(net)})
-            for vl in ipam.vlans(text, d.device_type):
+            for vl in vls:
                 e = vrows.setdefault(vl["id"], {"id": vl["id"], "names": set(), "devs": []})
                 if vl["name"]:
                     e["names"].add(vl["name"])
@@ -1917,10 +1963,11 @@ def search(request: Request, q: str = "", regex: int = 0, cs: int = 0, group: in
                 err = _f("La expresión regular no es válida: {0}", e)
                 pat = None
             scope = device_scope(user)
+            last = services.latest_versions(db) if pat and latest else {}
             for dev in db.scalars(select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)) if pat else []:
                 if (scope is not None and dev.id not in scope) or (group and dev.group_id != group):
                     continue
-                vs = [services.latest_version(db, dev.id)] if latest else db.scalars(
+                vs = [last.get(dev.id)] if latest else db.scalars(
                     select(ConfigVersion).where(ConfigVersion.device_id == dev.id, ConfigVersion.kind == "running")
                     .order_by(ConfigVersion.id.desc()).limit(20)).all()
                 for v in vs:
@@ -2437,15 +2484,20 @@ def compliance(request: Request):
         scope = device_scope(user)
         retired = set(db.scalars(select(Device.id).where(Device.retired_at.is_not(None))))  # fuera de lo activo
         fails = [f for f in db.scalars(select(ComplianceResult).where(ComplianceResult.passed.is_(False))
+                                       .options(joinedload(ComplianceResult.device).load_only(Device.id, Device.name),
+                                                joinedload(ComplianceResult.rule), joinedload(ComplianceResult.policy))
                                        .order_by(ComplianceResult.device_id)) if (scope is None or f.device_id in scope) and f.device_id not in retired]
+        fails_by_rule: dict[int, list] = {}  # (antes se filtraba en la plantilla, regla por regla, sobre todas las fallas)
         for f in fails:
-            (f.device.name, f.rule.name, f.policy.name)  # carga la relación antes de cerrar la sesión
+            fails_by_rule.setdefault(f.rule_id, []).append(f)
         summary = [s for s in db.execute(select(ComplianceResult.device_id,
                                                 func.sum(case((ComplianceResult.passed.is_(True), 1), else_=0)),
                                                 func.count()).group_by(ComplianceResult.device_id)).all()
                    if (scope is None or s[0] in scope) and s[0] not in retired]
         # «Señal»: mapa equipo × política y barras por gravedad de cada política (sobre los equipos visibles)
-        results = [r for r in db.scalars(select(ComplianceResult)) if (scope is None or r.device_id in scope) and r.device_id not in retired]
+        results = [r for r in db.execute(select(ComplianceResult.device_id, ComplianceResult.policy_id, ComplianceResult.rule_id,
+                                                ComplianceResult.passed))
+                   if (scope is None or r.device_id in scope) and r.device_id not in retired]
         sev_of = {r.id: r.severity for p in policies for r in p.rules}
         cell: dict[tuple, list] = {}
         pstat = {p.id: {"ok": 0, "critical": 0, "major": 0, "minor": 0, "fix": 0} for p in policies}
@@ -2461,7 +2513,7 @@ def compliance(request: Request):
                 st[sev_of.get(r.rule_id, "major") if sev_of.get(r.rule_id) in ("critical", "major") else "minor"] += 1
                 st["fix"] += r.rule_id in fixable
         dev_ids = sorted({d for d, _p in cell})
-        devs = {d.id: d for d in db.scalars(select(Device).where(Device.id.in_(dev_ids or [0])))}
+        devs = {d.id: d for d in db.execute(select(Device.id, Device.name, Device.device_type).where(Device.id.in_(dev_ids or [0])))}
         matrix = [(devs[d], [round(100 * cell[(d, p.id)][0] / cell[(d, p.id)][1]) if (d, p.id) in cell else None
                              for p in policies]) for d in dev_ids if d in devs]
         matrix.sort(key=lambda row: row[0].name)
@@ -2471,6 +2523,7 @@ def compliance(request: Request):
     total_r = len(results)
     pct = round(100 * sum(1 for r in results if r.passed) / total_r) if total_r else None
     return render(request, "compliance.html", user, policies=policies, groups=groups, fails=fails, fail_rows=fails,
+                  fails_by_rule=fails_by_rule,
                   devices_checked=len(summary), devices_ok=sum(1 for _k, p, t in summary if p == t),
                   matrix=matrix, pstat=pstat, pct=pct, last_audit=last_audit, vend=vend)
 

@@ -110,5 +110,41 @@ check("app: cada versión lleva su firmware", run_fw == [cur, "15.0(1)M1", None]
 dj = requests.get(f"{B}/api/mobile/diff", headers=H, params={"a": ids[1], "b": ids[2]}).json()
 check("app: la comparación dice el firmware de A y B", dj.get("fw_a") == "15.0(1)M1" and fwtag.same(dj.get("fw_b"), cur), dj)
 
+# --- respaldo sin cambios: la última copia «sin registrar» recibe el firmware leído en esa conexión; las viejas, no
+with SessionLocal() as db:
+    d2 = Device(name="FW-SW2", host="127.0.0.1", port=2222, device_type="cisco_ios", credential_id=cred.id)
+    db.add(d2)
+    db.flush()
+    older = ConfigVersion(device_id=d2.id, kind="running", content_enc=encrypt("hostname viejo\n"), sha256="c" * 64, size=15,
+                          trigger="manual", fw_version=None)   # una copia de antes de la 2.36.0
+    db.add(older)
+    db.commit()
+    d2_id, older_id = d2.id, older.id
+s.post(f"{B}/devices/{d2_id}/backup")   # la configuración cambió: copia nueva, con su firmware
+for _ in range(20):
+    with SessionLocal() as db:
+        last = db.scalars(select(ConfigVersion).where(ConfigVersion.device_id == d2_id, ConfigVersion.kind == "running")
+                          .order_by(ConfigVersion.id.desc())).first()
+    if last and last.id != older_id:
+        break
+    time.sleep(1)
+with SessionLocal() as db:
+    db.get(ConfigVersion, last.id).fw_version = None   # como si la última fuera de antes de la 2.36.0
+    db.commit()
+s.post(f"{B}/devices/{d2_id}/backup")   # la misma configuración: no se crea copia nueva
+for _ in range(20):
+    with SessionLocal() as db:
+        got = db.get(ConfigVersion, last.id).fw_version
+    if got:
+        break
+    time.sleep(1)
+with SessionLocal() as db:
+    n_run = db.scalars(select(ConfigVersion).where(ConfigVersion.device_id == d2_id, ConfigVersion.kind == "running")).all()
+    fw_older = db.get(ConfigVersion, older_id).fw_version
+    now_fw = db.get(Device, d2_id).os_version
+check("respaldo sin cambios: la última copia recibe el firmware leído en esa conexión", got and fwtag.same(got, now_fw), (got, now_fw))
+check("…sin crear una copia nueva", len(n_run) == 2, len(n_run))
+check("…y las copias más viejas siguen «sin registrar»", fw_older is None, fw_older)
+
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)

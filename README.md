@@ -143,6 +143,7 @@ Lista completa en la página **Plataformas** de la aplicación.
 
 - 📘 [Guía de instalación en Ubuntu (PDF)](docs/OpenNCCM-Guia-de-instalacion.pdf)
 - 📗 [Manual de funciones (PDF)](docs/OpenNCCM-Manual-de-funciones.pdf)
+- 📙 [Guía del desarrollador](docs/desarrollo/README.md) ([PDF](docs/OpenNCCM-Guia-del-desarrollador.pdf)): cómo está hecho, cómo se prueba y cómo se publica
 - 📝 [Historial de versiones](CHANGELOG.md)
 
 ## 🖧 Requisitos

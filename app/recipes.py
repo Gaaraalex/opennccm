@@ -148,10 +148,12 @@ VERIFIED = {
     "exos-vlan": "EXOS 33.6.1.14", "exos-vlan-ip": "EXOS 33.6.1.14", "exos-ports": "EXOS 33.6.1.14",
     # Extreme VOSS 9.3.0.0 (VOSS VM en GNS3), 3 rondas seguidas sin fallos, 2026-11-09
     "voss-radius": "VOSS 9.3.0.0", "voss-syslog": "VOSS 9.3.0.0", "voss-vlan": "VOSS 9.3.0.0", "voss-vlan-ip": "VOSS 9.3.0.0",
-    # Juniper Junos 14.1R1.10 (vMX en GNS3), 3 rondas seguidas sin fallos, 2026-11-09
-    "junos-desc": "Junos 14.1R1.10", "junos-flap": "Junos 14.1R1.10", "junos-hostname": "Junos 14.1R1.10",
-    "junos-ntp": "Junos 14.1R1.10", "junos-rollback": "Junos 14.1R1.10", "junos-route": "Junos 14.1R1.10",
-    "junos-snmp": "Junos 14.1R1.10", "junos-ssh": "Junos 14.1R1.10", "junos-syslog": "Junos 14.1R1.10",
+    # Juniper Junos 14.1R1.10 (vMX en GNS3), 3 rondas seguidas sin fallos, 2026-11-09; y Junos 19.4R1.10 (vQFX, RE + PFE
+    # en GNS3), 3 rondas seguidas sin fallos, 2026-11-12. «junos-vlan» (EX/QFX) solo en el vQFX
+    "junos-desc": "Junos 14.1R1.10 / 19.4R1.10", "junos-flap": "Junos 14.1R1.10 / 19.4R1.10", "junos-hostname": "Junos 14.1R1.10 / 19.4R1.10",
+    "junos-ntp": "Junos 14.1R1.10 / 19.4R1.10", "junos-rollback": "Junos 14.1R1.10 / 19.4R1.10", "junos-route": "Junos 14.1R1.10 / 19.4R1.10",
+    "junos-snmp": "Junos 14.1R1.10 / 19.4R1.10", "junos-ssh": "Junos 14.1R1.10 / 19.4R1.10", "junos-syslog": "Junos 14.1R1.10 / 19.4R1.10",
+    "junos-vlan": "Junos 19.4R1.10",
     # Ubiquiti EdgeSwitch 16 150W con 1.9.3 (equipo físico), 3 rondas seguidas sin fallos, 2026-11-09
     "fp-hostname": "EdgeSwitch 1.9.3", "fp-user": "EdgeSwitch 1.9.3", "fp-ssh": "EdgeSwitch 1.9.3", "fp-snmp": "EdgeSwitch 1.9.3",
     "fp-syslog": "EdgeSwitch 1.9.3", "fp-sntp": "EdgeSwitch 1.9.3", "fp-vlan": "EdgeSwitch 1.9.3", "fp-access": "EdgeSwitch 1.9.3",
@@ -164,6 +166,11 @@ VERIFIED = {
     # WatchGuard Firebox T40 con Fireware 12.8.1 (equipo físico), 3 rondas seguidas sin fallos, 2026-11-09
     **{f"fireware-{t}": "Fireware 12.8.1" for t in ("hostname", "ntp", "version", "ports", "routes", "arp", "logs", "sessions",
                                                     "users", "cpu", "ping", "trace")},
+    # Fortinet FortiGate-VM 7.4.2 (GNS3), 3 rondas seguidas sin fallos, 2026-11-12
+    "fos-access": "FortiOS 7.4.2", "fos-address": "FortiOS 7.4.2", "fos-admin": "FortiOS 7.4.2",
+    "fos-ha": "FortiOS 7.4.2", "fos-hostname": "FortiOS 7.4.2", "fos-ntp": "FortiOS 7.4.2",
+    "fos-ports": "FortiOS 7.4.2", "fos-route": "FortiOS 7.4.2", "fos-sniffer": "FortiOS 7.4.2",
+    "fos-snmp": "FortiOS 7.4.2", "fos-status": "FortiOS 7.4.2", "fos-syslog": "FortiOS 7.4.2",
 }
 
 

@@ -460,7 +460,7 @@ def _nav_counts(user) -> dict:
                     # campana de la barra superior: las 5 alarmas abiertas más recientes
                     "recent": [{"sev": sevc.get(e.severity, "info"), "title": _event_title(e),
                                 "device_id": e.device_id, "when": e.created_at}
-                               for e in db.scalars(recent.order_by(Event.created_at.desc()).limit(5))]}
+                               for e in db.scalars(recent.order_by(Event.id.desc()).limit(5))]}
     except Exception:  # noqa: BLE001 - un contador nunca debe impedir mostrar la página
         return {}
 

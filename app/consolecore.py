@@ -128,6 +128,16 @@ _QUERY = {
              r"hostname\s*$|whoami|id\s*$|journalctl|dmesg|tail|head|grep|less|more|pwd|date|who|w\s*$|systemctl status)\b",
     "generic": r"(show|sh\b|display|dis\b|ping|trace(route)?|tracert|get\b|exit|quit)\b",
 }
+# FortiOS: «show» y «get» consultan; de «diagnose» y «execute», solo los que leen (estado NTP, captura de paquetes,
+# sesiones, ARP, rutas, ping…). Antes «diagnose sys ntp status» y «diagnose sniffer packet» contaban como cambio y la
+# comprobación de las recetas «Configurar NTP» y «Ver el tráfico de una IP» no se podía ejecutar (FortiGate-VM 7.4.2)
+_QUERY["fortios"] = (
+    r"(show|get|exit|"
+    r"diagnose\s+(sys\s+(ntp\s+status|top|session\s+(list|stat|filter)|ha\s+(status|checksum)|performance|vd\s+list|"
+    r"link-monitor\s+status|sdwan\s+(health-check|member|service))|sniffer\s+packet|"
+    r"ip\s+(arp|route|address|rtcache)\s+list|netlink\s+(interface|device)\s+list|hardware\s+(sysinfo|deviceinfo)|"
+    r"debug\s+(info|crashlog\s+read)|vpn\s+(tunnel\s+list|ike\s+gateway\s+list)|firewall\s+iprope\s+list)|"
+    r"execute\s+(ping|ping6|traceroute|tracert6|ping-options|dhcp\s+lease-list|log\s+display))\b")
 # pfSense y OPNsense: shell de FreeBSD (ifconfig o sysctl con argumentos de cambio, o pfctl fuera de «-s», son cambios)
 _QUERY["pfsense"] = _QUERY["opnsense"] = (
     r"(ls|cat|ifconfig(\s+-a)?(\s+[\w.]+)?\s*$|netstat|sockstat|pfctl\s+-v*s|arp\s+-an?\s*$|df|uptime|tail|head|grep|"
@@ -148,6 +158,7 @@ _DANGER = {
     "linux": r"^\s*(sudo\s+)?(reboot|shutdown|halt|poweroff|init\s+[06]|rm\s+-rf?\s+/)",
     "generic": r"^\s*(reload|reboot|shutdown|halt|erase|format|factory)",
 }
+_DANGER["fortios"] = r"^\s*execute\s+(reboot|shutdown|factory-reset|factory-reset2|formatlogdisk|erase-disk|restore\s)"
 _DANGER["pfsense"] = _DANGER["opnsense"] = (r"^\s*(reboot|shutdown|halt|poweroff|rm\s+-rf?\s+/|pfctl\s+-(d|F\s*all)\b|"
                                            r"opnsense-(update|revert)|/etc/rc\.reload_all)")
 DANGER_WHY = {

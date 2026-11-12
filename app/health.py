@@ -15,7 +15,7 @@ from datetime import timedelta
 from sqlalchemy import select
 
 from . import eol
-from .db import ChangeRequest, ComplianceResult, Device, SessionLocal, Vulnerability, now
+from .db import ChangeRequest, ComplianceResult, Device, Rule, SessionLocal, Vulnerability, now
 from .errors import short_error
 from .i18n import N_, _, _f
 
@@ -33,13 +33,15 @@ def summary(scope: set[int] | None, is_admin: bool = False, server: dict | None 
     with SessionLocal() as db:
         devs = [d for d in db.scalars(select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)) if _in(scope, d.id) and d.enabled]
         ids = {d.id for d in devs}
-        results = [r for r in db.scalars(select(ComplianceResult)) if r.device_id in ids]
+        # solo las columnas que hacen falta (con miles de resultados, cargar cada fila y su regla era lo lento)
+        results = [r for r in db.execute(select(ComplianceResult.device_id, ComplianceResult.passed, Rule.severity)
+                                         .outerjoin(Rule, Rule.id == ComplianceResult.rule_id)) if r.device_id in ids]
         fails = defaultdict(list)
         for r in results:
             if not r.passed:
-                fails[r.device_id].append(r.rule.severity if r.rule else "major")
-        vulns = [v for v in db.scalars(select(Vulnerability).where(Vulnerability.severity.in_(["CRITICAL", "HIGH"])))
-                 if v.device_id in ids]
+                fails[r.device_id].append(r.severity or "major")
+        vulns = [v for v in db.execute(select(Vulnerability.device_id, Vulnerability.cve_id, Vulnerability.severity)
+                                       .where(Vulnerability.severity.in_(["CRITICAL", "HIGH"]))) if v.device_id in ids]
         vuln_devs = {v.device_id for v in vulns}
         crit_cves = len({v.cve_id for v in vulns if v.severity == "CRITICAL"})
         pending = sum(1 for _c in db.scalars(select(ChangeRequest.id).where(ChangeRequest.status == "pending")))

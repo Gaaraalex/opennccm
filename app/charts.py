@@ -106,52 +106,6 @@ def columns(data: list[tuple[str, float]], unit: str = "", height: int = 220, la
     return "".join(parts)
 
 
-# --------------------------------------------------------------------------- columnas apiladas (identidad)
-def stacked_columns(axis: list[str], series: list[tuple[str, str, list[float]]], unit: str = " cambios",
-                    height: int = 250, label_every: int = 5, width: int = 1180) -> str:
-    """Columnas apiladas por categoría. series: [(etiqueta, clase css c1…c4, valores por día)]."""
-    totals = [sum(s[2][i] for s in series) for i in range(len(axis))]
-    if not axis or not any(totals):
-        return _empty()
-    left, top, bottom = 36, 12, 28
-    w_plot = width - left - 4
-    h_plot = height - top - bottom
-    vmax = _nice_max(max(totals))
-    n = len(axis)
-    slot = w_plot / n
-    bw = max(3.0, min(34.0, slot * 0.7))
-    gap = 2 if bw >= 6 else 1
-    summary = _f("{0} en total; máximo {1} en un día", f"{_num(sum(totals))}{_unit(sum(totals), unit)}",
-                 _num(max(totals)))
-    parts = [f'<svg class="viz" viewBox="0 0 {left + w_plot + 4} {height}" role="img" aria-label="{_attr(summary)}" '
-             f'preserveAspectRatio="xMidYMid meet">']
-    _grid(parts, left, top, w_plot, h_plot, vmax)
-    for i, label in enumerate(axis):
-        x = left + i * slot + (slot - bw) / 2
-        tip = [f"{label} · {_num(totals[i])}{_unit(totals[i], unit)}"]
-        segs = [(lbl, cls, vals[i]) for lbl, cls, vals in series if vals[i] > 0]
-        tip += [f"{lbl}: {_num(v)}" for lbl, _c, v in segs]
-        parts.append(f'<g class="mark" data-tip="{_attr(chr(10).join(tip))}"><rect class="hit" '
-                     f'x="{left + i * slot:.1f}" y="{top}" width="{slot:.1f}" height="{h_plot}"/>')
-        base = top + h_plot
-        for j, (_lbl, cls, v) in enumerate(segs):
-            h = h_plot * v / vmax
-            last = j == len(segs) - 1
-            hh = max(h - (0 if last else gap), 1)  # separación de 2 px entre segmentos
-            if last:
-                parts.append(f'<path class="seg {cls}" d="{_bar_v(x, base - h, bw, h)}"/>')
-            else:
-                parts.append(f'<rect class="seg {cls}" x="{x:.1f}" y="{base - h + (h - hh):.1f}" width="{bw:.1f}" '
-                             f'height="{hh:.1f}"/>')
-            base -= h
-        parts.append("</g>")
-        if i % label_every == 0 or i == n - 1:
-            parts.append(f'<text class="tick" x="{x + bw / 2:.1f}" y="{height - 8}" text-anchor="middle">'
-                         f"{escape(label)}</text>")
-    parts.append("</svg>")
-    return "".join(parts)
-
-
 # --------------------------------------------------------------------------- anillo (parte del todo)
 def donut(parts_in: list[tuple[str, str, float]], center_label: str, unit: str = " cambios") -> str:
     """Anillo con el total en el centro. parts_in: [(etiqueta, clase c1…c4, valor)]. Incluye leyenda con valores."""
@@ -184,52 +138,6 @@ def donut(parts_in: list[tuple[str, str, float]], center_label: str, unit: str =
                    f'<small>{100 * v / total:.0f}%</small></li>')
     out.append("</ul></div>")
     return "".join(out)
-
-
-# --------------------------------------------------------------------------- mapa de calor (magnitud)
-def heatmap(matrix: list[list[int]], rows: list[str], unit: str = " cambios") -> str:
-    """Matriz día de la semana × hora con un solo tono (más oscuro = más cambios)."""
-    vmax = max((v for row in matrix for v in row), default=0)
-    if not vmax:
-        return _empty()
-    cw, ch, gap, left, top = 24, 22, 3, 40, 4
-    width = left + 24 * cw + 4
-    height = top + len(rows) * ch + 26
-    out = [f'<svg class="viz heat" viewBox="0 0 {width} {height}" role="img" '
-           f'aria-label="{_attr(_("Cambios por día de la semana y hora"))}" preserveAspectRatio="xMidYMid meet">']
-    for r, (name, row) in enumerate(zip(rows, matrix)):
-        y = top + r * ch
-        out.append(f'<text class="tick" x="{left - 8}" y="{y + ch / 2 + 4:.1f}" text-anchor="end">{escape(name[:3])}</text>')
-        for h, v in enumerate(row):
-            x = left + h * cw
-            tip = f"{name} {h:02d}:00–{(h + 1) % 24:02d}:00 · {_num(v)}{_unit(v, unit)}"
-            if v:
-                level = 0.18 + 0.82 * (v / vmax) ** 0.7  # escala suave: los valores bajos siguen viéndose
-                out.append(f'<rect class="cell" data-tip="{_attr(tip)}" x="{x:.1f}" y="{y:.1f}" width="{cw - gap}" '
-                           f'height="{ch - gap}" rx="4" fill-opacity="{level:.2f}"/>')
-            else:
-                out.append(f'<rect class="cell0" data-tip="{_attr(tip)}" x="{x:.1f}" y="{y:.1f}" width="{cw - gap}" '
-                           f'height="{ch - gap}" rx="4"/>')
-    for h in range(0, 24, 3):
-        out.append(f'<text class="tick" x="{left + h * cw + (cw - gap) / 2:.1f}" y="{height - 6}" '
-                   f'text-anchor="middle">{h:02d}h</text>')
-    out.append("</svg>")
-    scale = "".join(f'<i style="opacity:{o}"></i>' for o in (0.18, 0.4, 0.62, 0.82, 1))
-    out.append(f'<div class="heat-legend small muted">{escape(_("menos"))} <span class="steps">{scale}</span> '
-               f'{escape(_("más"))} · {escape(_f("máximo {0} en una hora", _num(vmax)))}</div>')
-    return "".join(out)
-
-
-# --------------------------------------------------------------------------- KPI: minigráfica y anillo de estado
-def sparkline(values: list[float], width: int = 120, height: int = 34) -> str:
-    if len(values) < 2 or not any(values):
-        return ""
-    vmax = max(values) or 1
-    step = width / (len(values) - 1)
-    pts = [(i * step, height - 3 - (height - 6) * v / vmax) for i, v in enumerate(values)]
-    d = " ".join(f"{'M' if i == 0 else 'L'}{x:.1f},{y:.1f}" for i, (x, y) in enumerate(pts))
-    return (f'<svg class="spark" viewBox="0 0 {width} {height}" aria-hidden="true" preserveAspectRatio="none">'
-            f'<path class="area" d="{d} L{width},{height} L0,{height} Z"/><path class="line" d="{d}"/></svg>')
 
 
 def status_of(pct: float) -> tuple[str, str]:
@@ -288,24 +196,6 @@ def bars(data: list[tuple[str, float]], unit: str = "", vmax: float | None = Non
                      f'y="{y + 16}">{escape(val)}</text></g>{close_a}')
     parts.append("</svg>")
     return "".join(parts)
-
-
-def segmented(parts_in: list[tuple[str, str, float]], unit: str = " equipos") -> str:
-    """Una barra al 100 % dividida por estado (ciclo de vida) con leyenda; cada estado tiene su icono en la leyenda."""
-    total = sum(v for *_x, v in parts_in)
-    if not total:
-        return _empty()
-    out = ['<div class="segbar" role="img" aria-label="'
-           + _attr(", ".join(f"{lbl}: {_num(v)}" for lbl, _c, v in parts_in)) + '">']
-    for lbl, cls, v in parts_in:
-        if v:
-            out.append(f'<i class="{cls}" style="flex:{v}" data-tip="{_attr(f"{lbl}: {_num(v)}{_unit(v, unit)}")}"></i>')
-    out.append('</div><ul class="legend">')
-    for lbl, cls, v in parts_in:
-        out.append(f'<li><i class="lg-sw {cls}"></i><span>{escape(lbl)}</span><b>{_num(v)}</b>'
-                   f'<small>{100 * v / total:.0f}%</small></li>')
-    out.append("</ul>")
-    return "".join(out)
 
 
 # --------------------------------------------------------------------------- línea (rendimiento del servidor)

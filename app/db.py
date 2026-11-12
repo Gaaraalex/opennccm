@@ -1,6 +1,8 @@
+"""Base de datos: motor (SQLite con WAL o PostgreSQL), modelos de SQLAlchemy de todas las tablas, migración al
+actualizar (columnas e índices nuevos) y ajustes guardados (get_setting / set_setting, cifrados los secretos)."""
 from datetime import datetime
 
-from sqlalchemy import (Boolean, DateTime, Float, ForeignKey, Integer, String, Text, create_engine,
+from sqlalchemy import (Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, create_engine,
                         event, select)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
@@ -172,6 +174,10 @@ class Device(Base):
 
 class ConfigVersion(Base):
     __tablename__ = "config_versions"
+    # índices que «cubren» las consultas de conteo (panel, analítica, línea de tiempo): sin ellos, SQLite tiene que
+    # leer cada fila entera, con el texto de la configuración, para llegar a la fecha
+    __table_args__ = (Index("ix_cv_kind_created", "kind", "created_at", "device_id", "trigger", "username"),
+                      Index("ix_cv_device_kind", "device_id", "kind", "id"))
     id: Mapped[int] = mapped_column(primary_key=True)
     device_id: Mapped[int] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"), index=True)
     kind: Mapped[str] = mapped_column(String(16), default="running")  # running | startup
@@ -226,6 +232,7 @@ class Rule(Base):
 
 class ComplianceResult(Base):
     __tablename__ = "compliance_results"
+    __table_args__ = (Index("ix_cr_policy_passed", "policy_id", "passed", "device_id"),)
     id: Mapped[int] = mapped_column(primary_key=True)
     device_id: Mapped[int] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"), index=True)
     policy_id: Mapped[int] = mapped_column(ForeignKey("policies.id", ondelete="CASCADE"))
@@ -285,6 +292,9 @@ class Schedule(Base):
 
 class Event(Base):
     __tablename__ = "events"
+    # (por «id» y no por fecha: las listas de alarmas van de la más nueva a la más vieja por «id»)
+    __table_args__ = (Index("ix_events_ack_id", "acknowledged", "id", "severity", "category", "device_id"),
+                      Index("ix_events_device", "device_id", "id"))
     id: Mapped[int] = mapped_column(primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now, index=True)
     severity: Mapped[str] = mapped_column(String(16), default="info")  # info|warning|major|critical
@@ -307,6 +317,7 @@ class AuditLog(Base):
 
 class Vulnerability(Base):
     __tablename__ = "vulnerabilities"
+    __table_args__ = (Index("ix_vulns_severity", "severity", "device_id"),)
     id: Mapped[int] = mapped_column(primary_key=True)
     device_id: Mapped[int] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"), index=True)
     cve_id: Mapped[str] = mapped_column(String(32))
@@ -600,6 +611,7 @@ SECRET_SETTINGS = {"git_token", "smtp_password", "cisco_api_secret", "dr_remote_
 def init_db():
     Base.metadata.create_all(engine)
     _add_missing_columns()
+    _add_missing_indexes()
     _migrate_themes()
 
 
@@ -637,6 +649,13 @@ def _add_missing_columns():
                 elif isinstance(default, (int, str)):
                     ddl += f" DEFAULT '{default}'" if isinstance(default, str) else f" DEFAULT {default}"
                 conn.execute(text(ddl))
+
+
+def _add_missing_indexes():
+    """Al actualizar: crea los índices nuevos en tablas que ya existían («create_all» solo los crea con la tabla)."""
+    for table in Base.metadata.sorted_tables:
+        for ix in table.indexes:
+            ix.create(engine, checkfirst=True)
 
 
 def get_setting(key: str, default: str = "") -> str:

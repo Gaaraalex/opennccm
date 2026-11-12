@@ -405,6 +405,19 @@ def latest_version(db, device_id: int, kind="running") -> ConfigVersion | None:
                       .order_by(ConfigVersion.id.desc()).limit(1)).first()
 
 
+def latest_versions(db, device_ids=None, kind="running") -> dict[int, ConfigVersion]:
+    """La última versión de muchos equipos en una sola consulta ({equipo: versión}); «device_ids» None: de todos.
+    Para las páginas que recorren todos los equipos (búsqueda, IPAM): una consulta por equipo era lo lento."""
+    from sqlalchemy import func
+    last = select(func.max(ConfigVersion.id)).where(ConfigVersion.kind == kind).group_by(ConfigVersion.device_id)
+    if device_ids is not None:
+        ids = list(device_ids)
+        if not ids:
+            return {}
+        last = last.where(ConfigVersion.device_id.in_(ids))
+    return {v.device_id: v for v in db.scalars(select(ConfigVersion).where(ConfigVersion.id.in_(last.scalar_subquery())))}
+
+
 # última línea con la que siempre termina «show running-config» en estas plataformas
 END_MARK = {"cisco_ios": "end", "cisco_xe": "end", "arista_eos": "end", "cisco_asa": ": end"}
 
@@ -864,6 +877,10 @@ def _backup_device(device_id: int, trigger: str, username: str | None, report: b
                                  username=username, label=f"equipo nuevo · serie {new_serial}"[:128] if replaced else None,
                                  fw_version=fw_now))
             result = "changed" if prev else "first"
+        elif prev is not None and not prev.fw_version and fw_now:
+            # la configuración es la misma de la última copia y esa copia es de antes de registrar el firmware: se le
+            # apunta el que se acaba de leer en esta misma conexión (las copias más viejas siguen «sin registrar»)
+            prev.fw_version = fw_now
 
         if startup is not None:
             startup = clean_config(startup, prof)
@@ -1317,10 +1334,25 @@ def apply_config(dev: Device, commands: list[str]) -> str:
             raise
         if safe:
             out += _mikrotik_safe_mode(conn, False)
-        if confirmed:
-            out += "\n" + conn.commit(confirm=True, confirm_delay=CONFIRM_MINUTES)
-        elif prof.commit:
-            out += "\n" + conn.commit()
+        try:
+            if confirmed:
+                out += "\n" + conn.commit(confirm=True, confirm_delay=CONFIRM_MINUTES)
+            elif prof.commit:
+                out += "\n" + conn.commit()
+        except Exception as e:
+            # el commit falló (p. ej. «statements constraint check failed»): lo aplicado sigue en la configuración
+            # candidata, que en Junos es la misma para todas las sesiones, y el siguiente cambio de cualquiera lo
+            # arrastraba y fallaba igual (vQFX 19.4: la receta «Cambiar el nombre» tras una restauración fallida).
+            # Se descarta antes de avisar.
+            discard = DISCARD.get(prof.key)
+            note = "NO se hizo commit"
+            if discard:
+                try:
+                    conn.send_command(discard, expect_string=PROMPT_END, read_timeout=60, cmd_verify=False)
+                    note += f" y se descartaron los cambios pendientes («{discard}»)"
+                except Exception:  # noqa: BLE001
+                    note += "; revise la configuración candidata del equipo"
+            raise RuntimeError(f"{e}\n\n{note}.") from e
         if prof.commit:
             try:
                 conn.exit_config_mode()

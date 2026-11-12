@@ -61,9 +61,3 @@ def put(kind: str, oid: int, version: str) -> str:
     d[str(oid)] = v  # vacío: quitado (también el sello de fábrica)
     set_setting(KINDS[kind], json.dumps(d, ensure_ascii=False))
     return v
-
-
-def ver_num(s: str) -> str:
-    """«VOSS 9.3.0.0» y «9.3.0.0» son la misma versión."""
-    m = re.search(r"\d+(?:\.\d+)+", s or "")
-    return m.group(0) if m else (s or "").strip()

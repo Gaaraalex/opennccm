@@ -289,6 +289,30 @@ async def multi(request: Request):
 
 
 _CONFIG_WRAP = re.compile(r"^\s*(enable|configure terminal|conf t|configure|end|system-view|return|commit)\s*$", re.I)
+# bloque de FortiOS («config system global» … «end»): ahí «end» no es salir del modo configuración, es lo que aplica
+# el bloque. Antes se quitaba como los demás y ningún cambio de FortiGate se aplicaba, aunque la solicitud terminaba
+# «bien» (visto en un FortiGate-VM 7.4.2 con «Cambiar el nombre»: quedaba «G-1 (global) #» y se cerraba la sesión)
+_FORTI_BLOCK = re.compile(r"^\s*config\s+(?!t\s*$|terminal\s*$)\S", re.I)
+_END = re.compile(r"^\s*end\s*$", re.I)
+
+
+def strip_wrappers(text) -> str:
+    """Quita las líneas que entran y salen del modo configuración (OpenNCCM ya entra, guarda o hace commit), menos el
+    «end» que cierra un bloque «config …» de FortiOS."""
+    out, depth = [], 0
+    for x in str(text or "").splitlines():
+        if not x.strip():
+            continue
+        if _FORTI_BLOCK.match(x):
+            depth += 1
+        elif depth and _END.match(x):
+            depth -= 1
+            out.append(x)
+            continue
+        if _CONFIG_WRAP.match(x):
+            continue
+        out.append(x)
+    return "\n".join(out)
 
 
 @router.post("/console/change-request")
@@ -299,7 +323,7 @@ async def change_request(request: Request):
     ids = [int(x) for x in data.get("device_ids") or []][:200]
     for i in ids:
         check_device(user, i)
-    body = "\n".join(x for x in str(data.get("body") or "").splitlines() if x.strip() and not _CONFIG_WRAP.match(x))
+    body = strip_wrappers(data.get("body"))
     if not ids or not body:
         return JSONResponse({"error": _("Elija equipos y escriba los comandos.")}, 400)
     from .main import _create_cr

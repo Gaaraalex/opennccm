@@ -261,46 +261,6 @@ def _mikrotik(raw: str) -> list[dict]:
 _PHYS = re.compile(r"(?i)^(Gi|Fa|Te|Tw|Twe|Fo|Hu|Et|Eth|Fi|Ap|Mg)\S*\d")
 
 
-def _speed(v: str) -> str:
-    v = (v or "").lower().removeprefix("a-")
-    m = re.match(r"^(\d+(?:\.\d+)?)(g?)$", v)
-    if not m:
-        return ""
-    n = float(m.group(1)) * (1000 if m.group(2) else 1)
-    return f"{n / 1000:g} Gbps" if n >= 1000 else f"{n:g} Mbps"
-
-
-def _ios_status(text: str) -> list[dict]:
-    lines = text.splitlines()
-    head = next((i for i, l in enumerate(lines) if re.match(r"^\s*Port\s+Name\s+Status\s+Vlan", l)), None)
-    if head is None:
-        return []
-    h = lines[head]
-    cols = [h.index(c) for c in ("Name", "Status", "Vlan", "Duplex", "Speed", "Type")]
-    ports = []
-    for l in lines[head + 1:]:
-        if not _PHYS.match(l):
-            continue
-        name = l[:cols[0]].strip()
-        desc = l[cols[0]:cols[1]].strip()
-        rest = l[cols[1]:].split(None, 4)
-        if len(rest) < 4:
-            continue
-        status, vlan, _dup, speed = rest[:4]
-        typ = rest[4].strip() if len(rest) > 4 else ""
-        sfp = bool(re.search(r"(?i)sfp|base-?[lszecb]x|not present|gbic|xfp|qsfp", typ)) or _is_sfp_name(name)
-        if status == "disabled":
-            s = "off"
-        elif re.search(r"(?i)not present", typ) or status.lower() == "sfpabsent":
-            s = "empty"
-        else:
-            s = "up" if status == "connected" else "down"
-        net = "trunk" if vlan == "trunk" else (f"VLAN {vlan}" if vlan.isdigit() else "")
-        ports.append({"n": name, "k": "sfp" if sfp else "cu", "s": s, "sp": _speed(speed) if s == "up" else "",
-                      "d": desc, "net": net, "mod": typ if sfp and s != "empty" else "", "st": l.strip()})
-    return ports
-
-
 # --------------------------------------------------------------------------- ASA / FTD «show interface ip brief»
 _ASA = re.compile(r"^(\S+)\s+(\S+)\s+(?:YES|NO)\s+\S+\s+(administratively down|up|down|deleted)\s+(up|down)\s*$")
 
