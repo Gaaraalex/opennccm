@@ -164,6 +164,11 @@ VERIFIED = {
     # WatchGuard Firebox T40 con Fireware 12.8.1 (equipo físico), 3 rondas seguidas sin fallos, 2026-11-09
     **{f"fireware-{t}": "Fireware 12.8.1" for t in ("hostname", "ntp", "version", "ports", "routes", "arp", "logs", "sessions",
                                                     "users", "cpu", "ping", "trace")},
+    # Fortinet FortiGate-VM 7.4.2 (GNS3), 3 rondas seguidas sin fallos, 2026-11-12
+    "fos-access": "FortiOS 7.4.2", "fos-address": "FortiOS 7.4.2", "fos-admin": "FortiOS 7.4.2",
+    "fos-ha": "FortiOS 7.4.2", "fos-hostname": "FortiOS 7.4.2", "fos-ntp": "FortiOS 7.4.2",
+    "fos-ports": "FortiOS 7.4.2", "fos-route": "FortiOS 7.4.2", "fos-sniffer": "FortiOS 7.4.2",
+    "fos-snmp": "FortiOS 7.4.2", "fos-status": "FortiOS 7.4.2", "fos-syslog": "FortiOS 7.4.2",
 }
 
 

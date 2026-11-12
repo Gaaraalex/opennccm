@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.36.0<br>Para administradores y operadores de red<br>Noviembre de 2026</div>
+  <div class="meta">Versión del software: 2.37.0<br>Para administradores y operadores de red<br>Noviembre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -523,7 +523,8 @@ aviso de cambio aclara que la diferencia es contra el aparato anterior. Al equip
 leída en el mismo respaldo (del inventario, o de la propia configuración: «! System Version» en un EdgeSwitch, la cabecera de
 RouterOS, «version …» en Cisco y Junos). Se ve como una etiqueta en cada versión de la línea de tiempo, en el inventario
 (último respaldo y línea base) y en la versión abierta, donde se resalta la línea de la que sale: <b>azul</b> si es la misma que
-tiene hoy el equipo, <b>ámbar</b> si es otra y <b>«sin registrar»</b> en las copias de antes de la 2.36.0. Cuando el equipo cambió
+tiene hoy el equipo, <b>ámbar</b> si es otra y <b>«sin registrar»</b> en las copias de antes de la 2.36.0 (si un respaldo encuentra
+la configuración igual, la última copia «sin registrar» recibe la versión leída en ese respaldo). Cuando el equipo cambió
 de firmware entre dos copias, la línea de tiempo lo marca («Firmware actualizado: v1.10.0 → v1.11.1 · entre v2 y v3»). Una
 versión de otro firmware avisa antes de revertir a ella, y al comparar dos copias de firmware distinto las diferencias que
 trajo la actualización salen en ámbar con «por el firmware». El archivo descargado lleva la versión en el nombre
