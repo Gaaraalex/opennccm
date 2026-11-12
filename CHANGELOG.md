@@ -28,6 +28,9 @@
 - [mejora] **Recetas verificadas en switches Juniper:** Las 10 recetas de Junos pasaron 3 rondas seguidas sin fallos en un
   vQFX 19.4R1.10 (las 9 que ya estaban verificadas en Junos 14.1 suman esa versión; «Crear una VLAN y poner un puerto de
   acceso» queda verificada por primera vez).
+- [arreglo] **Consola: el aviso «cambio detectado» en su lugar:** Si un cambio se escribía justo después de un comando
+  bloqueado (modo solo lectura), el aviso verde podía salir antes del comando, en el prompt anterior. Ahora espera a que el
+  equipo repita el comando.
 - [nuevo] **Guía del desarrollador:** docs/desarrollo (y en PDF, docs/OpenNCCM-Guia-del-desarrollador.pdf): arquitectura,
   mapa del código, datos y migraciones, cómo agregar una plataforma, interfaz, API, pruebas, laboratorio, publicación y
   rendimiento, para continuar el proyecto.

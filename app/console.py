@@ -441,6 +441,10 @@ async def console_ws(ws: WebSocket, dev_id: int):
     quiet = [False]       # se está apagando el paginado: no se muestra su respuesta
     backup_timer: list[threading.Timer | None] = [None]
     pending_note: list[str | None] = [None]  # aviso de cambio: se muestra cuando el equipo vuelve a dar el prompt
+    # …el prompt de DESPUÉS del comando: hasta ver su eco no vale cualquier prompt. Si el comando llegaba antes de que el
+    # equipo contestara la línea anterior (p. ej. la línea en blanco tras un comando bloqueado en solo lectura), el aviso
+    # salía en ese prompt viejo, antes del comando (visto en la CI, Ubuntu 22.04)
+    note_echo: list = [None, "", 0.0]  # [inicio del comando, lo leído desde que se mandó, cuándo]
 
     def show(text: str):
         if v2:
@@ -460,9 +464,10 @@ async def console_ws(ws: WebSocket, dev_id: int):
             bridge.send(note(text, kind))
         rec.add("n", text)
 
-    def changed():
+    def changed(cmd: str = ""):
         """Un comando cambió la configuración: aviso en verde y respaldo en cola (se agrupan los de 20 s)."""
         from . import services
+        note_echo[:] = [cmd.strip()[:20] or None, "", time.time()]
         if backup_timer[0] is None:
             pending_note[0] = _f("# OpenNCCM: cambio detectado en {0} · respaldo v{1} en cola · se puede revertir", name,
                                  _next_version(dev_id))
@@ -504,7 +509,11 @@ async def console_ws(ws: WebSocket, dev_id: int):
                             text = "\r" + plain(tail).rsplit("\n", 1)[-1]  # solo el prompt, en la línea del anterior
                         else:
                             text = ""
-                    if text and pending_note[0] and re.search(r"[#>$\]]\s*$", plain(tail)) and \
+                    if text and note_echo[0]:
+                        note_echo[1] = (note_echo[1] + plain(text))[-4000:]
+                        if note_echo[0] in note_echo[1] or time.time() - note_echo[2] > 10:
+                            note_echo[0] = None
+                    if text and pending_note[0] and not note_echo[0] and re.search(r"[#>$\]]\s*$", plain(tail)) and \
                             not cc.in_config(os_key, plain(tail).rsplit("\n", 1)[-1]):
                         cut = text.rfind("\n") + 1  # la respuesta del comando, el aviso y después el prompt
                         if cut:
@@ -566,7 +575,7 @@ async def console_ws(ws: WebSocket, dev_id: int):
                 audit(user.username, "console_danger", f"{name}: {c}", addr)
         chan.send(cmd + "\n")
         if c and cc.is_change(os_key, c, dev_type) and not cc.is_danger(os_key, c, dev_type):
-            changed()
+            changed(c)
 
     threading.Thread(target=_pump, daemon=True, name=f"console-{dev_id}").start()
     try:
