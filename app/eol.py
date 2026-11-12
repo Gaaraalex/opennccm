@@ -66,12 +66,15 @@ def report(device_ids: set[int] | None = None) -> list[tuple[Device, EolEntry | 
     with SessionLocal() as db:
         entries = list(db.scalars(select(EolEntry).order_by(EolEntry.id)))
         q = select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)
-        rows = []
+        rows, memo = [], {}
         for d in db.scalars(q):
             if device_ids is not None and d.id not in device_ids:
                 continue
-            e = match_entry(d, entries)
-            rows.append((d, e, status(e)))
+            k = (d.device_type, d.model)  # muchos equipos del mismo modelo: se busca una vez por modelo
+            if k not in memo:
+                e = match_entry(d, entries)
+                memo[k] = (e, status(e))
+            rows.append((d, *memo[k]))
         return rows
 
 

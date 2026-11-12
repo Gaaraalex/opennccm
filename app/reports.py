@@ -6,7 +6,7 @@ import io
 from collections import Counter
 from datetime import timedelta
 
-from sqlalchemy import select
+from sqlalchemy import case, func, select
 
 from . import eol
 from .db import (AuditLog, ChangeRequest, ComplianceResult, ConfigVersion, Device, Policy, SessionLocal,
@@ -114,33 +114,76 @@ def email_reports(kinds: list[str], days: int = 7) -> list[str]:
                       "Se adjuntan los informes:\n" + "\n".join(lines), attachments, email_only=True)
 
 
+def _hour_key(col):
+    """La fecha y la hora de una columna como texto «AAAA-MM-DD HH», para agrupar en la base (SQLite o PostgreSQL)."""
+    from .db import engine
+    if engine.dialect.name == "sqlite":
+        return func.strftime("%Y-%m-%d %H", col)
+    return func.to_char(col, "YYYY-MM-DD HH24")
+
+
 def analytics(scope: set[int] | None, days: int = 30) -> dict:
+    """Indicadores del panel y de Analítica. Se cuentan en la base (GROUP BY) y se leen solo las columnas que hacen
+    falta: con miles de equipos y copias, traer cada copia (con su texto) para contarla era lo que más tardaba."""
     since = now() - timedelta(days=days)
+    in_scope = (lambda col: col.in_(scope)) if scope is not None else None
+
+    def scoped(stmt, col):
+        return stmt if in_scope is None else stmt.where(in_scope(col))
+    run = (ConfigVersion.kind == "running",)
     with SessionLocal() as db:
-        devs = [d for d in db.scalars(select(Device).where(Device.retired_at.is_(None))) if _in(scope, d.id)]
-        versions = [v for v in db.scalars(select(ConfigVersion).where(ConfigVersion.created_at >= since,
-                                                                      ConfigVersion.kind == "running"))
-                    if _in(scope, v.device_id)]
-        names = {d.id: d.name for d in devs}
-        per_day = Counter(v.created_at.strftime("%m-%d") for v in versions)
-        day_axis = [(now() - timedelta(days=i)).strftime("%m-%d") for i in range(days - 1, -1, -1)]
-        per_day_trigger = Counter((v.created_at.strftime("%m-%d"), v.trigger) for v in versions)
-        heat = Counter((v.created_at.weekday(), v.created_at.hour) for v in versions)
-        prev_changes = sum(1 for v in db.scalars(select(ConfigVersion).where(
-            ConfigVersion.created_at >= since - timedelta(days=days), ConfigVersion.created_at < since,
-            ConfigVersion.kind == "running")) if _in(scope, v.device_id))
-        all_res = [r for r in db.scalars(select(ComplianceResult)) if _in(scope, r.device_id)]
-        by_device = Counter(names.get(v.device_id, "?") for v in versions)
-        by_trigger = Counter(v.trigger for v in versions)
-        by_user = Counter(v.username or "—" for v in versions)
-        by_vendor = Counter(get_profile(d.device_type).vendor for d in devs)
-        by_version = Counter(f"{get_profile(d.device_type).vendor} {d.os_version}" for d in devs if d.os_version)
-        comp = []
-        for p in db.scalars(select(Policy).order_by(Policy.name)):
-            res = [r for r in db.scalars(select(ComplianceResult).where(ComplianceResult.policy_id == p.id))
-                   if _in(scope, r.device_id)]
-            if res:
-                comp.append((p.name, round(100 * sum(r.passed for r in res) / len(res)), p.id))
+        dev_rows = db.execute(scoped(select(Device.device_type, Device.os_version, func.count(Device.id),
+                                            func.sum(case((Device.startup_conflict.is_(True), 1), else_=0)),
+                                            func.sum(case((Device.baseline_drift.is_(True), 1), else_=0)))
+                                     .where(Device.retired_at.is_(None)), Device.id)
+                              .group_by(Device.device_type, Device.os_version).order_by(func.min(Device.id))).all()
+        hk = _hour_key(ConfigVersion.created_at)
+        hours = db.execute(scoped(select(hk, ConfigVersion.trigger, func.count(ConfigVersion.id))
+                                  .where(ConfigVersion.created_at >= since, *run), ConfigVersion.device_id)
+                           .group_by(hk, ConfigVersion.trigger)).all()
+        per_dev = db.execute(scoped(select(ConfigVersion.device_id, func.count(ConfigVersion.id))
+                                    .where(ConfigVersion.created_at >= since, *run), ConfigVersion.device_id)
+                             .group_by(ConfigVersion.device_id)).all()
+        per_user = db.execute(scoped(select(ConfigVersion.username, func.count(ConfigVersion.id))
+                                     .where(ConfigVersion.created_at >= since, *run), ConfigVersion.device_id)
+                              .group_by(ConfigVersion.username)).all()
+        prev_changes = db.scalar(scoped(select(func.count(ConfigVersion.id)).where(
+            ConfigVersion.created_at >= since - timedelta(days=days), ConfigVersion.created_at < since, *run),
+            ConfigVersion.device_id)) or 0
+        res_rows = db.execute(scoped(select(ComplianceResult.policy_id, ComplianceResult.passed, func.count(ComplianceResult.id)),
+                                     ComplianceResult.device_id)
+                              .group_by(ComplianceResult.policy_id, ComplianceResult.passed)).all()
+        top_ids = [i for i, _n in sorted(per_dev, key=lambda r: -r[1])[:10]]
+        names = {i: n for i, n in db.execute(select(Device.id, Device.name).where(Device.id.in_(top_ids)))} if top_ids else {}
+        per_policy: dict[int, list[int]] = {}
+        for pid, passed, n in res_rows:
+            t = per_policy.setdefault(pid, [0, 0])
+            t[0] += n
+            t[1] += n if passed else 0
+        comp = [(name, round(100 * per_policy[pid][1] / per_policy[pid][0]), pid)
+                for pid, name in db.execute(select(Policy.id, Policy.name).order_by(Policy.name)) if pid in per_policy]
+    from datetime import datetime
+    per_day, per_day_trigger, heat, by_trigger, stamps = Counter(), Counter(), Counter(), Counter(), []
+    for key, trig, n in hours:
+        t = datetime.strptime(str(key), "%Y-%m-%d %H")
+        per_day[t.strftime("%m-%d")] += n
+        per_day_trigger[(t.strftime("%m-%d"), trig)] += n
+        heat[(t.weekday(), t.hour)] += n
+        by_trigger[trig] += n
+        stamps.append((t + timedelta(minutes=30), n))
+    day_axis = [(now() - timedelta(days=i)).strftime("%m-%d") for i in range(days - 1, -1, -1)]
+    by_device = Counter({names.get(i, "?"): n for i, n in per_dev if i in names})
+    by_user = Counter()
+    for u, n in per_user:
+        by_user[u or "—"] += n
+    by_vendor, by_version = Counter(), Counter()
+    for dtype, osv, n, _c, _d in dev_rows:
+        vendor = get_profile(dtype).vendor
+        by_vendor[vendor] += n
+        if osv:
+            by_version[f"{vendor} {osv}"] += n
+    total_res = sum(t[0] for t in per_policy.values())
+    changes = sum(n for _k, _t, n in hours)
     eol_status = Counter(st for _, _, st in eol.report(scope))
     eol_counts = Counter({eol.STATUS_LABEL[k]: n for k, n in eol_status.items()})
     triggers = [t for t in ("manual", "scheduled", "syslog", "push") if by_trigger.get(t)]
@@ -151,24 +194,25 @@ def analytics(scope: set[int] | None, days: int = 30) -> dict:
         "by_day_trigger": [(t, [per_day_trigger.get((d, t), 0) for d in day_axis]) for t in triggers],
         "heat": [[heat.get((wd, h), 0) for h in range(24)] for wd in range(7)],
         "prev_changes": prev_changes,
-        "compliance_pct": round(100 * sum(r.passed for r in all_res) / len(all_res)) if all_res else None,
+        "compliance_pct": round(100 * sum(t[1] for t in per_policy.values()) / total_res) if total_res else None,
         "eol_status": eol_status.most_common(),
         "by_device": by_device.most_common(10), "by_trigger": by_trigger.most_common(),
         "by_user": by_user.most_common(10), "by_vendor": by_vendor.most_common(12),
         "by_version": by_version.most_common(10), "compliance": comp, "eol": eol_counts.most_common(),
-        "conflicts": sum(1 for d in devs if d.startup_conflict),
-        "drift": sum(1 for d in devs if d.baseline_drift), "total": len(devs), "changes": len(versions),
-        "devices_changed": len(by_device), "per_week": _weekly(versions, days),
+        "conflicts": sum(r[3] or 0 for r in dev_rows),
+        "drift": sum(r[4] or 0 for r in dev_rows), "total": sum(r[2] for r in dev_rows), "changes": changes,
+        "devices_changed": len(per_dev), "per_week": _weekly(stamps, days),
     }
 
 
-def _weekly(versions, days: int) -> list[int]:
-    """Cambios por tramo (8 tramos iguales del periodo), para la minigráfica del indicador «Cambios»."""
-    if not versions:
+def _weekly(stamps, days: int) -> list[int]:
+    """Cambios por tramo (8 tramos iguales del periodo), para la minigráfica del indicador «Cambios».
+    «stamps»: (hora, cuántos) ya contados en la base."""
+    if not stamps:
         return [0] * 8
     start = now() - timedelta(days=days)
     out = [0] * 8
-    for v in versions:
-        i = int((v.created_at - start).total_seconds() / (days * 86400) * 8)
-        out[max(0, min(7, i))] += 1
+    for t, n in stamps:
+        i = int((t - start).total_seconds() / (days * 86400) * 8)
+        out[max(0, min(7, i))] += n
     return out
