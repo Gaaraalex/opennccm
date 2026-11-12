@@ -6,7 +6,6 @@
 import os
 import sys
 import tempfile
-from types import SimpleNamespace
 
 tmp = tempfile.mkdtemp()
 os.environ["NCM_DATA_DIR"] = tmp
@@ -33,6 +32,24 @@ cmds = build_rollback(tgt, cur, IOS)
 check("…ni lo niega al volver atrás", cmds == ["no snmp-server location Sala"], cmds)
 cmds = build_rollback(cur, "hostname R1\nsnmp-server chassis-id SW-SALA\n", IOS)
 check("un chassis-id con valor sí se restaura", "snmp-server chassis-id SW-SALA" in cmds, cmds)
+
+
+# ASAv 9.9.2: comentarios «: …», «ASA Version …» y el «no snmp-server location» de fábrica
+asa_cur = ("ASA Version 9.9(2)\n!\nhostname K-1\nno snmp-server location\nno snmp-server contact\n"
+           ": Serial Number: 9AWUX3J\n: Hardware:   ASAv, 2048 MB RAM\n: end\n")
+asa_tgt = ("ASA Version 9.9(2)\n!\nhostname K-1\nsnmp-server location Sala\nsnmp-server contact NOC\n"
+           ": Serial Number: 9ADAMFA5C82\n: Hardware:   ASAv, 2048 MB RAM\nobject network DATOS\n subnet 10.1.0.0 255.255.255.0\n: end\n")
+cmds = build_rollback(asa_cur, asa_tgt, IOS)
+check("ASA: no manda los comentarios «: Serial Number…» ni «ASA Version»", not any(c.lstrip("no ").startswith((":", "ASA Version")) for c in cmds), cmds)
+check("ASA: «no snmp-server location» de fábrica no se niega (lo pone la línea con valor)",
+      "snmp-server location" not in cmds and "snmp-server location Sala" in cmds and "snmp-server contact NOC" in cmds, cmds)
+check("ASA: el resto se restaura", "object network DATOS" in cmds and " subnet 10.1.0.0 255.255.255.0" in cmds, cmds)
+
+from app import consolecore as cc  # noqa: E402
+check("ASA: «packet-tracer» es una consulta", cc.is_query(cc.os_of("cisco_asa"), "packet-tracer input inside tcp 10.0.0.5 1 8.8.8.8 443 detailed", "cisco_asa"))
+check("ASA: «show running-config» consulta y «write erase» corta el servicio",
+      cc.is_query("asa", "show running-config", "cisco_asa") and cc.risk("asa", "write erase", "cisco_asa") == "outage")
+check("ASA: «object network X» es un cambio", cc.is_change("asa", "object network X", "cisco_asa"))
 
 
 class FakeIos:

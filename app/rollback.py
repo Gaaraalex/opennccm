@@ -9,8 +9,10 @@ import re
 from .drivers import FASTPATH, HUAWEI, IOS, MERGE, SET
 from .i18n import N_, _, _f
 
+# (ASA: sus comentarios empiezan con «:» —«: Serial Number: …», «: Hardware: …», «: Saved», «: end»— y la versión es
+# «ASA Version 9.9(2)»; se mandaban como configuración, «no : Serial Number: …» y la restauración se detenía)
 SKIP = re.compile(
-    r"^\s*($|!|#|end$|return$|Building configuration|Current configuration|version \S+$|exit$|quit$)")
+    r"^\s*($|!|#|:|end$|return$|Building configuration|Current configuration|version \S+$|ASA Version \S+$|exit$|quit$)")
 
 
 def _blocks(text: str) -> list[tuple[str, list[str]]]:
@@ -122,6 +124,10 @@ def _hierarchical(current: str, target: str, neg: str, exit_cmd: str) -> list[st
     new_keys = {_h_key(h) for h in tgt_map if h not in cur} - {None}
     for header in cur:
         if header in tgt_map or _h_key(header) in new_keys or (neg == "no " and header in IOS_KEEP):
+            continue
+        # un «no snmp-server location» que sobra lo reemplaza la «snmp-server location …» del destino: negarlo daba
+        # «snmp-server location» sola («% Incomplete command», restaurar un ASAv recién borrado)
+        if header.startswith(neg) and any(t == header[len(neg):] or t.startswith(header[len(neg):] + " ") for t in tgt_map):
             continue
         (post if VLAN_HEADER.match(header) else out).append(_negate(header, neg))
     # 2) agregar / ajustar lo que falta

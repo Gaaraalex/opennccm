@@ -138,6 +138,9 @@ _QUERY["fortios"] = (
     r"ip\s+(arp|route|address|rtcache)\s+list|netlink\s+(interface|device)\s+list|hardware\s+(sysinfo|deviceinfo)|"
     r"debug\s+(info|crashlog\s+read)|vpn\s+(tunnel\s+list|ike\s+gateway\s+list)|firewall\s+iprope\s+list)|"
     r"execute\s+(ping|ping6|traceroute|tracert6|ping-options|dhcp\s+lease-list|log\s+display))\b")
+# Cisco ASA: «packet-tracer» solo simula un paquete (no cambia nada): antes contaba como cambio y la comprobación de la
+# receta «Simular una conexión con packet-tracer» no se podía ejecutar (ASAv 9.9.2)
+_QUERY["asa"] = r"(sh(o(w)?)?|ping|traceroute|packet-tracer|more|dir|exit|end|enable|terminal pager)\b"
 # pfSense y OPNsense: shell de FreeBSD (ifconfig o sysctl con argumentos de cambio, o pfctl fuera de «-s», son cambios)
 _QUERY["pfsense"] = _QUERY["opnsense"] = (
     r"(ls|cat|ifconfig(\s+-a)?(\s+[\w.]+)?\s*$|netstat|sockstat|pfctl\s+-v*s|arp\s+-an?\s*$|df|uptime|tail|head|grep|"
@@ -159,6 +162,7 @@ _DANGER = {
     "generic": r"^\s*(reload|reboot|shutdown|halt|erase|format|factory)",
 }
 _DANGER["fortios"] = r"^\s*execute\s+(reboot|shutdown|factory-reset|factory-reset2|formatlogdisk|erase-disk|restore\s)"
+_DANGER["asa"] = r"^\s*(reload|write\s+erase|erase\s|format\s|delete\s|configure\s+factory-default)"
 _DANGER["pfsense"] = _DANGER["opnsense"] = (r"^\s*(reboot|shutdown|halt|poweroff|rm\s+-rf?\s+/|pfctl\s+-(d|F\s*all)\b|"
                                            r"opnsense-(update|revert)|/etc/rc\.reload_all)")
 DANGER_WHY = {

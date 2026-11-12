@@ -205,7 +205,8 @@ def lines_of(text: str, device_type: str, hosts: list[str]) -> list[tuple[str, s
             if not ln.startswith((" ", "\t")):
                 parent = ""
             continue
-        if re.match(r"^(Building configuration|Current configuration|: Saved|: Written)", ln):
+        # (ASA: los comentarios empiezan con «:» —serie, hardware, «Saved»— y la versión es «ASA Version …»)
+        if re.match(r"^(Building configuration|Current configuration|:|ASA Version )", ln):
             continue
         if not ln.startswith((" ", "\t")):
             s = ln.strip()
