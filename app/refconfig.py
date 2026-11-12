@@ -364,16 +364,23 @@ def commands(device_type: str, c: dict) -> tuple[str, int]:
                 by_parent.setdefault(parent, []).append(line)
             else:
                 tops.append(line)
-    for t in dict.fromkeys(tops):  # (VOSS: «banner custom» y «banner "…"» se quitan con un solo «no banner»)
-        lines.append(t)
+    blocks = []
     for p, ch in by_parent.items():
-        lines.append(p)
-        lines += [" " + x for x in ch]
+        blocks.append(p)
+        blocks += [" " + x for x in ch]
         if os_key in ("vrp",):
-            lines.append(" quit")
-        elif device_type in EXIT_BLOCKS:
-            lines.append("exit")
-    return "\n".join(lines), skipped
+            blocks.append(" quit")
+        elif device_type in EXIT_BLOCKS or os_key == "asa":
+            blocks.append("exit")
+    # (VOSS: «banner custom» y «banner "…"» se quitan con un solo «no banner»). Un bloque que falta entero sale con
+    # sus líneas: su cabecera no se escribe también suelta
+    tops = [t for t in dict.fromkeys(tops) if t not in by_parent]
+    if os_key == "asa":
+        # ASA: no sale solo de un modo («object network …») a la línea siguiente, y «mtu puesto 1500» o «route puesto …»
+        # necesitan antes el «nameif puesto» de la interfaz: primero los bloques (cada uno con «exit»), después lo suelto.
+        # Antes salía al revés y el ASA rechazaba «mtu puesto 1500» dentro de «object network» (ASAv 9.9.2)
+        return "\n".join(blocks + tops), skipped
+    return "\n".join(tops + blocks), skipped
 
 
 def overview(user, key: str = "") -> dict:

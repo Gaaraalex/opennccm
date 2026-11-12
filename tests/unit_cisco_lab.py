@@ -45,6 +45,22 @@ check("ASA: «no snmp-server location» de fábrica no se niega (lo pone la lín
       "snmp-server location" not in cmds and "snmp-server location Sala" in cmds and "snmp-server contact NOC" in cmds, cmds)
 check("ASA: el resto se restaura", "object network DATOS" in cmds and " subnet 10.1.0.0 255.255.255.0" in cmds, cmds)
 
+from types import SimpleNamespace  # noqa: E402
+
+from app import refconfig  # noqa: E402
+
+ref = ("ASA Version 9.9(2)\nhostname K-1\ninterface GigabitEthernet0/2\n nameif puesto\n security-level 50\n"
+       " ip address 192.168.10.1 255.255.255.0\nobject network DATOS\n subnet 192.168.10.0 255.255.255.0\nmtu puesto 1500\n"
+       "route puesto 172.20.0.0 255.255.0.0 192.168.10.254 1\n: Serial Number: AAA\n")
+dev = "ASA Version 9.9(2)\nhostname K-2\ninterface GigabitEthernet0/2\n shutdown\n no nameif\n no ip address\n: Serial Number: BBB\n"
+ra = SimpleNamespace(id=1, name="K-1", device_type="cisco_asa", host="10.0.0.240", model="ASAv")
+rb = SimpleNamespace(id=2, name="K-2", device_type="cisco_asa", host="10.0.0.239", model="ASAv")
+lines = refconfig.commands("cisco_asa", refconfig.compare(ra, ref, rb, dev, {}))[0].splitlines()
+check("referencia ASA: los bloques primero, cada uno con «exit»", lines.index("mtu puesto 1500") > lines.index(" nameif puesto")
+      and lines.count("exit") == 2 and lines.index("mtu puesto 1500") > max(i for i, x in enumerate(lines) if x == "exit"), lines)
+check("referencia ASA: sin comentarios «: Serial Number»", not any(x.startswith((":", "no :")) for x in lines), lines)
+check("referencia: la cabecera de un bloque nuevo no sale también suelta", lines.count("object network DATOS") == 1, lines)
+
 from app import consolecore as cc  # noqa: E402
 check("ASA: «packet-tracer» es una consulta", cc.is_query(cc.os_of("cisco_asa"), "packet-tracer input inside tcp 10.0.0.5 1 8.8.8.8 443 detailed", "cisco_asa"))
 check("ASA: «show running-config» consulta y «write erase» corta el servicio",
