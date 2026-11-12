@@ -81,4 +81,5 @@ def file_tag(profile_label: str, vendor: str, fw: str | None) -> str:
         return ""
     words = [w for w in re.sub(r"\(.*?\)", "", profile_label or "").split() if w.lower() != (vendor or "").lower()]
     plat = re.sub(r"[^\w.-]+", "", "-".join(words[-1:])) or "fw"
-    return f"{plat}-{re.sub(r'[^\w.-]+', '', norm(fw))}"
+    ver = re.sub(r"[^\w.-]+", "", norm(fw))  # (fuera del f-string: Python 3.10 no admite «\» en sus expresiones)
+    return f"{plat}-{ver}"
