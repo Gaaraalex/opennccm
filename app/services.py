@@ -1317,6 +1317,28 @@ def _push(device_id: int, commands: list[str], exec_mode: bool) -> str:
         return apply_config(dev, commands)
 
 
+# Cisco IOS / IOS-XE: «write memory» pide confirmar si la configuración guardada es de otra versión del sistema
+# («Overwrite the previous NVRAM configuration?[confirm]»: la primera vez tras actualizar el firmware). netmiko esperaba
+# el prompt, la solicitud fallaba por tiempo y el cambio quedaba aplicado sin guardar (visto en un 7200 15.3(3)XB12).
+SAVE_CONFIRM = {"cisco_ios", "cisco_xe", "cisco_ios_telnet", "cisco_xe_telnet"}
+
+
+def save_config(conn, prof) -> str:
+    """Guarda la configuración tras un cambio y, en IOS, contesta la confirmación de «write memory» (solo confirma ESE
+    guardado). Plataformas sin «save_config» en netmiko: nada."""
+    if prof.key in SAVE_CONFIRM:
+        out = conn.send_command("write memory", expect_string=r"(\[confirm\]|\[OK\]|[#>]\s*$)", read_timeout=180,
+                                strip_prompt=False, strip_command=False, cmd_verify=False)
+        if re.search(r"\[confirm\]\s*$", out):
+            out += conn.send_command("\n", expect_string=r"(\[OK\]|[#>]\s*$)", read_timeout=180, strip_prompt=False,
+                                     cmd_verify=False)
+        return out
+    try:
+        return conn.save_config()
+    except (NotImplementedError, AttributeError):
+        return ""
+
+
 def apply_config(dev: Device, commands: list[str]) -> str:
     """Aplica comandos de configuración con la red de seguridad del equipo (modo seguro, commit confirmed), se detiene
     en el primero que el equipo rechace y guarda. «dev» puede ser un equipo que no está en OpenNCCM (restaurar una
@@ -1359,10 +1381,7 @@ def apply_config(dev: Device, commands: list[str]) -> str:
             except Exception:  # noqa: BLE001
                 pass
         if prof.save and not confirmed:
-            try:
-                out += "\n" + conn.save_config()
-            except (NotImplementedError, AttributeError):
-                pass
+            out += "\n" + save_config(conn, prof)
     if confirmed:
         # volver a entrar demuestra que el cambio no cortó el acceso; entonces se confirma
         try:

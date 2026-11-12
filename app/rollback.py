@@ -84,8 +84,10 @@ def _hw_spec(ids: set[int]) -> str:
 
 # Lo propio de cada equipo Cisco, que no se copia ni se borra al restaurar (en otro equipo, o en el mismo tras borrarlo):
 # su certificado autofirmado («crypto pki trustpoint/certificate chain TP-self-signed-<n.º>», borrarlo pide confirmar
-# y se detenía la restauración), la licencia con su serie y el client-id de DHCP con la serie (CSR1000v en GNS3)
-IOS_OWN = re.compile(r"^(crypto pki (trustpoint|certificate chain) TP-self-signed-|license udi )")
+# y se detenía la restauración), la licencia con su serie y el client-id de DHCP con la serie (CSR1000v en GNS3).
+# Tampoco «snmp-server chassis-id» sin valor: IOS 15.6 (IOSv) lo muestra así en cuanto hay otra línea de SNMP, pero no
+# se puede escribir («% Incomplete command») y la restauración se detenía en esa línea
+IOS_OWN = re.compile(r"^(crypto pki (trustpoint|certificate chain) TP-self-signed-|license udi |snmp-server chassis-id\s*$)")
 # lo que IOS no deja quitar: «no aaa new-model» responde «Changing configuration back to no aaa new-model is not
 # supported. Continue?[confirm]» y la restauración se detenía ahí
 IOS_KEEP = {"aaa new-model", "aaa session-id common"}  # (la segunda la pone IOS con la primera: «Cannot negate a default configuration»)
