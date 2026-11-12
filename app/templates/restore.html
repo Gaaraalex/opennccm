@@ -62,7 +62,7 @@
   {% elif can_cmd %}
   <section class="card"><div class="card-h"><h2>{{ _('¿Dónde restaurar?') }}</h2></div>
     <div class="rs-opts" role="radiogroup" aria-label="{{ _('Destino') }}">
-      <label class="rs-opt"><input type="radio" name="rs-mode" value="device" {{ 'checked' if others }} {{ 'disabled' if not others }}><div><b>{{ _('Otro equipo de OpenNCCM') }}</b><span>{{ _f('{0} equipos {1} con su credencial', others|length, profile.label) }}</span></div></label>
+      <label class="rs-opt"><input type="radio" name="rs-mode" value="device" {{ 'checked' if others }} {{ 'disabled' if not others }}><div><b>{{ _('Otro equipo de OpenNCCM') }}</b><span>{{ pl(others|length, '{0} equipo {1} con su credencial', '{0} equipos {1} con su credencial', profile.label) }}</span></div></label>
       <label class="rs-opt"><input type="radio" name="rs-mode" value="ssh" {{ 'checked' if not others }}><div><b>{{ _('Equipo nuevo por IP (SSH)') }}</b><span>{{ _('Su IP de administración, usuario y contraseña') }}</span></div></label>
       <label class="rs-opt"><input type="radio" name="rs-mode" value="serial" {{ 'disabled' if not serial_ok }}><div><b>{{ _('Cable de consola (puerto serie)') }}</b><span>{{ _('Conectado a este PC; con Chrome o Edge') if serial_ok else _f('No disponible para {0}', profile.label) }}</span></div></label>
     </div>

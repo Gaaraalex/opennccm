@@ -7,7 +7,7 @@
   var ic = function (n) { return '<svg class="ico s" aria-hidden="true"><use href="/static/icons.svg#i-' + n + '"/></svg>'; };
   var vlogo = function (k, px) {
     return '<svg class="vlg" width="' + px + '" height="' + px + '" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="'
-      + esc(((window.OC && OC.vl) || '/static/vendor-logos.svg') + '#vl-' + (k || 'other')) + '"/></svg>';
+      + esc(((window.OC && OC.vl) || '/static/vendor-logos.svg') + '#vl-' + (k || 'other') + (px < 40 && window.OC && OC.vls && OC.vls.indexOf(k) >= 0 ? '-chico' : '')) + '"/></svg>';
   };
   var chev = '<svg class="ico s rc-chev" aria-hidden="true"><use href="/static/icons.svg#i-right"/></svg>';
   var st = {sel: '_mine', kind: '', id: null, more: false};

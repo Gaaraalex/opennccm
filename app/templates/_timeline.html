@@ -2,10 +2,12 @@
    en un panel lateral. Variables: tl_list (lista de dicts de la ruta), sel_a, sel_b (ids), device. #}
 <ol class="tl" data-tl="{{ device.id }}">
 {% for v in tl_list %}
+{% set pv = loop.previtem if loop.previtem is defined else none %}
+{% if pv and pv.fw and v.fw and pv.kind == v.kind and not fw_same(pv.fw, v.fw) %}<li class="tl-sep" aria-hidden="false">{{ icon('chip', 's') }}<span>{{ _f('Firmware actualizado: {0} → {1} · entre v{2} y v{3}', fw_label(v.fw), fw_label(pv.fw), v.n, pv.n) }}</span></li>{% endif %}
 <li class="{{ 'startup' if v.kind == 'startup' }} {{ 'base' if v.base }} {{ 'isA' if v.id == sel_a }} {{ 'isB' if v.id == sel_b }}" data-id="{{ v.id }}" data-n="{{ v.n }}" tabindex="0" role="button" aria-pressed="{{ 'true' if v.id in (sel_a, sel_b) else 'false' }}" aria-label="{{ _f('Versión {0}, {1}', v.n, v.when|dt) }}">
   <span class="dot"></span><span class="ver">v{{ v.n }}</span>
   <div class="row" style="gap:6px;min-width:0"><b style="font-weight:600">{{ v.src }}</b>{% if v.kind == 'startup' %}<span class="tag">startup</span>{% endif %}{% if v.base %}<span class="tag sig">línea base</span>{% endif %}{% if v.label %}<span class="tag info">{{ icon('tag', 's') }}{{ v.label }}</span>{% endif %}{% if v.inc %}<span class="tag crit">incompleta</span>{% endif %}<span class="muted sm">· {{ v.who }} · <span title="{{ v.when|dt }}">{{ v.when|ago }}</span></span></div>
-  <span class="row nowrap" style="gap:8px">{% if v.first %}<span class="delta muted">inicial</span>{% else %}<span class="delta"><span class="a">+{{ v.added }}</span> <span class="d">−{{ v.removed }}</span></span>{% endif %}
+  <span class="row nowrap" style="gap:8px">{{ fwpill(v.fw, device.os_version) }}{% if v.first %}<span class="delta muted">inicial</span>{% else %}<span class="delta"><span class="a">+{{ v.added }}</span> <span class="d">−{{ v.removed }}</span></span>{% endif %}
     {% if v.id == sel_a %}<span class="ab">A</span>{% elif v.id == sel_b %}<span class="ab">B</span>{% endif %}
     <a class="btn icon s ghost open" href="/versions/{{ v.id }}" data-sheet data-wide aria-label="{{ _f('Abrir versión {0}', v.n) }}" title="Ver, descargar, etiquetar…">{{ icon('right', 's') }}</a></span>
 </li>

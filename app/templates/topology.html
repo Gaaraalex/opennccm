@@ -183,7 +183,8 @@
                 'st': {'ok': _('Respaldo correcto'), 'error': _('Último respaldo con error'), 'pending': _('Sin respaldo todavía'),
                        'new': _('No está en OpenNCCM')},
                 'roles': roles, 'fams': fam_names, 'net': _('Red de {0} ({1} equipos)')}|tojson }};
-  const SPRITE = '/static/icons.svg?v={{ VERSION }}#', VLS = {{ VL_SPRITE|tojson }};
+  const SPRITE = '/static/icons.svg?v={{ VERSION }}#', VLS = {{ VL_SPRITE|tojson }}, VLSMALL = {{ VL_SMALL()|tojson }};
+  const vlid = (k, px) => (k || 'other') + (px < 40 && VLSMALL.includes(k) ? '-chico' : '');
   const LAYD = {{ lay|tojson }};
   const LT = {{ {'hop1': _('1 SALTO'), 'hops': _('{0} SALTOS'), 'cols': [_('ROUTERS'), _('SWITCHES'), _('INALÁMBRICOS'), _('OTROS')],
                  'core': _('Núcleo'), 'dev1': _('1 equipo'), 'devs': _('{0} equipos'), 'link1': _('1 enlace'), 'links': _('{0} enlaces'),
@@ -289,7 +290,7 @@
       mk('circle', {class: 'ring', r: 23}, ig);
       use(ig, 't-' + (n.role || 'unknown'), -12, -12, 24);
       mk('rect', {class: 'lgo-bg', x: 9, y: 7, width: 26, height: 26, rx: 8}, ig);
-      mk('use', {href: VLS + '#vl-' + (n.vl || n.fam || 'other'), x: 11, y: 9, width: 22, height: 22}, ig);
+      mk('use', {href: VLS + '#vl-' + vlid(n.vl || n.fam, 22), x: 11, y: 9, width: 22, height: 22}, ig);
       mk('rect', {class: 'lgo-edge', x: 11, y: 9, width: 22, height: 22, rx: 6}, ig);
       if (st(n) === 'error') { mk('circle', {class: 'eb', cx: -21, cy: -21, r: 10}, ig);
         const x = mk('text', {class: 'eb-t', x: -21, y: -17, 'text-anchor': 'middle'}, ig); x.textContent = '!'; }

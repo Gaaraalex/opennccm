@@ -23,6 +23,7 @@
       "vendor_en_drivers": "Cisco",
       "color": "#1BA0D7",
       "archivo": "svg/cisco.svg",
+      "archivo_chico": "svg/cisco-chico.svg",
       "origen": "si",
       "perfiles": [
         "cisco_ios",
@@ -61,6 +62,7 @@
       "vendor_en_drivers": "Juniper",
       "color": "#5E8F2E",
       "archivo": "svg/juniper.svg",
+      "archivo_chico": "svg/juniper-chico.svg",
       "origen": "si",
       "perfiles": [
         "juniper_junos",
@@ -196,6 +198,7 @@
       "vendor_en_drivers": "Dell",
       "color": "#007DB8",
       "archivo": "svg/dell.svg",
+      "archivo_chico": "svg/dell-chico.svg",
       "origen": "si",
       "perfiles": [
         "dell_os10",
@@ -221,6 +224,7 @@
       "vendor_en_drivers": "Nokia",
       "color": "#005AFF",
       "archivo": "svg/nokia.svg",
+      "archivo_chico": "svg/nokia-chico.svg",
       "origen": "si",
       "perfiles": [
         "nokia_sros",
@@ -295,6 +299,7 @@
       "vendor_en_drivers": "Zyxel",
       "color": "#1B1B1F",
       "archivo": "svg/zyxel.svg",
+      "archivo_chico": "svg/zyxel-chico.svg",
       "origen": "p",
       "perfiles": [
         "zyxel_os"
@@ -526,6 +531,7 @@
       "vendor_en_drivers": "Netgear",
       "color": "#2C262D",
       "archivo": "svg/netgear.svg",
+      "archivo_chico": "svg/netgear-chico.svg",
       "origen": "si",
       "perfiles": [
         "netgear_prosafe"
@@ -600,6 +606,7 @@
       "vendor_en_drivers": "Hitachi",
       "color": "#E60027",
       "archivo": "svg/hitachi.svg",
+      "archivo_chico": "svg/hitachi-chico.svg",
       "origen": "si",
       "perfiles": [
         "apresia_aeos"
@@ -610,6 +617,7 @@
       "vendor_en_drivers": "NEC",
       "color": "#1414A0",
       "archivo": "svg/nec.svg",
+      "archivo_chico": "svg/nec-chico.svg",
       "origen": "si",
       "perfiles": [
         "nec_ix"
@@ -690,6 +698,7 @@
       "vendor_en_drivers": "Supermicro",
       "color": "#151F6D",
       "archivo": "svg/supermicro.svg",
+      "archivo_chico": "svg/supermicro-chico.svg",
       "origen": "si",
       "perfiles": [
         "supermicro_smis"
@@ -751,6 +760,7 @@
       "vendor_en_drivers": "Siemens",
       "color": "#009999",
       "archivo": "svg/siemens.svg",
+      "archivo_chico": "svg/siemens-chico.svg",
       "origen": "si",
       "perfiles": [
         "garderos_grs"

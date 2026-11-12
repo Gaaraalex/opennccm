@@ -12,7 +12,7 @@
   // logo de marca de un equipo (app/vendorlogos.py): clave «extreme», «mikrotik»… del sprite static/vendor-logos.svg
   var vlogo = function (k, px) {
     return '<svg class="vlg" width="' + px + '" height="' + px + '" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="'
-      + esc(((window.OC && OC.vl) || '/static/vendor-logos.svg') + '#vl-' + (k || 'other')) + '"/></svg>';
+      + esc(((window.OC && OC.vl) || '/static/vendor-logos.svg') + '#vl-' + (k || 'other') + (px < 40 && window.OC && OC.vls && OC.vls.indexOf(k) >= 0 ? '-chico' : '')) + '"/></svg>';
   };
   var icon = function (n, c) { return '<svg class="ico ' + (c || '') + '" aria-hidden="true"><use href="/static/icons.svg#i-' + n + '"/></svg>'; };
   var RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -47,6 +47,13 @@
   $$('.rail .nav.on, .mobnav a.on').forEach(function (a) { a.setAttribute('aria-current', 'page'); });
 
   /* ---------- menús desplegables de la barra superior y de las páginas ---------- */
+  // si el menú no entra por un lado de la pantalla, se abre hacia el otro (alineado al otro borde del botón)
+  function fitDrop(d) {
+    d.classList.remove('flip-r', 'flip-l');
+    var r = d.getBoundingClientRect(), W = document.documentElement.clientWidth;
+    if (r.right > W - 8) d.classList.add('flip-r');
+    else if (r.left < 8) d.classList.add('flip-l');
+  }
   function closeDrops(except) {
     $$('.drop[data-open]').forEach(function (d) {
       if (d === except) return;
@@ -63,11 +70,28 @@
       closeDrops(d);
       d.hidden = !open;
       if (open) d.setAttribute('data-open', ''); else d.removeAttribute('data-open');
+      if (open) fitDrop(d);
       b.setAttribute('aria-expanded', String(open));
       if (open) { var f = $('button, a, input', d); if (f && e.detail === 0) f.focus(); }
       return;
     }
     if (!e.target.closest('.drop')) closeDrops();
+  });
+
+  // buscador dentro de un menú desplegable (Dispositivos › Marca): filtra sus opciones por el texto
+  document.addEventListener('input', function (e) {
+    var f = e.target.closest('[data-drop-filter]');
+    if (!f) return;
+    var d = f.closest('.drop'), q = f.value.trim().toLowerCase(), shown = 0;
+    $$('.drop-scroll > a', d).forEach(function (a, i) {
+      var ok = i === 0 ? !q : a.textContent.toLowerCase().indexOf(q) >= 0;  // «Todas las marcas» solo sin texto
+      a.hidden = !ok; if (ok) shown++;
+    });
+    var none = $('.drop-none', d); if (none) none.hidden = shown > 0;
+  });
+  document.addEventListener('keydown', function (e) {
+    var f = e.target.closest && e.target.closest('[data-drop-filter]');
+    if (f && e.key === 'Enter') { e.preventDefault(); var a = $$('.drop-scroll > a', f.closest('.drop')).filter(function (x) { return !x.hidden; })[0]; if (a) a.click(); }
   });
 
   /* ---------- tema y acento: se aplican al momento y se guardan en el usuario ---------- */

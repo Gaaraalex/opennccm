@@ -84,7 +84,7 @@
     {% if life %}<div class="stack" style="gap:14px">{% for r in life %}<div><div class="row between"><span><a href="/devices/{{ r.d.id }}"><b>{{ r.d.name }}</b></a> <span class="muted sm">{{ r.d.model or '' }}</span></span><span class="sm" style="color:var(--{{ 'muted' if r.cls == 'ok' else r.cls }})">{{ r.txt }}</span></div>
       <div class="meter {{ r.cls }}" style="margin-top:6px" role="meter" aria-label="{{ r.d.name }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ r.pct }}" aria-valuetext="{{ r.txt }}"><i style="width:{{ [r.pct, 2]|max }}%"></i></div></div>{% endfor %}</div>
     {% else %}<p class="muted">Ningún modelo de tus equipos coincide con la base de datos de ciclo de vida.</p>{% endif %}
-    {% if no_data %}<p class="muted sm" style="margin-top:12px">{{ _('1 equipo sin datos de ciclo de vida') if no_data == 1 else _f('{0} equipos sin datos de ciclo de vida', no_data) }}{% if is_admin %} · <a href="/eol/new" data-sheet data-title="Agregar modelo">agrega su modelo</a>{% endif %}</p>{% endif %}
+    {% if no_data %}<p class="muted sm" style="margin-top:12px">{{ _('1 equipo sin datos de ciclo de vida') if no_data == 1 else pl(no_data, '{0} equipo sin datos de ciclo de vida', '{0} equipos sin datos de ciclo de vida') }}{% if is_admin %} · <a href="/eol/new" data-sheet data-title="Agregar modelo">agrega su modelo</a>{% endif %}</p>{% endif %}
   </section>
   <section class="card flush c12"><div class="card-h"><h2>{{ _f('Base de datos de ciclo de vida ({0} modelos)', entries|length) }}</h2><div class="row">
     <a class="chip {{ 'on' if not vend }}" href="/eol#eol">Todos</a>{% for v in vendors %}<a class="chip {{ 'on' if vend == v }}" href="/eol?vend={{ v|urlencode }}#eol">{{ v }}</a>{% endfor %}</div></div>

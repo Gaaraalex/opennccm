@@ -5,7 +5,7 @@
 <div class="bento">
 {% if server %}{% set sn = server.snap %}
   <h2 class="vh">Rendimiento del servidor de OpenNCCM</h2>
-  <div class="c3"><div class="kpi static"><span class="label">CPU ahora</span><span class="v">{{ '%.0f'|format(sn.cpu) }}%</span><span class="d">{{ _f('{0} núcleos · carga {1}', sn.cpus, server.load) }}</span></div></div>
+  <div class="c3"><div class="kpi static"><span class="label">CPU ahora</span><span class="v">{{ '%.0f'|format(sn.cpu) }}%</span><span class="d">{{ pl(sn.cpus, '{0} núcleo · carga {1}', '{0} núcleos · carga {1}', server.load) }}</span></div></div>
   <div class="c3"><div class="kpi static {{ 'alert' if sn.mem_pct >= 90 }}"><span class="label">Memoria RAM</span><span class="v">{{ '%.0f'|format(sn.mem_pct) }}%</span><span class="d">{{ _f('OpenNCCM usa {0}', server.app_rss) }}</span></div></div>
   <div class="c3"><div class="kpi static {{ 'alert' if sn.disk_pct >= 90 }}"><span class="label">Disco usado</span><span class="v">{{ '%.0f'|format(sn.disk_pct) }}%</span><span class="d">{{ _f('datos de OpenNCCM: {0}', server.data_size) }}</span></div></div>
   <div class="c3"><div class="kpi static"><span class="label">Encendido desde hace</span><span class="v">{{ server.uptime }}</span><span class="d">{{ _('desde el último reinicio del servidor') }}</span></div></div>
@@ -99,7 +99,7 @@
 
   <section class="card c12"><dl class="kv">
     <dt>Base de datos</dt><dd><code>{{ db_url }}</code></dd><dt>Clave de cifrado</dt><dd><code>{{ key_file }}</code></dd>
-    <dt>Plataformas</dt><dd><a href="/vendors">{{ _f('{0} plataformas de {1} fabricantes', profiles_count, vendors_count) }}</a>
+    <dt>Plataformas</dt><dd><a href="/vendors">{{ _f('{0} de {1}', pl(profiles_count, '{0} plataforma', '{0} plataformas'), pl(vendors_count, '{0} fabricante', '{0} fabricantes')) }}</a>
       {% if unknown %} <span class="pill warn">{{ _f('la versión de Netmiko instalada no conoce: {0}', unknown|join(', ')) }}</span>{% endif %}</dd></dl></section>
 </div>
 

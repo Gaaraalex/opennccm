@@ -183,6 +183,7 @@ class ConfigVersion(Base):
     trigger: Mapped[str] = mapped_column(String(16), default="manual")  # manual|scheduled|syslog|push
     username: Mapped[str | None] = mapped_column(String(64))
     label: Mapped[str | None] = mapped_column(String(128))  # p.ej. "baseline"
+    fw_version: Mapped[str | None] = mapped_column(String(64))  # firmware del equipo en esa copia (app/fwtag.py)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now, index=True)
     device = relationship("Device", back_populates="versions")
 
