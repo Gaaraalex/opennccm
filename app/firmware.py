@@ -239,10 +239,9 @@ def _scp_boot(conn, img, fw, reload: bool, log: list) -> None:
         if re.search(r"(?im)^\s*(% ?Invalid|error)", out):
             raise RuntimeError("El equipo rechazó los comandos de arranque:\n" + out)
         log.append(out)
-        try:
-            log.append(conn.save_config())
-        except (NotImplementedError, AttributeError):
-            pass
+        # (el primer «write memory» tras cambiar de imagen pide confirmar: services.save_config lo contesta)
+        from .services import save_config
+        log.append(save_config(conn, get_profile(getattr(conn, "device_type", "") or "")))
     for c in fw.get("exec", []):
         log.append(conn.send_command(c.format(file=img.filename), read_timeout=3600))
     if reload:

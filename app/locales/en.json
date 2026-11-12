@@ -5488,5 +5488,6 @@
   "de aquí sale el firmware": "the firmware comes from here",
   "Firmware distinto: A es {0} y B es {1}. Entre las dos copias se actualizó el equipo. Las diferencias que trajo la actualización salen en ámbar con «por el firmware».": "Different firmware: A is {0} and B is {1}. The device was upgraded between the two copies. The differences the upgrade brought are shown in amber with “from the firmware”.",
   "Mismo firmware en A y B ({0}). Todas las diferencias son cambios de configuración.": "Same firmware in A and B ({0}). All the differences are configuration changes.",
-  "por el firmware": "from the firmware"
+  "por el firmware": "from the firmware",
+  "Generar la clave RSA del equipo, de 2048 bits (la admiten todos los IOS con criptografía; 4096 no existe en IOS 12.x). Puede tardar unos segundos.": "Generate the device's RSA key, 2048 bits (every IOS with cryptography accepts it; 4096 does not exist in IOS 12.x). It can take a few seconds."
 }

@@ -9,8 +9,10 @@ import re
 from .drivers import FASTPATH, HUAWEI, IOS, MERGE, SET
 from .i18n import N_, _, _f
 
+# (ASA: sus comentarios empiezan con «:» —«: Serial Number: …», «: Hardware: …», «: Saved», «: end»— y la versión es
+# «ASA Version 9.9(2)»; se mandaban como configuración, «no : Serial Number: …» y la restauración se detenía)
 SKIP = re.compile(
-    r"^\s*($|!|#|end$|return$|Building configuration|Current configuration|version \S+$|exit$|quit$)")
+    r"^\s*($|!|#|:|end$|return$|Building configuration|Current configuration|version \S+$|ASA Version \S+$|exit$|quit$)")
 
 
 def _blocks(text: str) -> list[tuple[str, list[str]]]:
@@ -84,8 +86,13 @@ def _hw_spec(ids: set[int]) -> str:
 
 # Lo propio de cada equipo Cisco, que no se copia ni se borra al restaurar (en otro equipo, o en el mismo tras borrarlo):
 # su certificado autofirmado («crypto pki trustpoint/certificate chain TP-self-signed-<n.º>», borrarlo pide confirmar
-# y se detenía la restauración), la licencia con su serie y el client-id de DHCP con la serie (CSR1000v en GNS3)
-IOS_OWN = re.compile(r"^(crypto pki (trustpoint|certificate chain) TP-self-signed-|license udi )")
+# y se detenía la restauración), la licencia con su serie y el client-id de DHCP con la serie (CSR1000v en GNS3).
+# Tampoco «snmp-server chassis-id» sin valor: IOS 15.6 (IOSv) lo muestra así en cuanto hay otra línea de SNMP, pero no
+# se puede escribir («% Incomplete command») y la restauración se detenía en esa línea. Ni la marca que el ASA deja
+# con la respuesta a «¿enviar informes anónimos?» del primer arranque («call-home reporting anonymous prompt 2»: no se
+# puede negar así, «no call-home reporting anonymous prompt 2» da «Invalid input», ASAv 9.9.2)
+IOS_OWN = re.compile(r"^(crypto pki (trustpoint|certificate chain) TP-self-signed-|license udi |snmp-server chassis-id\s*$|"
+                     r"call-home reporting anonymous prompt \d+\s*$)")
 # lo que IOS no deja quitar: «no aaa new-model» responde «Changing configuration back to no aaa new-model is not
 # supported. Continue?[confirm]» y la restauración se detenía ahí
 IOS_KEEP = {"aaa new-model", "aaa session-id common"}  # (la segunda la pone IOS con la primera: «Cannot negate a default configuration»)
@@ -121,6 +128,10 @@ def _hierarchical(current: str, target: str, neg: str, exit_cmd: str) -> list[st
     for header in cur:
         if header in tgt_map or _h_key(header) in new_keys or (neg == "no " and header in IOS_KEEP):
             continue
+        # un «no snmp-server location» que sobra lo reemplaza la «snmp-server location …» del destino: negarlo daba
+        # «snmp-server location» sola («% Incomplete command», restaurar un ASAv recién borrado)
+        if header.startswith(neg) and any(t == header[len(neg):] or t.startswith(header[len(neg):] + " ") for t in tgt_map):
+            continue
         (post if VLAN_HEADER.match(header) else out).append(_negate(header, neg))
     # 2) agregar / ajustar lo que falta
     for header, children in tgt:
@@ -131,19 +142,75 @@ def _hierarchical(current: str, target: str, neg: str, exit_cmd: str) -> list[st
             if children:
                 target_list.append(exit_cmd)
             continue
-        cur_children = cur[header]
+        cur_children, children = _nested_keys(cur[header]), _nested_keys(children)
         removed = [c for c in cur_children if c not in children]
         added = [c for c in children if c not in cur_children]
         if removed or added:
-            akeys = {_h_key(a) for a in added} - {None}
+            alines = [_nk_line(a) for a in added]
+            akeys = {_h_key(a) for a in alines} - {None}
+            gone = {c for c in removed if _NK not in c}  # sub-bloques que se quitan enteros: sus líneas no se tocan
             out.append(header)
             # un «no ip address» que sobra se reemplaza con la «ip address …» que se agrega: negarlo daba «ip address»
             # sola («% Incomplete command», restaurar un CSR1000v en otro)
-            out.extend(_negate(c, neg) for c in removed if _h_key(c) not in akeys and not (
-                c.strip().startswith(neg) and any(a.strip().startswith(c.strip()[len(neg):]) for a in added)))
-            out.extend(added)
+            neg_keys = [c for c in removed if _h_key(_nk_line(c)) not in akeys and _nk_ctx(c) not in gone and not (
+                _nk_line(c).strip().startswith(neg) and any(a.strip().startswith(_nk_line(c).strip()[len(neg):]) for a in alines))]
+            ctxs = {_nk_ctx(k) for k in cur_children + children} - {None}
+            _emit_nested(out, neg_keys, lambda ln: _negate(ln, neg), ctxs, exit_cmd)
+            _emit_nested(out, added, lambda ln: ln, ctxs, exit_cmd)
             out.append(exit_cmd)
     return pre + out + post
+
+
+# Bloques de tres niveles (ASA e IOS: «policy-map global_policy ⟩ class inspection_default ⟩ inspect dns …», «router
+# bgp 65000 ⟩ address-family ipv4 ⟩ neighbor … activate»). Cada línea del tercer nivel lleva delante su sub-bloque, así
+# se compara dentro de él y se escribe entrando en él. Antes se mandaba «no inspect dns …» directamente en el
+# policy-map y el ASA la rechazaba (ASAv 9.9.2, restaurar en otro equipo e igualar a la referencia)
+_NK = "\x00"
+
+
+def _nested_keys(children: list[str]) -> list[str]:
+    out, base, ctx = [], None, None
+    for c in children:
+        ind = len(c) - len(c.lstrip())
+        if base is None:
+            base = ind
+        if ind <= base:
+            ctx = c
+            out.append(c)
+        else:
+            out.append(f"{ctx}{_NK}{c}" if ctx is not None else c)
+    return out
+
+
+def _nk_line(k: str) -> str:
+    return k.split(_NK, 1)[1] if _NK in k else k
+
+
+def _nk_ctx(k: str):
+    return k.split(_NK, 1)[0] if _NK in k else None
+
+
+def _emit_nested(out: list[str], keys: list[str], fn, ctxs: set, exit_cmd: str) -> None:
+    """Escribe líneas de un bloque: las del tercer nivel entrando antes en su sub-bloque (y saliendo de él al acabar)."""
+    inside = None
+    for k in keys:
+        ctx, line = _nk_ctx(k), _nk_line(k)
+        if ctx is not None:
+            if ctx != inside:
+                if inside is not None:
+                    out.append(" " + exit_cmd)
+                out.append(ctx)
+                inside = ctx
+            out.append(fn(line))
+            continue
+        if inside is not None:
+            out.append(" " + exit_cmd)
+            inside = None
+        out.append(fn(line))
+        if line in ctxs and fn(line) == line:  # un sub-bloque nuevo: sus líneas vienen después, ya dentro de él
+            inside = line
+    if inside is not None:
+        out.append(" " + exit_cmd)
 
 
 # palabras de Junos/VyOS seguidas del nombre de un objeto
