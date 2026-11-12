@@ -61,7 +61,7 @@ v1 = vs[0].id
 # dos copias más, para ver «otra versión» y «sin registrar»
 with SessionLocal() as db:
     base = db.get(ConfigVersion, v1)
-    old = ConfigVersion(device_id=dev_id, kind="running", content_enc=encrypt(f"version 15.0\nboot system flash:old.bin\n!\nhostname FW-SW1\n"),
+    old = ConfigVersion(device_id=dev_id, kind="running", content_enc=encrypt("version 15.0\nboot system flash:old.bin\n!\nhostname FW-SW1\n"),
                         sha256="a" * 64, size=40, added=3, removed=0, trigger="manual", fw_version="15.0(1)M1")
     none = ConfigVersion(device_id=dev_id, kind="running", content_enc=encrypt("hostname FW-SW1\n"), sha256="b" * 64, size=16,
                          added=1, removed=0, trigger="manual", fw_version=None)
@@ -78,7 +78,7 @@ with SessionLocal() as db:
     db.get(ConfigVersion, ids[2]).content_enc = base.content_enc
     db.commit()
 page = s.get(f"{B}/devices/{dev_id}").text
-check("la línea de tiempo muestra el firmware de hoy en azul", f'<span class="fwt" title' in page and fwtag.label(cur) in page)
+check("la línea de tiempo muestra el firmware de hoy en azul", '<span class="fwt" title' in page and fwtag.label(cur) in page)
 check("…otra versión en ámbar", 'class="fwt old"' in page and "v15.0(1)M1" in page)
 check("…y «sin registrar» en las copias viejas", 'class="fwt none"' in page and "sin registrar" in page)
 check("separador «Firmware actualizado: v15.0(1)M1 → …»", "Firmware actualizado: v15.0(1)M1 → " + fwtag.label(cur) in page.replace("&gt;", ">"), re.findall(r"Firmware actualizado[^<]*", page)[:2])
