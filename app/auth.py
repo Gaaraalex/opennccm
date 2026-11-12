@@ -1,3 +1,5 @@
+"""Sesión, roles y alcance: quién es el usuario de la petición (cookie de sesión, token de la API o de la app), si
+tiene el rol que pide la ruta (viewer < operator < admin) y qué equipos puede ver (sus grupos; None = todos)."""
 import time
 
 from fastapi import Request

@@ -287,7 +287,3 @@ def execute_firmware_request(db, cr):
 def list_images() -> list[FirmwareImage]:
     with SessionLocal() as db:
         return list(db.scalars(select(FirmwareImage).order_by(FirmwareImage.uploaded_at.desc())))
-
-
-def image_path(img: FirmwareImage) -> Path:
-    return FIRMWARE_DIR / img.filename

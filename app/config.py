@@ -1,3 +1,5 @@
+"""Configuración del proceso por variables de entorno (NCM_*): directorio de datos, clave de cifrado, base de datos,
+syslog, hilos de trabajo y enlaces del proyecto. Se lee una vez al importar."""
 import os
 from pathlib import Path
 
