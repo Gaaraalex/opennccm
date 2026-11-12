@@ -663,7 +663,7 @@ def kb_list(request: Request, q: str = ""):
 # =========================================================================== administrar y cuenta
 @router.get("/api/mobile/admin")
 def admin(request: Request):
-    user = require(request, "admin")
+    require(request, "admin")
     from . import updates
     with SessionLocal() as db:
         users = [{"id": u.id, "username": u.username, "role": u.role, "active": u.active, "two_fa": bool(u.totp_enabled),
