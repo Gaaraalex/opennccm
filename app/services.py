@@ -864,6 +864,10 @@ def _backup_device(device_id: int, trigger: str, username: str | None, report: b
                                  username=username, label=f"equipo nuevo · serie {new_serial}"[:128] if replaced else None,
                                  fw_version=fw_now))
             result = "changed" if prev else "first"
+        elif prev is not None and not prev.fw_version and fw_now:
+            # la configuración es la misma de la última copia y esa copia es de antes de registrar el firmware: se le
+            # apunta el que se acaba de leer en esta misma conexión (las copias más viejas siguen «sin registrar»)
+            prev.fw_version = fw_now
 
         if startup is not None:
             startup = clean_config(startup, prof)
