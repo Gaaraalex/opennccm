@@ -150,6 +150,11 @@ def _hierarchical(current: str, target: str, neg: str, exit_cmd: str) -> list[st
 SET_NAMED = {"interfaces", "unit", "prefix-list", "user", "community", "filter", "term", "policy", "policy-statement",
              "security-zone", "address-set", "address", "group", "route", "host", "vlans", "neighbor", "server",
              "rule", "rule-set", "pool", "zone", "application", "address-book", "static-host-mapping"}
+# instrucciones que existen solas y llevan opciones debajo: «family inet dhcp vendor-id X» se borra desde «dhcp»
+# (borrar la línea entera quita solo «vendor-id» y deja «dhcp»: el vQFX de fábrica trae «dhcp vendor-id …» en cada
+# puerto xe-, y al restaurar una copia con IP fija el commit fallaba con «Incompatible with interface assigned with
+# address», visto en un vQFX 19.4R1.10)
+SET_PRESENCE = {"dhcp", "dhcp-client", "dhcpv6-client"}
 
 
 def set_deletes(extra: list[str], target: list[str]) -> list[str]:
@@ -163,8 +168,8 @@ def set_deletes(extra: list[str], target: list[str]) -> list[str]:
     for line in sorted(extra):
         w = line.split()[1:]
         cut = w
-        for n in range(2, len(w)):
-            if w[n - 2] in SET_NAMED and not any(t[:n] == w[:n] for t in tw):
+        for n in range(1, len(w)):
+            if ((n >= 2 and w[n - 2] in SET_NAMED) or w[n - 1] in SET_PRESENCE) and not any(t[:n] == w[:n] for t in tw):
                 cut = w[:n]
                 break
         d = "delete " + " ".join(cut)

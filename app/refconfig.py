@@ -289,6 +289,11 @@ def commands(device_type: str, c: dict) -> tuple[str, int]:
     os_key = cc.os_of(device_type)
     skipped = 0
     lines: list[str] = []
+    if os_key == "fortios":
+        # FortiOS va por bloques «config … / edit … / next / end» y no tiene «no …»: los comandos al estilo Cisco que
+        # salían de aquí («no set …», bloques sin «end») el equipo los rechazaba a mitad («Unknown action 0», visto en un
+        # FortiGate-VM 7.4.2). La comparación se muestra igual; las diferencias se igualan a mano.
+        return "", len(c["missing"]) + len(c["extra"])
     if device_type.startswith("mikrotik_routeros"):
         for _s, k in c["missing"]:
             if "***" in k or "{IP}" in k:
