@@ -200,6 +200,7 @@ def lines_of(text: str, device_type: str, hosts: list[str]) -> list[tuple[str, s
     if device_type in EXIT_BLOCKS:
         raw = _indent_exit_blocks(raw)
     parent, psec, skip_block = "", "", False
+    base, ctx = None, ""  # sangría de las líneas del bloque y su sub-bloque (tercer nivel: «class X ⟩ inspect …»)
     for ln in raw:
         if not ln.strip() or ln.strip().startswith(("!", "#")) or ln.strip() in ("end", "exit", "quit", "return"):
             if not ln.startswith((" ", "\t")):
@@ -218,6 +219,7 @@ def lines_of(text: str, device_type: str, hosts: list[str]) -> list[tuple[str, s
                 parent = s
                 continue
             parent, psec = s, _section(w[0], " ".join(w[1:]))
+            base, ctx = None, ""
             out.append((psec, _mask(s, hosts)))
             continue
         if skip_block:
@@ -229,6 +231,13 @@ def lines_of(text: str, device_type: str, hosts: list[str]) -> list[tuple[str, s
             continue
         if re.match(r"ip dhcp client client-id ascii \S+$", s):  # (lleva la serie del equipo)
             continue
+        ind = len(ln) - len(ln.lstrip())
+        if base is None:
+            base = ind
+        if ind <= base:
+            ctx = s
+        elif ctx:  # tercer nivel: con su sub-bloque delante, para escribirlo entrando en él
+            s = f"{ctx}{SEP}{s}"
         out.append((psec or _("Otros"), _mask(f"{parent}{SEP}{s}" if parent else s, hosts)))
     return out
 
@@ -357,7 +366,11 @@ def commands(device_type: str, c: dict) -> tuple[str, int]:
                 if parent in IOS_KEEP or parent.removeprefix("no ") in IOS_KEEP:
                     skipped += 1
                     continue
-            line = (child if sep else parent) if sign == "+" else neg(child if sep else parent)
+            if sep and SEP in child:  # tercer nivel: se niega la línea, no su sub-bloque
+                sub, _s2, leaf = child.partition(SEP)
+                line = f"{sub}{SEP}{leaf if sign == '+' else neg(leaf)}" if (sign == "+" or neg(leaf)) else None
+            else:
+                line = (child if sep else parent) if sign == "+" else neg(child if sep else parent)
             if line is None:
                 continue
             if sep:
@@ -367,7 +380,23 @@ def commands(device_type: str, c: dict) -> tuple[str, int]:
     blocks = []
     for p, ch in by_parent.items():
         blocks.append(p)
-        blocks += [" " + x for x in ch]
+        inside = None
+        for x in ch:
+            sub, sep2, leaf = x.partition(SEP)
+            if sep2:  # tercer nivel: dentro de su sub-bloque
+                if sub != inside:
+                    if inside is not None:
+                        blocks.append("  exit")
+                    blocks.append(" " + sub)
+                    inside = sub
+                blocks.append("  " + leaf)
+                continue
+            if inside is not None:
+                blocks.append("  exit")
+                inside = None
+            blocks.append(" " + x)
+        if inside is not None:
+            blocks.append("  exit")
         if os_key in ("vrp",):
             blocks.append(" quit")
         elif device_type in EXIT_BLOCKS or os_key == "asa":

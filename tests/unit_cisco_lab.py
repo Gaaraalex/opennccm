@@ -61,6 +61,26 @@ check("referencia ASA: los bloques primero, cada uno con «exit»", lines.index(
 check("referencia ASA: sin comentarios «: Serial Number»", not any(x.startswith((":", "no :")) for x in lines), lines)
 check("referencia: la cabecera de un bloque nuevo no sale también suelta", lines.count("object network DATOS") == 1, lines)
 
+# tercer nivel: «policy-map ⟩ class ⟩ inspect» (ASA) y «router bgp ⟩ address-family ⟩ neighbor» (IOS)
+pm_a = "policy-map global_policy\n class inspection_default\n  inspect dns migrated_dns_map_1\n  inspect ftp\n!\n"
+pm_b = "policy-map global_policy\n class inspection_default\n  inspect ftp\n  inspect dns preset_dns_map\n!\n"
+cmds = build_rollback(pm_a, pm_b, IOS)
+i_cls = cmds.index(" class inspection_default")
+check("tercer nivel: entra en «class» antes de «no inspect …»", 0 < i_cls < cmds.index("  no inspect dns migrated_dns_map_1"), cmds)
+check("…y escribe la nueva también dentro de «class»", cmds.index("  inspect dns preset_dns_map") > max(
+    i for i, c in enumerate(cmds) if c == " class inspection_default"), cmds)
+bgp_a = "router bgp 65000\n neighbor 10.0.0.2 remote-as 65001\n address-family ipv4\n  neighbor 10.0.0.2 activate\n  network 10.1.0.0 mask 255.255.0.0\n!\n"
+bgp_b = "router bgp 65000\n neighbor 10.0.0.2 remote-as 65001\n address-family ipv4\n  neighbor 10.0.0.2 activate\n!\n"
+cmds = build_rollback(bgp_a, bgp_b, IOS)
+check("BGP: «no network …» dentro de address-family", cmds[:3] == ["router bgp 65000", " address-family ipv4", "  no network 10.1.0.0 mask 255.255.0.0"], cmds)
+check("dos niveles: igual que antes", build_rollback("interface Gi1\n description A\n", "interface Gi1\n description B\n", IOS)
+      == ["interface Gi1", " description B", " exit"])
+ra2 = SimpleNamespace(id=3, name="K-1", device_type="cisco_asa", host="10.0.0.240", model="ASAv")
+rb2 = SimpleNamespace(id=4, name="K-2", device_type="cisco_asa", host="10.0.0.239", model="ASAv")
+ref_lines = refconfig.commands("cisco_asa", refconfig.compare(ra2, pm_b, rb2, pm_a, {}))[0].splitlines()
+check("referencia: tercer nivel dentro de su sub-bloque", ref_lines[:2] == ["policy-map global_policy", " class inspection_default"]
+      and "  inspect dns preset_dns_map" in ref_lines and "  no inspect dns migrated_dns_map_1" in ref_lines, ref_lines)
+
 from app import consolecore as cc  # noqa: E402
 check("ASA: «packet-tracer» es una consulta", cc.is_query(cc.os_of("cisco_asa"), "packet-tracer input inside tcp 10.0.0.5 1 8.8.8.8 443 detailed", "cisco_asa"))
 check("ASA: «show running-config» consulta y «write erase» corta el servicio",

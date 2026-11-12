@@ -139,19 +139,75 @@ def _hierarchical(current: str, target: str, neg: str, exit_cmd: str) -> list[st
             if children:
                 target_list.append(exit_cmd)
             continue
-        cur_children = cur[header]
+        cur_children, children = _nested_keys(cur[header]), _nested_keys(children)
         removed = [c for c in cur_children if c not in children]
         added = [c for c in children if c not in cur_children]
         if removed or added:
-            akeys = {_h_key(a) for a in added} - {None}
+            alines = [_nk_line(a) for a in added]
+            akeys = {_h_key(a) for a in alines} - {None}
+            gone = {c for c in removed if _NK not in c}  # sub-bloques que se quitan enteros: sus líneas no se tocan
             out.append(header)
             # un «no ip address» que sobra se reemplaza con la «ip address …» que se agrega: negarlo daba «ip address»
             # sola («% Incomplete command», restaurar un CSR1000v en otro)
-            out.extend(_negate(c, neg) for c in removed if _h_key(c) not in akeys and not (
-                c.strip().startswith(neg) and any(a.strip().startswith(c.strip()[len(neg):]) for a in added)))
-            out.extend(added)
+            neg_keys = [c for c in removed if _h_key(_nk_line(c)) not in akeys and _nk_ctx(c) not in gone and not (
+                _nk_line(c).strip().startswith(neg) and any(a.strip().startswith(_nk_line(c).strip()[len(neg):]) for a in alines))]
+            ctxs = {_nk_ctx(k) for k in cur_children + children} - {None}
+            _emit_nested(out, neg_keys, lambda ln: _negate(ln, neg), ctxs, exit_cmd)
+            _emit_nested(out, added, lambda ln: ln, ctxs, exit_cmd)
             out.append(exit_cmd)
     return pre + out + post
+
+
+# Bloques de tres niveles (ASA e IOS: «policy-map global_policy ⟩ class inspection_default ⟩ inspect dns …», «router
+# bgp 65000 ⟩ address-family ipv4 ⟩ neighbor … activate»). Cada línea del tercer nivel lleva delante su sub-bloque, así
+# se compara dentro de él y se escribe entrando en él. Antes se mandaba «no inspect dns …» directamente en el
+# policy-map y el ASA la rechazaba (ASAv 9.9.2, restaurar en otro equipo e igualar a la referencia)
+_NK = "\x00"
+
+
+def _nested_keys(children: list[str]) -> list[str]:
+    out, base, ctx = [], None, None
+    for c in children:
+        ind = len(c) - len(c.lstrip())
+        if base is None:
+            base = ind
+        if ind <= base:
+            ctx = c
+            out.append(c)
+        else:
+            out.append(f"{ctx}{_NK}{c}" if ctx is not None else c)
+    return out
+
+
+def _nk_line(k: str) -> str:
+    return k.split(_NK, 1)[1] if _NK in k else k
+
+
+def _nk_ctx(k: str):
+    return k.split(_NK, 1)[0] if _NK in k else None
+
+
+def _emit_nested(out: list[str], keys: list[str], fn, ctxs: set, exit_cmd: str) -> None:
+    """Escribe líneas de un bloque: las del tercer nivel entrando antes en su sub-bloque (y saliendo de él al acabar)."""
+    inside = None
+    for k in keys:
+        ctx, line = _nk_ctx(k), _nk_line(k)
+        if ctx is not None:
+            if ctx != inside:
+                if inside is not None:
+                    out.append(" " + exit_cmd)
+                out.append(ctx)
+                inside = ctx
+            out.append(fn(line))
+            continue
+        if inside is not None:
+            out.append(" " + exit_cmd)
+            inside = None
+        out.append(fn(line))
+        if line in ctxs and fn(line) == line:  # un sub-bloque nuevo: sus líneas vienen después, ya dentro de él
+            inside = line
+    if inside is not None:
+        out.append(" " + exit_cmd)
 
 
 # palabras de Junos/VyOS seguidas del nombre de un objeto
