@@ -73,7 +73,7 @@ try:
     check("ya existe en OpenNCCM: no se puede importar", "ya existe" in byname["YaExiste-ZBX"] and "disabled" in byname["YaExiste-ZBX"])
     check("grupos de Zabbix para elegir, con cuántos hosts y nuevos",
           'name="zg" value="DMZ"' in r.text and "Firewalls, DMZ" in byname["FW-DMZ"]
-          and re.search(r'value="Routers"> <span><b>Routers</b><span[^>]*>2 hosts · 1 nuevos', r.text))
+          and re.search(r'value="Routers"> <span><b>Routers</b><span[^>]*>2 hosts · 1 nuevo<', r.text))
     check("ningún grupo marcado al conectar", not re.search(r'name="zg"[^>]*checked', r.text))
 
     sel = [re.search(r'name="sel" value="(\d+)"', byname[n]).group(1) for n in ("RT-Borde", "SW-Core", "FW-DMZ", "SRV-Web")]
