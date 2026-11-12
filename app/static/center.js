@@ -16,7 +16,7 @@
   }
   var vlogo = function (k, px) {
     return '<svg class="vlg" width="' + px + '" height="' + px + '" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="'
-      + esc(((window.OC && OC.vl) || '/static/vendor-logos.svg') + '#vl-' + (k || 'other')) + '"/></svg>';
+      + esc(((window.OC && OC.vl) || '/static/vendor-logos.svg') + '#vl-' + (k || 'other') + (px < 40 && window.OC && OC.vls && OC.vls.indexOf(k) >= 0 ? '-chico' : '')) + '"/></svg>';
   };
   var post = function (url, body) { return fetch(url, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)}).then(function (r) { return r.json(); }); };
   var store = function (k, v) { try { if (v === undefined) return localStorage.getItem('oc-cc-' + k); localStorage.setItem('oc-cc-' + k, v); } catch (e) { return null; } };

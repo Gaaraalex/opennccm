@@ -97,7 +97,49 @@ templates.env.globals["filter_words"] = lambda flt: __import__("app.configlets_u
 templates.env.globals["fix_issue_url"] = _fix_issue_url
 # logos de marca de los equipos (app/vendorlogos.py): vlogo(device_type, px), vlk(clave, px), vbrand(device_type)
 from . import vendorlogos as _vl  # noqa: E402
-templates.env.globals.update(vlogo=_vl.logo, vlk=_vl.svg, vbrand=_vl.brand, vkey=_vl.key, VL_SPRITE=_vl.SPRITE)
+templates.env.globals.update(vlogo=_vl.logo, vlk=_vl.svg, vbrand=_vl.brand, vkey=_vl.key, VL_SPRITE=_vl.SPRITE, VL_SMALL=_vl.small_keys)
+
+
+def _plural(n, one, many, *args):
+    """«1 equipo» / «3 equipos»: la frase en singular si n es 1 (traducidas las dos)."""
+    try:
+        k = int(n)
+    except (TypeError, ValueError):
+        k = 0
+    from .i18n import _f
+    return _f(one if k == 1 else many, n, *args)
+
+
+templates.env.globals.update(pl=_plural)
+
+
+def _fwpill(fw, current=None, prefix=""):
+    """Etiqueta del firmware de una copia: azul si es el de hoy, ámbar si es otro, gris «sin registrar»."""
+    from markupsafe import Markup, escape
+
+    from . import fwtag
+    from .i18n import _
+    if not fw:
+        return Markup(f'<span class="fwt none" title="{escape(_("Copia de antes de registrar el firmware"))}">{escape(_("sin registrar"))}</span>')
+    old = bool(current) and not fwtag.same(fw, current)
+    tip = _("Firmware que tenía el equipo en esta copia") if not old else _("Otro firmware que el que tiene hoy el equipo")
+    return Markup(f'<span class="fwt{" old" if old else ""}" title="{escape(tip)}">{escape(prefix)}{escape(fwtag.label(fw))}</span>')
+
+
+templates.env.globals.update(fwpill=_fwpill)
+
+
+def _fw_same(a, b):
+    from . import fwtag
+    return fwtag.same(a, b)
+
+
+def _fw_label(v):
+    from . import fwtag
+    return fwtag.label(v)
+
+
+templates.env.globals.update(fw_same=_fw_same, fw_label=_fw_label)
 
 
 def _ai_logo(provider: str, size: int = 44):

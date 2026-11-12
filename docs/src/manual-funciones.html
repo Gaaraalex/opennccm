@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.35.0<br>Para administradores y operadores de red<br>Noviembre de 2026</div>
+  <div class="meta">Versión del software: 2.36.0<br>Para administradores y operadores de red<br>Noviembre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -157,7 +157,8 @@ grupo.</p>
 <ul>
   <li><b>Buscar y filtrar:</b> por nombre, IP, modelo, serie, versión o ubicación; por grupo, <b>nodo</b> y <b>marca</b>; y por
   estado (ok, error, pendiente, startup ≠ running, fuera de línea base). Cada equipo lleva el <b>logo de su marca</b>; la fila
-  <b>MARCA</b> muestra cuántos hay de cada una y filtra con un toque.</li>
+  <b>MARCA</b> muestra cuántos hay de cada una y filtra con un toque. El menú <b>Marca</b> muestra unas 12 a la vista, con
+  barra para bajar y un buscador arriba («Buscar marca»).</li>
   <li><b>Respaldar todos:</b> respalda todos los equipos (o los del grupo filtrado, o los marcados), 4 a la vez. Se ve el
     progreso con su porcentaje: un panel con la barra, cuántos van correctos, con error, respaldándose y en cola, y quién se
     respalda ahora; cada fila de la lista dice su paso («Conectando…», «Leyendo la configuración…», «Guardando…») y se actualiza
@@ -518,6 +519,15 @@ aviso de cambio aclara que la diferencia es contra el aparato anterior. Al equip
 <h2>Ver una versión</h2>
 <p>En la ficha del equipo, pestaña <b>Versiones</b>, la flecha <b>›</b> de cada versión la abre en un panel lateral. Desde allí puede <b>descargar</b>, <b>comparar con la anterior</b>,
 <b>etiquetar</b> (por ejemplo «antes de migración»), <b>marcar como línea base</b> o <b>revertir el equipo a esa versión</b>.</p>
+<p><b>Firmware de cada copia.</b> Cada copia de seguridad guarda la versión de software que tenía el equipo cuando se hizo,
+leída en el mismo respaldo (del inventario, o de la propia configuración: «! System Version» en un EdgeSwitch, la cabecera de
+RouterOS, «version …» en Cisco y Junos). Se ve como una etiqueta en cada versión de la línea de tiempo, en el inventario
+(último respaldo y línea base) y en la versión abierta, donde se resalta la línea de la que sale: <b>azul</b> si es la misma que
+tiene hoy el equipo, <b>ámbar</b> si es otra y <b>«sin registrar»</b> en las copias de antes de la 2.36.0. Cuando el equipo cambió
+de firmware entre dos copias, la línea de tiempo lo marca («Firmware actualizado: v1.10.0 → v1.11.1 · entre v2 y v3»). Una
+versión de otro firmware avisa antes de revertir a ella, y al comparar dos copias de firmware distinto las diferencias que
+trajo la actualización salen en ámbar con «por el firmware». El archivo descargado lleva la versión en el nombre
+(«SW-Miramar_v4_EdgeSwitch-1.11.1.txt»). La versión de cada copia no cambia aunque después se actualice el equipo.</p>
 <p>Para encontrar algo dentro de la versión, escriba en <b>Buscar en esta versión</b> (un texto o una IP): las líneas que lo
 tienen se resaltan y <b>Intro</b> / <b>Mayús+Intro</b> (o las flechas) saltan entre ellas. El campo <b>Etiqueta</b> no busca: le
 pone un nombre a la versión. Para buscar en las copias de todos los equipos use <b>Buscar en configs</b> del menú.</p>
@@ -1520,6 +1530,9 @@ locales de OpenNCCM siguen funcionando siempre (por ejemplo, la del administrado
   Connect (Google Workspace, Keycloak, Okta…), con el texto del botón que se quiera.</li>
 </ul>
 <h2>Datos de la organización</h2>
+<p><b>Logos de marca abreviados en tamaño chico</b> (apagado por omisión): donde el logo se ve muy pequeño (listas, chips,
+mapa), las marcas cuyo logo es su nombre escrito (Cisco, Juniper, Nokia, NEC, Netgear, Hitachi, Siemens, Supermicro, Dell y
+Zyxel) usan una versión abreviada: su símbolo o sus iniciales. Apagado, se ve el logo normal en todos los tamaños.</p>
 <p>Nombre, correo de contacto y dirección de quien administra esta instalación. Se muestran en la página
 <b>Privacidad, cookies y licencias</b> (enlace al pie de cada página y en el inicio de sesión), que explica qué datos guarda
 OpenNCCM, sus conexiones externas, la única cookie que usa (técnica, sin necesidad de consentimiento), las condiciones de uso y

@@ -39,7 +39,7 @@
           <div class="row end"><button type="button" class="btn ghost" data-close>{{ _('Cancelar') }}</button><button class="btn pri" data-go data-needs-ack disabled>{{ _('Crear solicitud') if rf|length == 1 else _('Crear solicitudes') }}</button></div>
         </form></dialog>
         {% elif is_admin %}<a class="btn s ghost" href="/compliance/policies/{{ p.id }}" data-sheet data-wide data-title="Editar política">Añadir corrección</a>{% else %}<span></span>{% endif %}</div>{% endif %}{% endfor %}</div>
-    {% if ns.ok %}<div class="passed">{{ icon('check', 's') }} {{ _('1 regla cumple') if ns.ok == 1 else _f('{0} reglas cumplen', ns.ok) }}</div>{% endif %}
+    {% if ns.ok %}<div class="passed">{{ icon('check', 's') }} {{ _('1 regla cumple') if ns.ok == 1 else pl(ns.ok, '{0} regla cumple', '{0} reglas cumplen') }}</div>{% endif %}
   </details>{% endfor %}</div>
 {% else %}<section class="card"><div class="empty">{{ empty_art('plus') }}<h2>Sin políticas</h2><p>Para cargar ejemplos (hardening Cisco, Huawei, Juniper, FortiGate, PCI DSS, HIPAA, SOX), ejecuta <code>opennccm-cli seed</code>.</p></div></section>{% endif %}
 <script>

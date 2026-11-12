@@ -91,9 +91,9 @@
         <dt>Modelo</dt><dd>{{ device.model or '—' }}</dd><dt>Nº de serie</dt><dd class="mono">{{ device.serial or '—' }}</dd>
         <dt>Firmware</dt><dd class="mono">{{ device.os_version or '—' }}</dd><dt>Grupo</dt><dd>{% if device.group %}<a href="/devices?group={{ device.group.id }}">{{ device.group.name }}</a>{% else %}—{% endif %}</dd>
         <dt>Ubicación</dt><dd>{{ device.location or '—' }}</dd><dt>Credencial</dt><dd>{{ device.credential.name if device.credential else '—' }}{% if device.credential and can_view_creds(user) %} · <a href="/devices/{{ device.id }}/credential/view" data-sheet data-title="{{ _f('Credencial «{0}»', device.credential.name) }}">{{ _('Ver') }}</a>{% endif %}</dd>
-        <dt>Último respaldo</dt><dd title="{{ device.last_backup_at|dt }}">{{ device.last_backup_at|ago if device.last_backup_at else '—' }}</dd>
+        <dt>Último respaldo</dt><dd title="{{ device.last_backup_at|dt }}">{{ device.last_backup_at|ago if device.last_backup_at else '—' }}{% if tl %} {{ fwpill(last_fw, device.os_version) }}{% endif %}</dd>
         <dt>Reversión automática</dt><dd>{{ _('Sí') if device.auto_rollback else _('No') }}</dd>
-        <dt>Línea base</dt><dd>{% if device.baseline_version_id %}<a href="/versions/{{ device.baseline_version_id }}" data-sheet data-wide>{{ _f('versión {0}', base_n or device.baseline_version_id) }}</a> {% if device.baseline_drift %}<span class="pill major">difiere</span>{% else %}<span class="pill ok">coincide</span>{% endif %}{% else %}—{% endif %}</dd>
+        <dt>Línea base</dt><dd>{% if device.baseline_version_id %}<a href="/versions/{{ device.baseline_version_id }}" data-sheet data-wide>{{ _f('versión {0}', base_n or device.baseline_version_id) }}</a> {{ fwpill(fw_of.get(device.baseline_version_id), device.os_version) }} {% if device.baseline_drift %}<span class="pill major">difiere</span>{% else %}<span class="pill ok">coincide</span>{% endif %}{% else %}—{% endif %}</dd>
         <dt>Ciclo de vida</dt><dd>{% if eol_bad %}<span class="pill crit">{{ _(eol_labels[eol_status]) }}</span>{% elif eol_entry and eol_entry.end_of_support %}{{ _f('Soporte hasta {0}', eol_entry.end_of_support.year) }}{% else %}{{ _(eol_labels[eol_status]) }}{% endif %}</dd>
         {% if profile.license_cmd %}<dt>{{ profile.license_label }}</dt><dd>{% if device.license_at %}<span title="{{ device.license_at|dt }}">{{ _f('guardada {0}', device.license_at|ago) }}</span> · <a href="/devices/{{ device.id }}/license">{{ _('Descargar') }}</a>{% if license_partial %} · <span class="muted" title="{{ _('Falta la firma (Signature), que se lee en la interfaz web del equipo con la misma credencial. Se reintenta en el próximo respaldo.') }}" style="color:var(--warn)">{{ _('sin firma: aún no sirve para restaurar') }}</span>{% endif %}{% else %}<span class="muted">{{ _('se guarda en el próximo respaldo') }}</span>{% endif %}</dd>{% endif %}
         {% if license_groups %}<dt>{{ _('Servicios') }}</dt><dd>{% for g in license_groups %}<div{% if g.days <= 0 %} style="color:var(--crit)"{% elif g.days <= license_soon %} style="color:var(--warn)"{% endif %}><b>{% if g.days <= 0 %}{{ _f('vencieron el {0}', g.date.strftime('%d-%m-%Y')) }}{% else %}{{ _f('vencen el {0} (en {1} días)', g.date.strftime('%d-%m-%Y'), g.days) }}{% endif %}</b> <span class="muted sm mono">{{ g.names|join(', ') }}</span></div>{% endfor %}</dd>{% endif %}
@@ -104,7 +104,7 @@
     <div class="c7 stack">
       <div class="bento" style="gap:12px">
         <div class="c6"><a class="kpi {{ 'alert' if comp_pct is not none and comp_pct < 50 }}" href="#compliance" data-tab-link><span class="label">Reglas cumplidas</span><span class="v">{{ comp_pct ~ '%' if comp_pct is not none else '—' }}</span>
-          <span class="d">{% if comp_pct is none %}Sin auditar todavía{% elif comp_fails %}{{ _f('{0} reglas fallan', comp_fails) }}{% else %}Todas las reglas se cumplen{% endif %}</span></a></div>
+          <span class="d">{% if comp_pct is none %}Sin auditar todavía{% elif comp_fails %}{{ pl(comp_fails, '{0} regla falla', '{0} reglas fallan') }}{% else %}Todas las reglas se cumplen{% endif %}</span></a></div>
         <div class="c6"><a class="kpi {{ 'alert' if crit_cves }}" href="#vulns" data-tab-link><span class="label">CVE críticos</span><span class="v">{{ crit_cves }}</span><span class="d">{{ _f('de {0} que le afectan', vulns|length) }}</span></a></div>
       </div>
       <section class="card"><div class="card-h"><h2>Últimas versiones</h2><a class="btn s ghost" href="#versions" data-tab-link>Ver todas {{ icon('right', 's') }}</a></div>
@@ -177,7 +177,7 @@
     {% if fails %}<div>{% for c in fails %}<div class="rule">{{ sevtag(c.rule.severity) }}<span>{{ c.rule.name }}{% if not c.rule.remediation %} <span class="muted">· sin corrección automática</span>{% endif %}</span>
       {% if c.rule.remediation and can_run %}<span class="cfix-act">{{ w.vpill(rver.get(c.rule.id|string), True) }}<button type="button" class="btn s" data-fix="cfix-{{ g.policy.id }}" data-only="{{ c.rule.id }}">{{ _('Corregir') }}</button></span>
       {% elif is_admin %}<a class="btn s ghost" href="/compliance/policies/{{ g.policy.id }}">Añadir corrección</a>{% else %}<span></span>{% endif %}</div>{% endfor %}</div>{% endif %}
-    <div class="passed">{{ icon('check', 's') }} {{ _f('{0} reglas cumplen', ok_n) }}</div>
+    <div class="passed">{{ icon('check', 's') }} {{ pl(ok_n, '{0} regla cumple', '{0} reglas cumplen') }}</div>
   </details>
   {% if g.fixable and can_run %}<dialog class="dlg cfix" id="cfix-{{ g.policy.id }}" aria-labelledby="cfix-{{ g.policy.id }}-h"><form method="post" action="/compliance/remediate-policy" class="stack">
     <input type="hidden" name="policy_id" value="{{ g.policy.id }}"><input type="hidden" name="device_id" value="{{ device.id }}"><input type="hidden" name="next" value="/devices/{{ device.id }}#compliance">

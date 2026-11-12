@@ -5,15 +5,16 @@
 {% set can_run = ROLES[user.role] >= 1 %}
 <div data-sheet-wide></div>
 <h1>{{ _f('{0} · versión {1}', v.device.name, n) }}</h1>
-<p class="muted sm" data-sheet-sub>{{ v.kind }} · {{ trig.get(v.trigger, v.trigger) }}{% if v.username %} · {{ v.username }}{% endif %} · <span title="{{ v.created_at|dt }}">{{ v.created_at|ago }}</span> · {{ _f('{0} líneas', lines|length) }}</p>
+<p class="muted sm" data-sheet-sub>{{ v.kind }} · {{ trig.get(v.trigger, v.trigger) }}{% if v.username %} · {{ v.username }}{% endif %} · <span title="{{ v.created_at|dt }}">{{ v.created_at|ago }}</span> · {{ _f('{0} líneas', lines|length) }} · {{ _f('firmware {0}', fw_label(v.fw_version)) if v.fw_version else _('firmware sin registrar') }}</p>
+{% if fw_old %}<div class="banner warn">{{ icon('alert') }}<span class="grow">{{ _f('Esta copia se hizo con {0} y el equipo hoy tiene {1}. Si reviertes a esta versión, revisa la vista previa: algunos comandos pueden haber cambiado con la actualización.', fw_label(v.fw_version), fw_label(v.device.os_version)) }}</span></div>{% endif %}
 {% if small and v.kind == 'running' %}<div class="banner crit">{{ icon('alert') }}<span class="grow"><b>Esta versión parece incompleta.</b> Tiene muchas menos líneas que la actual ({{ v.size }} frente a {{ current.size }} bytes); puede que el respaldo se cortara. No conviene restaurarla.</span></div>{% endif %}
-<div class="row">{% if is_baseline %}<span class="tag sig" title="Línea base del equipo">línea base</span>{% endif %}{% if v.label %}<span class="tag info">{{ icon('tag', 's') }}{{ v.label }}</span>{% endif %}<span class="tag" title="SHA-256 {{ v.sha256 }}">{{ v.kind }}</span></div>
+<div class="row">{% if is_baseline %}<span class="tag sig" title="Línea base del equipo">línea base</span>{% endif %}{% if v.label %}<span class="tag info">{{ icon('tag', 's') }}{{ v.label }}</span>{% endif %}<span class="tag" title="SHA-256 {{ v.sha256 }}">{{ v.kind }}</span>{{ fwpill(v.fw_version, v.device.os_version, _('firmware') ~ ' ') }}</div>
 {% if can_run %}<form class="row" method="post" action="/versions/{{ v.id }}/label"><label class="input grow" style="min-width:200px">{{ icon('tag', 's') }}<input name="label" value="{{ v.label or '' }}" placeholder="Etiqueta, p. ej. «antes de la migración»" aria-label="Etiqueta"></label><button class="btn">Etiquetar</button></form>{% endif %}
 <div class="row cvf-bar" role="search"><label class="input grow" style="min-width:200px">{{ icon('search', 's') }}<input type="search" data-cvf placeholder="{{ _('Buscar en esta versión (texto o IP)') }}" aria-label="{{ _('Buscar en esta versión') }}" autocomplete="off"></label>
   <span class="muted sm" data-cvf-n aria-live="polite"></span>
   <button type="button" class="btn ghost s" data-cvf-go="-1" aria-label="{{ _('Coincidencia anterior') }}" title="{{ _('Anterior (Mayús+Intro)') }}">{{ icon('down', 's flip') }}</button>
   <button type="button" class="btn ghost s" data-cvf-go="1" aria-label="{{ _('Coincidencia siguiente') }}" title="{{ _('Siguiente (Intro)') }}">{{ icon('down', 's') }}</button></div>
-<div class="cv" data-cvf-box>{% for l in lines %}<div><span class="n">{{ loop.index }}</span><span>{{ l }}</span></div>{% endfor %}</div>
+<div class="cv" data-cvf-box>{% for l in lines %}<div{% if loop.index == fw_line %} class="fwl"{% endif %}><span class="n">{{ loop.index }}</span><span>{{ l }}</span>{% if loop.index == fw_line %}<span class="fwl-note">{{ _('de aquí sale el firmware') }}</span>{% endif %}</div>{% endfor %}</div>
 <div class="row" data-sheet-foot>
   <a class="btn ghost" href="/versions/{{ v.id }}?raw=1">{{ icon('dl', 's') }}Descargar</a>
   {% if prev %}<a class="btn ghost" href="/devices/{{ v.device_id }}?a={{ prev.id }}&b={{ v.id }}#versions">{{ icon('branch', 's') }}Comparar con anterior</a>{% endif %}

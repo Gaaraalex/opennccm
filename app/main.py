@@ -103,6 +103,9 @@ async def lifespan(_app):
 
 
 app = FastAPI(title="OpenNCCM", lifespan=lifespan, docs_url=None, redoc_url=None)
+from .mobile_app import MobileBridge  # noqa: E402
+
+app.add_middleware(MobileBridge)  # acciones de la app Android con su token (dentro de la sesión, para leer los avisos)
 app.add_middleware(LangMiddleware)  # va dentro de la sesión: lee el idioma elegido
 app.add_middleware(SessionMiddleware, secret_key=session_secret(), same_site="strict",
                    https_only=os.environ.get("NCM_SECURE_COOKIE", "0") == "1", max_age=30 * 24 * 3600,  # cada sesión lleva su caducidad (auth.start_session)
@@ -1097,8 +1100,13 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
             tl.append({"id": v.id, "n": total_v - i, "kind": v.kind, "src": trig.get(v.trigger, v.trigger),
                        "who": v.username or v.trigger, "when": v.created_at, "label": v.label,
                        "base": v.id == dev.baseline_version_id, "inc": bool(prev and prev.size and v.size < prev.size * 0.5),
-                       "added": v.added, "removed": v.removed, "first": i == total_v - 1, "size": v.size})
+                       "added": v.added, "removed": v.removed, "first": i == total_v - 1, "size": v.size, "fw": v.fw_version})
         vnum = {t["id"]: t["n"] for t in tl}
+        fw_of = {t["id"]: t["fw"] for t in tl}
+        last_fw = next((t["fw"] for t in tl if t["kind"] == "running"), None)
+        if dev.baseline_version_id and dev.baseline_version_id not in fw_of:
+            bv = db.get(ConfigVersion, dev.baseline_version_id)
+            fw_of[dev.baseline_version_id] = bv.fw_version if bv else None
         ids = [v.id for v in versions]
         va_id = a if a in ids else (ids[1] if len(ids) > 1 else (ids[0] if ids else 0))
         vb_id = b if b in ids else (ids[0] if ids else 0)
@@ -1115,6 +1123,10 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
             add_n, del_n = services.diff_stats(ta, tb)
             rows, cut = services.cap_rows(services.side_by_side(ta, tb, ctx if ctx < 9999 else 100000))
             cmp = {"a": va, "b": vb, "rows": rows, "cut": cut, "summary": services.diff_summary(ta, tb), "n": add_n + del_n}
+            from . import fwtag  # noqa: E402
+            cmp.update({"fwa": va.fw_version, "fwb": vb.fw_version, "fwrows": fwtag.mark_rows(rows, va.fw_version, vb.fw_version),
+                        "fw_diff": bool(va.fw_version and vb.fw_version and not fwtag.same(va.fw_version, vb.fw_version)),
+                        "fw_same": fwtag.same(va.fw_version, vb.fw_version)})
         drift_n = 0
         if dev.baseline_drift and dev.baseline_version_id and versions:
             base_v = db.get(ConfigVersion, dev.baseline_version_id)
@@ -1155,6 +1167,7 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
     from . import retire as _ret
     return render(request, "device.html", user, key_error=key_error, can_console=console_allowed(user, dev.id), device=dev,
                   ret=_ret.links(dev),
+                  fw_of=fw_of, last_fw=last_fw,
                   ports=pinfo, license_partial=license_partial, license_groups=license_groups, license_soon=_lic.SOON,
                   versions=versions, comp=comp, vulns=vulns, comp_groups=comp_groups,
                   comp_fails=sum(g["fails"] for g in comp_groups),
@@ -1285,6 +1298,13 @@ def version_view(request: Request, ver_id: int, raw: int = 0):
                                 headers={"Content-Disposition": 'attachment; filename="system.cfg"'})
             ext = {"mikrotik_routeros": "rsc", "watchguard_fireware": "xml"}.get(v.device.device_type, "txt")
             fname = f"{v.device.name}_{v.kind}_{v.created_at:%Y%m%d-%H%M}.{ext}"
+            from . import fwtag
+            prof_dl = get_profile(v.device.device_type)
+            ftag = fwtag.file_tag(prof_dl.label, prof_dl.vendor, v.fw_version)
+            if ftag and ext != "xml":  # con el firmware de la copia en el nombre: «SW-Miramar_v4_EdgeSwitch-1.11.1.txt»
+                n_dl = db.scalar(select(func.count(ConfigVersion.id)).where(ConfigVersion.device_id == v.device_id,
+                                                                            ConfigVersion.id <= v.id))
+                fname = f"{v.device.name}_v{n_dl}_{ftag}.{ext}"
             if ext == "xml":  # WatchGuard: el XML tal como lo da el Firebox (lo abre Policy Manager), «EQUIPO_v48.xml»
                 n = db.scalar(select(func.count(ConfigVersion.id)).where(ConfigVersion.device_id == v.device_id,
                                                                          ConfigVersion.id <= v.id))
@@ -1299,8 +1319,10 @@ def version_view(request: Request, ver_id: int, raw: int = 0):
         small = _suspiciously_small(v, current)
         n = db.scalar(select(func.count(ConfigVersion.id)).where(ConfigVersion.device_id == v.device_id,
                                                                   ConfigVersion.id <= v.id)) or 1
+    from . import fwtag
     return render(request, "version.html", user, v=v, text=text, prev=prev, is_baseline=is_baseline,
-                  small=small, current=current, n=n, lines=text.splitlines())
+                  small=small, current=current, n=n, lines=text.splitlines(), fw_line=fwtag.source_line(text, v.fw_version),
+                  fw_old=bool(v.fw_version and v.device.os_version and not fwtag.same(v.fw_version, v.device.os_version)))
 
 
 def _suspiciously_small(v, current) -> bool:
@@ -1397,6 +1419,10 @@ def diff_view(request: Request, a: int = 0, b: int = 0, ctx: int = 3, view: str 
     added, removed = services.diff_stats(ta, tb)
     rows, cut = services.cap_rows(rows)
     cmp = {"a": va, "b": vb, "rows": rows, "cut": cut, "summary": services.diff_summary(ta, tb), "n": added + removed}
+    from . import fwtag  # noqa: E402
+    cmp.update({"fwa": va.fw_version, "fwb": vb.fw_version, "fwrows": fwtag.mark_rows(rows, va.fw_version, vb.fw_version),
+                "fw_diff": bool(va.fw_version and vb.fw_version and not fwtag.same(va.fw_version, vb.fw_version)),
+                "fw_same": fwtag.same(va.fw_version, vb.fw_version)})
     return render(request, "diff.html", user, va=va, vb=vb, cmp=cmp, ctx=ctx, view=view, devs=devs, vers=vers, vn=vn,
                   mode="u" if view == "unified" else "sbs", vers_js={str(k): [x["id"] for x in v] for k, v in vers.items()})
 
@@ -3170,17 +3196,17 @@ SETTING_KEYS = ["smtp_host", "smtp_port", "smtp_security", "smtp_user", "smtp_fr
                 "allow_self_approval", "notify_compliance", "retention_versions", "cisco_api_client_id",
                 "dr_keep", "dr_remote_host", "dr_remote_port", "dr_remote_user", "dr_remote_path",
                 "session_idle_minutes", "remember_days", "require_2fa_admins", "console_access", "console_autologin", "cred_view", "update_check",
-                "topology_enabled", "topology_types", "topology_romon", "git_enabled", "git_url", "git_branch", "git_user", "git_mask", "org_name", "org_contact", "org_address", "default_lang", "support_button",
+                "topology_enabled", "topology_types", "topology_romon", "git_enabled", "git_url", "git_branch", "git_user", "git_mask", "org_name", "org_contact", "org_address", "default_lang", "support_button", "logos_small",
                 "ldap_enabled", "ldap_url", "ldap_starttls", "ldap_verify_tls", "ldap_bind_dn", "ldap_base_dn",
                 "ldap_user_filter", "ldap_group_admin", "ldap_group_operator", "ldap_group_viewer", "ldap_default_role",
                 "oidc_enabled", "oidc_tenant", "oidc_client_id", "oidc_discovery", "oidc_button", "oidc_redirect",
                 "oidc_group_admin", "oidc_group_operator", "oidc_group_viewer", "oidc_default_role"]
 CHECKBOX_KEYS = ("require_approval", "allow_self_approval", "notify_compliance", "require_2fa_admins",
                  "console_autologin", "update_check", "ldap_enabled", "ldap_starttls", "ldap_verify_tls", "oidc_enabled",
-                 "topology_enabled", "topology_romon", "git_enabled", "git_mask", "support_button")
+                 "topology_enabled", "topology_romon", "git_enabled", "git_mask", "support_button", "logos_small")
 # valores por defecto cuando el ajuste nunca se guardó
 SETTING_DEFAULTS = {"allow_self_approval": "1", "cred_view": "off", "session_idle_minutes": "30", "remember_days": "14", "require_2fa_admins": "0",
-                    "console_access": "admin", "console_autologin": "0", "update_check": "1", "topology_enabled": "1", "git_mask": "1", "support_button": "1", "git_branch": "main",
+                    "console_access": "admin", "console_autologin": "0", "update_check": "1", "topology_enabled": "1", "git_mask": "1", "support_button": "1", "logos_small": "0", "git_branch": "main",
                     "ldap_verify_tls": "1", "ldap_user_filter": "(&(objectClass=user)(sAMAccountName={username}))"}
 SECRET_FORM_KEYS = ["git_token", "smtp_password", "cisco_api_secret", "dr_remote_password", "ldap_bind_password", "oidc_client_secret",
                     "nvd_api_key"]
@@ -3476,6 +3502,9 @@ from . import console, security  # noqa: E402  (consola SSH web; 2 pasos, certif
 from . import mobile  # noqa: E402  (API para apps móviles)
 
 app.include_router(mobile.router)
+from . import mobile_app  # noqa: E402  (todas las pantallas de la app Android con servidor)
+
+app.include_router(mobile_app.router)
 
 app.include_router(security.router)
 app.include_router(console.router)

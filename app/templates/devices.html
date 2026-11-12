@@ -7,7 +7,7 @@
 {% set qb = ('&q=' ~ q|urlencode if q else '') ~ ('&group=' ~ group if group else '') ~ ('&status=' ~ status if status else '') ~ qn %}
 {% set qg = ('&q=' ~ q|urlencode if q else '') ~ ('&group=' ~ group if group else '') ~ ('&status=' ~ status if status else '') ~ ('&brand=' ~ brand if brand else '') %}
 <div class="ph"><div class="grow"><h1>Dispositivos</h1>
-  <div class="sub">{{ _f('{0} equipos en {1} grupos', counts[''], n_groups) }}<span id="bk-sub">{% if last_global %} · {{ _f('último respaldo global {0}', last_global|ago) }}{% endif %}</span></div></div>
+  <div class="sub">{{ _f('{0} en {1}', pl(counts[''], '{0} equipo', '{0} equipos'), pl(n_groups, '{0} grupo', '{0} grupos')) }}<span id="bk-sub">{% if last_global %} · {{ _f('último respaldo global {0}', last_global|ago) }}{% endif %}</span></div></div>
   {% if retired_n %}<a class="btn" href="/retired" title="{{ _('Dañados, reemplazados o dados de baja, con su historial') }}">{{ icon('undo', 's') }}{{ _f('Retirados ({0})', retired_n) }}</a>{% endif %}
   <a class="btn" href="/config-reference">{{ icon('star', 's') }}{{ _('Configuración de referencia') }}</a>
   {% if user.role == 'admin' %}<a class="btn" href="/credentials#groups">{{ icon('folder', 's') }}Grupos</a>
@@ -21,7 +21,7 @@
     <button class="btn pri" id="bk-all">{{ icon('backup', 's') }}<span>{{ _('Respaldar todos') }}</span></button></form>{% endif %}
 </div>
 <div id="bk-panel" hidden aria-live="polite"></div>
-{% if retired_hits %}<div class="banner info" role="status" style="margin-bottom:12px">{{ icon('info') }}<span class="grow">{{ _('1 equipo retirado coincide con la búsqueda.') if retired_hits == 1 else _f('{0} equipos retirados coinciden con la búsqueda.', retired_hits) }}</span><a class="btn s" href="/retired?q={{ q|urlencode }}">{{ _('Ver en Retirados') }}</a></div>{% endif %}
+{% if retired_hits %}<div class="banner info" role="status" style="margin-bottom:12px">{{ icon('info') }}<span class="grow">{{ _('1 equipo retirado coincide con la búsqueda.') if retired_hits == 1 else pl(retired_hits, '{0} equipo retirado coincide con la búsqueda.', '{0} equipos retirados coinciden con la búsqueda.') }}</span><a class="btn s" href="/retired?q={{ q|urlencode }}">{{ _('Ver en Retirados') }}</a></div>{% endif %}
 
 <form class="row" method="get" role="search" id="devf">
   <label class="input" style="width:min(320px,100%)" for="devq">{{ icon('search', 's') }}<input id="devq" name="q" value="{{ q }}" placeholder="Nombre, IP, modelo, serie o ubicación" aria-label="Buscar equipos"></label>
@@ -40,9 +40,11 @@
       {% for nd in net_nodes %}<a href="?node={{ nd.id }}{{ qg }}">{{ icon('pin', 's') }}<span class="grow">{{ nd.name }}</span>{% if nd.id == node %}{{ icon('check', 's') }}{% endif %}</a>{% endfor %}
     </div></span>{% endif %}
   {% if brands|length > 1 or brand %}<span class="dropw"><button type="button" class="chip {{ 'on' if brand }}" data-drop="brand-menu" aria-haspopup="true" aria-expanded="false">{% if brand %}{{ vlk(brand, 18) }}{{ _f('Marca: {0}', brand_names[brand]) }}{% else %}{{ _('Marca') }}{% endif %} {{ icon('down', 's') }}</button>
-    <div class="drop left" id="brand-menu" hidden>
-      <a href="?{{ qb[1:] }}">{{ icon('grid', 's') }}{{ _('Todas las marcas') }}{% if not brand %}<span style="margin-left:auto">{{ icon('check', 's') }}</span>{% endif %}</a>
+    <div class="drop left drop-list" id="brand-menu" hidden>
+      {% if brands|length > 8 %}<div class="drop-find"><div class="input s">{{ icon('search', 's') }}<input type="search" data-drop-filter placeholder="{{ _('Buscar marca') }}" aria-label="{{ _('Buscar marca') }}" autocomplete="off"></div></div>{% endif %}
+      <div class="drop-scroll"><a href="?{{ qb[1:] }}">{{ icon('grid', 's') }}{{ _('Todas las marcas') }}{% if not brand %}<span style="margin-left:auto">{{ icon('check', 's') }}</span>{% endif %}</a>
       {% for k, n in brands %}<a href="?brand={{ k }}{{ qb }}">{{ vlk(k, 20) }}<span class="grow">{{ brand_names[k] }}</span><span class="muted sm">{{ n }}</span>{% if k == brand %}{{ icon('check', 's') }}{% endif %}</a>{% endfor %}
+      <div class="muted sm drop-none" hidden>{{ _('Ninguna marca coincide.') }}</div></div>
     </div></span>{% endif %}
 </form>
 {% if brands|length > 1 %}<div class="row brand-chips" role="group" aria-label="{{ _('Filtrar por marca') }}"><span class="topo-cap">{{ _('MARCA') }}</span>

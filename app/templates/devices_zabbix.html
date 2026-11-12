@@ -37,7 +37,7 @@
     {% if zgroups|length > 12 %}<div class="input" style="max-width:280px"><input type="search" id="z-gq" placeholder="{{ _('Buscar grupo') }}" aria-label="{{ _('Buscar grupo') }}"></div>{% endif %}
     <button type="button" class="btn ghost sm" id="z-gall">{{ _('Marcar todos') }}</button><button type="button" class="btn ghost sm" id="z-gnone">{{ _('Ninguno') }}</button>
     <span class="grow"></span><span class="sm muted" id="z-gn" aria-live="polite"></span></div>
-  <div class="cklist" id="z-gl">{% for g, n in zgroups %}<label class="ck" data-name="{{ g|lower }}"><input type="checkbox" name="zg" value="{{ g }}"> <span><b>{{ g }}</b><span class="muted sm" style="display:block">{{ _f('{0} hosts · {1} nuevos', n[0], n[1]) }}</span></span></label>{% endfor %}</div>
+  <div class="cklist" id="z-gl">{% for g, n in zgroups %}<label class="ck" data-name="{{ g|lower }}"><input type="checkbox" name="zg" value="{{ g }}"> <span><b>{{ g }}</b><span class="muted sm" style="display:block">{{ pl(n[0], '{0} host', '{0} hosts') ~ ' · ' ~ pl(n[1], '{0} nuevo', '{0} nuevos') }}</span></span></label>{% endfor %}</div>
 </div></section>{% endif %}
 <section class="card flush"><div class="card-h" style="padding:16px 18px 0"><h2>{{ _('3. Quitar los equipos que no quieres migrar') if rows else _('2. Elegir los equipos') }}</h2></div>
   {% if rows %}<p class="muted sm" style="margin:8px 18px 0">{{ _('Desmarca los equipos que no quieras traer. Los que ya están en OpenNCCM o no tienen dirección no se pueden marcar.') }}</p>

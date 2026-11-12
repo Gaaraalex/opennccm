@@ -853,12 +853,16 @@ def _backup_device(device_id: int, trigger: str, username: str | None, report: b
         old_serial = dev.serial
         new_serial = (parse_inventory(inventory, prof)["serial"] if inventory else None) or config_serial(running)
         replaced = replaced_serial(old_serial, new_serial)
+        # firmware con el que se hizo esta copia: del inventario de esta misma conexión o de la configuración (app/fwtag.py)
+        from . import fwtag
+        fw_now = (parse_inventory(inventory, prof)["os_version"] if inventory else None) or fwtag.config_fw(running)
         result = "unchanged"
         if changed:
             added, removed = diff_stats(prev_text, running) if prev else (len(running.splitlines()), 0)
             db.add(ConfigVersion(device_id=dev.id, kind="running", content_enc=encrypt(running), sha256=sha,
                                  size=len(running), added=added, removed=removed, trigger=trigger,
-                                 username=username, label=f"equipo nuevo · serie {new_serial}"[:128] if replaced else None))
+                                 username=username, label=f"equipo nuevo · serie {new_serial}"[:128] if replaced else None,
+                                 fw_version=fw_now))
             result = "changed" if prev else "first"
 
         if startup is not None:
@@ -867,7 +871,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None, report: b
             sprev = latest_version(db, dev.id, "startup")
             if sprev is None or sprev.sha256 != ssha:
                 db.add(ConfigVersion(device_id=dev.id, kind="startup", content_enc=encrypt(startup),
-                                     sha256=ssha, size=len(startup), trigger=trigger, username=username))
+                                     sha256=ssha, size=len(startup), trigger=trigger, username=username, fw_version=fw_now))
             conflict = _normalize_for_compare(startup) != _normalize_for_compare(running)
             new_conflict = conflict and not dev.startup_conflict
             dev.startup_conflict = conflict

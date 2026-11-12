@@ -236,8 +236,9 @@ def mobile_version(request: Request, ver_id: int):
         check_device(user, v.device_id)
         text = decrypt(v.content_enc)
         name = v.device.name
+        fw, fw_now = v.fw_version, v.device.os_version
     act(request, user, "config_view", f"{name} v{ver_id}")
-    return {"id": ver_id, "device": name, "text": text}
+    return {"id": ver_id, "device": name, "text": text, "fw": fw, "fw_now": fw_now}
 
 
 @router.get("/api/mobile/events")
@@ -298,7 +299,10 @@ def mobile_change(request: Request, cr_id: int):
             return JSONResponse({"error": "not_found"}, 404)
         names = dict(db.execute(select(Device.id, Device.name)).all())  # (historial: también los retirados)
         out = _cr_json(cr, names)
-        out.update({"body": cr.body, "result": (cr.result or "")[-6000:]})
+        from . import vendorlogos
+        types = dict(db.execute(select(Device.id, Device.device_type)).all())
+        out.update({"body": cr.body, "result": (cr.result or "")[-6000:],
+                    "brands": {names.get(i, f"#{i}"): vendorlogos.key(types.get(i)) for i in json.loads(cr.device_ids or "[]")}})
         return out
 
 

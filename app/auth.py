@@ -94,6 +94,11 @@ def _token_user(request: Request) -> User | None:
 
 
 def current_user(request: Request) -> User | None:
+    mobile_uid = request.scope.get("ncm_mobile_uid")  # acción de la app Android por el puente (app/mobile_app.py)
+    if mobile_uid:
+        with SessionLocal() as db:
+            user = db.get(User, mobile_uid)
+            return user if user is not None and user.active else None
     uid = request.session.get("uid")
     if not uid:
         return _token_user(request)

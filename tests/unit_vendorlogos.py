@@ -21,7 +21,15 @@ check("los 131 perfiles tienen logo", not missing and len(PROFILE_MAP) >= 131, m
 check("cada logo de la tabla es una marca", all(v in vl.BRANDS for v in vl.PROFILES.values()))
 sprite = open(os.path.join(os.path.dirname(vl.__file__), "static", "vendor-logos.svg"), encoding="utf-8").read()
 ids = set(re.findall(r'<symbol id="vl-([\w-]+)"', sprite))
-check("el sprite tiene un símbolo por marca", ids == set(vl.BRANDS), sorted(set(vl.BRANDS) ^ ids))
+check("el sprite tiene un símbolo por marca (y la versión chica de las que la tienen)",
+      ids == set(vl.BRANDS) | {k + "-chico" for k in vl.SMALL}, sorted((set(vl.BRANDS) | {k + "-chico" for k in vl.SMALL}) ^ ids))
+check("10 marcas con versión chica (logo que es su nombre escrito)", len(vl.SMALL) == 10 and "juniper" in vl.SMALL and "mikrotik" not in vl.SMALL, vl.SMALL)
+vl.small_on = lambda: False  # el ajuste apagado (lo que viene por omisión): el logo normal en todos los tamaños
+check("con el ajuste apagado, el logo normal también en chico", "#vl-juniper\"" in str(vl.logo("juniper_junos", 18)) and vl.small_keys() == [])
+vl.small_on = lambda: True   # Administración › Ajustes › «Logos de marca abreviados en tamaño chico»
+check("con el ajuste: por debajo de 40 px, la chica", "#vl-juniper-chico" in str(vl.logo("juniper_junos", 30)) and "#vl-cisco-chico" in str(vl.logo("cisco_ios", 18)))
+check("desde 40 px, la completa", "#vl-juniper\"" in str(vl.logo("juniper_junos", 56)) and "#vl-cisco\"" in str(vl.logo("cisco_ios", 40)))
+check("una marca sin versión chica no cambia", "#vl-mikrotik\"" in str(vl.logo("mikrotik_routeros", 18)))
 check("el sprite no depende de fuentes (texto convertido a trazos)", "<text" not in sprite and "font-family" not in sprite)
 check("extreme_vsp → Extreme", vl.key("extreme_vsp") == "extreme" and vl.brand("extreme_vsp") == "Extreme")
 check("perfil desconocido → other", vl.key("nada") == "other" and vl.key(None) == "other")
