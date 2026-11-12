@@ -171,6 +171,16 @@ VERIFIED = {
     "fos-ha": "FortiOS 7.4.2", "fos-hostname": "FortiOS 7.4.2", "fos-ntp": "FortiOS 7.4.2",
     "fos-ports": "FortiOS 7.4.2", "fos-route": "FortiOS 7.4.2", "fos-sniffer": "FortiOS 7.4.2",
     "fos-snmp": "FortiOS 7.4.2", "fos-status": "FortiOS 7.4.2", "fos-syslog": "FortiOS 7.4.2",
+    # Cisco en GNS3: IOSv 15.6(2)T, Catalyst 8000v 17.6.1a, 7200 15.3(3)XB12, 3745 12.4(25d) y 3620 12.2(26c); 3 rondas
+    # seguidas sin fallos, 2026-11-12. Cada receta lleva las versiones en las que pasó (12.2 no tiene SSH/HTTPS ni
+    # «secret»; 12.4 no tiene la sintaxis «radius server»)
+    **{f"ios-{t}": "IOS 12.2(26c), 12.4(25d), 15.3(3)XB12, 15.6(2)T; IOS-XE 17.6.1a"
+       for t in ("flap", "hostname", "ntp", "save", "snmp", "syslog")},
+    **{f"ios-{t}": "IOS 12.4(25d), 15.3(3)XB12, 15.6(2)T; IOS-XE 17.6.1a" for t in ("https", "ssh", "user")},
+    "ios-radius": "IOS 15.3(3)XB12, 15.6(2)T; IOS-XE 17.6.1a",
+    # Cisco ASAv 9.9.2 (GNS3), 3 rondas seguidas sin fallos, 2026-11-12
+    **{f"asa-{t}": "ASA 9.9.2" for t in ("cpu", "failover", "hostname", "ntp", "ports", "route", "snmp", "ssh", "syslog",
+                                          "tracer", "user")},
 }
 
 
