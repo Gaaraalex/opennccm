@@ -81,6 +81,19 @@ ref_lines = refconfig.commands("cisco_asa", refconfig.compare(ra2, pm_b, rb2, pm
 check("referencia: tercer nivel dentro de su sub-bloque", ref_lines[:2] == ["policy-map global_policy", " class inspection_default"]
       and "  inspect dns preset_dns_map" in ref_lines and "  no inspect dns migrated_dns_map_1" in ref_lines, ref_lines)
 
+check("referencia ASA: quita el «inspect» que sobra antes de poner el nuevo",
+      ref_lines.index("  no inspect dns migrated_dns_map_1") < ref_lines.index("  inspect dns preset_dns_map"), ref_lines)
+cmds = build_rollback("hostname K-1\n", "hostname K-1\ncall-home reporting anonymous prompt 2\n", IOS)
+check("ASA: «call-home reporting anonymous prompt N» no se escribe", cmds == [], cmds)
+cmds = build_rollback("hostname K-1\ncall-home reporting anonymous prompt 2\n", "hostname K-1\n", IOS)
+check("…ni se niega", cmds == [], cmds)
+ra3 = SimpleNamespace(id=5, name="K-1", device_type="cisco_asa", host="10.0.0.240", model="ASAv")
+rb3 = SimpleNamespace(id=6, name="K-2", device_type="cisco_asa", host="10.0.0.239", model="ASAv")
+cmp = refconfig.compare(ra3, "hostname K-1\nntp server 1.1.1.1\n", rb3,
+                        "hostname K-2\nntp server 1.1.1.1\ncall-home reporting anonymous prompt 2\n", {})
+check("referencia ASA: no intenta quitar «call-home reporting anonymous prompt N»",
+      "call-home" not in refconfig.commands("cisco_asa", cmp)[0], refconfig.commands("cisco_asa", cmp)[0])
+
 from app import consolecore as cc  # noqa: E402
 check("ASA: «packet-tracer» es una consulta", cc.is_query(cc.os_of("cisco_asa"), "packet-tracer input inside tcp 10.0.0.5 1 8.8.8.8 443 detailed", "cisco_asa"))
 check("ASA: «show running-config» consulta y «write erase» corta el servicio",

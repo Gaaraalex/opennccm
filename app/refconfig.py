@@ -215,7 +215,10 @@ def lines_of(text: str, device_type: str, hosts: list[str]) -> list[tuple[str, s
             # lo propio de cada equipo Cisco: su certificado autofirmado (trustpoint «TP-self-signed-<n.º>»; borrarlo
             # pide confirmar) y la licencia con su serie («license udi pid CSR1000V sn …»)
             skip_block = bool(re.match(r"crypto (pki|ca) certificate|crypto pki trustpoint TP-self-signed-", s))
-            if skip_block or w[0] in ("hostname", "sysname", "prompt") or re.match(r"license udi\b", s):
+            # (ASA: tampoco la marca de la pregunta del primer arranque, «call-home reporting anonymous prompt 2»: no se
+            # puede negar)
+            if skip_block or w[0] in ("hostname", "sysname", "prompt") or re.match(
+                    r"license udi\b|call-home reporting anonymous prompt \d+\s*$", s):
                 parent = s
                 continue
             parent, psec = s, _section(w[0], " ".join(w[1:]))
@@ -353,7 +356,10 @@ def commands(device_type: str, c: dict) -> tuple[str, int]:
         from .rollback import IOS_KEEP
         return None if line.startswith("no ") or line in IOS_KEEP else "no " + line
     gone = {k for _s, k in c["extra"] if SEP not in k}  # bloques que se quitan enteros: sus líneas no se tocan
-    for sign, items in (("+", c["missing"]), ("no ", c["extra"])):
+    # (ASA: lo que sobra se quita antes de poner lo que falta: no acepta un segundo «inspect dns …» sin quitar el que
+    # tiene, «Inspect configuration of this type exists, first remove that configuration», ASAv 9.9.2)
+    order = (("no ", c["extra"]), ("+", c["missing"])) if os_key == "asa" else (("+", c["missing"]), ("no ", c["extra"]))
+    for sign, items in order:
         for _s, k in items:
             if "***" in k or "{IP}" in k:
                 skipped += 1
