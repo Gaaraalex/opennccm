@@ -62,7 +62,8 @@ ROUTES = [
      r"|^/reports/(unused/(preview|except)|netdoc)|^/firmware/updates/check$|^/config-reference/", "audit"),
     (r"^/console/recipes/verify$|^/configlets/|^/compliance/(policies|rules)", "configlets"),
     (r"^/schedules", "schedules"),
-    (r"^/kb/", "kb"),
+    # base de conocimiento: solo la moderación (escribir casos es de operadores: kb._write, sin función propia)
+    (r"^/kb/(pending/\d+/dismiss|\d+/(approve|return|archive|restore)|proposals/\d+/(approve|return)|access)$", "kb"),
     (r"^/credentials", "credentials"),
     (r"^/users|^/audit$", "users"),
     (r"^/devices/(new|import)|^/devices/\d+/(edit|delete|retire|reinstate)$|^/groups|^/api/devices$|^/api/mobile/newdevice$"

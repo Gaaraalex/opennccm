@@ -51,6 +51,12 @@ for path, role in routes:
 check(f"las {len(routes)} rutas con rol tienen su función", not missing, missing)
 check("y la función pide el mismo rol que antes (sin lista propia nada cambia)", not wrong, wrong)
 
+# rutas que piden el rol desde una función auxiliar (kb._write, credview._guard, fxi._dev): no deben caer en una
+# función de otro rol (escribir un caso de la base de conocimiento es de operadores, no de quien la modera)
+leaks = [p for p in ("/kb/save", "/kb/1/comment", "/kb/1/vote", "/kb/1/configlet", "/kb/close/1", "/kb/pending/1/link",
+                     "/devices/1/credential/view", "/devices/1/fxi/run", "/devices/1/fxi/status") if perms.for_path(p)]
+check("las rutas con rol en una función auxiliar siguen con su rol", not leaks, leaks)
+
 # 2) roles sin lista propia
 op = SimpleNamespace(role="operator", perms=None, is_master=False)
 vw = SimpleNamespace(role="viewer", perms=None, is_master=False)
