@@ -139,6 +139,28 @@ def _connect_arubaos(dev, handler, params: dict, cred_name: str, secret: str, pa
     return conn
 
 
+JUNOS_LOGIN_WAIT = 90  # segundos para que aparezca el prompt de Junos después de entrar
+
+
+def junos_slow_login() -> None:
+    """Junos: algunos equipos tardan en abrir la CLI después de entrar (muestran «--- JUNOS 21.4R3-S5.4 built …» un
+    rato y después «{master:0}» y el prompt; visto en un switch con 21.4R3-S5.4). El driver de netmiko espera ese prompt
+    solo 20 s y fallaba con «Pattern not detected: '[%>$#]'» aunque el usuario y la contraseña eran correctos. Aquí la
+    espera inicial de Junos pasa a JUNOS_LOGIN_WAIT (el resto de las esperas no cambia)."""
+    from netmiko.juniper.juniper import JuniperBase
+    if getattr(JuniperBase._test_channel_read, "_ncm_slow", False):
+        return
+    original = JuniperBase._test_channel_read
+
+    def _test_channel_read(self, count: int = 40, pattern: str = "") -> str:
+        if pattern:
+            return self.read_until_pattern(pattern=pattern, read_timeout=JUNOS_LOGIN_WAIT)
+        return original(self, count=count, pattern=pattern)
+
+    _test_channel_read._ncm_slow = True
+    JuniperBase._test_channel_read = _test_channel_read
+
+
 def connect(dev: Device):
     from netmiko import ConnectHandler
 
@@ -147,6 +169,8 @@ def connect(dev: Device):
     ensure_enabled(dev)
 
     legacy_ssh.enable()  # equipos antiguos que solo ofrecen ssh-rsa / kex SHA-1 (p. ej. Ubiquiti EdgeSwitch)
+    if dev.device_type.startswith("juniper"):
+        junos_slow_login()
 
     prof = get_profile(dev.device_type)
     cred = dev.credential

@@ -81,5 +81,23 @@ r = services.backup_device(dev_id, "manual", "admin")
 check("con el permiso ya dado, el respaldo se guarda", r != "error" and len(versions()) == 1
       and "host-name SW-CORE-1" in versions()[0], (r, versions()))
 
+# CLI lenta al entrar («--- JUNOS 21.4R3-S5.4 built …» un rato antes del prompt): la espera inicial ya no es de 20 s
+from netmiko.juniper.juniper import JuniperBase  # noqa: E402
+
+services.junos_slow_login()
+services.junos_slow_login()  # dos veces no la envuelve dos veces
+seen = {}
+
+
+class Slow:
+    def read_until_pattern(self, pattern, read_timeout):
+        seen["t"], seen["p"] = read_timeout, pattern
+        return "{master:0}\nuser@SW>"
+
+
+out = JuniperBase._test_channel_read(Slow(), pattern=r"[%>$#]")
+check("Junos: espera el prompt hasta 90 s al entrar", seen == {"t": 90, "p": r"[%>$#]"} and out.endswith(">"), seen)
+check("…y el parche se aplica una sola vez", getattr(JuniperBase._test_channel_read, "_ncm_slow", False))
+
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)
