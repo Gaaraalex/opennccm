@@ -5535,5 +5535,9 @@
 "Imágenes de firmware: subir, descargar y borrar": "Firmware images: upload, download and delete",
 "Moderar la base de conocimiento": "Moderate the knowledge base",
 "Usuarios y registro de auditoría": "Users and audit log",
-"Ajustes, sistema, nodos y ciclo de vida": "Settings, system, nodes and lifecycle"
+"Ajustes, sistema, nodos y ciclo de vida": "Settings, system, nodes and lifecycle",
+"Las fechas de fin de venta y de soporte de su modelo se pueden cargar a mano en Firmware y ciclo de vida.": "Your model's end-of-sale and end-of-support dates can be entered by hand in Firmware and lifecycle.",
+"NVD casi no tiene registradas las OLT ZTE (de la C320, ninguna): un «0» aquí no significa que no tenga vulnerabilidades. ZTE publica sus avisos de seguridad en su web; revíselos también.": "NVD has almost no ZTE OLTs registered (none for the C320): a “0” here does not mean it has no vulnerabilities. ZTE publishes its security advisories on its website; check them too.",
+"Ranura {0}": "Slot {0}",
+"{0} ONU": "{0} ONUs"
 }

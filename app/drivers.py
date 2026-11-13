@@ -77,6 +77,7 @@ FASTPATH_MODEL = [r"Machine Model\s*:\s*(.+)", r"Machine Type\s*:\s*(.+)"]
 FASTPATH_SERIAL = [r"Serial Number\s*:\s*(\S+)"]
 SEMVER3 = r"^v?(\d+\.\d+\.\d+)"  # «1.9.3.5263085» o «v2.0.9-hotfix.7» → «1.9.3», «2.0.9», como las publica NVD
 VOSS_CVE_NOTE = ("extreme", "https://www.extremenetworks.com/support/security-advisories")  # (aviso, enlace)
+ZTE_OLT_CVE_NOTE = ("zte", "https://www.zte.com.cn/global/cybersecurity/ztepsirt/security-bulletins")
 
 PROFILES: list[Profile] = [
     # ---------------- Cisco ----------------
@@ -269,18 +270,19 @@ PROFILES: list[Profile] = [
             ignore=CISCO_IGNORE,
             version_re=[r"Software,\s*Version:?\s*(?:ZXR10\s+\S+\s+)?(V[\w.\-]+)", r"ROS Version\s+(V[\w.\-]+)"],
             model_re=[r"(?m)^(ZXR10[ _][\w\-]+)\s+Software"], serial_re=[r"System serial\s*:\s*(\S+)"]),
+    # NVD casi no tiene CPE de las OLT ZXA10 (de la C320 ninguno, consultado en 2026-11): ZTE publica sus avisos en su web
     # OLT GPON/EPON ZXA10 de la serie C300 (C300, C320, C350, C220): el prompt es «ZXAN#». «show system-group» trae
     # «System Description: C320 Version V2.1.0 Software» y «show card» las tarjetas con su versión. La configuración
     # incluye cada ONU (interface gpon-onu_1/2/3:18, pon-onu-mng…): con miles de ONU tarda en leerse.
     Profile("zte_olt", "ZTE ZXA10 OLT (C300, C320, C350, C220)", "ZTE", "show running-config", None,
             inventory="show system-group\nshow card", telnet=True, ignore=CISCO_IGNORE, backup_timeout=900,
             version_re=[r"System Description:\s*(?:ZXA10\s+)?C\d{3}\w*\s+Version\s+(V[\w.\-]+)"],
-            model_re=[r"System Description:\s*(?:ZXA10\s+)?(C\d{3}\w*)"]),
+            model_re=[r"System Description:\s*(?:ZXA10\s+)?(C\d{3}\w*)"], cve_note=ZTE_OLT_CVE_NOTE),
     # OLT ZXA10 TITAN (C600, C610, C620, C650, C680): la misma CLI de OLT; la versión sale de «show software»
     Profile("zte_olt_titan", "ZTE ZXA10 OLT TITAN (C600, C610, C620, C650, C680)", "ZTE", "show running-config", None,
             inventory="show software\nshow card", telnet=True, ignore=CISCO_IGNORE, backup_timeout=900,
             version_re=[r"Software,?\s*Version\s*:?\s*(V[\w.\-]+)", r"Version\s*:\s*(V[\w.\-]+)"],
-            model_re=[r"\b(C6[0-9]{2})\b"]),
+            model_re=[r"\b(C6[0-9]{2})\b"], cve_note=ZTE_OLT_CVE_NOTE),
     Profile("ruijie_os", "Ruijie OS", "Ruijie", "show running-config", None, telnet=True, ignore=CISCO_IGNORE),
     Profile("allied_telesis_awplus", "Allied Telesis AlliedWare Plus", "Allied Telesis",
             "show running-config", "show startup-config", ignore=CISCO_IGNORE),

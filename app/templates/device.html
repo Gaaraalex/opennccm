@@ -206,7 +206,8 @@
   {% elif cve_last and not cve_last.ok and cve_last.error %}<div class="banner warn" role="alert">{{ icon('alert') }}<span class="grow">{{ _f('Error consultando NVD: {0}', cve_last.error) }}</span></div>
   {% elif cve_last and cve_last.ok %}<div class="banner info" role="status">{{ icon('check') }}<span class="grow">{{ _f('{0} CVE encontrados en NVD', cve_last.n) }}</span></div>{% endif %}
   {% if profile.cve_note %}{% set note = {'extreme': _('NVD casi no registra vulnerabilidades de VOSS/Fabric Engine: Extreme las publica en sus propios avisos de seguridad. Revíselos también.'),
-                    'ubiquiti': _('NVD no tiene un producto para este firmware: Ubiquiti publica sus avisos de seguridad junto a sus versiones. Revíselos también.')} %}<div class="banner info">{{ icon('info') }}<span class="grow">{{ note[profile.cve_note[0]] }} <a href="{{ profile.cve_note[1] }}" target="_blank" rel="noopener">{{ _f('Avisos de seguridad de {0}', profile.vendor) }}</a></span></div>{% endif %}
+                    'ubiquiti': _('NVD no tiene un producto para este firmware: Ubiquiti publica sus avisos de seguridad junto a sus versiones. Revíselos también.'),
+                    'zte': _('NVD casi no tiene registradas las OLT ZTE (de la C320, ninguna): un «0» aquí no significa que no tenga vulnerabilidades. ZTE publica sus avisos de seguridad en su web; revíselos también.')} %}<div class="banner info">{{ icon('info') }}<span class="grow">{{ note[profile.cve_note[0]] }} <a href="{{ profile.cve_note[1] }}" target="_blank" rel="noopener">{{ _f('Avisos de seguridad de {0}', profile.vendor) }}</a></span></div>{% endif %}
   {% if vulns %}
   <section class="card flush"><div class="tw"><table class="t"><thead><tr><th>CVE</th><th>CVSS</th><th>Severidad</th><th>Afecta a</th><th>Qué permite</th><th>Solución</th></tr></thead><tbody>
   {% for v in vulns %}{% set sc = v.score or 0 %}
@@ -263,7 +264,7 @@
     {% elif fwu.status == 'error' %}
       <div class="banner warn" role="alert">{{ icon('alert') }}<span class="grow">{{ _f('No se pudo comprobar: {0}', fwu.detail) }}</span></div>
     {% else %}
-      <p class="muted">{% if fwu.detail == 'nvd_behind' %}{{ _('NVD no conoce ninguna versión igual o posterior a la instalada, así que no se puede saber si hay una más nueva. Consulte al fabricante.') }}{% elif fwu.detail == 'noversion' %}{{ _('Aún no se conoce la versión instalada: haga un respaldo para leer el inventario.') }}{% else %}{{ _f('No hay una fuente pública de versiones para {0}.', profile.label) }}{% endif %}</p>
+      <p class="muted">{% if fwu.detail == 'nvd_behind' %}{{ _('NVD no conoce ninguna versión igual o posterior a la instalada, así que no se puede saber si hay una más nueva. Consulte al fabricante.') }}{% elif fwu.detail == 'noversion' %}{{ _('Aún no se conoce la versión instalada: haga un respaldo para leer el inventario.') }}{% else %}{{ _f('No hay una fuente pública de versiones para {0}.', profile.label) }} {{ _('Las fechas de fin de venta y de soporte de su modelo se pueden cargar a mano en Firmware y ciclo de vida.') }}{% endif %}</p>
     {% endif %}
   </section>
   <section class="card"><div class="card-h"><h2>Actualizar firmware</h2><span class="muted sm">Instalado: <span class="mono">{{ device.os_version or '—' }}</span></span></div>
