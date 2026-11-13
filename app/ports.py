@@ -476,6 +476,9 @@ LAYOUTS = [
     # entrada de corriente (fuente interna, sin sensores por SSH), con el puerto de gestión, la consola y el USB
     (r"(?i)^(Aruba)?S2500-48", {"rows": 2, "grp": 6, "sfp": "row", "cu": 48, "rear": {"psu": ["100-240 V AC"]}}),
     (r"(?i)^(Aruba)?S2500-24", {"rows": 2, "grp": 6, "sfp": "row", "cu": 24, "rear": {"psu": ["100-240 V AC"]}}),
+    # Juniper QFX5100-48S/48SH: 48 jaulas SFP+ en dos filas (el par arriba, el impar abajo) en bloques de 12, y los 6 QSFP+
+    # (et-0/0/48…53) a la derecha, también de a dos
+    (r"(?i)^QFX5100-48S", {"rows": 2, "sfp": "pairs", "sgrp": 6}),
     # firewalls de escritorio: una fila
     (r"(?i)^(FortiGate|FG-?\d|FGT|PA-?2\d\d|PA-?4\d\d|PA-?1[45]\d\d|SG-\d|Netgate|XG\s?\d|Firebox)", {"rows": 1, "sfp": "row"}),
 ]
@@ -488,6 +491,8 @@ def layout(model: str | None, ports: list[dict]) -> dict:
             return {"rows": 1, "grp": 6, "gaps": [], "sfp": "row", **lay}
     cu = sum(1 for p in ports if p["k"] != "sfp")
     sfp = len(ports) - cu
+    if cu == 0 and sfp > 12:  # switch de jaulas (QFX, Nexus de fibra…): dos filas, como el frente real
+        return {"rows": 2, "grp": 6, "gaps": [], "sfp": "pairs", "sgrp": 6}
     if cu <= 12:
         return {"rows": 1, "grp": 6, "gaps": [], "sfp": "row" if sfp <= 4 else "pairs"}
     cols = (cu + 1) // 2

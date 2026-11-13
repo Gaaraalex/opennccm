@@ -136,18 +136,20 @@
   const big = L.rows === 2, CW = 32, SW = 42, H = 28, GAP = 6, GG = 12, SEP = 16, NG = 12, Y0 = 12 + NG;
   const cu = P.filter(p => p.k !== 'sfp'), sf = P.filter(p => p.k === 'sfp');
   // QSFP divididos en 4 interfaces (MikroTik «qsfpplus1-1»…«qsfpplus1-4»): una jaula por QSFP, aparte de los SFP
-  const isQ = p => /^qsfp\D*\d+-\d+$/i.test(p.dn || p.n), qs = sf.filter(isQ), so = sf.filter(p => !isQ(p));
+  const isQ = p => /^qsfp\D*\d+-\d+$/i.test(p.dn || p.n), qs = sf.filter(isQ);
+  // Junos «et-» (40/100 G, QSFP+/QSFP28): su propio bloque a la derecha de los SFP+ (QFX5100-48S: 48…53)
+  const isE = p => /^et-/.test(p.n), qp = sf.filter(isE), so = sf.filter(p => !isQ(p) && !isE(p));
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c]);
   const tail = n => (L.names || {})[n] || (n.match(/(\d+-\d+)$/) || n.match(/(\d+)$/) || [, n])[1];  // rótulo como en el equipo («1-1» en un QSFP dividido)
   const gbe = list => { const v = list.map(p => parseFloat(p.sp) * (/G/.test(p.sp) ? 1000 : 1)).filter(x => x > 0); if (!v.length) return '';
     const m = Math.max(...v); return m >= 1000 ? ' · ' + (m / 1000) + ' GbE' : ' · ' + m + ' Mbps'; };
   const sfpCap = () => so.length === 1 && !big ? T.sfp : T.sfp + ' · ' + (so.some(p => /qsfp/i.test(p.n)) ? 'QSFP' : so.some(p => /plus|^xe-|^te/i.test(p.n)) ? 'SFP+' : 'SFP') + gbe(so);
-  const qCap = () => T.sfp + ' · QSFP+' + gbe(qs);
+  const qCap = () => T.sfp + ' · QSFP+' + gbe(qs), eCap = () => T.sfp + ' · QSFP+' + gbe(qp);
   const capW = t => t.length * 5.8 + 4;  // ancho aproximado de un rótulo (10 px)
   const caps = (groups, top) => groups.map(g => { const w = Math.max(g[1], capW(g[2])), x = g[0] + (g[1] - w) / 2;
     return `<span class="pg" style="left:${Math.max(0, x)}px;top:${top}px;width:${w}px">${esc(g[2])}</span>`; }).join('');
   const capEnd = groups => Math.max(0, ...groups.map(g => g[0] + (g[1] + Math.max(g[1], capW(g[2]))) / 2));
-  const kindOf = p => p.k === 'sfp' ? (isQ(p) ? qCap() : sfpCap()) : T.cu + gbe(cu);
+  const kindOf = p => p.k === 'sfp' ? (isQ(p) ? qCap() : isE(p) ? eCap() : sfpCap()) : T.cu + gbe(cu);
   let sel = (P.find(p => p.s === 'up' && p.k === 'sfp') || P.find(p => p.s === 'up') || P[0]).n, filt = 'all';
 
   function icon(p, flip) {
@@ -203,7 +205,7 @@
       cuW = cu.length ? x - GAP : 0;
       let sx = cu.length ? cuW + SEP : 0;
       const s0 = sx;
-      so.concat(qs).forEach(p => { put(p, sx, Y0, SW, false, 0); sx += SW + GAP; });
+      so.concat(qp, qs).forEach(p => { put(p, sx, Y0, SW, false, 0); sx += SW + GAP; });
       W = sf.length ? sx - GAP : cuW;
       if (cu.length) groups.push([0, cuW, T.cu + gbe(cu)]);
       if (sf.length) groups.push([s0, Math.max(W - s0, 42), sfpCap()]);
@@ -229,6 +231,13 @@
       }
       if (cu.length) groups.push([0, cuW, T.cu + gbe(cu)]);
       if (so.length) groups.push([sx0, Math.max(W - sx0, 92), sfpCap()]);
+      if (qp.length) {  // Junos «et-»: de a dos (el par arriba, el impar abajo), aparte de los SFP+
+        const e0 = (so.length || cu.length ? W + SEP : 0);
+        qp.forEach((p, i) => { const b = i % 2 === 1; put(p, e0 + Math.floor(i / 2) * (SW + GAP), b ? Y1 : Y0, SW, false, b ? NB : 0); });
+        const ew = e0 + Math.ceil(qp.length / 2) * (SW + GAP) - GAP;
+        groups.push([e0, Math.max(ew - e0, 92), eCap()]);
+        W = ew;
+      }
       if (qs.length) {  // cada QSFP en su fila (arriba el 1, abajo el 2), con sus 4 interfaces juntas
         const q0 = (so.length || cu.length ? W + SEP : 0), cage = n => (n.match(/(\d+)-\d+$/) || [, 1])[1];
         const ids = [...new Set(qs.map(p => cage(p.dn || p.n)))];

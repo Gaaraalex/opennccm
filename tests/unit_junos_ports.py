@@ -47,5 +47,12 @@ check("EX: los ge del PIC 0 son cobre y no se rellenan", [n for n in kinds if n.
 check("EX: el PIC de uplinks se completa (xe-0/1/0…3)", [n for n in kinds if n.startswith("xe-")]
       == ["xe-0/1/0", "xe-0/1/1", "xe-0/1/2", "xe-0/1/3"], kinds)
 
+lay = P.layout("qfx5100-48s-6q", [])
+check("QFX5100-48S: dos filas de a pares en bloques de 12", lay["rows"] == 2 and lay["sfp"] == "pairs" and lay["sgrp"] == 6, lay)
+lay = P.layout("otro-switch-de-fibra", [{"n": f"xe-0/0/{n}", "k": "sfp"} for n in range(24)])
+check("switch de jaulas sin modelo en el catálogo: también en dos filas", lay["rows"] == 2 and lay["sfp"] == "pairs", lay)
+lay = P.layout("hEX", [{"n": f"ether{n}", "k": "cu"} for n in range(5)] + [{"n": "sfp1", "k": "sfp"}])
+check("un equipo chico sigue en una fila", lay["rows"] == 1, lay)
+
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)
