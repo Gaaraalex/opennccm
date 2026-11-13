@@ -1,5 +1,6 @@
 """Convierte los documentos HTML a PDF con Microsoft Edge (headless). Uso: python build.py"""
 import subprocess
+import tempfile  # perfil propio de Edge: con el Edge del usuario abierto salía sin PDF
 from pathlib import Path
 
 from pypdf import PdfReader
@@ -15,7 +16,8 @@ for src, dst in DOCS.items():
     if not (HERE / src).exists():
         continue
     pdf = OUT / dst
-    subprocess.run([EDGE, "--headless=new", "--disable-gpu", "--no-pdf-header-footer",
+    subprocess.run([EDGE, "--headless=new", f"--user-data-dir={tempfile.mkdtemp()}", "--no-first-run",
+                    "--disable-gpu", "--no-pdf-header-footer",
                     "--blink-settings=preferredColorScheme=1", "--virtual-time-budget=8000",
                     f"--print-to-pdf={pdf}", (HERE / src).as_uri()], check=True, capture_output=True, timeout=180)
     print(f"{dst}: {len(PdfReader(pdf).pages)} páginas, {pdf.stat().st_size // 1024} KB")

@@ -1,5 +1,31 @@
 # Historial de versiones
 
+## 2.39.0
+- [seguridad] **Permisos por usuario:** Al crear o editar un usuario, el rol (Lector, Operador, Administrador) es una
+  plantilla y debajo está la lista de funciones del sistema por secciones (operación, cambios en los equipos,
+  administración): se quitan o se agregan a gusto, por ejemplo un operador que no envía configuraciones o un lector que
+  respalda. Cada ruta y cada botón obedecen a la función, no al rol. Al actualizar nada cambia: cada usuario sigue con
+  las funciones de su rol.
+- [seguridad] **Administrador maestro:** El primer administrador (al actualizar, el administrador activo más antiguo) es
+  el maestro: nadie lo puede eliminar, bloquear, editar ni quitarle la verificación en dos pasos, y es el único que crea
+  administradores y da o quita las funciones críticas (enviar configuraciones, revertir, restaurar, consola con cambios,
+  firmware, aprobar, credenciales, usuarios y ajustes). Puede pasar el rol a otro usuario; si se pierde el acceso, en el
+  servidor: «opennccm set-master USUARIO».
+- [nuevo] **Interruptor «Enviar configuraciones»:** En la lista de usuarios, el maestro da o corta al instante a cada
+  usuario el envío de configuraciones a los equipos (solicitudes, recetas, configlets, multi-equipo y correcciones).
+- [arreglo] **Junos: respaldo sin permiso de lectura:** Si la clase de login del usuario no tiene «view-configuration», el
+  equipo responde «/* ACCESS-DENIED */» en cada sección; antes se guardaba como una versión (que no se podía restaurar).
+  Ahora el respaldo falla y dice qué permiso darle. Visto en un QFX5100 con 13.2X51-D25.3.
+- [arreglo] **Junos: equipos que tardan en abrir la CLI:** Algunos muestran «--- JUNOS … built …» un rato antes del
+  prompt y el respaldo fallaba con «Pattern not detected» aunque el usuario y la contraseña eran correctos. Ahora espera
+  el prompt hasta 90 s. Visto en un switch con Junos 21.4R3-S5.4.
+- [arreglo] **Alarma de respaldo fallido:** Un respaldo que fallaba por algo que no se reintenta (contraseña rechazada,
+  sin permiso…) quedaba como «Respaldo reintentado» informativo en lugar de la alarma «Respaldo fallido».
+- [mejora] **Frente de los switches Juniper QFX:** Los puertos salen en el orden del equipo (antes los de 1 G iban
+  primero, como cobre), en dos filas como el frente real (pares arriba, impares abajo, en bloques de 12), con los
+  QSFP+ en su bloque y los puertos sin módulo «sin módulo» (antes no aparecían: del 19 se pasaba al 43). Para verlo,
+  «Respaldar ahora» en cada QFX.
+
 ## 2.38.0
 - [arreglo] **Cisco IOS: restaurar con SNMP:** La reversión ya no escribe «snmp-server chassis-id» sin valor (IOS lo muestra en
   cuanto hay otra línea de SNMP y no se puede escribir así): la restauración se detenía en «% Incomplete command». Visto en

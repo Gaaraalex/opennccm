@@ -7,6 +7,7 @@ código, `código`, **negrita** y [enlaces](…). Escriba los capítulos con eso
 import html
 import re
 import subprocess
+import tempfile  # perfil propio de Edge: con el Edge del usuario abierto salía sin PDF
 import sys
 from datetime import date
 from pathlib import Path
@@ -126,10 +127,23 @@ publica: lo necesario para continuar el proyecto.</p></div>
             f'<body>{"".join(body)}</body></html>')
     tmp = HERE / "_guia_dev.html"
     tmp.write_text(page, encoding="utf-8")
-    try:
-        subprocess.run([EDGE, "--headless=new", "--disable-gpu", "--no-pdf-header-footer",
-                        "--blink-settings=preferredColorScheme=1", "--virtual-time-budget=8000",
-                        f"--print-to-pdf={out_pdf}", tmp.as_uri()], check=True, capture_output=True, timeout=180)
+    import time
+    t0 = time.time()
+    try:  # Edge a veces sale enseguida sin imprimir (con otro Edge abierto): se comprueba el PDF y se reintenta
+        for attempt in range(6):
+            subprocess.run([EDGE, "--headless=new", f"--user-data-dir={tempfile.mkdtemp()}", "--no-first-run",
+                            "--disable-gpu", "--no-pdf-header-footer",
+                            "--blink-settings=preferredColorScheme=1", "--virtual-time-budget=8000",
+                            f"--print-to-pdf={out_pdf}", tmp.as_uri()], check=True, capture_output=True, timeout=180)
+            for _w in range(20):
+                if out_pdf.exists() and out_pdf.stat().st_mtime >= t0:
+                    break
+                time.sleep(0.5)
+            if out_pdf.exists() and out_pdf.stat().st_mtime >= t0:
+                break
+            time.sleep(5 * (attempt + 1))
+        else:
+            sys.exit("Edge no generó el PDF")
     finally:
         tmp.unlink(missing_ok=True)
     try:
