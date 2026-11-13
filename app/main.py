@@ -1134,7 +1134,7 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
         for i, v in enumerate(versions):
             prev = next((x for x in versions[i + 1:] if x.kind == v.kind), None)
             tl.append({"id": v.id, "n": total_v - i, "kind": v.kind, "src": trig.get(v.trigger, v.trigger),
-                       "who": v.username or v.trigger, "when": v.created_at, "label": v.label,
+                       "who": v.username or "", "when": v.created_at, "label": v.label,
                        "base": v.id == dev.baseline_version_id, "inc": bool(prev and prev.size and v.size < prev.size * 0.5),
                        "added": v.added, "removed": v.removed, "first": i == total_v - 1, "size": v.size, "fw": v.fw_version})
         vnum = {t["id"]: t["n"] for t in tl}
