@@ -2365,13 +2365,15 @@ def change_detail(request: Request, cr_id: int):
                              "/system package update check-for-updates once",
                              "/system package update install" if cr.reload else "/system package update download"]
                 elif method == "routeros":
-                    steps = ["# respaldo previo", f"# SFTP {name} -> / (tamaño verificado)"] + (["/system reboot"] if cr.reload else [])
+                    steps = ["# respaldo previo", "# espacio libre (free-hdd-space)", f"# SFTP {name} -> / (tamaño verificado)"] + (["/system reboot"] if cr.reload else [])
                 elif method == "airos":
-                    steps = ["# respaldo previo", f"# SCP {name} -> /tmp/fwupdate.bin (tamaño verificado)"] + (["fwupdate -m"] if cr.reload else [])
+                    steps = ["# respaldo previo", "# espacio libre (df -k /tmp)", f"# SCP {name} -> /tmp/fwupdate.bin (tamaño verificado)",
+                             "# suma SHA-256 o MD5 calculada en el equipo"] + (["fwupdate -m"] if cr.reload else [])
                 elif method == "edgeos":
-                    steps = ["# respaldo previo", f"# SCP {name} -> /tmp/{name}", f"add system image /tmp/{name}"] + (["reboot"] if cr.reload else [])
+                    steps = ["# respaldo previo", "# espacio libre (df -k)", f"# SCP {name} -> /tmp/{name}",
+                             "# suma SHA-256 o MD5 calculada en el equipo", f"add system image /tmp/{name}"] + (["reboot"] if cr.reload else [])
                 else:
-                    steps = [f"# SCP {name} -> {fw.get('fs', '?')} (verificación MD5)"]
+                    steps = [f"# espacio libre (dir {fw.get('fs', '?')})", f"# SCP {name} -> {fw.get('fs', '?')} (verificación MD5)"]
                     steps += [c.format(file=name) for c in fw.get("boot", []) + fw.get("exec", [])]
                     if cr.reload:
                         steps.append(fw.get("reload", "reload"))
@@ -2397,7 +2399,11 @@ def change_detail(request: Request, cr_id: int):
     except Exception:  # noqa: BLE001
         log.exception("análisis de impacto de #%s", cr_id)
         imp = None
-    return render(request, "change.html", user, cr=cr, devices=devs, previews=previews, can_review=can_review,
+    fw = None
+    if cr.kind == "firmware":
+        from . import firmware as fwmod
+        fw = fwmod.page_info(cr)
+    return render(request, "change.html", user, cr=cr, devices=devs, previews=previews, can_review=can_review, fw=fw,
                   kind_label=kind_label, vend=vend, example=example, risks=risks, imp=imp,
                   prev_desc=json.loads(cr.variables or "{}").get("_prev_desc") or {},
                   default_run=now().replace(hour=23, minute=0, second=0, microsecond=0))

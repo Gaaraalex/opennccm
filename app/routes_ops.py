@@ -92,6 +92,19 @@ def firmware_page(request: Request, img: int = 0):
     return _fw_page(request, "imagenes", img=img)
 
 
+def _batch_opts(form) -> dict:
+    """Tandas de la solicitud: cuántos equipos a la vez (0 = todos) y si un fallo detiene las siguientes."""
+    try:
+        n = int(form.get("batch") or 0)
+    except ValueError:
+        n = 0
+    return {"batch": n if n in firmware.BATCH_SIZES else 0, "stop": form.get("stop", "on") == "on"}
+
+
+def _batch_title(opts: dict) -> str:
+    return f" · de a {opts['batch']}" if opts.get("batch") else ""
+
+
 # --------------------------------------------------------------------------- actualizaciones de firmware disponibles
 FW_SOURCES = {"mikrotik": N_("MikroTik"), "ubiquiti": N_("Ubiquiti"), "nvd": N_("NVD (NIST)"),
               "distro": N_("Ubuntu / Debian")}
@@ -167,12 +180,14 @@ async def firmware_upload(request: Request):
     up = form["file"]
     try:
         img = firmware.save_image(up.filename, up.file, user.username, form.get("version"),
-                                  form.get("device_type_filter"))
+                                  form.get("device_type_filter"), form.get("vendor_sum"))
     except ValueError as e:
         flash(request, str(e), "error")
         return go("/firmware")
-    log_action(request, user, "firmware_upload", f"{img.filename} md5={img.md5}")
-    flash(request, _f("Imagen {0} cargada ({1} bytes, MD5 {2})", img.filename, format(img.size, ','), img.md5))
+    log_action(request, user, "firmware_upload", f"{img.filename} md5={img.md5} sha256={img.sha256}"
+               + (" (suma del fabricante comprobada)" if img.vendor_sum else ""))
+    flash(request, _f("Imagen {0} cargada ({1} bytes, MD5 {2})", img.filename, format(img.size, ','), img.md5)
+          + (" · " + _("coincide con la suma del fabricante") if img.vendor_sum else ""))
     return go("/firmware")
 
 
@@ -205,8 +220,9 @@ async def firmware_upgrade(request: Request):
         flash(request, _f("La imagen no es compatible con: {0}", ', '.join(bad)), "error")
         return go("/firmware")
     reload = form.get("reload") == "on"
-    cr_id = _create_cr(user, f"Firmware {img.filename} en {len(ids)} equipo(s){' + reinicio' if reload else ''}",
-                       "", {}, ids, kind="firmware", firmware_id=img.id, reload=reload)
+    opts = _batch_opts(form) if len(ids) > 1 else {}
+    cr_id = _create_cr(user, f"Firmware {img.filename} en {len(ids)} equipo(s){' + reinicio' if reload else ''}{_batch_title(opts)}",
+                       "", opts, ids, kind="firmware", firmware_id=img.id, reload=reload)
     log_action(request, user, "firmware_request", f"#{cr_id} {img.filename} -> {ids}")
     flash(request, _("Solicitud de actualización creada. Un administrador debe aprobarla."))
     return go(f"/changes/{cr_id}")
@@ -229,11 +245,52 @@ async def firmware_routeros_online(request: Request):
         flash(request, _("Elija al menos un equipo MikroTik RouterOS") if not ids else _f("No son MikroTik RouterOS: {0}", ", ".join(bad)), "error")
         return go("/firmware")
     reload = form.get("reload") == "on"
-    cr_id = _create_cr(user, f"RouterOS en línea (canal {channel}) en {len(ids)} equipo(s){' + reinicio' if reload else ''}",
-                       "", {"channel": channel}, ids, kind="firmware", firmware_id=0, reload=reload)
+    opts = _batch_opts(form) if len(ids) > 1 else {}
+    cr_id = _create_cr(user, f"RouterOS en línea (canal {channel}) en {len(ids)} equipo(s){' + reinicio' if reload else ''}{_batch_title(opts)}",
+                       "", {"channel": channel, **opts}, ids, kind="firmware", firmware_id=0, reload=reload)
     log_action(request, user, "firmware_request", f"#{cr_id} RouterOS en línea {channel} -> {ids}")
     flash(request, _("Solicitud de actualización creada. Un administrador debe aprobarla."))
     return go(f"/changes/{cr_id}")
+
+
+def _fw_cr(user, cr_id: int):
+    from .db import ChangeRequest
+    import json
+    with SessionLocal() as db:
+        cr = db.get(ChangeRequest, cr_id)
+        if cr is None or cr.kind != "firmware":
+            raise Forbidden()
+        ids = json.loads(cr.device_ids)
+        if len(filter_ids(user, ids)) != len(ids):
+            raise Forbidden()
+        return cr.status
+
+
+@router.get("/changes/{cr_id}/firmware-progress")
+def firmware_progress(request: Request, cr_id: int):
+    """Avance de cada equipo (la solicitud lo pide cada pocos segundos mientras corre)."""
+    user = require(request)
+    status = _fw_cr(user, cr_id)
+    run, chk = firmware.jobs_of(cr_id, "run"), firmware.jobs_of(cr_id, "check")
+    return JSONResponse({"status": status, "run": run, "check": chk, "busy": firmware.busy(status, run, chk)})
+
+
+@router.post("/changes/{cr_id}/firmware-check")
+def firmware_check(request: Request, cr_id: int):
+    """«Comprobar los equipos»: conexión, versión y espacio libre de cada uno, sin copiar ni cambiar nada."""
+    user = require(request, "operator")
+    status = _fw_cr(user, cr_id)
+    if status != "pending":
+        flash(request, _("Solo se comprueba antes de aprobar."), "error")
+        return go(f"/changes/{cr_id}")
+    if firmware.busy("", [], firmware.jobs_of(cr_id, "check")):
+        flash(request, _("Ya se están comprobando."), "error")
+        return go(f"/changes/{cr_id}")
+    from .services import jobs
+    jobs.submit(firmware.check_request, cr_id)
+    log_action(request, user, "firmware_check", f"#{cr_id}")
+    flash(request, _("Comprobando los equipos: conexión, versión y espacio libre (no se copia nada)."))
+    return go(f"/changes/{cr_id}#fwcheck")
 
 
 # --------------------------------------------------------------------------- EOL / EOS

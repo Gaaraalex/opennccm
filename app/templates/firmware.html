@@ -1,5 +1,11 @@
 {% extends "base.html" %}{% block title %}Firmware y ciclo de vida{% endblock %}
 {% block content %}
+{% macro batch_fields(id) -%}
+  <div class="row" style="gap:12px;flex-wrap:wrap;align-items:flex-end"><div class="field" style="margin:0"><label for="{{ id }}">{{ _('Equipos a la vez (si elige varios)') }}</label><div class="input"><select id="{{ id }}" name="batch">
+    <option value="1">{{ _('De a 1') }}</option><option value="2">{{ _f('De a {0}', 2) }}</option><option value="5" selected>{{ _f('De a {0}', 5) }}</option><option value="10">{{ _f('De a {0}', 10) }}</option><option value="20">{{ _f('De a {0}', 20) }}</option><option value="0">{{ _('Todos a la vez') }}</option></select></div></div>
+    <label class="ck"><input type="hidden" name="stop" value="off"><input type="checkbox" name="stop" value="on" checked> {{ _('Si un equipo falla, no empezar las tandas siguientes') }}</label></div>
+  <p class="muted sm" style="margin:0">{{ _('Con reinicio, cada tanda espera a que los equipos de la anterior vuelvan con la versión nueva. Los que ya tienen esa versión no se tocan.') }}</p>
+{%- endmacro %}
 {% set is_admin = can(user, 'firmware_manage') %}
 {% if tab == 'eol' %}<script>if (!location.hash) history.replaceState(null, '', '#eol');</script>{% endif %}
 <div class="ph"><div class="grow"><h1>Firmware y ciclo de vida</h1><div class="sub">Imágenes, actualizaciones y fechas de fin de venta y soporte (EOL/EOS), en un solo sitio.</div></div>
@@ -17,9 +23,9 @@
 </nav>
 
 <div id="imagenes" class="stack">
-<section class="card flush"><div class="tw"><table class="t"><thead><tr><th>Archivo</th><th>Versión</th><th>Para (regex de tipo)</th><th>MD5</th><th>Tamaño</th><th>Equipos compatibles</th><th><span class="vh">Acciones</span></th></tr></thead><tbody>
+<section class="card flush"><div class="tw"><table class="t"><thead><tr><th>Archivo</th><th>Versión</th><th>Para (regex de tipo)</th><th>{{ _('Suma') }}</th><th>Tamaño</th><th>Equipos compatibles</th><th><span class="vh">Acciones</span></th></tr></thead><tbody>
 {% for i in images %}<tr><td class="mono">{{ i.filename }}</td><td class="mono">{{ i.version or '—' }}</td><td class="mono">{{ i.device_type_filter or '.*' }}</td>
-  <td class="mono muted" title="{{ i.md5 }}">{{ i.md5[:12] }}…</td><td class="muted" title="{{ '{:,}'.format(i.size) }} B">{{ i.size|filesizeformat }}</td><td class="sm">{{ compat[i.id]|join(', ') or '—' }}</td>
+  <td class="mono muted" title="MD5 {{ i.md5 }}{% if i.sha256 %}&#10;SHA-256 {{ i.sha256 }}{% endif %}">{{ i.md5[:12] }}…{% if i.vendor_sum %}<div><span class="tag ok" title="{{ _('El archivo coincide con la suma que publica el fabricante') }}">{{ _('suma del fabricante ✓') }}</span></div>{% endif %}</td><td class="muted" title="{{ '{:,}'.format(i.size) }} B">{{ i.size|filesizeformat }}</td><td class="sm">{{ compat[i.id]|join(', ') or '—' }}</td>
   <td><div class="acts">{% if can(user, 'firmware_install') %}<a class="btn s" href="/firmware?img={{ i.id }}#actualizar">Usar</a>{% endif %}
     {% if is_admin %}<button type="button" class="btn s icon" data-dialog="img-del-{{ i.id }}" aria-label="{{ _f('Eliminar {0}', i.filename) }}" title="Eliminar">{{ icon('trash', 's') }}</button>
     <dialog class="dlg" id="img-del-{{ i.id }}"><form method="post" action="/firmware/{{ i.id }}/delete">
@@ -62,8 +68,9 @@
     <div class="cklist">{% for d in devices %}<label class="ck" data-type="{{ d.device_type }}"><input type="checkbox" name="device_ids" value="{{ d.id }}" data-fw="{{ d.os_version or '' }}"> {{ d.name }} <span class="muted sm mono">{{ d.os_version or '—' }}</span></label>{% endfor %}</div>
     <p class="muted" id="fwnone" hidden>Ningún equipo usa este tipo.</p></div>
   <label class="ck"><input type="checkbox" name="reload"> Reiniciar cada equipo al terminar</label>
+  {{ batch_fields('fwb') }}
   <div><button class="btn pri">Crear solicitud de actualización</button> <span class="muted sm">Siempre requiere la aprobación de un administrador.</span></div></div>
-  <div class="c5"><ol class="steps"><li><span><b>Respaldo</b><div class="muted sm">Se guarda la configuración antes de tocar nada.</div></span></li><li><span><b>{{ _('Transferencia') }}</b><div class="muted sm">{{ _('La imagen se copia al equipo (SCP, o SFTP en MikroTik) y se comprueba que llegó entera.') }}</div></span></li><li><span><b>Verificación MD5</b><div class="muted sm">Si no coincide, se cancela.</div></span></li><li><span><b>Arranque</b><div class="muted sm">Se configura «boot system» y, si lo marcas, se reinicia.</div></span></li></ol>
+  <div class="c5"><ol class="steps"><li><span><b>Respaldo</b><div class="muted sm">Se guarda la configuración antes de tocar nada.</div></span></li><li><span><b>{{ _('Espacio libre') }}</b><div class="muted sm">{{ _('Si no hay lugar para la imagen en el equipo, no se copia nada.') }}</div></span></li><li><span><b>{{ _('Transferencia') }}</b><div class="muted sm">{{ _('La imagen se copia al equipo (SCP, o SFTP en MikroTik) y se comprueba que llegó entera.') }}</div></span></li><li><span><b>{{ _('Suma en el equipo') }}</b><div class="muted sm">{{ _('El equipo calcula el MD5 o el SHA-256 del archivo copiado; si no coincide, se cancela. RouterOS no calcula sumas: se compara el tamaño.') }}</div></span></li><li><span><b>Arranque</b><div class="muted sm">Se configura «boot system» y, si lo marcas, se reinicia.</div></span></li></ol>
     <p class="muted sm" style="margin-top:14px">{{ _('Plataformas: Cisco IOS / IOS-XE / NX-OS / ASA, Arista EOS, Juniper Junos, MikroTik RouterOS (paquete .npk), Ubiquiti airMAX y airFiber (imagen .bin) y EdgeRouter (imagen .tar).') }}</p></div></div></form>
   {% elif not devices %}<div class="empty">{{ empty_art('search') }}<h2>No hay equipos de plataformas compatibles</h2><p>{{ _('La actualización remota admite Cisco IOS / IOS-XE / NX-OS / ASA, Arista EOS, Juniper Junos, MikroTik RouterOS, Ubiquiti airMAX, airFiber y EdgeRouter.') }}</p></div>
   {% else %}<div class="empty">{{ empty_art('plus') }}<h2>Carga primero una imagen</h2><p>Después elige los equipos que quieres actualizar.</p></div>{% endif %}</section>
@@ -73,6 +80,7 @@
     <div class="cklist">{% for d in mts %}<label class="ck"><input type="checkbox" name="device_ids" value="{{ d.id }}"> {{ d.name }} <span class="muted sm mono">{{ d.os_version or '—' }}</span></label>{% endfor %}</div>
     <div class="row" style="gap:12px;flex-wrap:wrap"><div class="field"><label for="rch">{{ _('Canal') }}</label><div class="input"><select id="rch" name="channel"><option value="stable">stable</option><option value="long-term">long-term</option></select></div></div>
       <label class="ck" style="align-self:flex-end"><input type="checkbox" name="reload" checked> {{ _('Instalar y reiniciar (si no, solo descarga: se instala en el próximo reinicio)') }}</label></div>
+    {{ batch_fields('rob') }}
     <p class="muted sm" style="margin:0">{{ _('Antes se respalda el equipo. Necesita acceso a internet y DNS desde el router. Si ya tiene la última versión del canal, no se instala nada.') }}</p>
     <div><button class="btn pri">{{ _('Crear solicitud de actualización') }}</button></div></form></section>{% endif %}
 </div>

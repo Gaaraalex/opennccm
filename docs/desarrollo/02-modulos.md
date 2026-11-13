@@ -8,12 +8,12 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 
 | Archivo | Líneas | Qué hace |
 |---|---:|---|
-| `app/main.py` | 3852 | Aplicación web OpenNCCM (FastAPI). |
+| `app/main.py` | 3867 | Aplicación web OpenNCCM (FastAPI). |
 | `app/web.py` | 489 | Utilidades compartidas por las rutas web. |
 | `app/auth.py` | 173 | Sesión, roles y alcance: |
 | `app/perms.py` | 169 | Permisos por usuario: |
 | `app/config.py` | 31 | Configuración del proceso por variables de entorno (NCM_*): |
-| `app/db.py` | 729 | Base de datos: |
+| `app/db.py` | 751 | Base de datos: |
 | `app/crypto.py` | 118 | Cifrado AES-256-GCM de credenciales y configuraciones almacenadas. |
 | `app/i18n.py` | 300 | Idiomas de la interfaz. |
 | `app/scheduler.py` | 258 | Tareas programadas (cron) y receptor syslog para detección de cambios en tiempo real. |
@@ -30,13 +30,13 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 
 | Archivo | Líneas | Qué hace |
 |---|---:|---|
-| `app/services.py` | 1957 | Lógica de negocio: |
+| `app/services.py` | 1958 | Lógica de negocio: |
 | `app/drivers.py` | 733 | Perfiles de fabricantes. |
 | `app/shell_drivers.py` | 136 | Drivers de Netmiko propios para sistemas basados en un shell Unix que Netmiko no trae. |
 | `app/legacy_ssh.py` | 83 | Compatibilidad SSH con equipos de red antiguos. |
 | `app/fwtag.py` | 85 | Versión de firmware de cada copia de seguridad (ConfigVersion.fw_version). |
 | `app/chassis.py` | 213 | Parte de atrás del equipo: |
-| `app/ports.py` | 764 | Puertos físicos del equipo y su estado (ficha del equipo: |
+| `app/ports.py` | 872 | Puertos físicos del equipo y su estado (ficha del equipo: |
 | `app/porttable.py` | 378 | Lectores de la tabla de puertos de cada fabricante (app/ports.py los usa al respaldar). |
 | `app/swos.py` | 75 | MikroTik SwitchOS (SwOS y SwOS Lite): |
 | `app/fireware_web.py` | 196 | Feature key de WatchGuard (Fireware) en el formato que se pega para restaurarla. |
@@ -76,7 +76,7 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 | `app/configlets_ui.py` | 79 | Datos de la página Configlets y scripts en tres columnas (como Recetas): |
 | `app/compliance_packs.py` | 414 | Paquetes de cumplimiento listos para usar: |
 | `app/verified.py` | 63 | Sello «Verificada» de los configlets y de las correcciones de cumplimiento: |
-| `app/autofix.py` | 388 | Corrección automática de cumplimiento (opcional, apagada por defecto). |
+| `app/autofix.py` | 414 | Corrección automática de cumplimiento (opcional, apagada por defecto). |
 | `app/refconfig.py` | 587 | Configuración de referencia por modelo (Dispositivos › Configuración de referencia). |
 
 ## Red: mapa, vecinos, MAC/IP e informes
@@ -100,9 +100,9 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 
 | Archivo | Líneas | Qué hace |
 |---|---:|---|
-| `app/firmware.py` | 288 | Actualización remota de firmware: |
+| `app/firmware.py` | 692 | Actualización remota de firmware: |
 | `app/fwupdates.py` | 748 | Actualizaciones de firmware de los equipos: |
-| `app/fwverify.py` | 157 | Versión instalada leída del propio equipo, sin respaldar, y comprobación después de actualizar el firmware. |
+| `app/fwverify.py` | 166 | Versión instalada leída del propio equipo, sin respaldar, y comprobación después de actualizar el firmware. |
 | `app/eol.py` | 147 | Fin de venta / fin de soporte (EOL/EOS): |
 
 ## Integraciones
@@ -126,7 +126,7 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 
 | Archivo | Líneas | Qué hace |
 |---|---:|---|
-| `app/routes_ops.py` | 552 | Rutas: |
+| `app/routes_ops.py` | 609 | Rutas: |
 | `app/mobile.py` | 347 | API para apps móviles (/api/mobile/…): |
 | `app/mobile_app.py` | 714 | La app móvil con servidor: |
 

@@ -105,9 +105,12 @@ def _note(cr_id: int | None, text: str):
 
 
 def verify_after_upgrade(device_id: int, before: str | None, target: str | None, reload: bool, cr_id: int | None = None,
-                         wait_first: int | None = None, every: int = 60, give_up: int = 1200):
-    """Espera a que el equipo responda, lee la versión y avisa si quedó en la nueva o no (con su registro)."""
+                         wait_first: int | None = None, every: int = 60, give_up: int = 1200, progress=None):
+    """Espera a que el equipo responda, lee la versión y avisa si quedó en la nueva o no (con su registro). «progress»
+    (app.firmware.Progress) deja el paso en el avance de la solicitud."""
     from . import fwupdates, services
+    progress = progress or (lambda *a, **k: None)
+    progress("checking", None, "Esperando a que el equipo vuelva para leer su versión…" if reload else "Leyendo la versión…")
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
         name = dev.name if dev else str(device_id)
@@ -124,7 +127,18 @@ def verify_after_upgrade(device_id: int, before: str | None, target: str | None,
         services.add_event("major", "Actualización de firmware", msg, device_id)
         _note(cr_id, "Verificación: " + msg)
         services.end_maintenance(device_id)
+        progress("failed", None, msg)
         return res
+    # el avance de la solicitud dice el resultado apenas se lee la versión (el respaldo y la búsqueda de versiones nuevas
+    # de después pueden tardar, y la tanda siguiente no los espera)
+    now_v = res.get("version")
+    ok = same_version(now_v, target) if target else bool(now_v and not same_version(now_v, before))
+    if ok:
+        progress("done", None, f"{name} quedó en la versión {now_v}" + (f" (antes {before})." if before else "."))
+    else:
+        progress("failed" if reload else "done", None,
+                 (f"{name} sigue en la versión {now_v or '?'}" + (f"; se esperaba {target}." if target else ".")) if reload
+                 else f"Copiada y lista; sigue en {now_v or '?'} hasta que se reinicie.")
     try:  # respaldo después de actualizar (configuración e inventario al día) y la versión disponible de nuevo
         services.backup_device(device_id, "push", "firmware")
     except Exception as e:  # noqa: BLE001
@@ -133,8 +147,6 @@ def verify_after_upgrade(device_id: int, before: str | None, target: str | None,
         fwupdates.check_all([device_id])
     except Exception as e:  # noqa: BLE001
         log.info("Firmware disponible de %s: %s", name, e)
-    now_v = res.get("version")
-    ok = same_version(now_v, target) if target else bool(now_v and not same_version(now_v, before))
     if ok:
         msg = f"{name} quedó en la versión {now_v}" + (f" (antes {before})." if before else ".")
         services.add_event("info", "Actualización de firmware", msg, device_id)
@@ -149,9 +161,10 @@ def verify_after_upgrade(device_id: int, before: str | None, target: str | None,
     return res
 
 
-def start_verify(device_id: int, before: str | None, target: str | None, reload: bool, cr_id: int | None = None):
+def start_verify(device_id: int, before: str | None, target: str | None, reload: bool, cr_id: int | None = None,
+                 progress=None):
     """En segundo plano (puede esperar varios minutos a que el equipo reinicie)."""
-    t = threading.Thread(target=verify_after_upgrade, args=(device_id, before, target, reload, cr_id), daemon=True,
-                         name=f"fwverify-{device_id}")
+    t = threading.Thread(target=verify_after_upgrade, args=(device_id, before, target, reload, cr_id),
+                         kwargs={"progress": progress}, daemon=True, name=f"fwverify-{device_id}")
     t.start()
     return t

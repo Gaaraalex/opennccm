@@ -7,7 +7,7 @@
 <h1>{{ _f('Solicitud #{0}: {1}', cr.id, cr.title) }}</h1>
 <p class="muted sm" data-sheet-sub>{{ kind_label }} · {{ _f('pedida por {0}', cr.requested_by) }} <span title="{{ cr.created_at|dt }}">{{ cr.created_at|ago }}</span></p>
 <div class="row"><span class="pill {{ s[0] }}">{{ s[1] }}</span><span hidden class="badge b-{{ cr.status }}"></span><span class="muted sm">{{ _('1 equipo') if devices|length == 1 else _f('{0} equipos', devices|length) }}</span>
-  {% if cr.status in ('approved', 'running') %}<span class="muted sm">· Actualiza la página para ver el avance.</span>{% endif %}</div>
+  {% if cr.status in ('approved', 'running') and not fw %}<span class="muted sm">· Actualiza la página para ver el avance.</span>{% endif %}</div>
 {% if cr.is_rollback %}<div class="banner warn">{{ icon('alert') }}<span class="grow">Comandos generados automáticamente a partir de la diferencia entre la configuración actual y la versión destino. Revísalos con cuidado antes de aprobar.</span></div>{% endif %}
 {% if cr.notes %}<div class="banner warn" role="alert">{{ icon('alert') }}<span class="grow"><b>{{ _('Revisar a mano: la reversión no lo cubre') }}</b><ul style="margin:6px 0 0 18px">{% for n in cr.notes.splitlines() %}<li>{{ n }}</li>{% endfor %}</ul></span></div>{% endif %}
 {% if imp %}{% if imp.plan %}
@@ -33,6 +33,54 @@
 {% if imp and imp.plan %}<details class="field"><summary class="fl" style="cursor:pointer">{{ _('Comandos de cada equipo') }}</summary>{% else %}<div class="field">{% endif %}<span class="fl">{% if devices|length > 5 %}Comandos a aplicar (vista previa, primeros 5 equipos){% else %}Comandos a aplicar{% endif %}</span>
   {% for name, text in previews %}<div><div class="row sm b" style="margin-bottom:4px">{% for d in devices if d.name == name %}{{ vlogo(vend[d.id], 24) }}{% endfor %}{{ name }}</div><pre class="term" style="min-height:0">{{ text }}</pre></div>{% endfor %}
   {% if prev_desc %}<p class="muted sm" style="margin:6px 0 0">{{ _('Descripción anterior de cada puerto, para revertir:') }} {% for k, v in prev_desc.items() %}<span class="mono">{{ k }}</span> «{{ v or '—' }}»{{ ' · ' if not loop.last }}{% endfor %}</p>{% endif %}{% if imp and imp.plan %}</details>{% else %}</div>{% endif %}
+{% if fw %}
+<section class="card flush" id="fwprog">
+  <div class="card-h" style="flex-wrap:wrap;gap:8px 14px"><div class="grow" style="min-width:min(100%,260px)"><h2 id="fwh">{{ _('Avance por equipo') if fw.run else _('Comprobación previa') }}</h2>
+    <span class="muted sm">{{ fw.plan }}</span></div>
+    {% if cr.status == 'pending' and can(user, 'firmware_install') %}<form method="post" action="/changes/{{ cr.id }}/firmware-check" class="inline" id="fwcheck"><button class="btn s"{% if fw.checking %} disabled aria-disabled="true"{% endif %}>{{ icon('search', 's') }}{{ _('Comprobando…') if fw.checking else _('Comprobar los equipos') }}</button></form>{% endif %}</div>
+  <p class="muted sm" id="fwhelp" style="margin:0;padding:0 20px 12px"{% if fw.run or fw.check %} hidden{% endif %}>{{ _('Antes de aprobar puede comprobar cada equipo: si responde, qué versión tiene y si hay espacio para la imagen. No se copia ni se cambia nada.') }}</p>
+  <div class="tw"{% if not (fw.run or fw.check) %} hidden{% endif %} id="fwtw"><table class="t fwjob" id="fwtab"><thead><tr><th class="fb">{{ _('Tanda') }}</th><th>{{ _('Equipo') }}</th><th id="fwst">{{ _('Paso') }}</th><th class="fd">{{ _('Detalle') }}</th></tr></thead><tbody id="fwrows"></tbody></table></div>
+</section>
+<style>
+.fwjob td{vertical-align:top}.fwjob .meter{height:6px;margin-top:6px;max-width:220px}.fwjob .msg{white-space:pre-wrap;word-break:break-word;max-width:640px}
+.fwjob .fb{width:64px}.fwjob.chk .fb{display:none}.fwjob .mo{display:none;margin-top:6px}
+@media (max-width:640px){.fwjob .fb,.fwjob .fd{display:none}.fwjob .mo{display:block}}
+</style>
+<script>
+(function () {
+  const ST = {{ {'queued': _('En espera'), 'backup': _('Respaldando'), 'space': _('Mirando el espacio'), 'copy': _('Copiando'),
+    'verify': _('Comprobando la suma'), 'install': _('Instalando'), 'reboot': _('Reiniciando'), 'checking': _('Comprobando la versión'),
+    'done': _('Listo'), 'failed': _('Falló'), 'skipped': _('Sin cambios'), 'stopped': _('No se hizo'), 'ok': _('Se puede'), 'no': _('No se puede')}|tojson }};
+  let data = {{ {'run': fw.run, 'check': fw.check, 'busy': fw.busy}|tojson }};
+  const rows = document.getElementById('fwrows'), tw = document.getElementById('fwtw'), help = document.getElementById('fwhelp');
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  const dur = s => s == null ? '' : (s >= 60 ? Math.floor(s / 60) + ' min ' + (s % 60) + ' s' : s + ' s');
+  function cls(j, chk) { return j.stage === 'done' ? 'ok' : j.stage === 'failed' ? 'crit' : (j.stage === 'skipped' || j.stage === 'stopped') ? '' : 'info'; }
+  function label(j, chk) { return chk && j.stage === 'done' ? ST.ok : chk && j.stage === 'failed' ? ST.no : (ST[j.stage] || j.stage); }
+  function draw() {
+    const chk = !data.run.length, list = chk ? data.check : data.run;
+    tw.hidden = !list.length; if (help) help.hidden = !!list.length;
+    document.getElementById('fwh').textContent = chk ? {{ _('Comprobación previa')|tojson }} : {{ _('Avance por equipo')|tojson }};
+    document.getElementById('fwtab').classList.toggle('chk', chk);
+    document.getElementById('fwst').textContent = chk ? {{ _('Resultado')|tojson }} : {{ _('Paso')|tojson }};
+    rows.innerHTML = list.map(j => '<tr><td class="num fb">' + j.batch + '</td><td><b>' + esc(j.name) + '</b>' +
+      (j.secs != null ? '<div class="muted sm">' + dur(j.secs) + '</div>' : '') + '</td><td><span class="pill ' + cls(j, chk) + '">' + esc(label(j, chk)) + '</span>' +
+      (j.stage === 'copy' && j.pct != null ? '<div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + j.pct + '" aria-label="' + esc(j.name) + '"><i style="width:' + Math.max(2, j.pct) + '%"></i></div><div class="muted sm">' + j.pct + ' %</div>' : '') +
+      (j.msg ? '<div class="sm msg mo">' + esc(j.msg) + '</div>' : '') + '</td><td class="sm msg fd">' + esc(j.msg) + '</td></tr>').join('');
+  }
+  draw();
+  if (!data.busy) return;
+  const tick = () => fetch('/changes/{{ cr.id }}/firmware-progress', {cache: 'no-store'}).then(r => r.ok ? r.json() : null).then(j => {
+    if (!j) return setTimeout(tick, 6000);
+    const was = data; data = j; draw();
+    if (j.busy) return setTimeout(tick, 3000);
+    // terminó: la página se recarga una vez para mostrar el estado y el resultado de la solicitud
+    if (was.busy) location.reload();
+  }).catch(() => setTimeout(tick, 6000));
+  setTimeout(tick, 2500);
+})();
+</script>
+{% endif %}
 {% if example and cr.status == 'pending' %}<div class="banner crit" role="alert">{{ icon('alert') }}<span class="grow"><b>{{ _('Usa direcciones de ejemplo que no existen en ninguna red:') }}</b> <span class="mono">{{ example|join(', ') }}</span>. {{ _('No se puede aprobar así: recházala y, si quieres aplicar el cambio, créalo con las direcciones reales de tus servidores.') }}</span></div>{% endif %}
 {% if risks and cr.status == 'pending' %}<div class="banner crit" role="alert">{{ icon('alert') }}<span class="grow"><b>{{ _('Dejaría a OpenNCCM sin acceso:') }}</b> {{ risks|join(' ') }}</span></div>{% endif %}
 {% if cr.status == 'pending' %}

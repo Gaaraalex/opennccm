@@ -30,7 +30,8 @@ Todo está en `app/db.py`: el motor, los modelos (SQLAlchemy 2, estilo `Mapped[.
 | `audit_log` | `AuditLog` | quién hizo qué y desde dónde |
 | `vulnerabilities` | `Vulnerability` | CVE de NVD por equipo |
 | `eol_entries` | `EolEntry` | fin de venta / soporte por modelo |
-| `firmware_images`, `firmware_updates` | `FirmwareImage`, `FirmwareUpdate` | biblioteca de firmware y última comprobación de versiones nuevas por equipo |
+| `firmware_images`, `firmware_updates` | `FirmwareImage`, `FirmwareUpdate` | biblioteca de firmware (MD5, SHA-256 y, si se pegó al cargarla, la suma del fabricante ya comprobada) y última comprobación de versiones nuevas por equipo |
+| `firmware_jobs` | `FirmwareJob` | avance de cada equipo en una solicitud de firmware: tanda, paso, porcentaje de la copia y resultado (`kind="run"`), y la comprobación previa (`kind="check"`) |
 | `console_sessions`, `console_access_requests`, `console_favorites` | … | sesiones de la consola web (con grabación en disco), pedidos de acceso y comandos favoritos |
 | `kb_*` | `KbCase`, `KbVersion`, … | base de conocimiento: casos, versiones, propuestas, comentarios, votos, «falta documentar» |
 | `mac_seen`, `neighbor_states` | `MacSeen`, `NeighborState` | historial MAC→puerto / IP→MAC y estado de cada vecino LLDP/CDP para avisos |

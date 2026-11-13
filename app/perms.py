@@ -59,7 +59,7 @@ ROUTES = [
     (r"^/configlets/\d+/run$|^/console/(change-request|files/\d+/put|recipes(/\d+/delete)?)$|^/compliance/remediate"
      r"|^/config-reference/request/|^/reports/unused/shutdown$|^/neighbors/\d+/shutdown$", "push"),
     (r"^/compliance/autofix/", "autofix"),
-    (r"^/firmware/(upgrade|routeros-online)$", "firmware_install"),
+    (r"^/firmware/(upgrade|routeros-online)$|^/changes/\d+/firmware-check$", "firmware_install"),
     (r"^/firmware/(new|upload|\d+/delete|updates/\d+/download)$", "firmware_manage"),
     (r"^/devices/\d+/(compliance|cve)$|^/cve/all$|^/compliance/run$|^/api/where/refresh$|^/neighbors"
      r"|^/reports/(unused/(preview|except)|netdoc)|^/firmware/updates/check$|^/config-reference/", "audit"),

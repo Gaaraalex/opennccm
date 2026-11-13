@@ -285,6 +285,7 @@ de hace…»), con la orden de cada plataforma:</p>
   <tr><td>EdgeRouter, USG, VyOS</td><td><code>show interfaces</code> (columna S/L)</td></tr>
   <tr><td>FortiGate · Palo Alto · Check Point</td><td><code>get system interface physical</code> · <code>show interface all</code> · <code>show interfaces all</code></td></tr>
   <tr><td>Linux, Ubuntu, airOS, airFiber, UniFi AP · pfSense, OPNsense</td><td><code>/sys/class/net</code> · <code>ifconfig -a</code></td></tr>
+  <tr><td>OLT ZTE ZXA10 (C300, C320…)</td><td>PON: <code>show gpon onu state</code> (activo si tiene al menos una ONU en línea; dice «12 de 14 ONU en línea» y cuántas en LOS, DyingGasp u OffLine) · uplinks: <code>show interface gei_…</code>/<code>xgei_…</code>. Solo se guarda la cuenta por PON, no los datos de los clientes.</td></tr>
 </table>
 <p>Si el equipo no responde a ninguna, los puertos salen de la configuración en gris (apagado o habilitado) con el aviso «sin
 estado de enlace».</p>
@@ -996,15 +997,32 @@ falla. MikroTik también se puede actualizar <b>en línea</b>, sin cargar el paq
 canal (stable o long-term) y el router lo descarga de MikroTik (<code>/system package update</code>); si ya tiene la última versión no
 hace nada, y sin «Instalar y reiniciar» solo lo descarga para el próximo reinicio. Probado en RouterOS reales en la CI (7.23.8 → 7.25
 con el paquete, y en línea). Los AP, switches y USG de UniFi actualizan el firmware desde el controlador UniFi Network.</p>
+<h2>Muchos equipos a la vez</h2>
+<ul>
+  <li><b>Espacio libre:</b> antes de copiar se mira cuánto lugar hay donde va la imagen (<code>dir flash:</code> en Cisco y Arista,
+  <code>free-hdd-space</code> en MikroTik, <code>df -k</code> en airOS y EdgeRouter). Si no alcanza (la imagen más un margen de 1 MB
+  o el 2 %), ese equipo no se toca y dice cuánto falta.</li>
+  <li><b>Suma en el equipo:</b> después de copiar, el propio equipo calcula la suma del archivo y se compara con la de la imagen: MD5
+  en Cisco, Arista y Junos; SHA-256 (o MD5 si no lo tiene) en airOS y EdgeRouter. Si no coincide, no se instala. RouterOS no
+  calcula sumas de archivos: se compara el tamaño.</li>
+  <li><b>Tandas:</b> «Equipos a la vez» (de a 1, 2, 5, 10, 20 o todos). Con reinicio, cada tanda espera a que los equipos de la
+  anterior vuelvan con la versión nueva, y si uno falla las siguientes no empiezan (se puede desmarcar). Además se sigue el orden
+  del análisis de impacto: nunca dos equipos que juntos dejarían a otros sin servicio. Los equipos que ya tienen la versión de la
+  imagen no se tocan («Sin cambios»).</li>
+  <li><b>Avance por equipo:</b> la solicitud muestra al vivo, por equipo, su tanda y su paso (respaldando, mirando el espacio,
+  copiando con su porcentaje, comprobando la suma, instalando, reiniciando, comprobando la versión) y cómo terminó.</li>
+</ul>
 <h2>Cómo usarlo</h2>
 <ol class="steps">
   <li>(admin) <b>Firmware y ciclo de vida → Imágenes → Cargar imagen</b>: arrastre el archivo, indique la versión y para qué
-  device_type es. La tabla muestra el MD5, el tamaño y los equipos compatibles.</li>
+  device_type es. Si pega la <b>suma del fabricante</b> (MD5 o SHA-256 de su página de descarga), OpenNCCM la compara con el
+  archivo y no lo guarda si no coincide. La tabla muestra la suma, el tamaño y los equipos compatibles.</li>
   <li>Pestaña <b>Actualizar equipos</b> (o <b>Usar</b> en la imagen): elija la imagen; se marcan solos los equipos compatibles que
   tienen otra versión. Si corresponde, marque <b>Reiniciar cada equipo al terminar</b> y pulse <b>Crear solicitud de
-  actualización</b>. También puede hacerlo desde la ficha de cada equipo.</li>
-  <li>Un administrador revisa los pasos previstos y aprueba. El resultado muestra si el archivo ya existía, si se transfirió y si el MD5
-  coincidió.</li>
+  actualización</b>. Con varios equipos, elija cuántos a la vez. También puede hacerlo desde la ficha de cada equipo.</li>
+  <li>Un administrador revisa los pasos previstos y aprueba. Antes de aprobar, <b>Comprobar los equipos</b> se conecta a cada uno
+  sin copiar ni cambiar nada y dice si responde, qué versión tiene y si hay espacio para la imagen («Se puede» / «No se puede»).
+  El resultado muestra si el archivo ya existía, si se transfirió y si la suma coincidió.</li>
   <li>Después, OpenNCCM comprueba la versión: espera a que el equipo vuelva del reinicio (hasta 20 minutos), le pregunta su
   versión, lo respalda y vuelve a buscar actualizaciones. En Eventos y en la solicitud de cambio dice «quedó en la versión X»; si
   sigue en la anterior, avisa «la actualización no se aplicó» con el final del registro del equipo, que suele decir el motivo.
