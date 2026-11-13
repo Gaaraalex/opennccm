@@ -519,10 +519,13 @@ def _check_and_retry(device_id: int, trigger: str, username: str | None) -> str:
             steps.append(f"{n}.º intento: " + (again[0][:200] if again else "sin detalle"))
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
-        if result == "error" and len(steps) > 1:  # lo que se comprobó, debajo del error
-            dev.last_error = ((dev.last_error or "") + "\n\n" + "\n".join(steps))[:2000]
-            db.commit()
-            if not kind:  # sin reintentos: la alarma de siempre, con lo que se comprobó
+        if result == "error":
+            if len(steps) > 1:  # lo que se comprobó, debajo del error
+                dev.last_error = ((dev.last_error or "") + "\n\n" + "\n".join(steps))[:2000]
+                db.commit()
+            # sin reintentos (contraseña rechazada, sin permiso, …): la alarma de siempre, con lo que se comprobó. Antes,
+            # sin nada comprobado, caía en «Respaldo reintentado … se reintentó solo» (info) y no había alarma
+            if not kind:
                 add_event("major", "Respaldo fallido", f"{name} ({host}): {err}\n" + "\n".join(steps[1:]), device_id)
         else:
             add_event("info", "Respaldo reintentado", f"{name}: falló al primer intento y se reintentó solo." + "\n"
@@ -669,6 +672,18 @@ def device_error(text: str) -> bool:
     head = "\n".join([ln for ln in text.splitlines() if ln.strip()][:5])
     return bool(re.search(r"(?im)^\s*(% ?Invalid|% ?Unrecognized|% ?Incomplete command|Unknown command|syntax error)",
                           head))
+
+
+def access_denied(text: str) -> str:
+    """Junos sin permiso para ver la configuración: si la clase de login del usuario no tiene «view-configuration»,
+    «show configuration» responde solo los nombres de las secciones con «/* ACCESS-DENIED */» (visto en un QFX5100
+    13.2X51-D25.3). Esa respuesta no es una copia: guardarla dejaba una versión que no se puede restaurar.
+    Devuelve el motivo para el usuario, o "" si la salida es normal."""
+    if not re.search(r"/\*\s*ACCESS-DENIED\s*\*/", text):
+        return ""
+    return ("El usuario de la credencial no tiene permiso para ver la configuración (el equipo respondió «ACCESS-DENIED»); "
+            "no se guardó esta versión. En Junos, dele a su clase de login los permisos «view-configuration» y «secret»: "
+            "set system login class <clase> permissions [ view view-configuration secret ]")
 
 
 def replaced_serial(old: str | None, new: str | None) -> bool:
@@ -838,6 +853,12 @@ def _backup_device(device_id: int, trigger: str, username: str | None, report: b
             db.commit()
             if report:
                 add_event("major", "Respaldo fallido", f"{dev.name}: salida inválida:\n{running[:300]}", dev.id)
+            return "error"
+        denied = access_denied(running)
+        if denied:
+            dev.last_status, dev.last_error = "error", denied
+            db.commit()
+            report and add_event("major", "Respaldo fallido", f"{dev.name}: {denied}", dev.id)
             return "error"
         # salida cortada: paginación activa («--More--»), configuración estilo FastPath sin el «exit» final o
         # plataformas que siempre terminan en «end» y esta vez no
