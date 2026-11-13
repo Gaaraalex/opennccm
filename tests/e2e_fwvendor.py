@@ -97,8 +97,13 @@ try:
     check("comprobación previa: el que no responde", chk.get("NS-Caido", {}).get("stage") == "failed"
           and "No se pudo conectar" in chk["NS-Caido"]["msg"], chk.get("NS-Caido"))
     # (con el mapa de las pruebas anteriores el impacto puede pedir «Leí el impacto»)
+    # (y otra prueba anterior puede haber dejado apagado «aprobar sus propias solicitudes»: se enciende solo para esto)
+    from app.db import get_setting, set_setting
+    self_ok = get_setting("allow_self_approval", "1")
+    set_setting("allow_self_approval", "1")
     rv = s.post(f"{B}/changes/{fwcr}/review", data={"decision": "approve", "ack_impact": "on"})
-    check("aprobada", "Solicitud aprobada" in rv.text, re.findall(r'class="toast[^"]*"[^>]*>([^<]+)', rv.text)[:2])
+    set_setting("allow_self_approval", self_ok)
+    check("aprobada", "Solicitud aprobada" in rv.text, re.findall(r'class="flash [^"]*">([^<]+)', rv.text)[:3])
     run = wait_fw("run", 150)
     check("avance: cada equipo en su tanda, el que respondió termina y el otro falla (se siguió: «stop» apagado)",
           run.get("NS-Torre", {}).get("batch") == 1 and run.get("NS-Torre", {}).get("stage") == "done"
