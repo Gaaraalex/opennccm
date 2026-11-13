@@ -174,7 +174,7 @@
         <button type="button" class="btn s sig" data-fix="cfix-{{ g.policy.id }}">{{ icon('wrench', 's') }}{{ _f('Corregir {0}', g.fixable) }}</button></span>
       {% elif can(user, 'configlets') %}<a class="btn s ghost" href="/compliance/policies/{{ g.policy.id }}">{{ icon('edit', 's') }}Editar</a>{% else %}<span></span>{% endif %}</summary>
     {% set fails = g.results|rejectattr('passed')|list %}
-    {% if fails %}<div>{% for c in fails %}<div class="rule">{{ sevtag(c.rule.severity) }}<span>{{ c.rule.name }}{% if not c.rule.remediation %} <span class="muted">· sin corrección automática</span>{% endif %}</span>
+    {% if fails %}<div>{% for c in fails %}<div class="rule">{{ sevtag(c.rule.severity) }}<span>{{ c.rule.name }}{% if not c.rule.remediation %} <span class="muted">· {{ _('sin comandos de corrección') }}</span>{% endif %}</span>
       {% if c.rule.remediation and can(user, 'push') %}<span class="cfix-act">{{ w.vpill(rver.get(c.rule.id|string), True) }}<button type="button" class="btn s" data-fix="cfix-{{ g.policy.id }}" data-only="{{ c.rule.id }}">{{ _('Corregir') }}</button></span>
       {% elif can(user, 'configlets') %}<a class="btn s ghost" href="/compliance/policies/{{ g.policy.id }}">Añadir corrección</a>{% else %}<span></span>{% endif %}</div>{% endfor %}</div>{% endif %}
     <div class="passed">{{ icon('check', 's') }} {{ pl(ok_n, '{0} regla cumple', '{0} reglas cumplen') }}</div>

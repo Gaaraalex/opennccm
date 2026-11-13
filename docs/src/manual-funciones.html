@@ -878,7 +878,7 @@ corregir las infracciones.</p>
 </table>
 <p class="small">Las reglas son controles técnicos de referencia. El cumplimiento normativo completo requiere además procesos y evidencias
 que no dependen del equipo. Los paquetes nuevos de cada versión se cargan solos al actualizar; si se borra uno, no vuelve a aparecer.
-Las reglas que dependen de direcciones de cada red (servidores de syslog o NTP, redes de gestión) no tienen corrección automática:
+Las reglas que dependen de direcciones de cada red (servidores de syslog o NTP, redes de gestión) no traen comandos de corrección:
 indican qué falta y el comando se escribe con las direcciones reales. Una solicitud de cambio con direcciones de ejemplo
 (192.0.2.x, 198.51.100.x, 203.0.113.x) no se puede aprobar.</p>
 <figure><img src="img/15-cumplimiento.png"><figcaption>Cumplimiento: mapa equipo × política y políticas con sus infracciones.</figcaption></figure>
@@ -900,6 +900,31 @@ indican qué falta y el comando se escribe con las direcciones reales. Una solic
   <li>Use <b>Auditar todos ahora</b> después de cambiar reglas.</li>
 </ol>
 <figure><img src="img/16-politica-pci.png" class="tall"><figcaption>Editor de la política PCI DSS 4.0: cada regla con su patrón, severidad, corrección y prueba en vivo.</figcaption></figure>
+<h2 id="autofix">Corrección automática (opcional)</h2>
+<p>Una política puede corregir sola los equipos que incumplen algunas de sus reglas, sin que nadie pulse <b>Corregir</b>. Viene
+<b>apagada</b> en todas las políticas: mientras no se active, nada cambia. Se abre con <b>Cumplimiento → Corrección
+automática</b>, que muestra el estado de cada política, lo que se aplicaría ahora mismo y el historial.</p>
+<ul>
+  <li><b>Solo reglas verificadas.</b> Solo se pueden elegir las reglas con comandos de corrección y el sello <b>Verificada</b>
+  (sus comandos se probaron enteros en un equipo real). Si después alguien cambia el patrón o los comandos de una regla elegida,
+  deja de aplicarse sola hasta que se revise y se vuelva a marcar («cambiaron: volver a elegir»).</li>
+  <li><b>Ventana.</b> Días de la semana y, si se quiere, horas (por ejemplo de 22:00 a 06:00: una ventana que cruza la medianoche
+  cuenta desde el día en que empieza). Sin horas, a cualquier hora de los días marcados.</li>
+  <li><b>En cada equipo y regla:</b> respalda el equipo (la versión a la que se vuelve) y comprueba que la regla sigue sin
+  cumplirse; revisa lo mismo que una solicitud de cambio (direcciones de ejemplo, que no deje a OpenNCCM sin acceso, reinicios y
+  puertos que se apagan) y, si hay algo, no aplica nada y queda <b>Bloqueada</b>; aplica los comandos, vuelve a respaldar y
+  audita. Si el equipo rechaza un comando o la regla sigue sin cumplirse, vuelve a la versión de antes (<b>Revertida</b>).</li>
+  <li><b>Sin insistir.</b> Tras un intento, esa regla no se vuelve a intentar en ese equipo durante 24 horas, salvo que se pulse
+  <b>Reintentar</b> en el historial. Tampoco toca un equipo desactivado, retirado o al que se le está aplicando otro cambio.</li>
+  <li><b>Historial.</b> Cada intento queda con su resultado (Aplicada, Revertida, Bloqueada, Fallida), el motivo, la salida del
+  equipo y enlaces a las versiones de antes y después; también en <b>Eventos</b> y en <b>Auditoría</b>.</li>
+  <li><b>Pausar todo</b> detiene la corrección automática en todo el sistema al instante; <b>Revisar ahora</b> no espera a la
+  próxima revisión (cada 5 minutos y después de cada auditoría).</li>
+  <li>Activarla, configurarla o pausarla es la función crítica <b>Corrección automática</b> (de los administradores; el
+  administrador maestro la da o la quita). Todos los usuarios pueden ver el historial de sus equipos.</li>
+</ul>
+<div class="note"><b>Aprobación</b>Las correcciones automáticas no pasan por el flujo de aprobación de solicitudes: activarlas en
+una política es esa aprobación, y queda en Auditoría con las reglas elegidas y la ventana.</div>
 </section>
 
 <section class="chapter">
@@ -1362,11 +1387,11 @@ un equipo a un grupo: ábralo y pulse <b>asignar grupo</b> (o <b>Editar</b>). Al
 <p>El rol es una plantilla: al elegirlo se marcan sus funciones en la lista <b>Permisos</b> y después puede quitar o agregar las
 que quiera (por ejemplo, un lector que también respalda, o un operador que no envía configuraciones). Las funciones van por
 secciones: <b>Operación</b> (respaldar, auditar, etiquetar versiones, reconocer alarmas), <b>Cambios en los equipos</b> (enviar
-configuraciones, volver a una versión, restaurar, consola, firmware, aprobar) y <b>Administración</b> (equipos, credenciales,
+configuraciones, volver a una versión, restaurar, consola, firmware, aprobar, corrección automática de cumplimiento) y <b>Administración</b> (equipos, credenciales,
 configlets y políticas, tareas, imágenes de firmware, base de conocimiento, usuarios, ajustes). Ver equipos, configuraciones e
 informes lo puede todo usuario. Si la lista coincide con la del rol se indica «los del rol»; si no, «personalizados».</p>
 <p>Las funciones marcadas como <b>críticas</b> (las que cambian los equipos o dan acceso: enviar configuraciones, revertir,
-restaurar, consola con cambios, firmware, aprobar, credenciales, usuarios y ajustes) solo las da o quita el
+restaurar, consola con cambios, firmware, aprobar, corrección automática, credenciales, usuarios y ajustes) solo las da o quita el
 <b>administrador maestro</b>.</p>
 <h2>Administrador maestro</h2>
 <ul>

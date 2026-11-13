@@ -220,6 +220,11 @@ class Policy(Base):
     device_type_filter: Mapped[str | None] = mapped_column(String(255))  # regex sobre device_type
     group_id: Mapped[int | None] = mapped_column(ForeignKey("device_groups.id", ondelete="SET NULL"))
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    # corrección automática (app/autofix.py): apagada por defecto; ventana de días (lunes = 0) y horas «HH:MM»
+    autofix: Mapped[bool] = mapped_column(Boolean, default=False)
+    autofix_days: Mapped[str | None] = mapped_column(String(7), default="0123456")
+    autofix_from: Mapped[str | None] = mapped_column(String(5))
+    autofix_to: Mapped[str | None] = mapped_column(String(5))
     rules = relationship("Rule", cascade="all, delete-orphan", passive_deletes=True)
 
 
@@ -232,6 +237,8 @@ class Rule(Base):
     pattern: Mapped[str] = mapped_column(Text)      # regex multilínea
     severity: Mapped[str] = mapped_column(String(16), default="major")  # critical|major|minor
     remediation: Mapped[str | None] = mapped_column(Text)  # comandos de corrección
+    # elegida para la corrección automática: huella del patrón y los comandos aprobados (si cambian, deja de aplicarse)
+    autofix_sig: Mapped[str | None] = mapped_column(String(32))
 
 
 class ComplianceResult(Base):
@@ -246,6 +253,27 @@ class ComplianceResult(Base):
     rule = relationship("Rule")
     policy = relationship("Policy")
     device = relationship("Device")
+
+
+class AutoFixRun(Base):
+    """Historial de la corrección automática de cumplimiento (app/autofix.py): un intento por equipo y política."""
+    __tablename__ = "autofix_runs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    device_id: Mapped[int] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"), index=True)
+    device_name: Mapped[str] = mapped_column(String(128))
+    policy_id: Mapped[int | None] = mapped_column(ForeignKey("policies.id", ondelete="SET NULL"))
+    policy_name: Mapped[str] = mapped_column(String(128))
+    rule_ids: Mapped[str] = mapped_column(Text, default="[]")
+    rule_names: Mapped[str] = mapped_column(Text, default="[]")
+    # running | applied | rolled_back | rollback_failed | failed | blocked
+    status: Mapped[str] = mapped_column(String(16), default="running")
+    message: Mapped[str | None] = mapped_column(Text)
+    output: Mapped[str | None] = mapped_column(Text)
+    version_before_id: Mapped[int | None] = mapped_column(Integer)
+    version_after_id: Mapped[int | None] = mapped_column(Integer)
+    hold: Mapped[bool] = mapped_column(Boolean, default=True)  # cuenta para las 24 h de espera («Reintentar» lo quita)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=now, index=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class Configlet(Base):

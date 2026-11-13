@@ -1,0 +1,50 @@
+{% extends "base.html" %}{% block title %}{{ _('Corrección automática') }}{% endblock %}
+{% block crumbs %}<a href="/compliance">{{ _('Cumplimiento') }}</a>{{ icon('right', 's') }}<b>{{ _('Corrección automática') }}</b>{% endblock %}
+{% block content %}
+{# Corrección automática de cumplimiento (app/autofix.py): estado, políticas, lo que se aplicaría ahora e historial #}
+{% set st = {'running': ('info', _('En curso')), 'applied': ('ok', _('Aplicada')), 'rolled_back': ('warn', _('Revertida')),
+             'rollback_failed': ('crit', _('Falló la reversión')), 'failed': ('crit', _('Fallida')), 'blocked': ('warn', _('Bloqueada'))} %}
+{% set can_af = can(user, 'autofix') %}
+<div class="ph"><div class="grow" style="min-width:min(100%,420px)"><h1>{{ _('Corrección automática') }}</h1>
+  <div class="sub">{{ _('Aplica sola las correcciones verificadas de las políticas que la tienen activada, con respaldo antes y reversión si algo sale mal.') }}</div></div>
+  {% if can_af %}
+  <form class="inline" method="post" action="/compliance/autofix/sweep"><button class="btn" {{ 'disabled' if paused }}>{{ icon('refresh', 's') }}{{ _('Revisar ahora') }}</button></form>
+  <form class="inline" method="post" action="/compliance/autofix/pause"><input type="hidden" name="on" value="{{ '0' if paused else '1' }}">
+    <button class="btn {{ 'pri' if paused else 'dz' }}">{{ _('Reanudar') if paused else _('Pausar todo') }}</button></form>
+  {% endif %}</div>
+
+{% if paused %}<div class="banner warn">{{ icon('pause') }}<span class="grow">{{ _('La corrección automática está en pausa: no se aplica nada hasta que alguien la reanude.') }}</span></div>{% endif %}
+
+<section class="card flush"><div class="card-h"><h2>{{ _('Políticas') }}</h2><span class="muted sm">{{ _('Solo entran las reglas con el sello «Verificada» que se eligen en cada política.') }}</span></div>
+  {% if rows %}<div class="tw"><table class="t"><thead><tr><th>{{ _('Política') }}</th><th>{{ _('Estado') }}</th><th>{{ _('Ventana') }}</th><th>{{ _('Reglas') }}</th><th></th></tr></thead><tbody>
+  {% for p, n_on, n_ver, n_changed, win, open_now in rows %}<tr>
+    <td><b>{{ p.name }}</b>{% if not p.enabled %} <span class="tag">{{ _('inactiva') }}</span>{% endif %}</td>
+    <td>{% if p.autofix and p.enabled %}<span class="pill ok">{{ _('Activada') }}</span>{% if not open_now %} <span class="muted sm">{{ _('fuera de la ventana') }}</span>{% endif %}{% else %}<span class="pill">{{ _('Apagada') }}</span>{% endif %}</td>
+    <td class="sm">{% if p.autofix %}{{ win }}{% else %}<span class="muted">—</span>{% endif %}</td>
+    <td class="sm">{% if n_ver %}{{ _f('{0} de {1} verificadas', n_on, n_ver) }}{% else %}<span class="muted">{{ _('ninguna verificada') }}</span>{% endif %}{% if n_changed %} · <span class="pill warn">{{ _f('{0} cambiaron: volver a elegir', n_changed) }}</span>{% endif %}</td>
+    <td style="text-align:right">{% if can_af %}<a class="btn s ghost" href="/compliance/autofix/policy/{{ p.id }}">{{ icon('edit', 's') }}{{ _('Configurar') }}</a>{% endif %}</td></tr>
+  {% endfor %}</tbody></table></div>
+  {% else %}<div class="empty"><h2>{{ _('Sin políticas') }}</h2><p>{{ _('Cree una política de cumplimiento para poder activarla.') }}</p></div>{% endif %}
+</section>
+
+{% if pend %}<section class="card flush"><div class="card-h"><h2>{{ _('Se aplicaría ahora') }}</h2><span class="muted sm">{{ _('Equipos que incumplen una regla elegida, dentro de su ventana') }}</span></div>
+  <div class="tw"><table class="t"><thead><tr><th>{{ _('Equipo') }}</th><th>{{ _('Política') }}</th><th>{{ _('Reglas') }}</th></tr></thead><tbody>
+  {% for d, p, names in pend %}<tr><td><a href="/devices/{{ d.id }}#compliance">{{ d.name }}</a></td><td>{{ p.name }}</td><td class="sm">{{ names|join(', ') }}</td></tr>{% endfor %}
+  </tbody></table></div></section>{% endif %}
+
+<section class="card flush"><div class="card-h"><h2>{{ _('Historial') }}</h2><span class="muted sm">{{ _('Tras un intento, esa regla no se vuelve a intentar en ese equipo durante 24 h.') }}</span></div>
+  {% if runs %}<div class="tw"><table class="t"><thead><tr><th>{{ _('Fecha') }}</th><th>{{ _('Equipo') }}</th><th>{{ _('Política y reglas') }}</th><th>{{ _('Resultado') }}</th><th></th></tr></thead><tbody data-pager>
+  {% for r in runs %}{% set s = st.get(r.status, ('info', r.status)) %}<tr>
+    <td class="sm nowrap" title="{{ r.started_at|dt }}">{{ r.started_at|ago }}</td>
+    <td>{% if r.device_id in alive %}<a href="/devices/{{ r.device_id }}#compliance">{{ r.device_name }}</a>{% else %}{{ r.device_name }}{% endif %}</td>
+    <td class="sm"><b>{{ r.policy_name }}</b><div class="muted">{{ run_names.get(r.id, [])|join(', ') }}</div></td>
+    <td><span class="pill {{ s[0] }}">{{ s[1] }}</span>
+      {% if r.message %}<details class="sm" style="margin-top:6px"><summary class="muted">{{ r.message.split('\n')[0]|truncate(90) }}</summary>
+        <div style="white-space:pre-wrap;margin-top:6px">{{ r.message }}</div>
+        {% if r.version_before_id or r.version_after_id %}<div class="row" style="margin-top:6px">{% if r.version_before_id %}<a href="/versions/{{ r.version_before_id }}">{{ _('Versión de antes') }}</a>{% endif %}{% if r.version_after_id %}<a href="/versions/{{ r.version_after_id }}">{{ _('Versión después') }}</a>{% endif %}</div>{% endif %}
+        {% if r.output %}<pre class="mono sm" style="max-height:240px;overflow:auto;margin-top:6px">{{ r.output }}</pre>{% endif %}</details>{% endif %}</td>
+    <td style="text-align:right">{% if can_af and r.hold and r.status not in ('running', 'applied') and r.started_at > hold_since %}<form class="inline" method="post" action="/compliance/autofix/runs/{{ r.id }}/retry"><button class="btn s ghost" title="{{ _('Se vuelve a intentar en la próxima revisión (cada 5 minutos)') }}">{{ _('Reintentar') }}</button></form>{% endif %}</td></tr>
+  {% endfor %}</tbody></table></div>
+  {% else %}<div class="empty">{{ empty_art('check') }}<h2>{{ _('Sin correcciones todavía') }}</h2><p>{{ _('Cuando la corrección automática aplique o intente algo, quedará aquí.') }}</p></div>{% endif %}
+</section>
+{% endblock %}

@@ -32,6 +32,8 @@ CATALOG = [
     ("console_rw", "Cambios en los equipos", "Consola: también comandos que cambian el equipo", True, "console"),
     ("firmware_install", "Cambios en los equipos", "Actualizar el firmware de los equipos", True, "operator"),
     ("approve", "Cambios en los equipos", "Aprobar o rechazar solicitudes y pedidos de consola", True, "admin"),
+    ("autofix", "Cambios en los equipos", "Corrección automática de cumplimiento: activarla, configurarla y pausarla",
+     True, "admin"),
     ("devices", "Administración", "Agregar, editar, importar, retirar y borrar equipos; grupos y mapa", False, "admin"),
     ("credentials", "Administración", "Credenciales: verlas, crearlas y ver sus contraseñas", True, "admin"),
     ("configlets", "Administración", "Configlets, recetas verificadas y políticas de cumplimiento", False, "admin"),
@@ -56,6 +58,7 @@ ROUTES = [
     (r"^/(api/mobile/)?changes/\d+/review$|^/console/access/\d+/\w+$", "approve"),
     (r"^/configlets/\d+/run$|^/console/(change-request|files/\d+/put|recipes(/\d+/delete)?)$|^/compliance/remediate"
      r"|^/config-reference/request/|^/reports/unused/shutdown$|^/neighbors/\d+/shutdown$", "push"),
+    (r"^/compliance/autofix/", "autofix"),
     (r"^/firmware/(upgrade|routeros-online)$", "firmware_install"),
     (r"^/firmware/(new|upload|\d+/delete|updates/\d+/download)$", "firmware_manage"),
     (r"^/devices/\d+/(compliance|cve)$|^/cve/all$|^/compliance/run$|^/api/where/refresh$|^/neighbors"

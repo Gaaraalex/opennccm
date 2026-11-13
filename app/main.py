@@ -26,7 +26,7 @@ from .auth import (ROLES, Forbidden, LoginRequired, TwoFactorSetupRequired, chec
 from .config import BASE_DIR, TLS_CA
 from .crypto import (KeyMismatch, decrypt, dummy_verify, encrypt, hash_password, needs_rehash, password_problem,
                      session_secret, try_decrypt, verify_password)
-from .db import (AuditLog, ChangeRequest, ComplianceResult, Configlet, ConfigVersion, Credential, Device,
+from .db import (AuditLog, AutoFixRun, ChangeRequest, ComplianceResult, Configlet, ConfigVersion, Credential, Device,
                  DeviceGroup, Event, FirmwareImage, Policy, Rule, SessionLocal, Schedule, User, UserGroup,
                  Vulnerability, audit,
                  get_setting, init_db, now, set_setting)
@@ -2753,6 +2753,155 @@ async def compliance_remediate_policy(request: Request):
     flash(request, _f("Se crearon {0} solicitudes de corrección", len(created)) if len(created) != 1
           else _("Se creó la solicitud de corrección"))
     return go(f"/changes/{created[0]}" if len(created) == 1 else "/changes?status=pending")
+
+
+# --------------------------------------------------------------------------- corrección automática (app/autofix.py)
+@app.get("/compliance/autofix")
+def autofix_view(request: Request):
+    user = require(request)
+    from . import autofix, verified
+    vmap = verified.all_of("rule")
+    scope = device_scope(user)
+    with SessionLocal() as db:
+        policies = db.scalars(select(Policy).options(selectinload(Policy.rules)).order_by(Policy.name)).all()
+        rows = []
+        for p in policies:
+            states = [autofix.rule_state(r, vmap) for r in p.rules]
+            rows.append((p, states.count("on"), sum(1 for x in states if x in ("on", "off", "changed")),
+                         states.count("changed"), autofix.window_text(p), autofix.in_window(p)))
+        rows.sort(key=lambda r: (not (r[0].autofix and r[0].enabled), r[0].name.lower()))
+        pend = []
+        if not autofix.paused():
+            pol = {p.id: p for p in policies}
+            rname = {r.id: r.name for p in policies for r in p.rules}
+            for dev_id, pid, rids in autofix.pending(db)[:200]:
+                if scope is not None and dev_id not in scope:
+                    continue
+                pend.append((db.get(Device, dev_id), pol[pid], [rname[i] for i in rids if i in rname]))
+        runs = [r for r in db.scalars(select(AutoFixRun).order_by(AutoFixRun.id.desc()).limit(500))
+                if scope is None or r.device_id in scope]
+        alive = set(db.scalars(select(Device.id).where(Device.id.in_({r.device_id for r in runs} or {0}),
+                                                       Device.retired_at.is_(None))))
+    names = {}
+    for r in runs:
+        try:
+            names[r.id] = json.loads(r.rule_names or "[]")
+        except ValueError:
+            names[r.id] = []
+    return render(request, "autofix.html", user, rows=rows, pend=pend, runs=runs, run_names=names, alive=alive,
+                  paused=autofix.paused(), hold_since=now() - autofix.COOLDOWN)
+
+
+@app.get("/compliance/autofix/policy/{pid}")
+def autofix_policy(request: Request, pid: int):
+    user = require(request, "admin")
+    from . import autofix, verified
+    vmap = verified.all_of("rule")
+    with SessionLocal() as db:
+        p = db.get(Policy, pid)
+        if p is None:
+            flash(request, _("La política ya no existe"), "error")
+            return go("/compliance/autofix")
+        p.rules  # carga la relación antes de cerrar la sesión
+        rules = [(r, autofix.rule_state(r, vmap), vmap.get(str(r.id), "")) for r in p.rules]
+        order = {"on": 0, "changed": 1, "off": 2, "unverified": 3, "nofix": 4}
+        rules.sort(key=lambda x: (order[x[1]], x[0].name.lower()))
+        fails = dict(db.execute(select(ComplianceResult.rule_id, func.count()).where(
+            ComplianceResult.policy_id == pid, ComplianceResult.passed.is_(False)).group_by(ComplianceResult.rule_id)).all())
+    days = p.autofix_days if p.autofix_days is not None else autofix.DAYS
+    return render(request, "autofix_policy.html", user, p=p, rules=rules, fails=fails, days=days, paused=autofix.paused())
+
+
+@app.post("/compliance/autofix/policy/{pid}")
+async def autofix_policy_save(request: Request, pid: int):
+    user = require(request, "admin")
+    from . import autofix, verified
+    form = await request.form()
+    vmap = verified.all_of("rule")
+    a, b = autofix.parse_hm(form.get("from")), autofix.parse_hm(form.get("to"))
+    if bool(a) != bool(b):
+        flash(request, _("Indique las dos horas de la ventana (desde y hasta), o ninguna para cualquier hora."), "error")
+        return go(f"/compliance/autofix/policy/{pid}")
+    days = autofix.clean_days(form.getlist("day"))
+    on = form.get("autofix") == "1"
+    want = {int(x) for x in form.getlist("rule") if str(x).isdigit()}
+    with SessionLocal() as db:
+        p = db.get(Policy, pid)
+        if p is None:
+            flash(request, _("La política ya no existe"), "error")
+            return go("/compliance/autofix")
+        chosen = []
+        for r in p.rules:
+            ok = r.id in want and autofix.rule_state(r, vmap) in ("on", "off", "changed")
+            r.autofix_sig = autofix.sig(r) if ok else None
+            if ok:
+                chosen.append(r.name)
+        if on and not chosen:
+            db.rollback()
+            flash(request, _("Elija al menos una regla verificada para activar la corrección automática."), "error")
+            return go(f"/compliance/autofix/policy/{pid}")
+        if on and not days:
+            db.rollback()
+            flash(request, _("Elija al menos un día de la ventana."), "error")
+            return go(f"/compliance/autofix/policy/{pid}")
+        was = p.autofix
+        p.autofix, p.autofix_days, p.autofix_from, p.autofix_to = on, days, a, b
+        db.commit()
+        name, win = p.name, autofix.window_text(p)
+    state = "activada" if on else "apagada"
+    log_action(request, user, "autofix_policy", f"{name}: {state} · {win} · reglas: {', '.join(chosen) or '—'}"[:4000])
+    if on:
+        flash(request, _f("Corrección automática activada en «{0}» ({1} reglas).", name, len(chosen)))
+        autofix.kick()
+    else:
+        flash(request, _f("Corrección automática apagada en «{0}».", name) if was else _("Guardado."))
+    return go("/compliance/autofix")
+
+
+@app.post("/compliance/autofix/pause")
+async def autofix_pause(request: Request):
+    user = require(request, "admin")
+    from . import autofix
+    form = await request.form()
+    on = form.get("on") == "1"
+    autofix.set_paused(on)
+    log_action(request, user, "autofix_pause" if on else "autofix_resume")
+    if not on:
+        autofix.kick()
+    flash(request, _("Corrección automática en pausa: no se aplicará nada.") if on else _("Corrección automática reanudada."))
+    return go("/compliance/autofix")
+
+
+@app.post("/compliance/autofix/sweep")
+def autofix_sweep(request: Request):
+    user = require(request, "admin")
+    from . import autofix
+    if autofix.paused():
+        flash(request, _("La corrección automática está en pausa."), "error")
+        return go("/compliance/autofix")
+    n = len(autofix.pending())
+    services.jobs.submit(autofix.sweep)
+    log_action(request, user, "autofix_sweep", str(n))
+    flash(request, _f("Revisando: {0} equipos por corregir. El resultado aparecerá en el historial.", n) if n
+          else _("No hay nada que corregir ahora (dentro de las ventanas)."))
+    return go("/compliance/autofix")
+
+
+@app.post("/compliance/autofix/runs/{run_id}/retry")
+def autofix_retry(request: Request, run_id: int):
+    user = require(request, "admin")
+    from . import autofix
+    with SessionLocal() as db:
+        run = db.get(AutoFixRun, run_id)
+        dev_id = run.device_id if run else None
+    if dev_id is None:
+        return go("/compliance/autofix")
+    check_device(user, dev_id)
+    if autofix.retry(run_id):
+        log_action(request, user, "autofix_retry", f"#{run_id}")
+        autofix.kick()
+        flash(request, _("Se volverá a intentar en la próxima revisión."))
+    return go("/compliance/autofix")
 
 
 @app.post("/compliance/rules/test")

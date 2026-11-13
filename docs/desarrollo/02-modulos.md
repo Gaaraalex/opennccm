@@ -8,14 +8,15 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 
 | Archivo | Líneas | Qué hace |
 |---|---:|---|
-| `app/main.py` | 3703 | Aplicación web OpenNCCM (FastAPI). |
+| `app/main.py` | 3852 | Aplicación web OpenNCCM (FastAPI). |
 | `app/web.py` | 489 | Utilidades compartidas por las rutas web. |
 | `app/auth.py` | 173 | Sesión, roles y alcance: |
+| `app/perms.py` | 169 | Permisos por usuario: |
 | `app/config.py` | 31 | Configuración del proceso por variables de entorno (NCM_*): |
-| `app/db.py` | 701 | Base de datos: |
+| `app/db.py` | 729 | Base de datos: |
 | `app/crypto.py` | 118 | Cifrado AES-256-GCM de credenciales y configuraciones almacenadas. |
 | `app/i18n.py` | 300 | Idiomas de la interfaz. |
-| `app/scheduler.py` | 255 | Tareas programadas (cron) y receptor syslog para detección de cambios en tiempo real. |
+| `app/scheduler.py` | 258 | Tareas programadas (cron) y receptor syslog para detección de cambios en tiempo real. |
 | `app/cli.py` | 226 | Utilidades de línea de comandos. |
 | `app/errors.py` | 36 | Motivo corto y traducido de un error de conexión o de respaldo (Panel «Necesita tu atención», chat del asistente). |
 | `app/metrics.py` | 73 | Rendimiento del servidor para el panel: |
@@ -29,13 +30,13 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 
 | Archivo | Líneas | Qué hace |
 |---|---:|---|
-| `app/services.py` | 1951 | Lógica de negocio: |
-| `app/drivers.py` | 716 | Perfiles de fabricantes. |
+| `app/services.py` | 1957 | Lógica de negocio: |
+| `app/drivers.py` | 733 | Perfiles de fabricantes. |
 | `app/shell_drivers.py` | 136 | Drivers de Netmiko propios para sistemas basados en un shell Unix que Netmiko no trae. |
 | `app/legacy_ssh.py` | 83 | Compatibilidad SSH con equipos de red antiguos. |
 | `app/fwtag.py` | 85 | Versión de firmware de cada copia de seguridad (ConfigVersion.fw_version). |
 | `app/chassis.py` | 213 | Parte de atrás del equipo: |
-| `app/ports.py` | 714 | Puertos físicos del equipo y su estado (ficha del equipo: |
+| `app/ports.py` | 764 | Puertos físicos del equipo y su estado (ficha del equipo: |
 | `app/porttable.py` | 378 | Lectores de la tabla de puertos de cada fabricante (app/ports.py los usa al respaldar). |
 | `app/swos.py` | 75 | MikroTik SwitchOS (SwOS y SwOS Lite): |
 | `app/fireware_web.py` | 196 | Feature key de WatchGuard (Fireware) en el formato que se pega para restaurarla. |
@@ -75,6 +76,7 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 | `app/configlets_ui.py` | 79 | Datos de la página Configlets y scripts en tres columnas (como Recetas): |
 | `app/compliance_packs.py` | 414 | Paquetes de cumplimiento listos para usar: |
 | `app/verified.py` | 63 | Sello «Verificada» de los configlets y de las correcciones de cumplimiento: |
+| `app/autofix.py` | 388 | Corrección automática de cumplimiento (opcional, apagada por defecto). |
 | `app/refconfig.py` | 587 | Configuración de referencia por modelo (Dispositivos › Configuración de referencia). |
 
 ## Red: mapa, vecinos, MAC/IP e informes
@@ -133,12 +135,6 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 | Archivo | Líneas | Qué hace |
 |---|---:|---|
 | `app/cronutil.py` | 164 | Programación de tareas: |
-
-## Otros
-
-| Archivo | Líneas | Qué hace |
-|---|---:|---|
-| `app/perms.py` | 165 | Permisos por usuario: |
 
 ## Dónde buscar
 

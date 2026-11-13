@@ -51,6 +51,9 @@ class Profile:
     # NVD registra algunos productos por modelo («cisco:sg350-28_firmware»): (expresión sobre el modelo del equipo,
     # plantilla del CPE con {0} = lo que captura la expresión, en minúsculas)
     cpe_model: list[tuple[str, str]] = field(default_factory=list)
+    # comando de inventario que depende de lo que respondieron los anteriores: (expresión sobre esa salida, plantilla
+    # con {0} = lo que captura). La OLT ZTE da la serie en el detalle de su tarjeta de control, cuya ranura cambia.
+    inventory_more: tuple[str, str] | None = None
 
     @property
     def inventory_label(self) -> str:
@@ -277,7 +280,11 @@ PROFILES: list[Profile] = [
     Profile("zte_olt", "ZTE ZXA10 OLT (C300, C320, C350, C220)", "ZTE", "show running-config", None,
             inventory="show system-group\nshow card", telnet=True, ignore=CISCO_IGNORE, backup_timeout=900,
             version_re=[r"System Description:\s*(?:ZXA10\s+)?C\d{3}\w*\s+Version\s+(V[\w.\-]+)"],
-            model_re=[r"System Description:\s*(?:ZXA10\s+)?(C\d{3}\w*)"], cve_note=ZTE_OLT_CVE_NOTE),
+            model_re=[r"System Description:\s*(?:ZXA10\s+)?(C\d{3}\w*)"], cve_note=ZTE_OLT_CVE_NOTE,
+            # la serie está en «show card slotno N» de la tarjeta de control (SMXA/SCXN…: ranura 3-4 en la C320,
+            # 10-11 en la C300): se busca en «show card» y se pide su detalle («Serial-Number : 713547900809»)
+            inventory_more=(r"(?m)^\s*\d+\s+\d+\s+(\d+)\s+(?:SMX|SCX|SCT|SMT)\w*\s", "show card slotno {0}"),
+            serial_re=[r"Serial-Number\s*:\s*(\w+)"]),
     # OLT ZXA10 TITAN (C600, C610, C620, C650, C680): la misma CLI de OLT; la versión sale de «show software»
     Profile("zte_olt_titan", "ZTE ZXA10 OLT TITAN (C600, C610, C620, C650, C680)", "ZTE", "show running-config", None,
             inventory="show software\nshow card", telnet=True, ignore=CISCO_IGNORE, backup_timeout=900,
@@ -700,6 +707,14 @@ def config_serial(config: str | None) -> str | None:
     «# model = RB760iGS» y «# serial number = HN30BV2EWHP» (un CHR no tiene)."""
     m = re.search(r"(?m)^# serial number = (\S+)", config or "")
     return m.group(1) if m else None
+
+
+def inventory_followup(profile: Profile, text: str | None) -> str | None:
+    """El comando de inventario que sale de lo ya leído (Profile.inventory_more), o None."""
+    if not profile.inventory_more or not text:
+        return None
+    m = re.search(profile.inventory_more[0], text)
+    return profile.inventory_more[1].format(*m.groups()) if m else None
 
 
 def parse_inventory(text: str, profile: Profile) -> dict:

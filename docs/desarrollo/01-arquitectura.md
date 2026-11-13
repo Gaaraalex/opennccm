@@ -81,6 +81,7 @@ def devices(request: Request, q: str = ""):
 | Métricas del servidor (CPU, memoria, disco) | cada 60 s |
 | Versión nueva de OpenNCCM / de firmware | cada 24 h |
 | Solicitudes de cambio con hora (ventana de mantenimiento) | cada minuto |
+| Corrección automática de cumplimiento (`autofix.sweep`; también después de cada auditoría con fallos) | cada 5 minutos |
 
 El cron de las programaciones pasa por `app/cronutil.py`: APScheduler numera los días de la semana distinto que
 cron (0 = lunes) y ahí se corrige.
@@ -93,6 +94,17 @@ cambió la configuración, busca el equipo por la IP de origen y programa un res
 equipo tiene la reversión automática activada y el respaldo (de syslog o programado) encuentra un cambio fuera de
 una ventana de mantenimiento (es decir, que no vino de una solicitud aprobada), `services._auto_rollback` lo
 revierte con los mismos comandos de «Volver a esta versión».
+
+## Corrección automática de cumplimiento (`app/autofix.py`)
+
+Apagada por defecto. Una política con `autofix` activado aplica sola, dentro de su ventana, las correcciones de las
+reglas elegidas: solo reglas con el sello «Verificada» (`app/verified.py`) cuya huella (`Rule.autofix_sig`: tipo,
+patrón y comandos) sigue siendo la aprobada. Va regla por regla y equipo por equipo: respaldo de antes, las mismas
+comprobaciones que una solicitud sin aprobación (`services.example_addresses`, `services.lockout_risks`,
+`impact.for_change`), `services.push_commands`, respaldo de después y, si el equipo rechazó algo o la regla sigue sin
+cumplirse, `services.rollback_commands` a la versión de antes. Cada intento queda en `AutoFixRun` y bloquea esa regla
+en ese equipo 24 h (`hold`, que «Reintentar» quita). El ajuste `autofix_paused` la detiene en todo el sistema. Las
+rutas `/compliance/autofix/…` piden la función crítica `autofix` (`app/perms.py`).
 
 ## Directorio de datos y archivos del servidor instalado
 
