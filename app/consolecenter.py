@@ -73,7 +73,9 @@ def center(request: Request, tab: str = "sesiones", q: str = "", rec: int = 0, e
     if not console.console_allowed(user):
         raise Forbidden()
     tab = tab if tab in TABS else "sesiones"
-    if tab == "acceso" and user.role != "admin":
+    from . import perms
+    can_acc = perms.has(user, "approve") or perms.has(user, "settings")
+    if tab == "acceso" and not can_acc:
         tab = "sesiones"
     devs = _devices(user)
     ids = {d["id"] for d in devs}
@@ -86,14 +88,14 @@ def center(request: Request, tab: str = "sesiones", q: str = "", rec: int = 0, e
         groups = [{"id": g.id, "name": g.name} for g in db.scalars(select(DeviceGroup).order_by(DeviceGroup.name))]
         pending = db.scalar(select(ConsoleAccessRequest.id).where(ConsoleAccessRequest.status == "pending").limit(1)) is not None
         reqs = []
-        if user.role == "admin":
+        if perms.has(user, "approve"):
             for r in db.scalars(select(ConsoleAccessRequest).order_by(ConsoleAccessRequest.id.desc()).limit(40)):
                 reqs.append({"id": r.id, "u": r.username, "d": r.device.name if r.device else "?", "why": r.reason,
                              "h": r.hours, "status": r.status, "when": r.created_at, "until": r.until, "by": r.reviewed_by})
     n_pending = sum(1 for r in reqs if r["status"] == "pending")
     from . import assistant
     ctx = {"tab": tab, "devs": devs, "favs": [i for i in _favs(user.username) if i in ids], "recent": recent[:8],
-           "groups": groups, "reqs": reqs, "n_pending": n_pending if user.role == "admin" else (1 if pending else 0),
+           "groups": groups, "reqs": reqs, "n_pending": n_pending if perms.has(user, "approve") else (1 if pending else 0), "can_acc": can_acc,
            "ai": assistant.panel_info(user), "q": q, "rec": rec}
     # las seis secciones van en la misma página (las sesiones abiertas siguen vivas al cambiar de sección)
     ctx["recipes"] = all_recipes(user)
@@ -104,7 +106,7 @@ def center(request: Request, tab: str = "sesiones", q: str = "", rec: int = 0, e
     ctx["recs"] = recordings(user, q, bool(empty))
     ctx["empty"] = bool(empty)
     ctx["tool_help"] = {k: _(v) for k, v in nettools.HELP.items()}
-    if user.role == "admin":
+    if perms.has(user, "settings"):
         ctx["acc"] = {"roles": {r: console.role_mode(r) for r in ("admin", "operator", "viewer")},
                       "record": get_setting("console_record", "1") == "1",
                       "idle": get_setting("console_idle_minutes", "15"), "deny": get_setting("console_enforce_deny", "1") == "1",
@@ -530,7 +532,8 @@ def recordings(user, q: str = "", empty: bool = False) -> list[dict]:
     """Sesiones grabadas; las vacías (sin comandos, ya cerradas) solo si se piden."""
     with SessionLocal() as db:
         stmt = select(ConsoleSession).order_by(ConsoleSession.id.desc()).limit(300)
-        if user.role != "admin":
+        from . import perms
+        if not perms.has(user, "users"):  # las grabaciones de todos: quien ve la auditoría
             stmt = stmt.where(ConsoleSession.username == user.username)
         rows = list(db.scalars(stmt))
     out = []

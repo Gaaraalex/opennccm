@@ -16,6 +16,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, or_, select
 
+from . import perms
 from .auth import ROLES, Forbidden, require
 from .db import (ChangeRequest, Configlet, ConsoleSession, Device, Event, KbCase, KbCaseDevice, KbComment, KbPending,
                  KbProposal, KbVersion, KbVote, SessionLocal, User, audit, get_setting, now, set_setting)
@@ -48,7 +49,7 @@ def code(case_id: int) -> str:
 def can_see(user) -> bool:
     if user is None:
         return False
-    if user.role == "admin":
+    if perms.has(user, "kb"):
         return True  # al admin no se le puede quitar
     if user.role == "operator":
         return get_setting("kb_operators", "1") == "1"
@@ -61,7 +62,7 @@ def can_write(user) -> bool:
 
 def direct(user) -> bool:
     """Publica sin revisión: el admin siempre; el operador si el admin eligió «Admin y operadores»."""
-    return user.role == "admin" or (user.role == "operator" and get_setting("kb_publish", "admin") == "all")
+    return perms.has(user, "kb") or (user.role == "operator" and get_setting("kb_publish", "admin") == "all")
 
 
 def rule(key: str) -> bool:
@@ -179,7 +180,7 @@ def _vote_counts(db) -> dict:
 
 def _visible(user, stmt):
     """Los borradores son de su autor (y del admin); lo archivado, solo del admin."""
-    if user.role == "admin":
+    if perms.has(user, "kb"):
         return stmt
     return stmt.where(or_(KbCase.status.in_(["published", "review"]), KbCase.author == user.username)) \
         .where(KbCase.status != "archived")
@@ -187,7 +188,7 @@ def _visible(user, stmt):
 
 def _get_case(db, user, case_id: int) -> KbCase:
     c = db.get(KbCase, case_id)
-    if c is None or (user.role != "admin" and (c.status == "archived" or (c.status == "draft" and c.author != user.username))):
+    if c is None or (not perms.has(user, "kb") and (c.status == "archived" or (c.status == "draft" and c.author != user.username))):
         raise Forbidden()
     return c
 
@@ -283,9 +284,9 @@ def kb_list(request: Request, cat: str = "", st: str = "", q: str = ""):
         stmt = _visible(user, select(KbCase))
         if cat in CAT_NAME:
             stmt = stmt.where(KbCase.category == cat)
-        if st in ("published", "review", "draft") or (st == "archived" and user.role == "admin"):
+        if st in ("published", "review", "draft") or (st == "archived" and perms.has(user, "kb")):
             stmt = stmt.where(KbCase.status == st)
-        elif user.role == "admin":
+        elif perms.has(user, "kb"):
             stmt = stmt.where(KbCase.status != "archived")
         if q.strip():
             stmt = _search(stmt, q)
@@ -306,7 +307,7 @@ def _common(db, user) -> dict:
             "n_rev": (db.scalar(select(func.count(KbCase.id)).where(KbCase.status == "review")) or 0)
             + (db.scalar(select(func.count(KbProposal.id)).where(KbProposal.status == "review")) or 0),
             "visibility": _("Visible para todo el equipo interno") if get_setting("kb_viewers", "0") == "1" else _("Solo admin y operadores"),
-            "can_write": can_write(user), "is_admin": user.role == "admin"}
+            "can_write": can_write(user), "is_admin": perms.has(user, "kb")}
 
 
 # --------------------------------------------------------------------------- Falta documentar
@@ -401,7 +402,7 @@ def kb_review(request: Request):
     with SessionLocal() as db:
         cards = []
         stmt = select(KbCase).where(KbCase.status == "review").order_by(KbCase.updated_at)
-        if user.role != "admin":
+        if not perms.has(user, "kb"):
             stmt = stmt.where(KbCase.author == user.username)
         for c in db.scalars(stmt):
             ids = [d.id for d in _devices(db, c.id)]
@@ -410,7 +411,7 @@ def kb_review(request: Request):
             cards.append({"id": c.id, "code": code(c.id), "title": c.title, "who": c.author, "when": c.updated_at,
                           "kind": _("Caso nuevo"), "tags": tags, "prop": None})
         pstmt = select(KbProposal).where(KbProposal.status == "review").order_by(KbProposal.created_at)
-        if user.role != "admin":
+        if not perms.has(user, "kb"):
             pstmt = pstmt.where(KbProposal.author == user.username)
         for p in db.scalars(pstmt):
             c = db.get(KbCase, p.case_id)
@@ -579,7 +580,7 @@ def kb_case(request: Request, case_id: int, v: int = 0):
         db.expunge_all()
         ctx = _common(db, user)
     audit(user.username, "kb_read", code(case_id) + (f" v{shown_v}" if shown_v else ""), request.headers.get("x-real-ip"))
-    edit_label = _("Editar") if user.role == "admin" or c.author == user.username else _("Proponer cambio")
+    edit_label = _("Editar") if perms.has(user, "kb") or c.author == user.username else _("Proponer cambio")
     return render(request, "kb_case.html", user, tab="casos", c=c, code=code(c.id), data=data, devs=devs, versions=versions,
                   comments=comments, roles=roles, votes=votes, mine=mine, origins=origins, shown_v=shown_v,
                   cat_name=_(CAT_NAME.get(data.get("category") or "", "")) if data.get("category") else "",
@@ -738,11 +739,11 @@ def _editor(request: Request, user, data: dict, case: KbCase | None, mode: str, 
             rec_min = _minutes(cs) if cs else None
     send = _("Publicar") if direct(user) else _("Enviar a revisión")
     if mode == "propose":
-        send = _("Publicar cambio") if user.role == "admin" else _("Enviar propuesta")
+        send = _("Publicar cambio") if perms.has(user, "kb") else _("Enviar propuesta")
     title = (_f("Editar {0}", code(case.id)) if mode == "edit" else _f("Proponer cambio en {0}", code(case.id))) if case else \
         (_f("Nuevo caso desde {0}", origins[0]["t"].split(" · ")[0]) if origins else _("Nuevo caso"))
     payload = {"id": case.id if case else None, "mode": mode, "pending": pending_id, "data": data, "devs": devs,
-               "direct": direct(user) or (mode == "propose" and user.role == "admin"),
+               "direct": direct(user) or (mode == "propose" and perms.has(user, "kb")),
                "ai": bool(assistant.allowed(user)), "rec": data.get("console_id"), "rec_min": rec_min,
                "t": {"hint_direct": _("Se publica ya y queda visible para admin y operadores."),
                      "hint_review": _("Un admin lo revisa antes de publicarlo."),
@@ -789,7 +790,7 @@ def kb_edit(request: Request, case_id: int):
         pid = db.scalar(select(KbPending.id).where(KbPending.case_id == c.id, KbPending.state == "open"))
         db.expunge(c)
     # lo publicado no se pisa con el guardado automático: se edita como propuesta (el admin la publica al momento)
-    own = c.author == user.username or user.role == "admin"
+    own = c.author == user.username or perms.has(user, "kb")
     mode = "edit" if c.status in ("draft", "review") and own else "propose"
     if c.status == "archived":
         raise Forbidden()
@@ -841,14 +842,14 @@ async def kb_save(request: Request):
                                      "error": _f("Ya hay un caso con este título: {0}.", code(dup.id))})
         c = db.get(KbCase, cid) if cid else None
         if c is not None:
-            if c.status == "archived" or (c.author != user.username and user.role != "admin"):
+            if c.status == "archived" or (c.author != user.username and not perms.has(user, "kb")):
                 raise Forbidden()
             if c.status == "published":  # cambio en un caso publicado: propuesta, o directo si es el admin
                 if action != "send":
                     return JSONResponse({"ok": False, "error": _("Los cambios en un caso publicado se guardan al enviarlos.")})
                 if missing:
                     return JSONResponse({"ok": False, "missing": missing})
-                if user.role == "admin":
+                if perms.has(user, "kb"):
                     _apply(db, c, data)
                     _publish(db, c, user.username, str(body.get("note") or _("Editado"))[:200])
                     db.commit()

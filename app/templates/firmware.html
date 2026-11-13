@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% block title %}Firmware y ciclo de vida{% endblock %}
 {% block content %}
-{% set is_admin = user.role == 'admin' %}
+{% set is_admin = can(user, 'firmware_manage') %}
 {% if tab == 'eol' %}<script>if (!location.hash) history.replaceState(null, '', '#eol');</script>{% endif %}
 <div class="ph"><div class="grow"><h1>Firmware y ciclo de vida</h1><div class="sub">Imágenes, actualizaciones y fechas de fin de venta y soporte (EOL/EOS), en un solo sitio.</div></div>
   {% if is_admin %}<a class="btn pri" href="/firmware/new" data-sheet data-title="Cargar imagen" data-tab-only="imagenes">{{ icon('ul', 's') }}Cargar imagen</a>{% endif %}
@@ -12,7 +12,7 @@
 <nav class="tabs" data-tabs aria-label="Firmware y ciclo de vida">
   <a href="#imagenes">Imágenes <span class="cnt2">{{ images|length }}</span></a>
   <a href="#disponibles">{{ _('Actualizaciones disponibles') }}{% if fw_n %} <span class="cnt2">{{ fw_n }}</span>{% endif %}</a>
-  {% if ROLES[user.role] >= 1 %}<a href="#actualizar">Actualizar equipos</a>{% endif %}
+  {% if can(user, 'firmware_install') %}<a href="#actualizar">Actualizar equipos</a>{% endif %}
   <a href="#eol">Fin de vida (EOL/EOS) <span class="cnt2">{{ entries|length }}</span></a>
 </nav>
 
@@ -20,7 +20,7 @@
 <section class="card flush"><div class="tw"><table class="t"><thead><tr><th>Archivo</th><th>Versión</th><th>Para (regex de tipo)</th><th>MD5</th><th>Tamaño</th><th>Equipos compatibles</th><th><span class="vh">Acciones</span></th></tr></thead><tbody>
 {% for i in images %}<tr><td class="mono">{{ i.filename }}</td><td class="mono">{{ i.version or '—' }}</td><td class="mono">{{ i.device_type_filter or '.*' }}</td>
   <td class="mono muted" title="{{ i.md5 }}">{{ i.md5[:12] }}…</td><td class="muted" title="{{ '{:,}'.format(i.size) }} B">{{ i.size|filesizeformat }}</td><td class="sm">{{ compat[i.id]|join(', ') or '—' }}</td>
-  <td><div class="acts">{% if ROLES[user.role] >= 1 %}<a class="btn s" href="/firmware?img={{ i.id }}#actualizar">Usar</a>{% endif %}
+  <td><div class="acts">{% if can(user, 'firmware_install') %}<a class="btn s" href="/firmware?img={{ i.id }}#actualizar">Usar</a>{% endif %}
     {% if is_admin %}<button type="button" class="btn s icon" data-dialog="img-del-{{ i.id }}" aria-label="{{ _f('Eliminar {0}', i.filename) }}" title="Eliminar">{{ icon('trash', 's') }}</button>
     <dialog class="dlg" id="img-del-{{ i.id }}"><form method="post" action="/firmware/{{ i.id }}/delete">
       <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi crit">{{ icon('trash') }}</span><div><h2>{{ _f('¿Eliminar {0}?', i.filename) }}</h2><p class="muted" style="margin-top:6px">Se borra el archivo del repositorio. Los equipos ya actualizados no cambian.</p></div></div>
@@ -35,7 +35,7 @@
     <div class="muted sm">{{ _('MikroTik y Ubiquiti se consultan en sus sitios oficiales y su firmware se puede descargar a la biblioteca. Para el resto, la versión sale del diccionario de NVD (NIST) y el firmware se descarga desde el portal del fabricante, que pide cuenta.') }}</div>
     {% if fw_checked %}<div class="muted sm" style="margin-top:4px">{{ _f('Última comprobación: {0}', fw_checked.replace('T', ' ')) }}</div>{% endif %}</div>
   <div class="row" style="gap:8px">
-    {% if ROLES[user.role] >= 1 %}<form class="inline" method="post" action="/firmware/updates/check"><button class="btn"{% if fw_state.running %} disabled aria-disabled="true"{% endif %}>{{ icon('refresh', 's') }}{{ _f('Comprobando… ({0}/{1})', fw_state.done, fw_state.total) if fw_state.running else _('Comprobar todos ahora') }}</button></form>{% endif %}
+    {% if can(user, 'audit') %}<form class="inline" method="post" action="/firmware/updates/check"><button class="btn"{% if fw_state.running %} disabled aria-disabled="true"{% endif %}>{{ icon('refresh', 's') }}{{ _f('Comprobando… ({0}/{1})', fw_state.done, fw_state.total) if fw_state.running else _('Comprobar todos ahora') }}</button></form>{% endif %}
     {% if is_admin %}<form class="inline" method="post" action="/firmware/updates/settings"><label class="ck"><input type="checkbox" name="enabled"{% if fw_enabled %} checked{% endif %} onchange="this.form.requestSubmit()"> {{ _('Comprobar a diario') }}</label><noscript><button class="btn s">{{ _('Guardar') }}</button></noscript></form>{% endif %}
   </div></div></section>
 <section class="card flush"><div class="tw"><table class="t"><thead><tr><th>{{ _('Equipo') }}</th><th>{{ _('Instalada') }}</th><th>{{ _('Disponible') }}</th><th>{{ _('Qué mejora') }}</th><th>{{ _('Fuente') }}</th><th>{{ _('Descarga') }}</th></tr></thead><tbody>
@@ -54,7 +54,7 @@
 </tbody></table></div></section>
 </div>
 
-{% if ROLES[user.role] >= 1 %}
+{% if can(user, 'firmware_install') %}
 <div id="actualizar">
 <section class="card">{% if images and devices %}<form method="post" action="/firmware/upgrade" id="fwf"><div class="bento" style="gap:20px"><div class="c7 stack">
   <div class="field"><label for="fwsel">Imagen</label><div class="input"><select id="fwsel" name="image_id">{% for i in images %}<option value="{{ i.id }}" data-re="{{ i.device_type_filter or '' }}" data-v="{{ i.version or '' }}"{% if i.id == sel_img %} selected{% endif %}>{{ i.filename }}{% if i.version %} · {{ i.version }}{% endif %}</option>{% endfor %}</select></div></div>

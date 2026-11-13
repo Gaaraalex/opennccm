@@ -23,9 +23,9 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 
-from . import assistant
+from . import assistant, perms
 from . import cmdref as _cmdref
-from .auth import ROLES, Forbidden, check_device, device_scope, require
+from .auth import Forbidden, check_device, device_scope, require
 from .config import BASE_DIR
 from .crypto import try_decrypt
 from .db import (AiChat, AiUsage, ChangeRequest, ComplianceResult, ConfigVersion, Configlet, Device, DeviceGroup, EolEntry,
@@ -480,18 +480,18 @@ def _resolve(user, raw: list, listed: list[str] | None = None) -> list[dict]:
             devs = [names[n.lower()] for n in (a.get("equipos") or []) if isinstance(n, str) and n.lower() in names]
             if t == "respaldar" and not devs and listed:  # sin equipos propios: los de la respuesta
                 devs = [names[n.lower()] for n in listed if n.lower() in names]
-            if t == "respaldar" and devs and ROLES.get(user.role, 0) >= ROLES["operator"]:
+            if t == "respaldar" and devs and perms.has(user, "backup"):
                 devs = devs[:20]
                 out.append({"kind": "backup", "label": label, "ids": [d.id for d in devs],
                             "title": _("Respaldar 1 equipo") if len(devs) == 1 else _f("Respaldar {0} equipos", len(devs)),
                             "summary": ", ".join(d.name for d in devs)})
-            elif t == "solicitud_cambio" and devs and (a.get("comandos") or "").strip() and ROLES.get(user.role, 0) >= ROLES["operator"]:
+            elif t == "solicitud_cambio" and devs and (a.get("comandos") or "").strip() and perms.has(user, "push"):
                 cmds = str(a["comandos"]).strip()[:4000]
                 out.append({"kind": "change", "label": label, "ids": [d.id for d in devs][:50], "body": cmds,
                             "title": _("Crear solicitud de cambio"),
                             "summary": _f("{0} · {1} comandos (pasa por aprobación)", ", ".join(d.name for d in devs[:8]),
                                           len(cmds.splitlines()))})
-            elif t == "configlet" and user.role == "admin" and (a.get("comandos") or "").strip() and (a.get("nombre") or "").strip():
+            elif t == "configlet" and perms.has(user, "configlets") and (a.get("comandos") or "").strip() and (a.get("nombre") or "").strip():
                 from .drivers import PROFILES
                 keys = {p.key for p in PROFILES}
                 name = str(a["nombre"]).strip()[:128]
@@ -516,7 +516,7 @@ def _resolve(user, raw: list, listed: list[str] | None = None) -> list[dict]:
                     out.append({"kind": "kb", "label": label, "case": case, "title": _("Crear el borrador del caso"),
                                 "summary": _f("{0} · {1} pasos (queda como borrador para revisarlo)", case["title"][:120],
                                               len(case["steps"]))})
-            elif t == "tarea" and user.role == "admin" and a.get("accion_tarea") in ("backup", "compliance", "cve", "system_backup"):
+            elif t == "tarea" and perms.has(user, "schedules") and a.get("accion_tarea") in ("backup", "compliance", "cve", "system_backup"):
                 from . import cronutil
                 cron = str(a.get("cron") or "").strip()
                 try:
@@ -622,14 +622,14 @@ def act(user, action_id: str) -> dict:
         return {"error": _("Esa acción ya no está disponible.")}
     from . import services
     if a["kind"] == "backup":
-        if ROLES.get(user.role, 0) < ROLES["operator"]:
+        if not perms.has(user, "backup"):
             raise Forbidden()
         for i in a["ids"]:
             check_device(user, i)
             services.pool.submit(services.backup_device, i, "manual", user.username)
         res = {"ok": True, "msg": _f("Respaldo en marcha en {0} equipos.", len(a["ids"])), "url": "/devices"}
     elif a["kind"] == "change":
-        if ROLES.get(user.role, 0) < ROLES["operator"]:
+        if not perms.has(user, "push"):
             raise Forbidden()
         for i in a["ids"]:
             check_device(user, i)
@@ -637,7 +637,7 @@ def act(user, action_id: str) -> dict:
         cr = _create_cr(user, "✦ " + a["label"], a["body"], {}, a["ids"])
         res = {"ok": True, "msg": _("Solicitud de cambio creada."), "url": f"/changes/{cr}"}
     elif a["kind"] == "schedule":
-        if user.role != "admin":
+        if not perms.has(user, "schedules"):
             raise Forbidden()
         from . import scheduler
         with SessionLocal() as db:
@@ -646,7 +646,7 @@ def act(user, action_id: str) -> dict:
         scheduler.reload_jobs()
         res = {"ok": True, "msg": _f("Tarea «{0}» creada.", a["name"]), "url": "/schedules"}
     elif a["kind"] == "configlet":
-        if user.role != "admin":
+        if not perms.has(user, "configlets"):
             raise Forbidden()
         with SessionLocal() as db:
             name, n = a["name"], 2

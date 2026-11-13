@@ -1358,6 +1358,29 @@ un equipo a un grupo: ábralo y pulse <b>asignar grupo</b> (o <b>Editar</b>). Al
 </ol>
 <p>No se permiten dos usuarios con el mismo nombre (sin distinguir mayúsculas). Crear un usuario <b>nunca</b> modifica a otro.</p>
 <figure><img src="img/26-usuarios.png"><figcaption>Usuarios y roles: equipos permitidos, verificación en dos pasos y último acceso.</figcaption></figure>
+<h2>Permisos de cada usuario</h2>
+<p>El rol es una plantilla: al elegirlo se marcan sus funciones en la lista <b>Permisos</b> y después puede quitar o agregar las
+que quiera (por ejemplo, un lector que también respalda, o un operador que no envía configuraciones). Las funciones van por
+secciones: <b>Operación</b> (respaldar, auditar, etiquetar versiones, reconocer alarmas), <b>Cambios en los equipos</b> (enviar
+configuraciones, volver a una versión, restaurar, consola, firmware, aprobar) y <b>Administración</b> (equipos, credenciales,
+configlets y políticas, tareas, imágenes de firmware, base de conocimiento, usuarios, ajustes). Ver equipos, configuraciones e
+informes lo puede todo usuario. Si la lista coincide con la del rol se indica «los del rol»; si no, «personalizados».</p>
+<p>Las funciones marcadas como <b>críticas</b> (las que cambian los equipos o dan acceso: enviar configuraciones, revertir,
+restaurar, consola con cambios, firmware, aprobar, credenciales, usuarios y ajustes) solo las da o quita el
+<b>administrador maestro</b>.</p>
+<h2>Administrador maestro</h2>
+<ul>
+  <li>Es el primer administrador de la instalación (al actualizar, el administrador activo más antiguo). En la lista lleva la
+  marca <b>Maestro</b>.</li>
+  <li>Tiene todas las funciones y nadie lo puede eliminar, bloquear, editar ni quitarle la verificación en dos pasos.</li>
+  <li>Es el único que crea administradores, da o quita el rol de administrador y las funciones críticas. Los demás
+  administradores con la función «usuarios» gestionan el resto.</li>
+  <li>Puede pasar el rol a otro usuario con <b>Hacerlo administrador maestro</b> al editarlo; él pasa a ser un administrador
+  normal.</li>
+  <li>En la lista de usuarios, la columna <b>Enviar configuraciones</b> tiene un interruptor para dar o cortar ese permiso al
+  instante.</li>
+  <li>Si se pierde el acceso del maestro, en el servidor: <code>sudo opennccm set-master USUARIO</code>.</li>
+</ul>
 <h2>Editar un usuario</h2>
 <p>Pulse la fila o <b>Editar</b> para cambiar el rol, el correo, sus grupos, si la <b>cuenta está activa</b> o su contraseña (deje
 la contraseña vacía para no cambiarla). Al guardar, el mensaje indica exactamente qué cambió (por ejemplo «contraseña cambiada, rol

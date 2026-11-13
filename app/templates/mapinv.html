@@ -16,7 +16,7 @@
   <p class="muted sm">{{ _('Escriba la IP de cada uno y use «Agregar»: se abre el alta del equipo con el nombre y la IP. En el PDF cada uno trae un campo para escribir la IP desde la PC.') }}</p>
   <div class="tbl-wrap"><table class="tbl"><thead><tr><th>{{ _('Equipo') }}</th><th>{{ _('Modelo o plataforma') }}</th><th>{{ _('Visto desde') }}</th><th>{{ _('IP para agregarlo') }}</th></tr></thead><tbody>
   {% for r in new %}<tr><td><b>{{ r.name }}</b></td><td class="muted">{{ r.platform or '—' }}</td><td class="sm">{{ r.seen|join(', ') }}</td>
-    <td>{% if user.role == 'admin' %}<form class="row nowrap" method="get" action="/devices/new" style="gap:6px"><input type="hidden" name="name" value="{{ r.name if not r.name.startswith(_('Sin nombre')) else '' }}">
+    <td>{% if can(user, 'devices') %}<form class="row nowrap" method="get" action="/devices/new" style="gap:6px"><input type="hidden" name="name" value="{{ r.name if not r.name.startswith(_('Sin nombre')) else '' }}">
       <label class="input" style="width:150px"><input name="host" placeholder="{{ _('IP') }}" inputmode="decimal" aria-label="{{ _f('IP de {0}', r.name) }}" required></label>
       <button class="btn s">{{ icon('plus', 's') }}{{ _('Agregar') }}</button></form>{% else %}<span class="muted sm">{{ _('Un administrador puede agregarlo.') }}</span>{% endif %}</td></tr>{% endfor %}
   </tbody></table></div>

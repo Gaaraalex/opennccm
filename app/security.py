@@ -9,7 +9,7 @@ import segno
 from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, HTMLResponse
 
-from .auth import require, start_session
+from .auth import Forbidden, require, start_session
 from .config import TLS_CA
 from .crypto import decrypt, encrypt, verify_password
 from .db import SessionLocal, User
@@ -109,6 +109,8 @@ def twofa_reset(request: Request, uid: int):
         u = db.get(User, uid)
         if u is None:
             return go("/users")
+        if u.is_master and not user.is_master:  # la del maestro solo él (o «opennccm reset-2fa» en el servidor)
+            raise Forbidden()
         u.totp_enabled, u.totp_secret_enc = False, None
         u.session_version = (u.session_version or 0) + 1
         name = u.username

@@ -57,7 +57,7 @@
         <span class="sm" style="color:var(--{{ 'warn' if d.changed else 'muted' }})">{{ d.changed or _('Sin cambios desde entonces') }}</span>
         {% if d.fmt == 'pdf' %}<a class="btn s ghost" href="/reports/netdoc/{{ d.id }}/file?view=1" target="_blank" rel="noopener">{{ icon('eye', 's') }}{{ _('Ver') }}</a>{% endif %}
         <a class="btn s" href="/reports/netdoc/{{ d.id }}/file">{{ icon('dl', 's') }}{{ _('Descargar') }}</a>
-        {% if d.changed and user.role in ('admin', 'operator') %}<form method="post" action="/reports/netdoc/{{ d.id }}/again" style="margin:0"><button class="btn s pri">{{ _('Regenerar') }}</button></form>{% endif %}</div>
+        {% if d.changed and can(user, 'audit') %}<form method="post" action="/reports/netdoc/{{ d.id }}/again" style="margin:0"><button class="btn s pri">{{ _('Regenerar') }}</button></form>{% endif %}</div>
       {% else %}<p class="muted sm" style="padding:0 14px 12px;margin:0">{{ _('Todavía no se generó ninguno.') }}</p>{% endfor %}</div>
   </div>
 </div>

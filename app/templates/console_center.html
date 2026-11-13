@@ -6,7 +6,7 @@
 <div class="ph"><div class="grow"><h1>{{ _('Consola') }}</h1><div class="sub" id="cc-open">{{ _('Todo queda grabado en Auditoría.') }}</div></div>
   <a class="btn s ghost" href="/console/favorites">{{ icon('star', 's') }}{{ _('Administrar favoritos') }}</a></div>
 <nav class="tabs" role="tablist" aria-label="{{ _('Secciones de la consola') }}" id="cc-tabs">
-  {% for k, l, i in [('sesiones', _('Sesiones'), 'term'), ('multi', _('Multi-equipo'), 'grid'), ('recetas', _('Recetas'), 'file'), ('grabaciones', _('Grabaciones'), 'play'), ('herramientas', _('Herramientas'), 'globe')] + ([('acceso', _('Acceso'), 'lock')] if user.role == 'admin' else []) %}
+  {% for k, l, i in [('sesiones', _('Sesiones'), 'term'), ('multi', _('Multi-equipo'), 'grid'), ('recetas', _('Recetas'), 'file'), ('grabaciones', _('Grabaciones'), 'play'), ('herramientas', _('Herramientas'), 'globe')] + ([('acceso', _('Acceso'), 'lock')] if can_acc else []) %}
   <a href="#{{ k }}" role="tab" data-tab="{{ k }}">{{ icon(i, 's') }}{{ l }}{% if k == 'acceso' and n_pending %}<span class="cnt">{{ n_pending }}</span>{% endif %}</a>{% endfor %}
 </nav>
 
@@ -65,7 +65,7 @@
 <section class="cc-sec" id="t-recetas" data-sec="recetas" hidden>
   <div class="rc-top"><div class="input grow">{{ icon('search', 's') }}<input id="rc-q" type="search" placeholder="{{ _('Busca en todas las recetas: «vlan», «ssh», «syslog»…') }}" aria-label="{{ _('Buscar recetas') }}"></div>
     <div class="seg" id="rc-view" role="group" aria-label="{{ _('Ordenar las recetas') }}"><button type="button" data-v="eq" class="on" aria-pressed="true">{{ _('Por equipo') }}</button><button type="button" data-v="tk" aria-pressed="false">{{ _('Por tarea') }}</button></div>
-    {% if ROLES[user.role] >= 1 %}<button type="button" class="btn pri" id="rc-new">+ {{ _('Nueva') }}</button>{% endif %}</div>
+    {% if can(user, 'push') %}<button type="button" class="btn pri" id="rc-new">+ {{ _('Nueva') }}</button>{% endif %}</div>
   {% import "_warn.html" as w with context %}<div id="rc-warn">{{ w.warn_full(_('Revisa cada receta antes de usarla en producción.')) }}</div>
   <div class="rc-cols" id="rc-cols">
     <div class="rc-col l" id="rc-left"></div>
@@ -138,7 +138,7 @@
 </section>
 
 {# ------------------------------------------------------------------ Acceso #}
-{% if user.role == 'admin' and acc %}
+{% if acc %}
 <section class="cc-sec" id="t-acceso" data-sec="acceso" hidden>
   <form method="post" action="/console/access" class="stack">
     <div class="card stack"><h3 style="margin:0">{{ _('Por rol') }}</h3>

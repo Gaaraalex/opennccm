@@ -21,7 +21,7 @@
     <div id="telwarn" class="banner warn" {{ '' if device and device.protocol == 'telnet' else 'hidden' }}>{{ icon('alert') }}<span class="grow">Telnet envía la contraseña sin cifrar. Úsalo solo con equipos antiguos sin SSH.</span></div>
     <div class="field"><label for="dcred">Credencial</label><div class="input"><select id="dcred" name="credential_id" required>
       {% for c in credentials %}<option value="{{ c.id }}" {{ 'selected' if device and device.credential_id == c.id }}>{{ c.name }} ({{ c.username }})</option>{% endfor %}</select></div>
-      {% if user.role == 'admin' %}<span class="help"><a href="/credentials">Gestionar credenciales</a></span>{% endif %}</div>
+      {% if can(user, 'credentials') %}<span class="help"><a href="/credentials">Gestionar credenciales</a></span>{% endif %}</div>
   </div>
   <div class="sec"><h3>Organización</h3>
     <div class="f2"><div class="field"><label for="dgrp">Grupo</label><div class="input"><select id="dgrp" name="group_id"><option value="">—</option>
@@ -32,7 +32,7 @@
     <div class="f2"><div class="field"><label for="dnode">{{ _('Nodo') }}</label><div class="input">{{ icon('pin', 's') }}<select id="dnode" name="node_id"><option value="">{{ _('— Sin nodo —') }}</option>
         {% for nd in nodes %}<option value="{{ nd.id }}" {{ 'selected' if device and device.node_id == nd.id }}>{{ nd.name }}</option>{% endfor %}
         <option value="__new">{{ _('+ Crear nodo nuevo…') }}</option></select></div>
-        <span class="help">{{ _('Filtra el mapa de la red por nodo.') }} {% if user.role == 'admin' %}<a href="/nodes">{{ _('Gestionar nodos') }}</a>{% endif %}</span></div>
+        <span class="help">{{ _('Filtra el mapa de la red por nodo.') }} {% if can(user, 'settings') %}<a href="/nodes">{{ _('Gestionar nodos') }}</a>{% endif %}</span></div>
       <div class="field"><label for="dmrole">{{ _('Tipo en el mapa') }}</label><div class="input"><select id="dmrole" name="map_role">
         {% set MR = [('', _('Automático (por el modelo)')), ('router', _('Router')), ('switch', _('Switch')), ('ap', _('Antena / AP')), ('firewall', _('Firewall'))] %}
         {% for v, l in MR %}<option value="{{ v }}" {{ 'selected' if (device.map_role or '' if device else '') == v }}>{{ l }}</option>{% endfor %}</select></div>
@@ -60,13 +60,13 @@
       <span class="help">Déjalo vacío para usar el de la plataforma. <a href="/vendors" target="_blank">Ver comandos por fabricante</a>.</span></div></details>
   </div>
   <div class="row" data-sheet-foot>
-    {% if device and user.role == 'admin' %}<button type="button" class="btn dz" data-dialog="del-dev-dlg">{{ icon('trash', 's') }}Eliminar…</button>{% endif %}
+    {% if device and can(user, 'devices') %}<button type="button" class="btn dz" data-dialog="del-dev-dlg">{{ icon('trash', 's') }}Eliminar…</button>{% endif %}
     <span class="grow"></span>
     <a class="btn ghost" href="{{ '/devices/' ~ device.id if device else '/devices' }}" data-cancel>Cancelar</a>
     <button class="btn pri">{{ _('Guardar') if device else _('Agregar y respaldar') }}</button>
   </div>
 </form>
-{% if device and user.role == 'admin' %}
+{% if device and can(user, 'devices') %}
 <dialog class="dlg" id="del-dev-dlg" aria-labelledby="del-t"><form method="post" action="/devices/{{ device.id }}/delete">
   <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi crit">{{ icon('trash') }}</span><div><h2 id="del-t">{{ _f('¿Eliminar {0}?', device.name) }}</h2>
     <p class="muted" style="margin-top:6px">Se borrarán sus versiones de configuración, resultados y eventos. No se puede deshacer.</p></div></div>

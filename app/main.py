@@ -20,7 +20,7 @@ from sqlalchemy import case, delete, func, or_, select
 from sqlalchemy.orm import defer, joinedload, selectinload
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import reports, scheduler, services
+from . import perms, reports, scheduler, services
 from .auth import (ROLES, Forbidden, LoginRequired, TwoFactorSetupRequired, check_device, clear_settings_cache,
                    device_scope, filter_ids, require, start_session, user_group_ids)
 from .config import BASE_DIR, TLS_CA
@@ -602,7 +602,7 @@ def dashboard(request: Request):
     data = reports.analytics(scope, 30)
     unsupported = [(d, e) for d, e, st in eol_mod.report(scope) if st in ("sin_soporte", "fin_mantenimiento")]
     comp = round(100 * cpass / (cpass + cfail)) if (cpass + cfail) else None
-    server = _server_panel() if user.role == "admin" else None
+    server = _server_panel() if perms.has(user, "settings") else None
     days = data["per_day"]
     peak = max(days, key=lambda dv: dv[1]) if days else ("", 0)
     vend = {}
@@ -610,7 +610,7 @@ def dashboard(request: Request):
         vend[v.device_id] = v.device.device_type
     return render(request, "dashboard.html", user, total=total, ok=ok, err=err, conflicts=conflicts,
                   changes24=changes24, comp=comp, alarms=alarms, vcrit=vcrit, pending=pending, drift=drift,
-                  events=events, recent=recent, h=health.summary(scope, user.role == "admin", server),
+                  events=events, recent=recent, h=health.summary(scope, perms.has(user, "settings"), server),
                   new_week=new_week, dev_trend=dev_trend, backed24=backed24, err_names=err_names,
                   drift_names=drift_names, conflict_names=conflict_names, unsupported=unsupported, oldest=oldest,
                   crit_cves=crit_cves, days=days, peak=peak, vend=vend, groups_n=len({d.group_id for d in devs if d.group_id}))
@@ -730,7 +730,7 @@ def devices(request: Request, q: str = "", group: int = 0, status: str = "", bra
     return render(request, "devices.html", user, devices=devs, groups=groups, q=q, group=group, status=status,
                   retired_n=_ret.retired_count(user), retired_hits=_ret.retired_hits(user, q),
                   brand=brand, brands=brands, brand_names={k: vendorlogos.name(k) for k in vendorlogos.BRANDS}, counts=counts,
-                  node=node, assign=assign if user.role == "admin" else 0, net_nodes=net_nodes,
+                  node=node, assign=assign if perms.has(user, "devices") else 0, net_nodes=net_nodes,
                   node_names={n.id: n.name for n in net_nodes}, can_console=console_allowed(user), src=src, last_global=last_global, n_groups=n_groups)
 
 
@@ -739,7 +739,10 @@ async def devices_bulk(request: Request):
     """Acciones sobre los equipos seleccionados en la lista: respaldar, auditar, mover a un grupo, activar o desactivar."""
     form = await request.form()
     action = form.get("action", "")
-    user = require(request, "admin" if action in ("move", "node", "enable", "disable") else "operator")
+    user = require(request)
+    need = {"backup": "backup", "audit": "audit", "cve": "audit"}.get(action, "devices")  # mover, nodo, activar…
+    if not perms.has(user, need):
+        raise Forbidden()
     ids = filter_ids(user, [int(i) for i in form.getlist("ids") if str(i).isdigit()])
     back = form.get("next") or "/devices"
     back = back if back.startswith("/") and not back.startswith("//") else "/devices"
@@ -2381,7 +2384,7 @@ def change_detail(request: Request, cr_id: int):
     with SessionLocal() as db:
         rdevs = list(db.scalars(select(Device).where(Device.id.in_(ids))))
         risks = services.lockout_risks(cr.body, [(d, d.credential)[0] for d in rdevs]) if cr.kind != "firmware" else []
-    can_review = ROLES[user.role] >= ROLES["admin"] and (
+    can_review = perms.has(user, "approve") and (
         cr.requested_by != user.username or get_setting("allow_self_approval", "1") == "1")
     kind_label = (_("Firmware") if cr.kind == "firmware" else _("Reversión") if cr.is_rollback
                   else _("Corrección de cumplimiento") if cr.title.startswith(("Corrección", "Corregir")) else _("Configlet"))
@@ -3104,7 +3107,10 @@ def users(request: Request):
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
     gname = {g.id: g.name for g in groups}
     user_groups = {u.id: [gname[g] for g in user_group_ids(u.id) if g in gname] for u in items}
-    return render(request, "users.html", user, items=items, groups=groups, user_groups=user_groups)
+    custom = {u.id: perms.custom(u) is not None for u in items}
+    can_push = {u.id: perms.has(u, "push") for u in items}
+    return render(request, "users.html", user, items=items, groups=groups, user_groups=user_groups, custom=custom,
+                  can_push=can_push)
 
 
 USERNAME_RE = re.compile(r"^[A-Za-z0-9._@-]{2,64}$")
@@ -3131,6 +3137,9 @@ async def user_create(request: Request):
     form = await request.form()
     username = (form.get("username") or "").strip()
     role = form.get("role") if form.get("role") in ROLES else "viewer"
+    if role == "admin" and not user.is_master:
+        flash(request, _("Solo el administrador maestro puede crear administradores."), "error")
+        return go("/users")
     password = form.get("password") or ""
     if not USERNAME_RE.match(username):
         flash(request, _("Nombre de usuario no válido: 2 a 64 caracteres (letras, números, punto, guion, @)."), "error")
@@ -3148,11 +3157,16 @@ async def user_create(request: Request):
             return go("/users")
         u = User(username=username, role=role, email=form.get("email") or None, active=True,
                  password_hash=hash_password(password))
+        u.perms = perms.from_form(user, None, role, form.getlist("perm"), True) if form.get("perms_form") else None
+        if u.perms is None and not user.is_master and perms.role_defaults(role) & perms.CRITICAL:
+            u.perms = perms.from_form(user, None, role, sorted(perms.role_defaults(role)), True)  # sin las críticas
         db.add(u)
         db.flush()
         _set_groups(db, u.id, form)
         db.commit()
-    log_action(request, user, "user_create", f"{username} rol={role} grupos={form.getlist('group_ids')}")
+        given = sorted(perms.of(u))
+    log_action(request, user, "user_create", f"{username} rol={role} grupos={form.getlist('group_ids')} "
+                                             f"permisos={','.join(given)}")
     flash(request, _f("Usuario «{0}» creado con rol {1}. Ya puede ingresar con su contraseña.", username, ROLE_NAMES[role]))
     return go("/users")
 
@@ -3162,7 +3176,8 @@ def user_new_form(request: Request):
     user = require(request, "admin")
     with SessionLocal() as db:
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
-    return render(request, "user_edit.html", user, u=None, groups=groups, selected=set(), now=now())
+    return render(request, "user_edit.html", user, u=None, groups=groups, selected=set(), now=now(),
+                  **_perm_ctx(user, None))
 
 
 @app.get("/users/{uid}/edit")
@@ -3173,7 +3188,16 @@ def user_edit_form(request: Request, uid: int):
         if not u:
             return go("/users")
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
-    return render(request, "user_edit.html", user, u=u, groups=groups, selected=set(user_group_ids(uid)), now=now())
+    return render(request, "user_edit.html", user, u=u, groups=groups, selected=set(user_group_ids(uid)), now=now(),
+                  **_perm_ctx(user, u))
+
+
+def _perm_ctx(actor, u) -> dict:
+    """Lista de funciones para la pantalla del usuario: las que tiene, las de cada rol y cuáles puede tocar quien edita."""
+    return {"pcat": perms.catalog_view(), "pdef": perms.defaults_by_role(), "crit": sorted(perms.CRITICAL),
+            "have": sorted(perms.of(u) if u is not None else perms.defaults_by_role()["operator"]),
+            "is_custom": u is not None and perms.custom(u) is not None,
+            "can_crit": bool(actor.is_master), "locked": bool(u is not None and u.is_master and not actor.is_master)}
 
 
 @app.post("/users/{uid}/edit")
@@ -3184,8 +3208,21 @@ async def user_edit(request: Request, uid: int):
         u = db.get(User, uid)
         if not u:
             return go("/users")
-        role = form.get("role") if form.get("role") in ROLES else u.role
+        if u.is_master and not user.is_master:
+            flash(request, _("Al administrador maestro solo lo puede editar él mismo."), "error")
+            return go("/users")
+        if uid == user.id and not user.is_master:  # nadie se da permisos a sí mismo
+            form_role, form_perms = u.role, None
+        else:
+            form_role, form_perms = form.get("role"), form.getlist("perm") if form.get("perms_form") else None
+        role = form_role if form_role in ROLES else u.role
+        if (role == "admin") != (u.role == "admin") and not user.is_master:
+            flash(request, _("Solo el administrador maestro puede dar o quitar el rol de administrador."), "error")
+            return go(f"/users/{uid}/edit")
         active = form.get("active") == "on"
+        if u.is_master and uid != user.id and (role != "admin" or not active):  # (uno mismo: el aviso de abajo)
+            flash(request, _("El maestro no se bloquea ni deja de ser administrador: pase antes el rol a otro."), "error")
+            return go(f"/users/{uid}/edit")
         was_admin = u.role == "admin" and u.active
         if was_admin and (role != "admin" or not active):
             if uid == user.id:
@@ -3212,7 +3249,22 @@ async def user_edit(request: Request, uid: int):
             changes.append((f"rol {ROLE_NAMES[role]}", _f("rol {0}", _(ROLE_NAMES[role]))))
         if active != u.active:
             changes.append(("activado", _("activado")) if active else ("bloqueado", _("bloqueado")))
+        before = perms.of(u)
+        if form_perms is not None and not u.is_master:
+            u.perms = perms.from_form(user, u, role, form_perms, False)
+        elif role != u.role and not u.is_master:  # cambió el rol sin la lista: las del rol nuevo (críticas, igual)
+            u.perms = perms.from_form(user, u, role, sorted(perms.role_defaults(role)), False)
         u.role, u.active, u.email = role, active, form.get("email") or None
+        if not u.is_master:
+            after = perms.of(u)
+            for k in sorted(after - before):
+                changes.append((f"+{k}", "+" + _(dict((c[0], c[2]) for c in perms.CATALOG)[k])))
+            for k in sorted(before - after):
+                changes.append((f"-{k}", "−" + _(dict((c[0], c[2]) for c in perms.CATALOG)[k])))
+        if form.get("make_master") == "on" and user.is_master and uid != user.id and active:
+            me = db.get(User, user.id)
+            me.is_master, u.is_master, u.role, u.perms = False, True, "admin", None
+            changes.append(("ahora es el administrador maestro", _("ahora es el administrador maestro")))
         _set_groups(db, uid, form)
         db.commit()
         name = u.username
@@ -3231,6 +3283,9 @@ def user_delete(request: Request, uid: int):
         return go("/users")
     with SessionLocal() as db:
         u = db.get(User, uid)
+        if u and u.is_master:
+            flash(request, _("El administrador maestro no se puede eliminar."), "error")
+            return go("/users")
         if u:
             if u.role == "admin" and u.active and _active_admins(db, exclude_id=uid) == 0:
                 flash(request, _("No se puede eliminar al último administrador activo."), "error")
@@ -3240,6 +3295,27 @@ def user_delete(request: Request, uid: int):
             db.commit()
             log_action(request, user, "user_delete", name)
             flash(request, _f("Usuario «{0}» eliminado.", name))
+    return go("/users")
+
+
+@app.post("/users/{uid}/push")
+def user_push_toggle(request: Request, uid: int):
+    """Interruptor de la lista de usuarios: dar o cortar «Enviar configuraciones» a un usuario al instante."""
+    user = require(request, "admin")
+    if not user.is_master:
+        raise Forbidden()
+    with SessionLocal() as db:
+        u = db.get(User, uid)
+        if u is None or u.is_master:
+            return go("/users")
+        have = perms.of(u)
+        on = "push" not in have
+        u.perms = perms.encode(have | {"push"} if on else have - {"push"}, u.role)
+        db.commit()
+        name = u.username
+    log_action(request, user, "user_perms", f"{name}: {'+' if on else '-'}push (interruptor)")
+    flash(request, _f("«{0}» ya puede enviar configuraciones a los equipos.", name) if on
+          else _f("«{0}» ya no puede enviar configuraciones a los equipos.", name))
     return go("/users")
 
 

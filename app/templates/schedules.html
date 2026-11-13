@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% block title %}Tareas programadas{% endblock %}
 {% block content %}
-{% set is_admin = user.role == 'admin' %}
+{% set is_admin = can(user, 'schedules') %}
 <div class="ph"><div class="grow"><h1>Tareas programadas</h1><div class="sub">Lo que OpenNCCM hace solo, a su hora.</div></div>
   {% if is_admin %}<a class="btn pri" href="/schedules/new" data-sheet data-title="Nueva tarea">{{ icon('plus', 's') }}Nueva tarea</a>{% endif %}</div>
 <section class="card flush"><div class="tw"><table class="t"><thead><tr><th>Tarea</th><th>Qué hace</th><th>Cuándo</th><th>Próxima</th><th>Última</th><th>Activa</th><th><span class="vh">Acciones</span></th></tr></thead><tbody>

@@ -4,10 +4,11 @@
 {% include "_admin_tabs.html" %}
 {% set RN = {'admin': _('Administrador'), 'operator': _('Operador'), 'viewer': _('Lector')} %}
 <section class="card flush"><div class="card-h"><h2>Usuarios y roles</h2><a class="btn s pri" href="/users/new" data-sheet data-title="Crear usuario">{{ icon('plus', 's') }}Crear usuario</a></div>
-  <div class="tw"><table class="t"><thead><tr><th>Usuario</th><th>Rol</th><th>Equipos</th><th>Verificación en dos pasos</th><th>Último acceso</th><th><span class="vh">Acciones</span></th></tr></thead><tbody data-pager>
+  <div class="tw"><table class="t"><thead><tr><th>Usuario</th><th>Rol</th><th>{{ _('Enviar configuraciones') }}</th><th>Equipos</th><th>Verificación en dos pasos</th><th>Último acceso</th><th><span class="vh">Acciones</span></th></tr></thead><tbody data-pager>
   {% for u in items %}<tr class="click" data-href="/users/{{ u.id }}/edit">
     <td><div class="dev"><span class="av {{ '' if u.role == 'admin' else 'alt' }}" style="width:30px;height:30px;font-size:11px">{{ u.username[:2]|upper }}</span><div><b>{{ u.username }}</b>{% if u.id == user.id %} <span class="muted sm" style="font-weight:400">(tú)</span>{% endif %}<div class="muted sm" style="font-weight:400">{{ u.email or _('sin correo') }}</div></div></div></td>
-    <td>{{ RN[u.role] }}{% if (u.auth_source or 'local') == 'ldap' %} <span class="tag" title="{{ _('Cuenta de Active Directory') }}">AD</span>{% elif u.auth_source == 'oidc' %} <span class="tag" title="{{ _('Cuenta de Microsoft Entra ID') }}">Microsoft</span>{% endif %}{% if not u.active %} <span class="pill crit">bloqueado</span>{% endif %}</td>
+    <td>{{ RN[u.role] }}{% if (u.auth_source or 'local') == 'ldap' %} <span class="tag" title="{{ _('Cuenta de Active Directory') }}">AD</span>{% elif u.auth_source == 'oidc' %} <span class="tag" title="{{ _('Cuenta de Microsoft Entra ID') }}">Microsoft</span>{% endif %}{% if u.is_master %} <span class="pill ok" title="{{ _('Nadie lo puede eliminar ni bloquear; da y quita las funciones críticas') }}">{{ _('Maestro') }}</span>{% elif custom[u.id] %} <span class="tag" title="{{ _('Permisos elegidos uno por uno') }}">{{ _('personalizado') }}</span>{% endif %}{% if not u.active %} <span class="pill crit">bloqueado</span>{% endif %}</td>
+    <td>{% if u.is_master %}<span class="pill ok">{{ _('Sí') }}</span>{% elif user.is_master %}<form method="post" action="/users/{{ u.id }}/push" style="margin:0"><label class="swrow" style="padding:0;border:0" title="{{ _('Dar o cortar al instante el envío de configuraciones a los equipos') }}"><input type="checkbox" class="sw" aria-label="{{ _f('Enviar configuraciones: {0}', u.username) }}" {{ 'checked' if can_push[u.id] }} onchange="this.form.submit()"></label></form>{% else %}<span class="pill {{ 'ok' if can_push[u.id] else '' }}">{{ _('Sí') if can_push[u.id] else _('No') }}</span>{% endif %}</td>
     <td class="sm">{% if u.role == 'admin' or not user_groups[u.id] %}Todos{% else %}{{ _f('Solo {0}', user_groups[u.id]|join(', ')) }}{% endif %}</td>
     <td>{% if u.totp_enabled %}<span class="pill ok">Activa</span>{% else %}<span class="pill warn">Sin activar</span>{% endif %}</td>
     <td class="muted">{% if u.last_login_at %}<span title="{{ u.last_login_at|dt }}{% if u.last_login_ip %} · {{ u.last_login_ip }}{% endif %}">{{ u.last_login_at|ago }}</span>{% else %}{{ _('nunca') }}{% endif %}</td>
@@ -16,7 +17,7 @@
 <p class="muted sm">Cada usuario puede cambiar su propia contraseña en <a href="/account">Mi cuenta</a>.</p>
 <script>
 document.querySelectorAll('tr.click[data-href]').forEach(tr => tr.addEventListener('click', e => {
-  if (e.target.closest('a,button')) return;
+  if (e.target.closest('a,button,form,input,label')) return;
   const a = tr.querySelector('a[data-sheet]'); if (a) a.click(); else location.href = tr.dataset.href;
 }));
 </script>

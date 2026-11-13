@@ -2,7 +2,7 @@
 {% block crumbs %}<a href="/devices">{{ _('Dispositivos') }}</a>{% endblock %}
 {% block content %}
 {# Configuración de referencia por modelo (app/refconfig.py) #}
-{% set op = ROLES[user.role] >= 1 %}
+{% set op = can(user, 'audit') %}
 <style>
 .rf-wrap{display:grid;grid-template-columns:minmax(220px,280px) 1fr;gap:16px;align-items:start}
 @media (max-width:860px){.rf-wrap{grid-template-columns:1fr}}

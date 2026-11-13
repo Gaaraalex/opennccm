@@ -72,6 +72,10 @@ class User(Base):
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime)
     last_login_ip: Mapped[str | None] = mapped_column(String(64))
     auth_source: Mapped[str] = mapped_column(String(8), default="local")  # local | ldap (Active Directory) | oidc (Azure)
+    # permisos (app/perms.py): lista JSON de funciones permitidas; vacío = las de su rol (lo de siempre)
+    perms: Mapped[str | None] = mapped_column(Text)
+    # administrador maestro: nadie lo puede borrar, desactivar ni quitarle permisos; da y quita las funciones críticas
+    is_master: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class Credential(Base):
@@ -613,6 +617,18 @@ def init_db():
     _add_missing_columns()
     _add_missing_indexes()
     _migrate_themes()
+    _ensure_master()
+
+
+def _ensure_master():
+    """Al actualizar (2.39): si no hay administrador maestro, lo es el primer administrador activo (el más antiguo)."""
+    with SessionLocal() as db:
+        if db.scalar(select(User.id).where(User.is_master.is_(True))) is not None:
+            return
+        first = db.scalar(select(User).where(User.role == "admin", User.active.is_(True)).order_by(User.id))
+        if first is not None:
+            first.is_master = True
+            db.commit()
 
 
 # Rediseño «Señal» (1.9): los 10 temas pasan a 4 temas + un color de acento; nadie pierde «su» color.

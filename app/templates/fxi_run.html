@@ -30,7 +30,7 @@
       <div class="chk"><span class="dot">3</span><span><b>{{ _('Una política del Firebox bloquea su propio FTP saliente.') }}</b> {{ _('Revise que el Firebox pueda abrir FTP hacia la red de gestión.') }}</span></div>
       <div class="chk"><span class="dot">4</span><span><b>{{ _('La credencial no es de administrador.') }}</b> {{ _('Una cuenta Device Monitor (solo lectura) no puede crear la imagen.') }}</span></div>
     </div>
-    <div class="row" style="gap:8px;margin-top:16px;flex-wrap:wrap">{% if user.role == 'admin' %}<form method="post" action="/devices/{{ device.id }}/fxi/run" class="inline"><button class="btn pri">{{ _('Reintentar') }}</button></form>
+    <div class="row" style="gap:8px;margin-top:16px;flex-wrap:wrap">{% if can(user, 'firmware_manage') %}<form method="post" action="/devices/{{ device.id }}/fxi/run" class="inline"><button class="btn pri">{{ _('Reintentar') }}</button></form>
       <a class="btn" href="/devices/{{ device.id }}?fxi=cfg#backups">{{ _('Cambiar la dirección') }}</a>{% endif %}<a class="btn" href="{{ doc }}" target="_blank" rel="noopener">{{ _('Ver en la documentación') }}</a></div>
   </section>
   <div class="stack" style="gap:12px">
@@ -48,7 +48,7 @@
     <div id="fxr-steps">{% for s in st.steps %}<div class="step"><span class="dot {{ s.k }}">{{ '✓' if s.k == 'ok' else '✕' if s.k == 'err' else loop.index }}</span><div style="min-width:0"><div class="st-t {{ 'wait' if s.k == 'wait' }}">{{ _(s.t) }}</div><div class="st-d">{{ s.d }}</div></div></div>{% endfor %}</div>
     <div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap" id="fxr-done" {{ 'hidden' if st.status != 'ok' }}>
       <a class="btn" href="/devices/{{ device.id }}#backups">{{ icon('check', 's') }}{{ _('Volver a Respaldos') }}</a>
-      {% if st.image_id and user.role == 'admin' %}<a class="btn" href="/devices/{{ device.id }}/fxi/{{ st.image_id }}/download">{{ icon('dl', 's') }}{{ _('Descargar .fxi') }}</a>
+      {% if st.image_id and can(user, 'firmware_manage') %}<a class="btn" href="/devices/{{ device.id }}/fxi/{{ st.image_id }}/download">{{ icon('dl', 's') }}{{ _('Descargar .fxi') }}</a>
       {% if last_xml %}<button type="button" class="btn" id="fxr-both" data-xml="/versions/{{ last_xml }}?raw=1" data-fxi="/devices/{{ device.id }}/fxi/{{ st.image_id }}/download">{{ icon('dl', 's') }}{{ _('Descargar .xml y .fxi') }}</button>{% endif %}{% endif %}</div>
   </section>
   <div class="stack" style="gap:12px">

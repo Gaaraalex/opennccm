@@ -21,7 +21,16 @@
 | `admin` | además aprobar cambios, administrar usuarios, credenciales, ajustes y sistema |
 
 - `require(request, "operator")` al principio de la ruta. Sin sesión lanza `LoginRequired` (redirige al login);
-  rol insuficiente, `Forbidden` (403).
+  sin permiso, `Forbidden` (403).
+- **Permisos por usuario** (`app/perms.py`, desde 2.39): el rol es una plantilla; cada usuario puede tener su propia
+  lista de funciones (`User.perms`, JSON; vacío = las de su rol). `require(request, "operator"/"admin")` traduce la
+  ruta a su función con `perms.ROUTES` y comprueba `perms.has(user, clave)`. **Una ruta nueva que pide un rol necesita
+  su línea en `ROUTES`** con una función cuyo rol mínimo (`ROLE_MIN`) sea el mismo: `tests/unit_perms.py` lo comprueba
+  para todas. Dentro de una ruta o una plantilla se pregunta por la función, no por el rol: `perms.has(user, "push")`
+  en Python y `{% if can(user, 'push') %}` en Jinja.
+- **Administrador maestro** (`User.is_master`): lo tiene todo, no se puede borrar ni editar por otros y es el único que
+  da o quita las funciones de `perms.CRITICAL` (`perms.from_form`). Se asigna al primer administrador
+  (`db._ensure_master`) y se recupera con `opennccm set-master USUARIO` (`app/cli.py`).
 - **Alcance**: un usuario no admin con grupos asignados solo ve los equipos de esos grupos. `device_scope(user)`
   devuelve el conjunto (o `None` = todos); `check_device(user, id)` lanza 403 si no puede ver ese equipo;
   `filter_ids(user, ids)` filtra una lista. **Toda ruta que recibe un id de equipo tiene que llamar a

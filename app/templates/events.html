@@ -4,14 +4,14 @@
 {% set SEVN = {'critical': _('crítica'), 'major': _('mayor'), 'warning': _('aviso'), 'info': _('info')} %}
 {% set QI = {'critical': ('crit', 'alert'), 'major': ('major', 'shield'), 'error': ('major', 'shield'), 'warning': ('minor', 'clock'), 'info': ('info', 'bell')} %}
 <div class="ph"><div class="grow"><h1>Alarmas y eventos</h1>
-  <div class="sub">{{ _f('{0} sin reconocer', open_n) }} · {{ _f('se notifican por correo, webhook o Telegram desde la severidad «{0}»', SEVN.get(min_sev or 'warning', min_sev)) }}{% if user.role == 'admin' %} (<a href="/settings#notificaciones">cambiar</a>){% endif %}</div></div>
-  {% if ROLES[user.role] >= 1 %}<form class="inline" method="post" action="/events/ack"><button class="btn" {{ 'disabled' if not open_n }}>{{ icon('check', 's') }}Reconocer todas</button></form>{% endif %}</div>
+  <div class="sub">{{ _f('{0} sin reconocer', open_n) }} · {{ _f('se notifican por correo, webhook o Telegram desde la severidad «{0}»', SEVN.get(min_sev or 'warning', min_sev)) }}{% if can(user, 'settings') %} (<a href="/settings#notificaciones">cambiar</a>){% endif %}</div></div>
+  {% if can(user, 'events') %}<form class="inline" method="post" action="/events/ack"><button class="btn" {{ 'disabled' if not open_n }}>{{ icon('check', 's') }}Reconocer todas</button></form>{% endif %}</div>
 
 <div class="row">
   {% for k, l in [('', _('Todas')), ('crit', _('Críticas')), ('major', _('Mayores')), ('minor', _('Menores')), ('info', _('Info'))] %}<a class="chip {{ 'on' if sev == k and not cat }}" href="?sev={{ k }}&amp;unack={{ unack }}">{{ l }} <span class="n">{{ total if not k else counts[k] }}</span></a>{% endfor %}
   {% if nb_n or cat == 'vecinos' %}<a class="chip {{ 'on' if cat == 'vecinos' }}" href="?cat=vecinos&amp;unack={{ unack }}">{{ _('Vecinos') }} <span class="n">{{ nb_n }}</span></a>{% endif %}
   <span class="grow"></span>
-  {% if user.role == 'admin' %}<a class="btn s ghost" href="/settings#mapa">{{ icon('cog', 's') }}{{ _('Ajustes de vecinos') }}</a>{% endif %}
+  {% if can(user, 'settings') %}<a class="btn s ghost" href="/settings#mapa">{{ icon('cog', 's') }}{{ _('Ajustes de vecinos') }}</a>{% endif %}
   <div class="seg"><a class="{{ 'on' if unack }}" href="?sev={{ sev }}&amp;cat={{ cat }}&amp;unack=1">Sin reconocer</a><a class="{{ 'on' if not unack }}" href="?sev={{ sev }}&amp;cat={{ cat }}&amp;unack=0">Todas</a></div></div>
 
 <section class="card flush">
@@ -21,7 +21,7 @@
       {% if e.sub %}<div class="qs">{{ e.sub }}</div>{% endif %}
       <div class="qs">{{ _(e.category) }}{% if e.device %} · {{ e.device.name }}{% endif %} · <span title="{{ e.created_at|dt }}">{{ e.created_at|ago }}</span></div></div>
     <div class="row nowrap">{% if e.nb %}<a class="btn s ghost" href="/neighbors/{{ e.nb }}">{{ _('Ver detalle') }}</a>{% elif e.device_id %}<a class="btn s ghost" href="/devices/{{ e.device_id }}">Abrir equipo</a>{% endif %}
-      {% if not e.acknowledged and ROLES[user.role] >= 1 %}<form method="post" action="/events/ack" style="margin:0"><input type="hidden" name="id" value="{{ e.id }}"><button class="btn s">Reconocer</button></form>{% endif %}</div></li>
+      {% if not e.acknowledged and can(user, 'events') %}<form method="post" action="/events/ack" style="margin:0"><input type="hidden" name="id" value="{{ e.id }}"><button class="btn s">Reconocer</button></form>{% endif %}</div></li>
 {% endfor %}</ul>
 {% elif unack %}<div class="empty">{{ empty_art('check') }}<h2>Sin alarmas</h2><p>Nada pendiente. Tu red está en orden.</p></div>
 {% else %}<div class="empty">{{ empty_art('plus') }}<h2>Aún no hay eventos</h2><p>Aquí aparecerán los respaldos fallidos, los cambios detectados por syslog y las alertas de cumplimiento.</p></div>{% endif %}

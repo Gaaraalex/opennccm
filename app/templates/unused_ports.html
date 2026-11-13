@@ -52,7 +52,7 @@
   <div class="card" style="padding:0">
     {% if cur %}
     <div class="row" style="padding:12px 14px;gap:8px;flex-wrap:wrap"><b class="grow">{{ _f('{0} · {1} puertos sin enlace', cur.name, cur.rows|length) if cur.rows|length != 1 else _f('{0} · 1 puerto sin enlace', cur.name) }}</b><span class="muted sm" id="up-nl">{{ _f('{0} elegidos', 0) }}</span>
-      {% if user.role in ('admin', 'operator') %}<button type="button" class="btn s" id="up-exc">{{ _('Marcar como excepción') }}</button>
+      {% if can(user, 'audit') %}<button type="button" class="btn s" id="up-exc">{{ _('Marcar como excepción') }}</button>
       <button type="button" class="btn s pri" id="up-prep"{% if not cur.can_shut %} disabled title="{{ _('OpenNCCM no sabe apagar puertos en este tipo de equipo.') }}"{% endif %}>{{ _('Preparar «shutdown» como solicitud de cambio') }}</button>{% endif %}</div>
     {% if cur.rows %}<table class="t up-t"><thead><tr><th style="width:28px"><input type="checkbox" id="up-all" aria-label="{{ _('Elegir todos') }}"></th><th>{{ _('Puerto') }}</th><th>VLAN</th><th>{{ _('Descripción') }}</th><th>{{ _('Sin enlace') }}</th></tr></thead><tbody>
       {% for r in cur.rows %}<tr><td><input type="checkbox" class="up-ck" value="{{ r.n }}" aria-label="{{ _f('Elegir {0}', r.n) }}"></td><td class="mono">{{ r.n }}</td><td>{{ r.vlan or '—' }}</td><td>{{ r.d or '—' }}</td>

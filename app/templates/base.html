@@ -68,7 +68,7 @@ window.ocWarn = function (o) {
     <a href="/kb" class="nav {{ 'on' if navp.startswith('/kb') }}" title="{{ _('Base de conocimiento') }}">{{ icon('book') }}<span class="txt">{{ _('Base de conocimiento') }}</span>{% if nav_counts.kb %}<span class="cnt kb-cnt">{{ nav_counts.kb }}</span><span class="dotc"></span>{% endif %}</a>
   </div>
   {% endif %}
-  {% if user.role == 'admin' %}
+  {% if can_admin(user) %}
   <div class="grp"><span class="label">Administrar</span>
     <a href="/users" class="nav {{ 'on' if admin_on }}" title="Administración">{{ icon('cog') }}<span class="txt">Administración</span></a>
   </div>
@@ -85,7 +85,7 @@ window.ocWarn = function (o) {
   <div class="crumbs grow">{% block crumbs %}<b>{{ self.title() }}</b>{% endblock %}</div>
   {% set SUP = support_link() %}{% if SUP %}<a class="btn-soporte" href="{{ SUP }}" target="_blank" rel="noopener" title="{{ _('Soporte profesional') }}">{{ icon('headset') }}<span>{{ _('Soporte profesional') }}</span></a>{% endif %}
   {% set DL = donate_links() %}{% from "_donate.html" import donate_body %}
-  {% if user.role == 'admin' and DL %}<span class="dropw"><button type="button" class="donate" data-drop="don-pop" aria-haspopup="true" aria-expanded="false" aria-label="{{ _('Apoya OpenNCCM: donar') }}" title="{{ _('Apoya OpenNCCM') }}">{{ icon('heart') }}<span class="dt"><b>Apoya OpenNCCM</b><small>Libre y gratis gracias a ti</small></span><span class="dbtn">Donar</span></button>
+  {% if can(user, 'settings') and DL %}<span class="dropw"><button type="button" class="donate" data-drop="don-pop" aria-haspopup="true" aria-expanded="false" aria-label="{{ _('Apoya OpenNCCM: donar') }}" title="{{ _('Apoya OpenNCCM') }}">{{ icon('heart') }}<span class="dt"><b>Apoya OpenNCCM</b><small>Libre y gratis gracias a ti</small></span><span class="dbtn">Donar</span></button>
     <div class="drop don-pop" id="don-pop" hidden>{{ donate_body(DL) }}</div></span>{% endif %}
   {% if ai_top %}<button type="button" class="btn s ghost ai-top" data-chat aria-pressed="false" title="{{ ai_top.model }} · {{ ai_top.who }}">{{ ai_logo(ai_top.p, 20) }}{{ _('Asistente') }}</button>{% endif %}
   <button type="button" class="search-top" data-palette aria-label="Buscar">{{ icon('search', 's') }}<span>{{ _('Buscar equipo, IP, MAC o texto…') }}</span><kbd>Ctrl K</kbd></button>
@@ -117,7 +117,7 @@ window.ocWarn = function (o) {
   <button type="button" aria-label="{{ _('Cerrar') }}" data-dismiss-toast>{{ icon('x', 's') }}</button></div>{% endif %}</div>{% endblock %}
 {% block content %}{% endblock %}
 </main>
-{% if user and user.role == 'admin' and donate_links() and not compact %}{% from "_donate.html" import donate_body %}<dialog class="dlg" id="don-dlg" aria-label="{{ _('Apoya OpenNCCM') }}" style="width:min(340px,100%)">
+{% if user and can(user, 'settings') and donate_links() and not compact %}{% from "_donate.html" import donate_body %}<dialog class="dlg" id="don-dlg" aria-label="{{ _('Apoya OpenNCCM') }}" style="width:min(340px,100%)">
   <div class="row"><span class="grow"></span><button type="button" class="tbtn" data-close aria-label="{{ _('Cerrar') }}">{{ icon('x') }}</button></div>
   <div style="margin-top:-30px">{{ donate_body(donate_links()) }}</div></dialog>{% endif %}
 {% if user and not compact %}
@@ -167,9 +167,9 @@ window.ocWarn = function (o) {
            + ([[_('Administración › Usuarios'), '/users', 'cog'], [_('Administración › Credenciales'), '/credentials', 'cog'],
                [_('Administración › Grupos'), '/groups', 'cog'], [_('Administración › Plataformas'), '/vendors', 'cog'],
                [_('Administración › Auditoría'), '/audit', 'cog'], [_('Administración › Sistema'), '/system', 'cog'],
-               [_('Administración › Ajustes'), '/settings', 'cog']] if user.role == 'admin' else []),
-  'actions': ([[_('Respaldar todos los equipos'), '/backup/all', 'dl', 'post'], [_('Auditar cumplimiento de todos'), '/compliance/run', 'shield', 'post']] if user.role != 'viewer' else [])
-             + ([[_('Agregar equipo'), '/devices/new', 'plus', 'sheet']] if user.role == 'admin' else [])
+               [_('Administración › Ajustes'), '/settings', 'cog']] if can_admin(user) else []),
+  'actions': ([[_('Respaldar todos los equipos'), '/backup/all', 'dl', 'post'], [_('Auditar cumplimiento de todos'), '/compliance/run', 'shield', 'post']] if can(user, 'backup') else [])
+             + ([[_('Agregar equipo'), '/devices/new', 'plus', 'sheet']] if can(user, 'devices') else [])
              + [[_('Revisar cambios por aprobar'), '/changes', 'check', ''],
                 [_('Cambiar a tema oscuro'), 'oscuro', 'moon', 'theme'], [_('Cambiar a tema claro'), 'claro', 'sun', 'theme'],
                 [_('Ver atajos de teclado'), '', 'kbd', 'help'], [_('Cerrar sesión'), '/logout', 'logout', '']]}|tojson }};</script>

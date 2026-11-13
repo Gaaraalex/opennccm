@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 AREAS = [
-    ("Núcleo de la aplicación", ["main", "web", "auth", "config", "db", "crypto", "i18n", "scheduler", "cli", "errors",
+    ("Núcleo de la aplicación", ["main", "web", "auth", "perms", "config", "db", "crypto", "i18n", "scheduler", "cli", "errors",
                                  "metrics", "security", "systime", "updates", "sysbackup", "__init__"]),
     ("Equipos: conexión, respaldo e inventario", ["services", "drivers", "shell_drivers", "legacy_ssh", "fwtag", "chassis",
                                                  "ports", "porttable", "swos", "fireware_web", "fxi", "licenses",

@@ -10,6 +10,7 @@ from pathlib import Path
 from fastapi import APIRouter, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
 
+from . import perms
 from .auth import Forbidden, require
 from .config import DATA_DIR
 from .db import get_setting, now, set_setting
@@ -109,7 +110,7 @@ async def save_positions(request: Request):
     user = require(request)
     b = await request.json()
     scope = b.get("scope")
-    if scope == "team" and user.role != "admin":
+    if scope == "team" and not perms.has(user, "devices"):
         raise Forbidden()
     key = "topo_team_pos" if scope == "team" else f"topo_my_{user.id}"
     if b.get("clear"):

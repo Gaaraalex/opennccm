@@ -2,7 +2,7 @@
 {% block crumbs %}<a href="/devices">Dispositivos</a>{{ icon('right', 's') }}<a href="/devices/{{ v.device_id }}#versions">{{ v.device.name }}</a>{{ icon('right', 's') }}<b>{{ _f('versión {0}', n) }}</b>{% endblock %}
 {% block content %}
 {% set trig = {'manual': _('manual'), 'scheduled': _('programado'), 'syslog': 'syslog', 'push': 'push', 'console': _('consola')} %}
-{% set can_run = ROLES[user.role] >= 1 %}
+{% set can_run = can(user, 'rollback') %}
 <div data-sheet-wide></div>
 <h1>{{ _f('{0} · versión {1}', v.device.name, n) }}</h1>
 <p class="muted sm" data-sheet-sub>{{ v.kind }} · {{ trig.get(v.trigger, v.trigger) }}{% if v.username %} · {{ v.username }}{% endif %} · <span title="{{ v.created_at|dt }}">{{ v.created_at|ago }}</span> · {{ _f('{0} líneas', lines|length) }} · {{ _f('firmware {0}', fw_label(v.fw_version)) if v.fw_version else _('firmware sin registrar') }}</p>
@@ -21,7 +21,7 @@
   <span class="grow"></span>
   {% if can_run and v.kind == 'running' %}
   {% if not is_baseline %}<form method="post" action="/versions/{{ v.id }}/baseline"><button class="btn">{{ icon('flag', 's') }}Marcar como línea base</button></form>{% endif %}
-  {% if user.role == 'admin' %}<a class="btn" href="/versions/{{ v.id }}/restore">{{ icon('server', 's') }}{{ _('Restaurar en otro equipo…') }}</a>{% endif %}
+  {% if can(user, 'restore') %}<a class="btn" href="/versions/{{ v.id }}/restore">{{ icon('server', 's') }}{{ _('Restaurar en otro equipo…') }}</a>{% endif %}
   <button type="button" class="btn dz" data-dialog="vrev-dlg">{{ icon('undo', 's') }}Revertir a esta versión…</button>
   {% endif %}
 </div>

@@ -282,7 +282,7 @@ def _asa(text: str) -> list[dict]:
 _JUN_PHYS = re.compile(r"^(ge|xe|et|fe|mge|xle|ce)-\d+/\d+/\d+$")
 
 
-def _junos(text: str) -> list[dict]:
+def _junos(text: str, model: str | None = None) -> list[dict]:
     ports, by = [], {}
     for l in text.splitlines():
         t = l.split()
@@ -297,7 +297,45 @@ def _junos(text: str) -> list[dict]:
             by[name] = p
         elif "." in name and name.split(".")[0] in by and len(t) >= 5 and t[3] == "inet":
             by[name.split(".")[0]]["net"] = by[name.split(".")[0]]["net"] or t[4]
-    return ports
+    return _junos_front(ports, model)
+
+
+def _jpos(name: str) -> tuple[int, int, int]:
+    m = re.search(r"-(\d+)/(\d+)/(\d+)$", name)
+    return (int(m.group(1)), int(m.group(2)), int(m.group(3))) if m else (99, 99, 99)
+
+
+def _junos_front(ports: list[dict], model: str | None) -> list[dict]:
+    """Junos lista los puertos por tipo (todos los ge- y después los xe-) y, en los QFX, solo los que tienen módulo
+    (visto en un QFX5100-48S-6Q con 13.2X51-D25.3: «ge-0/0/16» salía primero y como cobre, y del xe-0/0/19 se pasaba al
+    43). Aquí van en el orden del frente (FPC/PIC/puerto); un ge- entre puertos xe-/et- del mismo PIC es un SFP de 1 G en
+    una jaula SFP+; y en los PIC de jaulas, los que faltan (hasta el número de puertos del modelo, «48S-6Q»: 48 SFP+ y
+    6 QSFP+) se muestran «sin módulo»."""
+    if not ports:
+        return ports
+    ports.sort(key=lambda p: _jpos(p["n"]))
+    pics: dict[tuple[int, int], list[dict]] = {}
+    for p in ports:
+        pics.setdefault(_jpos(p["n"])[:2], []).append(p)
+    m_sfp, m_q = model_ports(model), re.search(r"(?i)-(\d)Q\b", model or "")
+    for (fpc, pic), group in pics.items():
+        if not any(p["n"].startswith(("xe-", "et-")) for p in group):
+            continue  # PIC de cobre (EX: ge-0/0/0…47): tal cual
+        for p in group:
+            if p["n"].startswith("ge-"):
+                p["k"] = "sfp"
+        have = {_jpos(p["n"])[2] for p in group}
+        sfp_have = {_jpos(p["n"])[2] for p in group if not p["n"].startswith("et-")} or {0}
+        last = max(sfp_have)
+        if fpc == 0 and pic == 0 and m_sfp and m_sfp > last:  # el PIC 0 del frente tiene las jaulas SFP+ del modelo
+            last = m_sfp - 1
+        extra = [(n, "xe") for n in range(last + 1) if n not in have]
+        if fpc == 0 and pic == 0 and m_sfp and m_q:  # QSFP+ después de los SFP+ (et-0/0/48…53)
+            extra += [(n, "et") for n in range(m_sfp, m_sfp + int(m_q.group(1))) if n not in have]
+        for n, kind in extra:
+            group.append({"n": f"{kind}-{fpc}/{pic}/{n}", "k": "sfp", "s": "empty", "sp": "", "d": "", "net": "",
+                          "mod": "", "st": ""})
+    return sorted((p for g in pics.values() for p in g), key=lambda p: _jpos(p["n"]))
 
 
 # --------------------------------------------------------------------------- solo configuración (sin estado de enlace)
@@ -438,6 +476,9 @@ LAYOUTS = [
     # entrada de corriente (fuente interna, sin sensores por SSH), con el puerto de gestión, la consola y el USB
     (r"(?i)^(Aruba)?S2500-48", {"rows": 2, "grp": 6, "sfp": "row", "cu": 48, "rear": {"psu": ["100-240 V AC"]}}),
     (r"(?i)^(Aruba)?S2500-24", {"rows": 2, "grp": 6, "sfp": "row", "cu": 24, "rear": {"psu": ["100-240 V AC"]}}),
+    # Juniper QFX5100-48S/48SH: 48 jaulas SFP+ en dos filas (el par arriba, el impar abajo) en bloques de 12, y los 6 QSFP+
+    # (et-0/0/48…53) a la derecha, también de a dos
+    (r"(?i)^QFX5100-48S", {"rows": 2, "sfp": "pairs", "sgrp": 6}),
     # firewalls de escritorio: una fila
     (r"(?i)^(FortiGate|FG-?\d|FGT|PA-?2\d\d|PA-?4\d\d|PA-?1[45]\d\d|SG-\d|Netgate|XG\s?\d|Firebox)", {"rows": 1, "sfp": "row"}),
 ]
@@ -450,6 +491,8 @@ def layout(model: str | None, ports: list[dict]) -> dict:
             return {"rows": 1, "grp": 6, "gaps": [], "sfp": "row", **lay}
     cu = sum(1 for p in ports if p["k"] != "sfp")
     sfp = len(ports) - cu
+    if cu == 0 and sfp > 12:  # switch de jaulas (QFX, Nexus de fibra…): dos filas, como el frente real
+        return {"rows": 2, "grp": 6, "gaps": [], "sfp": "pairs", "sgrp": 6}
     if cu <= 12:
         return {"rows": 1, "grp": 6, "gaps": [], "sfp": "row" if sfp <= 4 else "pairs"}
     cols = (cu + 1) // 2
@@ -499,7 +542,7 @@ def _parse_section(cmd: str, text: str, device_type: str, model: str | None = No
     if cmd in ("show interface ip brief", "show ip interface brief"):
         return _asa(text)
     if cmd == "show interfaces terse":
-        return _junos(text)
+        return _junos(text, model)
     if cmd == "show interfaces" and device_type in VYOS_LIKE:
         return pt.vyos(text)
     if cmd == "get system interface physical":
