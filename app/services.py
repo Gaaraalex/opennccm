@@ -790,13 +790,14 @@ def _fireware_license(dev, detail: str | None) -> tuple[str | None, str | None]:
                         + ("una hora." if net else "un día."))
 
 
-def _read_ports(conn, device_type: str) -> str | None:
-    """Estado de los puertos (enlace, velocidad, módulo SFP) para la ficha del equipo. Nunca hace fallar el respaldo."""
+def _read_ports(conn, device_type: str, config: str = "") -> str | None:
+    """Estado de los puertos (enlace, velocidad, módulo SFP) para la ficha del equipo. Nunca hace fallar el respaldo.
+    (La configuración recién leída le dice a la OLT ZTE qué uplinks consultar.)"""
     from . import chassis, ports
     out = []
     for mod in (ports, chassis):  # puertos del frente; fuentes y ventiladores de atrás
         try:
-            out.append(mod.read(conn, device_type) or "")
+            out.append((mod.read(conn, device_type, config) if mod is ports else mod.read(conn, device_type)) or "")
         except Exception as e:  # noqa: BLE001
             log.info("%s (%s): %s", mod.__name__, device_type, e)
     return "\n".join(x for x in out if x) or None
@@ -853,7 +854,7 @@ def _backup_device(device_id: int, trigger: str, username: str | None, report: b
                     if more:
                         inventory += "\n\n" + conn.send_command(more, read_timeout=60)
                     neighbors_raw = _read_neighbors(conn, dev.device_type)
-                    ports_raw = _read_ports(conn, dev.device_type)
+                    ports_raw = _read_ports(conn, dev.device_type, running or "")
                     from . import macfind
                     tables_raw = macfind.read(conn, dev.device_type)  # tablas MAC y ARP (buscar una MAC o una IP)
                     want_license = _license_missing(dev, prof)
