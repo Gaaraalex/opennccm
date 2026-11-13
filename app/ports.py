@@ -120,10 +120,12 @@ def fireware_links(raw: str) -> dict[str, dict]:
     return out
 
 
-def read(conn, device_type: str) -> str | None:
+def read(conn, device_type: str, config: str = "") -> str | None:
     """Lee la tabla de puertos en la conexión del respaldo. Nunca hace fallar el respaldo: devuelve None si no puede."""
     if device_type == "watchguard_fireware":
         return read_fireware(conn)
+    if device_type == "zte_olt":
+        return read_zte_olt(conn, config)
     if device_type == "mikrotik_routeros":
         try:
             out = conn.send_command("/interface ethernet print terse without-paging", read_timeout=30)
@@ -392,6 +394,106 @@ def _set_config(config: str) -> list[dict]:
 _ZTE_PORT = re.compile(r"^interface ((gpon-olt|epon-olt|xgpon-olt|gei|xgei|xlgei|cgei)_(\d+)/(\d+)/(\d+))\s*$")
 
 
+# OLT ZTE ZXA10 (C300/C320): el enlace de cada PON es si sus ONU están en línea. «show gpon onu state» (sin puerto) da una
+# fila por ONU: «1/2/1:3  enable  enable  operation  working  1(GPON)» (fase: working, LOS, DyingGasp, OffLine…). De esa
+# salida, que en una OLT grande tiene miles de líneas, solo se guarda la cuenta por PON. Los uplinks gei_/xgei_ salen de
+# «show interface <puerto>» («xgei_1/19/1 is up, line protocol is up»); de cada uno se guardan solo el estado y la velocidad.
+ZTE_ONU_CMD = "show gpon onu state"
+ZTE_MAX_UPLINKS = 24
+_ZTE_ONU = re.compile(r"^\s*(?:[a-z]*-?onu[_-])?(\d+/\d+/\d+):\d+\s+(.+)$", re.I)
+_ZTE_PHASES = {"working", "los", "dyinggasp", "offline", "logging", "syncmib", "authfailed", "lof", "sfi", "lofi", "loami"}
+_ZTE_PRETTY = {"working": "working", "los": "LOS", "dyinggasp": "DyingGasp", "offline": "OffLine", "logging": "Logging",
+               "syncmib": "SyncMib", "authfailed": "AuthFailed", "other": "?"}
+_ZTE_IF = re.compile(r"^\s*(\S+)\s+is\s+([\w ]+?)\s*,\s*line protocol is\s+(\w+)", re.I)
+_ZTE_SPEED = re.compile(r"(?i)\bspeed\s*(?:is|:)?\s*(\d+)\s*(M|G)")
+_ZTE_UPLINK = re.compile(r"(?m)^interface ((?:gei|xgei|xlgei|cgei)_\d+/\d+/\d+)\s*$")
+
+
+def zte_onu_counts(text: str) -> dict[str, dict[str, int]]:
+    """{"1/2/1": {"working": 12, "los": 2}} de la salida de «show gpon onu state»."""
+    out: dict[str, dict[str, int]] = {}
+    for line in (text or "").splitlines():
+        m = _ZTE_ONU.match(line)
+        if not m:
+            continue
+        toks = [t.lower() for t in m.group(2).split()]
+        ph = next((t for t in toks if t in _ZTE_PHASES), "other")
+        c = out.setdefault(m.group(1), {})
+        c[ph] = c.get(ph, 0) + 1
+    return out
+
+
+def read_zte_olt(conn, config: str) -> str | None:
+    """Estado de los PON (ONU en línea) y de los uplinks de una OLT ZTE, en la conexión del respaldo."""
+    out = []
+    try:
+        text = conn.send_command(ZTE_ONU_CMD, read_timeout=300)
+    except Exception:  # noqa: BLE001
+        text = ""
+    counts = zte_onu_counts(text)
+    if counts:
+        out.append(MARK + ZTE_ONU_CMD + "\n" + "\n".join(
+            k + " " + " ".join(f"{ph}={n}" for ph, n in sorted(v.items()))
+            for k, v in sorted(counts.items(), key=lambda kv: tuple(int(x) for x in kv[0].split("/")))))
+    for name in _ZTE_UPLINK.findall(config or "")[:ZTE_MAX_UPLINKS]:
+        cmd = f"show interface {name}"
+        try:
+            t = conn.send_command(cmd, read_timeout=20)
+        except Exception:  # noqa: BLE001
+            continue
+        keep = [ln.strip() for ln in t.splitlines() if _ZTE_IF.match(ln)][:1]
+        keep += [ln.strip() for ln in t.splitlines() if _ZTE_SPEED.search(ln)][:1]
+        if keep:
+            out.append(MARK + cmd + "\n" + "\n".join(keep))
+    return "\n".join(out) or None
+
+
+def _zte_olt_state(raw: str) -> tuple[dict, dict]:
+    """(ONU por PON, {uplink: (estado, velocidad, línea)}) de lo guardado por read_zte_olt."""
+    pon: dict[str, dict[str, int]] = {}
+    up: dict[str, tuple[str, str, str]] = {}
+    for cmd, body in _sections(raw).items():
+        if cmd == ZTE_ONU_CMD:
+            for line in body.splitlines():
+                k, _sp, rest = line.strip().partition(" ")
+                if re.match(r"^\d+/\d+/\d+$", k):
+                    pon[k] = {a: int(b) for a, b in re.findall(r"(\w+)=(\d+)", rest)}
+        elif cmd.startswith("show interface "):
+            name = cmd[len("show interface "):].strip()
+            m = next((_ZTE_IF.match(ln) for ln in body.splitlines() if _ZTE_IF.match(ln)), None)
+            if not m:
+                continue
+            adm, proto = m.group(2).lower(), m.group(3).lower()
+            s = ("off" if "administratively" in adm or adm in ("deactivate", "disable", "disabled")
+                 else "up" if proto == "up" else "down")
+            sp = _ZTE_SPEED.search(body)
+            speed = ""
+            if sp and s == "up":
+                v = int(sp.group(1))
+                speed = f"{v}G" if sp.group(2).upper() == "G" else (f"{v // 1000}G" if v >= 1000 else f"{v}M")
+            up[name] = (s, speed, m.group(0).strip())
+    return pon, up
+
+
+def _zte_olt_apply(ports: list[dict], raw: str) -> bool:
+    """Pone en los puertos de la configuración el estado leído; True si el equipo informó de alguno. Un PON está activo
+    si tiene al menos una ONU en línea («working»)."""
+    pon, up = _zte_olt_state(raw)
+    for p in ports:
+        if p["s"] == "off":
+            continue
+        if p["n"].startswith(("gpon", "epon", "xgpon")) and pon:
+            c = pon.get(p["n"].partition("_")[2], {})
+            total, ok = sum(c.values()), c.get("working", 0)
+            p["s"] = "up" if ok else "down"
+            p["d"] = _("{0} de {1} ONU en línea").format(ok, total) if total else _("Sin ONU")
+            p["st"] = " · ".join(f"{_ZTE_PRETTY.get(k, k)} {v}" for k, v in sorted(c.items())) if c else ""
+        elif p["n"] in up:
+            p["s"], sp, p["st"] = up[p["n"]]
+            p["sp"] = sp or (p["sp"] if p["s"] == "up" else "")
+    return bool(pon or up)
+
+
 def _zte_olt_config(config: str) -> list[dict]:
     """OLT ZTE ZXA10 (C300, C320, C350…): las tarjetas («add-card … slotno N GTGH») y cada puerto físico de la
     configuración: PON «gpon-olt_1/2/1» (con cuántas ONU tiene dadas de alta) y uplinks «gei_»/«xgei_». La configuración
@@ -626,6 +728,12 @@ def parse(raw: str | None, device_type: str, config: str = "", model: str | None
             if ln and p["s"] != "off":
                 p["s"], p["sp"], p["st"] = ("up" if ln["up"] else "down"), ln["sp"], ln["st"]
         return ports, bool(links) and bool(ports)
+    if device_type == "zte_olt":
+        ports = _zte_olt_config(config)
+        if ports:
+            has = _zte_olt_apply(ports, raw or "")
+            apply_model_kinds(ports, model)
+            return ports, has
     if raw:
         if device_type == "mikrotik_routeros":
             ports = _mikrotik(raw)

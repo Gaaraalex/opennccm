@@ -46,6 +46,8 @@ try:
     log = firmware.upgrade_device(dev_id, img.id, reload=False)
     check("sin reiniciar: respaldo previo y copia comprobada, pero no graba", "Respaldo previo: first" in log
           and "/tmp/fwupdate.bin" in log and "200002" in log and "Done, rebooting" not in log, log)
+    check("antes de copiar mira el espacio libre de /tmp", "Espacio libre: 20.0 MB (df -k)" in log, log)
+    check("después de copiar, el SHA-256 calculado en el equipo coincide", "Suma SHA-256 calculada en el equipo: coincide" in log, log)
     log = firmware.upgrade_device(dev_id, img.id, reload=True)
     check("reiniciando: «fwupdate -m» graba y reinicia", "Done, rebooting" in log and "Respaldo previo: unchanged" in log, log)
     with SessionLocal() as db:
@@ -62,6 +64,59 @@ try:
     r = s.post(B + "/firmware/routeros-online", data={"device_ids": str(dev_id)}, allow_redirects=True)
     check("en línea solo para MikroTik", "No son MikroTik RouterOS" in r.text)
     cr = re.search(r"/changes/(\d+)", s.get(B + "/changes?status=pending").text)
+
+    # ---- varios equipos: tandas, comprobación previa y avance por equipo
+    with SessionLocal() as db:
+        dead = Device(name="NS-Caido", host="192.0.2.91", device_type="ubiquiti_airos", credential_id=cred_id)
+        db.add(dead)
+        db.commit()
+        dead_id = dead.id
+    page = s.get(B + "/firmware").text
+    check("el formulario ofrece las tandas y detenerse si falla",
+          'name="batch"' in page and '<option value="5" selected>' in page and 'name="stop" value="on" checked' in page)
+    r = s.post(B + "/firmware/upgrade", data={"image_id": img.id, "device_ids": [str(dev_id), str(dead_id)],
+                                               "batch": "1", "stop": "off"})
+    fwcr = int(re.search(r"/changes/(\d+)", r.url).group(1))
+    check("la solicitud dice las tandas y ofrece «Comprobar los equipos»", "De a 1 equipos" in r.text
+          and "si uno falla" not in r.text and f'action="/changes/{fwcr}/firmware-check"' in r.text and "· de a 1" in r.text)
+    r = s.post(f"{B}/changes/{fwcr}/firmware-check")
+    check("comprobar: empieza en segundo plano", "Comprobando los equipos" in r.text)
+
+    def wait_fw(key, secs=120):
+        j = {}
+        for _ in range(secs):
+            time.sleep(1)
+            j = s.get(f"{B}/changes/{fwcr}/firmware-progress").json()
+            if not j["busy"] and j[key]:
+                break
+        return {x["name"]: x for x in j.get(key, [])}
+
+    chk = wait_fw("check")
+    check("comprobación previa: el que responde, con su espacio libre", chk.get("NS-Torre", {}).get("stage") == "done"
+          and "Espacio libre 20.0 MB" in chk["NS-Torre"]["msg"], chk.get("NS-Torre"))
+    check("comprobación previa: el que no responde", chk.get("NS-Caido", {}).get("stage") == "failed"
+          and "No se pudo conectar" in chk["NS-Caido"]["msg"], chk.get("NS-Caido"))
+    # (con el mapa de las pruebas anteriores el impacto puede pedir «Leí el impacto»)
+    # (y otra prueba anterior puede haber dejado apagado «aprobar sus propias solicitudes»: se enciende solo para esto)
+    from app.db import get_setting, set_setting
+    self_ok = get_setting("allow_self_approval", "1")
+    set_setting("allow_self_approval", "1")
+    rv = s.post(f"{B}/changes/{fwcr}/review", data={"decision": "approve", "ack_impact": "on"})
+    set_setting("allow_self_approval", self_ok)
+    check("aprobada", "Solicitud aprobada" in rv.text, re.findall(r'class="flash [^"]*">([^<]+)', rv.text)[:3])
+    run = wait_fw("run", 150)
+    check("avance: cada equipo en su tanda, el que respondió termina y el otro falla (se siguió: «stop» apagado)",
+          run.get("NS-Torre", {}).get("batch") == 1 and run.get("NS-Torre", {}).get("stage") == "done"
+          and run.get("NS-Caido", {}).get("batch") == 2 and run.get("NS-Caido", {}).get("stage") == "failed", run)
+    t = s.get(f"{B}/changes/{fwcr}").text
+    check("la solicitud queda «Ejecutada en parte» con el avance", "badge b-partial" in t and "Avance por equipo" in t)
+    r = s.post(f"{B}/changes/{fwcr}/firmware-check")
+    check("después de aprobar ya no se comprueba", "Solo se comprueba antes de aprobar" in r.text)
+    with SessionLocal() as db:
+        from app.db import ChangeRequest
+        db.query(ChangeRequest).filter(ChangeRequest.id == fwcr).delete(synchronize_session=False)
+        db.query(Device).filter(Device.id == dead_id).delete(synchronize_session=False)
+        db.commit()
     with SessionLocal() as db:
         from app.db import ChangeRequest
         db.query(ChangeRequest).filter(ChangeRequest.title.like("RouterOS en línea%")).delete(synchronize_session=False)

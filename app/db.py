@@ -115,6 +115,7 @@ class Device(Base):
     map_role: Mapped[str | None] = mapped_column(String(16))  # tipo en el mapa elegido por un administrador (vacío: automático)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     auto_rollback: Mapped[bool] = mapped_column(Boolean, default=False)
+    autofix_allowed: Mapped[bool] = mapped_column(Boolean, default=True)  # la corrección automática de cumplimiento puede tocarlo
     location: Mapped[str | None] = mapped_column(String(255))
     notes: Mapped[str | None] = mapped_column(Text)
     # inventario
@@ -225,6 +226,7 @@ class Policy(Base):
     autofix_days: Mapped[str | None] = mapped_column(String(7), default="0123456")
     autofix_from: Mapped[str | None] = mapped_column(String(5))
     autofix_to: Mapped[str | None] = mapped_column(String(5))
+    autofix_by: Mapped[str | None] = mapped_column(String(64))  # quién la activó: solo corrige los equipos que él ve
     rules = relationship("Rule", cascade="all, delete-orphan", passive_deletes=True)
 
 
@@ -390,8 +392,28 @@ class FirmwareImage(Base):
     version: Mapped[str | None] = mapped_column(String(64))
     size: Mapped[int] = mapped_column(Integer, default=0)
     md5: Mapped[str] = mapped_column(String(32))
+    sha256: Mapped[str | None] = mapped_column(String(64))  # (las cargadas antes de 2.41 no lo tienen: se calcula al usarlas)
+    vendor_sum: Mapped[str | None] = mapped_column(String(64))  # MD5 o SHA-256 publicado por el fabricante, ya comprobado
     uploaded_by: Mapped[str | None] = mapped_column(String(64))
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
+class FirmwareJob(Base):
+    """Avance de cada equipo en una solicitud de firmware (app/firmware.py): tanda, paso, porcentaje de la copia y lo
+    que pasó. También guarda la comprobación previa («Comprobar los equipos»), con kind="check"."""
+    __tablename__ = "firmware_jobs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    cr_id: Mapped[int] = mapped_column(ForeignKey("change_requests.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(8), default="run")  # run | check
+    device_id: Mapped[int | None] = mapped_column(ForeignKey("devices.id", ondelete="SET NULL"))
+    device_name: Mapped[str] = mapped_column(String(128))
+    batch: Mapped[int] = mapped_column(Integer, default=1)
+    # queued | backup | space | copy | verify | install | reboot | checking | done | failed | skipped | stopped
+    stage: Mapped[str] = mapped_column(String(16), default="queued")
+    pct: Mapped[int | None] = mapped_column(Integer)
+    message: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class FirmwareUpdate(Base):

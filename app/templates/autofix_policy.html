@@ -9,9 +9,10 @@
 {% if not p.enabled %}<div class="banner warn">{{ icon('alert') }}<span class="grow">{{ _('La política está inactiva: no se audita ni se corrige hasta que se active.') }}</span></div>{% endif %}
 {% if paused %}<div class="banner warn">{{ icon('pause') }}<span class="grow">{{ _('La corrección automática está en pausa para todo el sistema.') }} <a href="/compliance/autofix">{{ _('Reanudar') }}</a></span></div>{% endif %}
 
+{% if problem %}<div class="banner warn">{{ icon('alert') }}<span class="grow">{{ problem }}</span></div>{% endif %}
 <form method="post" action="/compliance/autofix/policy/{{ p.id }}" class="stack">
 <section class="card"><div class="stack">
-  <label class="swrow"><span><b>{{ _('Corrección automática en esta política') }}</b><div class="muted sm">{{ _('Apagada, nada cambia: las correcciones se siguen pidiendo a mano con «Corregir».') }}</div></span>
+  <label class="swrow"><span><b>{{ _('Corrección automática en esta política') }}</b><div class="muted sm">{{ _('Apagada, nada cambia: las correcciones se siguen pidiendo a mano con «Corregir».') }}</div>{% if p.autofix and p.autofix_by and not problem %}<div class="muted sm">{{ _f('Activada por {0}: corrige solo los equipos que {0} puede ver. Al guardar, queda a nombre de quien guarda.', p.autofix_by) }}</div>{% endif %}{% if my_scope %}<div class="muted sm">{{ _('Usted tiene acceso solo a algunos grupos: corregirá solo los equipos de esos grupos.') }}</div>{% endif %}</span>
     <input type="checkbox" class="sw" role="switch" name="autofix" value="1" {{ 'checked' if p.autofix }}></label>
   <div class="sec"><h3>{{ _('Ventana') }}</h3><p class="muted sm">{{ _('Solo se corrige en estos días y horas. Sin horas, a cualquier hora del día. Una ventana que cruza la medianoche (22:00 a 06:00) cuenta desde el día en que empieza.') }}</p>
     <div class="row" style="flex-wrap:wrap;gap:8px;margin:8px 0">{% for d in dn %}<label class="ck" style="padding:6px 10px;border:1px solid var(--line);border-radius:var(--r-sm)"><input type="checkbox" name="day" value="{{ loop.index0 }}" {{ 'checked' if (loop.index0|string) in days }}>{{ d }}</label>{% endfor %}</div>

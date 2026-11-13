@@ -861,6 +861,8 @@ def _apply_device_form(dev: Device, form):
     from .rollback import rollback_supported
     # solo en plataformas que se pueden revertir por comandos con seguridad
     dev.auto_rollback = form.get("auto_rollback") == "on" and rollback_supported(get_profile(dev.device_type))
+    if "autofix_allowed" in form:  # sin el campo (API, versiones anteriores): se deja como estaba
+        dev.autofix_allowed = form.get("autofix_allowed") == "1"
     dev.custom_backup_cmd = (form.get("custom_backup_cmd") or "").strip() or None
     web = (form.get("web_url") or "").strip()
     if web and not web.lower().startswith(("http://", "https://")):
@@ -2363,13 +2365,15 @@ def change_detail(request: Request, cr_id: int):
                              "/system package update check-for-updates once",
                              "/system package update install" if cr.reload else "/system package update download"]
                 elif method == "routeros":
-                    steps = ["# respaldo previo", f"# SFTP {name} -> / (tamaño verificado)"] + (["/system reboot"] if cr.reload else [])
+                    steps = ["# respaldo previo", "# espacio libre (free-hdd-space)", f"# SFTP {name} -> / (tamaño verificado)"] + (["/system reboot"] if cr.reload else [])
                 elif method == "airos":
-                    steps = ["# respaldo previo", f"# SCP {name} -> /tmp/fwupdate.bin (tamaño verificado)"] + (["fwupdate -m"] if cr.reload else [])
+                    steps = ["# respaldo previo", "# espacio libre (df -k /tmp)", f"# SCP {name} -> /tmp/fwupdate.bin (tamaño verificado)",
+                             "# suma SHA-256 o MD5 calculada en el equipo"] + (["fwupdate -m"] if cr.reload else [])
                 elif method == "edgeos":
-                    steps = ["# respaldo previo", f"# SCP {name} -> /tmp/{name}", f"add system image /tmp/{name}"] + (["reboot"] if cr.reload else [])
+                    steps = ["# respaldo previo", "# espacio libre (df -k)", f"# SCP {name} -> /tmp/{name}",
+                             "# suma SHA-256 o MD5 calculada en el equipo", f"add system image /tmp/{name}"] + (["reboot"] if cr.reload else [])
                 else:
-                    steps = [f"# SCP {name} -> {fw.get('fs', '?')} (verificación MD5)"]
+                    steps = [f"# espacio libre (dir {fw.get('fs', '?')})", f"# SCP {name} -> {fw.get('fs', '?')} (verificación MD5)"]
                     steps += [c.format(file=name) for c in fw.get("boot", []) + fw.get("exec", [])]
                     if cr.reload:
                         steps.append(fw.get("reload", "reload"))
@@ -2395,7 +2399,11 @@ def change_detail(request: Request, cr_id: int):
     except Exception:  # noqa: BLE001
         log.exception("análisis de impacto de #%s", cr_id)
         imp = None
-    return render(request, "change.html", user, cr=cr, devices=devs, previews=previews, can_review=can_review,
+    fw = None
+    if cr.kind == "firmware":
+        from . import firmware as fwmod
+        fw = fwmod.page_info(cr)
+    return render(request, "change.html", user, cr=cr, devices=devs, previews=previews, can_review=can_review, fw=fw,
                   kind_label=kind_label, vend=vend, example=example, risks=risks, imp=imp,
                   prev_desc=json.loads(cr.variables or "{}").get("_prev_desc") or {},
                   default_run=now().replace(hour=23, minute=0, second=0, microsecond=0))
@@ -2768,7 +2776,8 @@ def autofix_view(request: Request):
         for p in policies:
             states = [autofix.rule_state(r, vmap) for r in p.rules]
             rows.append((p, states.count("on"), sum(1 for x in states if x in ("on", "off", "changed")),
-                         states.count("changed"), autofix.window_text(p), autofix.in_window(p)))
+                         states.count("changed"), autofix.window_text(p), autofix.in_window(p),
+                         autofix.owner(db, p)[1] if p.autofix else None))
         rows.sort(key=lambda r: (not (r[0].autofix and r[0].enabled), r[0].name.lower()))
         pend = []
         if not autofix.paused():
@@ -2803,13 +2812,15 @@ def autofix_policy(request: Request, pid: int):
             flash(request, _("La política ya no existe"), "error")
             return go("/compliance/autofix")
         p.rules  # carga la relación antes de cerrar la sesión
+        problem = autofix.owner(db, p)[1] if p.autofix else None
         rules = [(r, autofix.rule_state(r, vmap), vmap.get(str(r.id), "")) for r in p.rules]
         order = {"on": 0, "changed": 1, "off": 2, "unverified": 3, "nofix": 4}
         rules.sort(key=lambda x: (order[x[1]], x[0].name.lower()))
         fails = dict(db.execute(select(ComplianceResult.rule_id, func.count()).where(
             ComplianceResult.policy_id == pid, ComplianceResult.passed.is_(False)).group_by(ComplianceResult.rule_id)).all())
     days = p.autofix_days if p.autofix_days is not None else autofix.DAYS
-    return render(request, "autofix_policy.html", user, p=p, rules=rules, fails=fails, days=days, paused=autofix.paused())
+    return render(request, "autofix_policy.html", user, p=p, rules=rules, fails=fails, days=days, paused=autofix.paused(),
+                  problem=problem, my_scope=device_scope(user) is not None)
 
 
 @app.post("/compliance/autofix/policy/{pid}")
@@ -2846,12 +2857,16 @@ async def autofix_policy_save(request: Request, pid: int):
             return go(f"/compliance/autofix/policy/{pid}")
         was = p.autofix
         p.autofix, p.autofix_days, p.autofix_from, p.autofix_to = on, days, a, b
+        if on:  # queda a su nombre: solo corrige los equipos que él ve, y mientras conserve la función
+            p.autofix_by = user.username
         db.commit()
         name, win = p.name, autofix.window_text(p)
+    scope = device_scope(user)
     state = "activada" if on else "apagada"
     log_action(request, user, "autofix_policy", f"{name}: {state} · {win} · reglas: {', '.join(chosen) or '—'}"[:4000])
     if on:
-        flash(request, _f("Corrección automática activada en «{0}» ({1} reglas).", name, len(chosen)))
+        flash(request, _f("Corrección automática activada en «{0}» ({1} reglas).", name, len(chosen))
+              + ("" if scope is None else " " + _("Solo corregirá los equipos de sus grupos.")))
         autofix.kick()
     else:
         flash(request, _f("Corrección automática apagada en «{0}».", name) if was else _("Guardado."))

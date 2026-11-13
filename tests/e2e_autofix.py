@@ -117,6 +117,11 @@ check("el equipo quedó con «ip ssh version 2» y sin «logging buffered 64000�
       "ip ssh version 2" in cfg and "logging buffered 64000" not in cfg and "ntp server 192.0.2.10" not in cfg)
 html = adm.get(B + "/compliance/autofix").text
 check("el historial muestra los tres resultados", all(x in html for x in ("Aplicada", "Revertida", "Bloqueada")))
+check("queda a nombre de quien la activó", "la activó admin" in html)
+with SessionLocal() as db:
+    check("…también en la base (Policy.autofix_by)", db.get(Policy, pid).autofix_by == "admin")
+edit_html = adm.get(f"{B}/devices/{dev}/edit").text
+check("Editar equipo tiene «Permitir corrección automática», encendido", re.search(r'name="autofix_allowed" value="1"\s*checked', edit_html) is not None)
 check("con enlaces a las versiones de antes y después", "Versión de antes" in html and "Versión después" in html)
 check("Cumplimiento marca la política", "corrección automática" in adm.get(B + "/compliance").text)
 

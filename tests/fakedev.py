@@ -632,6 +632,16 @@ def shell_handle(s, st, kind):
         data = FILES.get("/tmp/fwupdate.bin")
         return (f"-rw-r--r--    1 ubnt     admin    {len(data)} Oct 27 12:00 /tmp/fwupdate.bin" if data is not None
                 else "ls: /tmp/fwupdate.bin: No such file or directory")
+    if kind == "airos" and s == "df -k /tmp":  # /tmp de airOS es RAM: unos 20 MB libres
+        return ("Filesystem           1K-blocks      Used Available Use% Mounted on\n"
+                "tmpfs                    30000      9520     20480  32% /tmp")
+    if kind == "airos" and s.split()[0] in ("sha256sum", "md5sum") and len(s.split()) == 2:
+        import hashlib
+        data = FILES.get(s.split()[1])
+        if data is None:
+            return f"{s.split()[0]}: {s.split()[1]}: No such file or directory"
+        h = (hashlib.sha256 if s.startswith("sha") else hashlib.md5)(data).hexdigest()
+        return f"{h}  {s.split()[1]}"
     if kind == "airos" and s == "fwupdate -m":
         FILES["grabado"] = FILES.get("/tmp/fwupdate.bin", b"")
         return "Writing 'kernel' to /dev/mtd2(kernel) ... [%100]\nDone, rebooting..."

@@ -18,7 +18,10 @@ Solo dentro de la ventana de la política (días y horas; sin horas, a cualquier
 «Aplicada», esa regla no se vuelve a intentar en ese equipo durante 24 h (para no insistir sobre un equipo que la
 rechaza), salvo que alguien pulse «Reintentar». Una aplicada tampoco se repite en 24 h: si alguien la deshace a mano,
 no se pelea con él. Todo queda en el historial (Cumplimiento › Corrección automática), en Eventos y en Auditoría.
-Un administrador con la función «Corrección automática» la activa, la configura o la pausa entera.
+Un usuario con la función «Corrección automática» la activa, la configura o la pausa entera. Cada activación queda a
+su nombre (Policy.autofix_by) y solo corrige los equipos que él puede ver; si ya no existe, está desactivado o perdió la
+función, la política deja de aplicarse sola. Un equipo con «Permitir corrección automática» apagado (Editar equipo,
+Device.autofix_allowed) nunca se corrige solo.
 """
 from __future__ import annotations
 
@@ -116,17 +119,37 @@ def window_text(policy) -> str:
 
 
 # --------------------------------------------------------------------------- qué hay que corregir
+def owner(db, policy):
+    """(usuario, problema) de quien activó la corrección automática de la política. Se comprueba en cada vuelta: si
+    ya no existe, está desactivado o perdió la función «Corrección automática», la política deja de aplicarse sola."""
+    from .db import User
+    if not policy.autofix_by:
+        return None, _("No se aplica: vuelva a guardarla para que quede a nombre de quien la activa.")
+    u = db.scalar(select(User).where(User.username == policy.autofix_by))
+    if u is None or not u.active:
+        return None, _f("La activó {0}, que ya no existe o está desactivado: no se aplica.", policy.autofix_by)
+    from . import perms
+    if not perms.has(u, "autofix"):
+        return None, _f("La activó {0}, que ya no tiene la función «Corrección automática»: no se aplica.", policy.autofix_by)
+    return u, None
+
+
 def _eligible(db) -> dict[int, tuple]:
-    """{policy_id: (policy, {rule_id: rule})} de las políticas activas con corrección automática y en su ventana."""
+    """{policy_id: (policy, {rule_id: rule}, equipos)} de las políticas activas con corrección automática y en su
+    ventana. «equipos»: los que puede ver quien la activó (None = todos); solo esos se corrigen."""
     from . import verified
+    from .auth import device_scope
     vmap = verified.all_of("rule")
     out = {}
     for p in db.scalars(select(Policy).where(Policy.enabled.is_(True), Policy.autofix.is_(True))):
         if not in_window(p):
             continue
+        u, problem = owner(db, p)
+        if problem:
+            continue
         rules = {r.id: r for r in p.rules if rule_state(r, vmap) == "on"}
         if rules:
-            out[p.id] = (p, rules)
+            out[p.id] = (p, rules, device_scope(u))
     return out
 
 
@@ -149,7 +172,7 @@ def pending(db=None) -> list[tuple[int, int, list[int]]]:
         if not elig:
             return []
         held = _held(db)
-        rule_ids = [rid for _p, rules in elig.values() for rid in rules]
+        rule_ids = [rid for _p, rules, _s in elig.values() for rid in rules]
         fails = db.execute(select(ComplianceResult.device_id, ComplianceResult.policy_id, ComplianceResult.rule_id)
                            .where(ComplianceResult.passed.is_(False), ComplianceResult.rule_id.in_(rule_ids))).all()
         devs = {d.id: d for d in db.scalars(select(Device).where(Device.id.in_({f.device_id for f in fails} or {0})))}
@@ -157,12 +180,15 @@ def pending(db=None) -> list[tuple[int, int, list[int]]]:
         groups: dict[tuple[int, int], list[int]] = {}
         for f in fails:
             d = devs.get(f.device_id)
-            if d is None or not d.enabled or d.retired_at is not None:
-                continue
+            if d is None or not d.enabled or d.retired_at is not None or not d.autofix_allowed:
+                continue  # desactivado, retirado o con «Permitir corrección automática» apagado (Editar equipo)
             if d.maintenance_until and d.maintenance_until > at:
                 continue  # se le está aplicando otro cambio: en la próxima vuelta
             if f.policy_id not in elig or (f.device_id, f.rule_id) in held:
                 continue
+            scope = elig[f.policy_id][2]
+            if scope is not None and f.device_id not in scope:
+                continue  # fuera de los grupos de quien la activó
             groups.setdefault((f.device_id, f.policy_id), []).append(f.rule_id)
         return [(d, p, sorted(r)) for (d, p), r in sorted(groups.items())]
     finally:

@@ -104,7 +104,24 @@ comprobaciones que una solicitud sin aprobación (`services.example_addresses`, 
 `impact.for_change`), `services.push_commands`, respaldo de después y, si el equipo rechazó algo o la regla sigue sin
 cumplirse, `services.rollback_commands` a la versión de antes. Cada intento queda en `AutoFixRun` y bloquea esa regla
 en ese equipo 24 h (`hold`, que «Reintentar» quita). El ajuste `autofix_paused` la detiene en todo el sistema. Las
-rutas `/compliance/autofix/…` piden la función crítica `autofix` (`app/perms.py`).
+rutas `/compliance/autofix/…` piden la función crítica `autofix` (`app/perms.py`). Cada activación queda a nombre de
+quien la guarda (`Policy.autofix_by`) y `autofix.owner` lo comprueba en cada vuelta: solo corrige los equipos de
+`auth.device_scope` de ese usuario y nada si ya no existe, está desactivado o perdió la función. Un equipo con
+`Device.autofix_allowed` apagado (Editar equipo) nunca se corrige solo.
+
+## Firmware en muchos equipos (`app/firmware.py`)
+
+Una solicitud de firmware aprobada (`execute_firmware_request`) reparte los equipos en tandas (`plan_batches`): con
+reinicio, primero el orden de `impact.waves`; cada grupo se parte en tandas de `variables["batch"]` equipos (0 = todos).
+Cada tanda corre en su propio `ThreadPoolExecutor` (no en `services.pool`, que podría quedar ocupado esperando
+reinicios) y, si tiene más tandas detrás y la solicitud reinicia, `upgrade_device(wait=True)` espera a
+`fwverify.verify_after_upgrade` antes de devolver. Con `variables["stop"]` (por defecto), un fallo marca las tandas
+siguientes como `stopped`. En cada equipo: respaldo, `free_space` (`dir` de Netmiko, `free-hdd-space`, `df -k`) contra
+`need_bytes`, copia con avance, suma en el equipo (`file_transfer` de Netmiko con MD5; `device_hash` con
+`sha256sum`/`md5sum` en airOS y EdgeOS) y arranque. Cada paso queda en `FirmwareJob` mediante `Progress` (la copia
+escribe como mucho cada 1,5 s), y `GET /changes/{id}/firmware-progress` lo da a la página. `check_request`
+(«Comprobar los equipos», `POST /changes/{id}/firmware-check`, función `firmware_install`) hace conexión, versión y
+espacio sin copiar nada, en filas `kind="check"`.
 
 ## Directorio de datos y archivos del servidor instalado
 
