@@ -244,6 +244,9 @@ def start():
     # solicitudes de cambio aprobadas para una hora (ventana de mantenimiento)
     from . import services as _svc
     scheduler.add_job(_svc.run_due_changes, IntervalTrigger(minutes=1), id="due-changes", replace_existing=True)
+    # corrección automática de cumplimiento (solo hace algo si alguna política la tiene activada y está en su ventana)
+    from . import autofix
+    scheduler.add_job(autofix.sweep, IntervalTrigger(minutes=5), id="autofix", replace_existing=True)
     # actualizaciones de firmware de los equipos (MikroTik, Ubiquiti y NVD), una vez al día
     from . import fwupdates
     scheduler.add_job(fwupdates.scheduled, IntervalTrigger(hours=24), id="fw-update-check", replace_existing=True,

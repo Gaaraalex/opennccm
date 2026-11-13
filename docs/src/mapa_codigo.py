@@ -15,7 +15,7 @@ AREAS = [
                                       "nettools", "favorites", "credview", "impact"]),
     ("Recetas, configlets y cumplimiento", ["recipes", "recipes_more", "recipes_major", "recipes_fw", "recipes_gen",
                                             "recipes_rest", "recipes_ubnt_zte", "configlets_seed", "configlets_ui",
-                                            "compliance_packs", "verified", "refconfig"]),
+                                            "compliance_packs", "verified", "autofix", "refconfig"]),
     ("Red: mapa, vecinos, MAC/IP e informes", ["topology", "topolayout", "nodes", "nbwatch", "macfind", "ipam",
                                               "mapreport", "netreports", "netdoc", "reports", "charts", "health"]),
     ("Firmware, CVE y ciclo de vida", ["firmware", "fwupdates", "fwverify", "eol"]),

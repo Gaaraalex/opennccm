@@ -1,5 +1,28 @@
 # Historial de versiones
 
+## 2.40.0
+- [nuevo] **Corrección automática de cumplimiento (opcional):** En Cumplimiento › Corrección automática, cada política
+  puede corregir sola los equipos que incumplen las reglas elegidas, dentro de una ventana de días y horas. Solo entran
+  reglas con el sello «Verificada», y si alguien cambia su patrón o sus comandos dejan de aplicarse hasta volver a
+  elegirlas. En cada equipo y regla respalda antes, hace las mismas comprobaciones que una solicitud de cambio
+  (direcciones de ejemplo, quedarse sin acceso, reinicios y puertos apagados: si hay algo, no aplica nada y queda
+  «Bloqueada»), aplica, vuelve a respaldar y audita; si el equipo rechaza un comando o la regla sigue sin cumplirse,
+  vuelve a la versión de antes. Historial con el resultado, el motivo, la salida y las versiones de antes y después,
+  además de Eventos y Auditoría; no insiste más de una vez en 24 h por regla y equipo («Reintentar» lo libera), y
+  «Pausar todo» la detiene al instante. Viene apagada en todas las políticas, y activarla es la nueva función crítica
+  «Corrección automática» (de los administradores; el maestro la da o la quita).
+- [mejora] **OLT ZTE: frente con sus puertos:** La ficha de las OLT ZXA10 (C300, C320…) ahora dibuja el frente por
+  ranuras desde la configuración, cada tarjeta con su número y su tipo («Ranura 2 · GTGH»): los puertos PON con cuántas
+  ONU tienen y los uplinks de 1 G y 10 G. Antes no mostraba ningún puerto. No se guardan datos de los clientes (nombres
+  ni descripciones de las ONU).
+- [arreglo] **OLT ZTE: número de serie:** La serie no está en «show system-group» ni en «show card»: ahora se busca la
+  tarjeta de control (SMXA, SCXN…) en «show card» y se lee su «Serial-Number» con «show card slotno N». Sirve para la C320
+  (ranura 3 o 4) y la C300 (ranura 10 u 11). Para verla, «Respaldar ahora» en cada OLT. Visto en una C320 con V2.1.0.
+- [mejora] **OLT ZTE: vulnerabilidades:** NVD casi no registra las OLT ZTE (de la C320, ninguna), así que el «0» de la
+  pestaña Vulnerabilidades no significa que no tenga: ahora lo avisa y enlaza a los boletines de seguridad de ZTE.
+- [mejora] **Firmware sin fuente pública:** Cuando el fabricante no publica sus versiones (como ZTE), el aviso dice además
+  que las fechas de fin de venta y de soporte se pueden cargar a mano en Firmware y ciclo de vida.
+
 ## 2.39.0
 - [seguridad] **Permisos por usuario:** Al crear o editar un usuario, el rol (Lector, Operador, Administrador) es una
   plantilla y debajo está la lista de funciones del sistema por secciones (operación, cambios en los equipos,

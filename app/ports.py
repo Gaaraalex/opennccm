@@ -389,6 +389,54 @@ def _set_config(config: str) -> list[dict]:
     return list(seen.values())
 
 
+_ZTE_PORT = re.compile(r"^interface ((gpon-olt|epon-olt|xgpon-olt|gei|xgei|xlgei|cgei)_(\d+)/(\d+)/(\d+))\s*$")
+
+
+def _zte_olt_config(config: str) -> list[dict]:
+    """OLT ZTE ZXA10 (C300, C320, C350…): las tarjetas («add-card … slotno N GTGH») y cada puerto físico de la
+    configuración: PON «gpon-olt_1/2/1» (con cuántas ONU tiene dadas de alta) y uplinks «gei_»/«xgei_». La configuración
+    no dice si hay enlace: solo si el puerto está apagado («shutdown»). Visto en una OLT con V2.1.0 (GTGH, HUVQ)."""
+    if "add-card rackno" not in (config or ""):
+        return []
+    cards = {int(m.group(1)): m.group(2) for m in re.finditer(r"(?m)^add-card rackno \d+ shelfno \d+ slotno (\d+) (\S+)", config)}
+    ports, cur, onus = [], None, 0
+
+    def close():
+        if cur is not None and cur["n"].startswith(("gpon", "epon", "xgpon")):
+            cur["d"] = _("{0} ONU").format(onus) if onus else ""
+
+    for line in config.splitlines():
+        m = _ZTE_PORT.match(line)
+        if m:
+            close()
+            kind, slot, port = m.group(2), int(m.group(4)), int(m.group(5))
+            cur = {"n": m.group(1), "k": "sfp", "s": "on", "sp": "", "d": "", "net": "", "mod": "", "st": "",
+                   "card": cards.get(slot, ""), "slot": slot, "port": port}
+            if kind == "gei":
+                cur["k"] = "cu"  # «hybrid-attribute fiber» lo cambia más abajo
+            ports.append(cur)
+            onus = 0
+            continue
+        if cur is None:
+            continue
+        if line.startswith("!") or (line and not line.startswith(" ")):
+            close()
+            cur = None
+            continue
+        t = line.strip()
+        if t == "shutdown":
+            cur["s"] = "off"
+        elif t == "hybrid-attribute fiber":
+            cur["k"] = "sfp"
+        elif t.startswith("speed ") and t[6:].isdigit():
+            v = int(t[6:])
+            cur["sp"] = f"{v // 1000}G" if v >= 1000 else f"{v}M"
+        elif re.match(r"onu \d+ type ", t):
+            onus += 1
+    close()
+    return sorted(ports, key=lambda p: (p["slot"], p["port"]))
+
+
 def _fireware_config(config: str) -> list[dict]:
     """WatchGuard Fireware: la configuración es XML («export config to console»). Cada interfaz física es un
     <physical-if> (if-num, if-dev-name, enabled, ip, netmask) dentro de una <interface> con su nombre; las VLAN dicen
@@ -479,6 +527,8 @@ LAYOUTS = [
     # Juniper QFX5100-48S/48SH: 48 jaulas SFP+ en dos filas (el par arriba, el impar abajo) en bloques de 12, y los 6 QSFP+
     # (et-0/0/48…53) a la derecha, también de a dos
     (r"(?i)^QFX5100-48S", {"rows": 2, "sfp": "pairs", "sgrp": 6}),
+    # OLT ZTE ZXA10: chasis con tarjetas; cada ranura (GTGH de 16 PON, HUVQ de uplinks…) en su bloque, de a dos
+    (r"(?i)^(ZXA10\s*)?C(220|300|320|350|600|620|650)\b", {"rows": 2, "sfp": "pairs", "slots": True}),
     # firewalls de escritorio: una fila
     (r"(?i)^(FortiGate|FG-?\d|FGT|PA-?2\d\d|PA-?4\d\d|PA-?1[45]\d\d|SG-\d|Netgate|XG\s?\d|Firebox)", {"rows": 1, "sfp": "row"}),
 ]
@@ -589,7 +639,7 @@ def parse(raw: str | None, device_type: str, config: str = "", model: str | None
             apply_model_kinds(ports, model)
             return ports, True
     # sin tabla de estado: la configuración, en el estilo que tenga (bloques con sangría, FastPath «… exit» o «set»)
-    for fn in (_fireware_config, _from_config, _fastpath_config, _set_config):
+    for fn in (_fireware_config, _zte_olt_config, _from_config, _fastpath_config, _set_config):
         ports = fn(config)
         if ports:
             apply_model_kinds(ports, model)

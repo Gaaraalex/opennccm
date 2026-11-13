@@ -1,0 +1,57 @@
+{% extends "base.html" %}{% block title %}{{ _('Corrección automática') }} · {{ p.name }}{% endblock %}
+{% block crumbs %}<a href="/compliance">{{ _('Cumplimiento') }}</a>{{ icon('right', 's') }}<a href="/compliance/autofix">{{ _('Corrección automática') }}</a>{{ icon('right', 's') }}<b>{{ p.name }}</b>{% endblock %}
+{% block content %}
+{# Configuración de la corrección automática de una política (app/autofix.py) #}
+{% import "_warn.html" as w with context %}
+{% set dn = [_('Lun'), _('Mar'), _('Mié'), _('Jue'), _('Vie'), _('Sáb'), _('Dom')] %}
+<div class="ph"><div class="grow" style="min-width:min(100%,420px)"><h1>{{ p.name }}</h1>
+  <div class="sub">{{ _('Corrección automática: aplica sola las correcciones elegidas en los equipos que incumplen la regla.') }}</div></div></div>
+{% if not p.enabled %}<div class="banner warn">{{ icon('alert') }}<span class="grow">{{ _('La política está inactiva: no se audita ni se corrige hasta que se active.') }}</span></div>{% endif %}
+{% if paused %}<div class="banner warn">{{ icon('pause') }}<span class="grow">{{ _('La corrección automática está en pausa para todo el sistema.') }} <a href="/compliance/autofix">{{ _('Reanudar') }}</a></span></div>{% endif %}
+
+<form method="post" action="/compliance/autofix/policy/{{ p.id }}" class="stack">
+<section class="card"><div class="stack">
+  <label class="swrow"><span><b>{{ _('Corrección automática en esta política') }}</b><div class="muted sm">{{ _('Apagada, nada cambia: las correcciones se siguen pidiendo a mano con «Corregir».') }}</div></span>
+    <input type="checkbox" class="sw" role="switch" name="autofix" value="1" {{ 'checked' if p.autofix }}></label>
+  <div class="sec"><h3>{{ _('Ventana') }}</h3><p class="muted sm">{{ _('Solo se corrige en estos días y horas. Sin horas, a cualquier hora del día. Una ventana que cruza la medianoche (22:00 a 06:00) cuenta desde el día en que empieza.') }}</p>
+    <div class="row" style="flex-wrap:wrap;gap:8px;margin:8px 0">{% for d in dn %}<label class="ck" style="padding:6px 10px;border:1px solid var(--line);border-radius:var(--r-sm)"><input type="checkbox" name="day" value="{{ loop.index0 }}" {{ 'checked' if (loop.index0|string) in days }}>{{ d }}</label>{% endfor %}</div>
+    <div class="f2"><div class="field"><label for="af-from">{{ _('Desde') }}</label><div class="input"><input id="af-from" type="time" name="from" value="{{ p.autofix_from or '' }}"></div></div>
+      <div class="field"><label for="af-to">{{ _('Hasta') }}</label><div class="input"><input id="af-to" type="time" name="to" value="{{ p.autofix_to or '' }}"></div></div></div></div>
+</div></section>
+
+<section class="card flush"><div class="card-h"><h2>{{ _('Reglas que se corrigen solas') }}</h2><span class="muted sm">{{ _('Solo las que tienen el sello «Verificada»: sus comandos se probaron enteros en un equipo real.') }}</span></div>
+  {% macro rrow(r, state, ver) -%}{% set pick = state in ('on', 'off', 'changed') %}
+    <label class="afr {{ '' if pick else 'dim' }}">
+      <input type="checkbox" name="rule" value="{{ r.id }}" {{ 'checked' if state == 'on' }} {{ 'disabled' if not pick }}>
+      <span class="afb"><span class="afh">{{ sevtag(r.severity) }}<b>{{ r.name }}</b>{% if state != 'nofix' %}{{ w.vpill(ver, True) }}{% endif %}</span>
+        <span class="muted sm">{% if state == 'nofix' %}{{ _('Sin comandos de corrección.') }}{% elif state == 'unverified' %}{{ _('Sin el sello «Verificada»: se corrige a mano con «Corregir».') }}{% elif state == 'changed' %}<span style="color:var(--warn)">{{ _('Su patrón o sus comandos cambiaron desde que se eligió: revíselos y vuelva a marcarla.') }}</span>{% else %}{{ _f('{0} fallan ahora', fails.get(r.id, 0)) if fails.get(r.id) else _('Ningún equipo la incumple ahora.') }}{% endif %}</span>
+        {% if r.remediation and pick %}<pre class="mono">{{ r.remediation }}</pre>{% endif %}</span></label>
+  {%- endmacro %}
+  {% set can_pick = rules|selectattr(1, 'in', ['on', 'off', 'changed'])|list %}{% set other = rules|rejectattr(1, 'in', ['on', 'off', 'changed'])|list %}
+  {% if can_pick %}{% for r, state, ver in can_pick %}{{ rrow(r, state, ver) }}{% endfor %}
+  {% else %}<div class="empty"><p>{{ _('Esta política no tiene reglas verificadas: sus correcciones se piden a mano con «Corregir».') }}</p></div>{% endif %}
+  {% if other %}<details class="afo"><summary class="muted sm">{{ _f('{0} reglas que no se pueden elegir (sin el sello «Verificada» o sin comandos de corrección)', other|length) }}</summary>
+    {% for r, state, ver in other %}{{ rrow(r, state, ver) }}{% endfor %}</details>{% endif %}
+</section>
+<style>
+.afr{display:grid;grid-template-columns:20px minmax(0,1fr);gap:12px;padding:14px 20px;border-top:1px solid var(--line);cursor:pointer;font-weight:400}
+.afr:hover{background:var(--surface-2)}.afr.dim{cursor:default;opacity:.8}.afr.dim:hover{background:none}
+.afr input{margin-top:2px}
+.afb{display:flex;flex-direction:column;gap:4px;min-width:0}
+.afh{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.afr pre{margin:6px 0 0;padding:8px 10px;max-height:140px;overflow:auto;white-space:pre-wrap;word-break:break-word;font-size:12.5px;
+  background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-sm)}
+.afo>summary{padding:12px 20px;border-top:1px solid var(--line);cursor:pointer}
+</style>
+
+<section class="card"><h3>{{ _('Qué hace en cada equipo') }}</h3>
+  <ol class="sm" style="margin:8px 0 0 18px;line-height:1.7">
+    <li>{{ _('Respalda el equipo (la versión a la que se vuelve si algo sale mal) y comprueba que la regla sigue sin cumplirse.') }}</li>
+    <li>{{ _('Revisa lo mismo que una solicitud de cambio: direcciones de ejemplo, que no deje a OpenNCCM sin acceso, reinicios y puertos que se apagan. Si hay algo, no aplica nada y queda «Bloqueada».') }}</li>
+    <li>{{ _('Aplica los comandos, vuelve a respaldar y audita.') }}</li>
+    <li>{{ _('Si el equipo rechaza un comando o la regla sigue sin cumplirse, vuelve a la versión de antes.') }}</li>
+    <li>{{ _('Todo queda en el historial, en Eventos y en Auditoría. Esa regla no se vuelve a intentar en ese equipo durante 24 h.') }}</li></ol></section>
+
+<div class="row"><span class="grow"></span><a class="btn ghost" href="/compliance/autofix">{{ _('Cancelar') }}</a><button class="btn pri">{{ _('Guardar') }}</button></div>
+</form>
+{% endblock %}

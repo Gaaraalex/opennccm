@@ -22,7 +22,7 @@ from .config import NVD_API_KEY, WORKERS
 from .crypto import decrypt, encrypt, try_decrypt
 from .db import (ChangeRequest, ComplianceResult, ConfigVersion, Device, Event, Policy, SessionLocal,
                  Vulnerability, audit, get_setting, now)
-from .drivers import FASTPATH, IOS, clean_config, compare_text, config_serial, get_profile, parse_inventory, telnet_supported
+from .drivers import FASTPATH, IOS, clean_config, compare_text, config_serial, get_profile, inventory_followup, parse_inventory, telnet_supported
 from .drivers import HTTP_ONLY as _HTTP_ONLY
 from .rollback import fastpath_style, rollback_plan
 from .i18n import N_
@@ -849,6 +849,9 @@ def _backup_device(device_id: int, trigger: str, username: str | None, report: b
                     startup = conn.send_command(prof.startup, read_timeout=prof.backup_timeout) if prof.startup else None
                     inventory = "\n\n".join(conn.send_command(c, read_timeout=60) for c in prof.inventory.split("\n")
                                             if c.strip()) if prof.inventory else None
+                    more = inventory_followup(prof, inventory)
+                    if more:
+                        inventory += "\n\n" + conn.send_command(more, read_timeout=60)
                     neighbors_raw = _read_neighbors(conn, dev.device_type)
                     ports_raw = _read_ports(conn, dev.device_type)
                     from . import macfind
@@ -1574,6 +1577,9 @@ def run_compliance(device_id: int) -> tuple[int, int]:
         add_event("major" if any("[critical]" in f for f in new_failures) else "warning",
                   "Infracción de cumplimiento", f"{dev.name}:\n" + "\n".join(new_failures), device_id,
                   notify=get_setting("notify_compliance", "1") == "1")
+    if failed:  # corrección automática (si alguna política la tiene activada; nunca estropea la auditoría)
+        from . import autofix
+        autofix.kick()
     return passed, failed
 
 
