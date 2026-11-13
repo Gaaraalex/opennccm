@@ -23,7 +23,7 @@ Todo está en `app/db.py`: el motor, los modelos (SQLAlchemy 2, estilo `Mapped[.
 | `users`, `user_groups`, `api_tokens` | `User`, `UserGroup`, `ApiToken` | cuentas locales o de directorio, a qué grupos se limitan y sus tokens de API (solo el hash) |
 | `change_requests` | `ChangeRequest` | solicitudes de cambio: cuerpo (plantilla Jinja2), variables, equipos, estado, resultado, hora programada |
 | `policies`, `rules`, `compliance_results` | `Policy`, `Rule`, `ComplianceResult` | políticas de cumplimiento, sus reglas (regex) y el último resultado de cada regla en cada equipo |
-| `autofix_runs` | `AutoFixRun` | historial de la corrección automática (`app/autofix.py`): equipo, política, reglas, resultado, motivo, salida y versiones de antes y después. La política guarda si está activada y su ventana (`Policy.autofix*`); cada regla elegida, la huella de lo aprobado (`Rule.autofix_sig`) |
+| `autofix_runs` | `AutoFixRun` | historial de la corrección automática (`app/autofix.py`): equipo, política, reglas, resultado, motivo, salida y versiones de antes y después. La política guarda si está activada, su ventana y quién la activó (`Policy.autofix*`); cada regla elegida, la huella de lo aprobado (`Rule.autofix_sig`); cada equipo, si se permite (`Device.autofix_allowed`) |
 | `configlets`, `recipes` | `Configlet`, `Recipe` | plantillas de comandos y recetas propias de los usuarios (las incluidas están en el código) |
 | `schedules` | `Schedule` | programaciones (respaldo, auditoría, CVE, configlet) con su cron |
 | `events` | `Event` | alarmas y eventos (gravedad, categoría, equipo, reconocida) |

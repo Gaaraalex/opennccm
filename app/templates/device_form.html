@@ -48,6 +48,8 @@
     <label class="swrow"><span><span class="b">Reversión automática</span><span class="muted sm" style="display:block">Si se detecta un cambio que no viene de una solicitud aprobada (syslog o respaldo programado), se restaura la versión anterior.</span>
       <span class="muted sm" id="drb-no" style="display:block" hidden>{{ _('No disponible para esta plataforma: OpenNCCM no puede revertirla por comandos con seguridad.') }}</span></span>
       <input type="checkbox" class="sw" role="switch" id="drb" name="auto_rollback" {{ 'checked' if device and device.auto_rollback }}></label>
+    <label class="swrow"><span><span class="b">{{ _('Permitir corrección automática') }}</span><span class="muted sm" style="display:block">{{ _('Las políticas de cumplimiento con corrección automática pueden aplicar solas sus correcciones verificadas en este equipo. Apagado, solo se corrige a mano.') }}</span></span>
+      <input type="hidden" name="autofix_allowed" value="0"><input type="checkbox" class="sw" role="switch" id="daf" name="autofix_allowed" value="1" {{ 'checked' if not device or device.autofix_allowed }}></label>
     <script>(function () {
       const NO = new Set({{ no_rollback|tojson }}), sel = document.getElementById('dtype'), sw = document.getElementById('drb'), msg = document.getElementById('drb-no');
       const sync = () => { const no = NO.has(sel.value); sw.disabled = no; if (no) sw.checked = false; msg.hidden = !no; };

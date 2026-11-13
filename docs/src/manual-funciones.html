@@ -916,12 +916,18 @@ automática</b>, que muestra el estado de cada política, lo que se aplicaría a
   audita. Si el equipo rechaza un comando o la regla sigue sin cumplirse, vuelve a la versión de antes (<b>Revertida</b>).</li>
   <li><b>Sin insistir.</b> Tras un intento, esa regla no se vuelve a intentar en ese equipo durante 24 horas, salvo que se pulse
   <b>Reintentar</b> en el historial. Tampoco toca un equipo desactivado, retirado o al que se le está aplicando otro cambio.</li>
+  <li><b>Por equipo.</b> En <b>Editar equipo</b>, <b>Permitir corrección automática</b> (encendido por defecto): apagado, ninguna
+  política corrige sola ese equipo; se sigue corrigiendo a mano con <b>Corregir</b>.</li>
+  <li><b>A nombre de quien la activa.</b> Cada activación queda a nombre del usuario que la guardó («la activó …») y solo corrige
+  los equipos que ese usuario puede ver: si está limitado a algunos grupos, solo los de esos grupos. Se comprueba en cada
+  corrección: si ese usuario se borra, se desactiva o pierde la función, la política deja de corregir sola hasta que otro la
+  vuelva a guardar.</li>
   <li><b>Historial.</b> Cada intento queda con su resultado (Aplicada, Revertida, Bloqueada, Fallida), el motivo, la salida del
   equipo y enlaces a las versiones de antes y después; también en <b>Eventos</b> y en <b>Auditoría</b>.</li>
   <li><b>Pausar todo</b> detiene la corrección automática en todo el sistema al instante; <b>Revisar ahora</b> no espera a la
   próxima revisión (cada 5 minutos y después de cada auditoría).</li>
   <li>Activarla, configurarla o pausarla es la función crítica <b>Corrección automática</b> (de los administradores; el
-  administrador maestro la da o la quita). Todos los usuarios pueden ver el historial de sus equipos.</li>
+  administrador maestro la da o la quita, también a un operador). Todos los usuarios pueden ver el historial de sus equipos.</li>
 </ul>
 <div class="note"><b>Aprobación</b>Las correcciones automáticas no pasan por el flujo de aprobación de solicitudes: activarlas en
 una política es esa aprobación, y queda en Auditoría con las reglas elegidas y la ventana.</div>

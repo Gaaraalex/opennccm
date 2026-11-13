@@ -11,9 +11,10 @@ os.environ["NCM_DATA_DIR"] = tmp
 os.environ["NCM_KEY_FILE"] = os.path.join(tmp, "secret.key")
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from app import autofix, perms, services, verified  # noqa: E402
+from app.db import select  # noqa: E402
 from app.crypto import encrypt  # noqa: E402
-from app.db import (AutoFixRun, ComplianceResult, ConfigVersion, Device, Policy, Rule, SessionLocal,  # noqa: E402
-                    init_db, now)
+from app.db import (AutoFixRun, ComplianceResult, ConfigVersion, Device, DeviceGroup, Policy, Rule,  # noqa: E402
+                    SessionLocal, User, UserGroup, init_db, now)
 
 init_db()
 fails = []
@@ -49,7 +50,8 @@ with SessionLocal() as db:
     d2 = Device(name="R2", host="10.0.0.2", device_type="cisco_ios")
     db.add_all([d, d2])
     db.flush()
-    p = Policy(name="Prueba", autofix=True)
+    db.add(User(username="jefe", password_hash="x", role="admin", active=True))
+    p = Policy(name="Prueba", autofix=True, autofix_by="jefe")
     db.add(p)
     db.flush()
     rules = [Rule(policy_id=p.id, name="SSH v2", kind="must_contain", pattern=r"(?m)^ip ssh version 2$",
@@ -85,6 +87,60 @@ with SessionLocal() as db:
     r.remediation = "ntp server 192.0.2.10"
     db.commit()
     check("…y vuelve si se deja como estaba", autofix.rule_state(db.get(Rule, r_ex), vmap) == "on")
+
+# --- a nombre de quién: se comprueba en cada vuelta
+def owner_problem():
+    with SessionLocal() as db:
+        return autofix.owner(db, db.get(Policy, pid))[1]
+
+
+with SessionLocal() as db:
+    db.get(Policy, pid).autofix_by = None
+    db.commit()
+check("sin nombre de quien la activó (activada en 2.40.0): no se aplica", autofix.pending() == [] and owner_problem())
+with SessionLocal() as db:
+    db.get(Policy, pid).autofix_by = "jefe"
+    u = db.scalar(select(User).where(User.username == "jefe"))
+    u.active = False
+    db.commit()
+check("si quien la activó está desactivado: no se aplica", autofix.pending() == [] and "jefe" in owner_problem())
+with SessionLocal() as db:
+    u = db.scalar(select(User).where(User.username == "jefe"))
+    u.active, u.perms = True, json.dumps(["backup"])
+    db.commit()
+check("si perdió la función «Corrección automática»: no se aplica", autofix.pending() == [] and "función" in owner_problem())
+with SessionLocal() as db:
+    u = db.scalar(select(User).where(User.username == "jefe"))
+    u.perms = None
+    db.commit()
+check("con la función, sí", owner_problem() is None and autofix.pending() != [])
+
+# --- solo los equipos que ve quien la activó (un operador al que el maestro le dio la función, limitado a un grupo)
+with SessionLocal() as db:
+    g = DeviceGroup(name="Sucursal")
+    db.add(g)
+    db.flush()
+    db.get(Device, dev_id).group_id = g.id
+    op = User(username="op", password_hash="x", role="operator", active=True, perms=json.dumps(["backup", "autofix"]))
+    db.add(op)
+    db.flush()
+    db.add(UserGroup(user_id=op.id, group_id=g.id))
+    db.get(Policy, pid).autofix_by = "op"
+    db.commit()
+check("activada por alguien limitado a un grupo: solo corrige los equipos de ese grupo",
+      [x[0] for x in autofix.pending()] == [dev_id], autofix.pending())
+with SessionLocal() as db:
+    db.get(Policy, pid).autofix_by = "jefe"
+    db.commit()
+
+# --- «Permitir corrección automática» por equipo
+with SessionLocal() as db:
+    db.get(Device, dev2_id).autofix_allowed = False
+    db.commit()
+check("un equipo con «Permitir corrección automática» apagado no se toca", [x[0] for x in autofix.pending()] == [dev_id])
+with SessionLocal() as db:
+    db.get(Device, dev2_id).autofix_allowed = True
+    db.commit()
 
 pend = autofix.pending()
 check("pendiente: solo las reglas verificadas y elegidas, por equipo", pend == [(dev_id, pid, sorted([r_ssh, r_ex])),

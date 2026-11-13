@@ -5639,5 +5639,14 @@
 "Interrumpida: OpenNCCM se reinició mientras se aplicaba.": "Interrupted: OpenNCCM restarted while it was being applied.",
 "Aplicada: 1 comando; la regla ya se cumple.": "Applied: 1 command; the rule now passes.",
 "Esta política no tiene reglas verificadas: sus correcciones se piden a mano con «Corregir».": "This policy has no verified rules: its remediations are requested by hand with “Fix”.",
-"{0} reglas que no se pueden elegir (sin el sello «Verificada» o sin comandos de corrección)": "{0} rules that cannot be chosen (without the “Verified” seal or without remediation commands)"
+"{0} reglas que no se pueden elegir (sin el sello «Verificada» o sin comandos de corrección)": "{0} rules that cannot be chosen (without the “Verified” seal or without remediation commands)",
+"Activada por {0}: corrige solo los equipos que {0} puede ver. Al guardar, queda a nombre de quien guarda.": "Enabled by {0}: it only remediates the devices {0} can see. When saved, it is recorded under whoever saves it.",
+"La activó {0}, que ya no existe o está desactivado: no se aplica.": "Enabled by {0}, who no longer exists or is disabled: it is not applied.",
+"La activó {0}, que ya no tiene la función «Corrección automática»: no se aplica.": "Enabled by {0}, who no longer has the “Automatic remediation” function: it is not applied.",
+"Las políticas de cumplimiento con corrección automática pueden aplicar solas sus correcciones verificadas en este equipo. Apagado, solo se corrige a mano.": "Compliance policies with automatic remediation may apply their verified remediations to this device on their own. When off, it is only remediated by hand.",
+"No se aplica: vuelva a guardarla para que quede a nombre de quien la activa.": "Not applied: save it again so it is recorded under whoever enables it.",
+"Permitir corrección automática": "Allow automatic remediation",
+"Solo corregirá los equipos de sus grupos.": "It will only remediate the devices in your groups.",
+"Usted tiene acceso solo a algunos grupos: corregirá solo los equipos de esos grupos.": "You only have access to some groups: it will only remediate the devices in those groups.",
+"la activó {0}": "enabled by {0}"
 }

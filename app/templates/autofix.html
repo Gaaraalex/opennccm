@@ -17,9 +17,9 @@
 
 <section class="card flush"><div class="card-h"><h2>{{ _('Políticas') }}</h2><span class="muted sm">{{ _('Solo entran las reglas con el sello «Verificada» que se eligen en cada política.') }}</span></div>
   {% if rows %}<div class="tw"><table class="t"><thead><tr><th>{{ _('Política') }}</th><th>{{ _('Estado') }}</th><th>{{ _('Ventana') }}</th><th>{{ _('Reglas') }}</th><th></th></tr></thead><tbody>
-  {% for p, n_on, n_ver, n_changed, win, open_now in rows %}<tr>
+  {% for p, n_on, n_ver, n_changed, win, open_now, problem in rows %}<tr>
     <td><b>{{ p.name }}</b>{% if not p.enabled %} <span class="tag">{{ _('inactiva') }}</span>{% endif %}</td>
-    <td>{% if p.autofix and p.enabled %}<span class="pill ok">{{ _('Activada') }}</span>{% if not open_now %} <span class="muted sm">{{ _('fuera de la ventana') }}</span>{% endif %}{% else %}<span class="pill">{{ _('Apagada') }}</span>{% endif %}</td>
+    <td>{% if p.autofix and p.enabled %}<span class="pill ok">{{ _('Activada') }}</span>{% if not open_now %} <span class="muted sm">{{ _('fuera de la ventana') }}</span>{% endif %}{% if problem %}<div class="sm" style="color:var(--warn);margin-top:4px">{{ problem }}</div>{% elif p.autofix_by %}<div class="muted sm" style="margin-top:4px">{{ _f('la activó {0}', p.autofix_by) }}</div>{% endif %}{% else %}<span class="pill">{{ _('Apagada') }}</span>{% endif %}</td>
     <td class="sm">{% if p.autofix %}{{ win }}{% else %}<span class="muted">—</span>{% endif %}</td>
     <td class="sm">{% if n_ver %}{{ _f('{0} de {1} verificadas', n_on, n_ver) }}{% else %}<span class="muted">{{ _('ninguna verificada') }}</span>{% endif %}{% if n_changed %} · <span class="pill warn">{{ _f('{0} cambiaron: volver a elegir', n_changed) }}</span>{% endif %}</td>
     <td style="text-align:right">{% if can_af %}<a class="btn s ghost" href="/compliance/autofix/policy/{{ p.id }}">{{ icon('edit', 's') }}{{ _('Configurar') }}</a>{% endif %}</td></tr>

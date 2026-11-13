@@ -115,6 +115,7 @@ class Device(Base):
     map_role: Mapped[str | None] = mapped_column(String(16))  # tipo en el mapa elegido por un administrador (vacío: automático)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     auto_rollback: Mapped[bool] = mapped_column(Boolean, default=False)
+    autofix_allowed: Mapped[bool] = mapped_column(Boolean, default=True)  # la corrección automática de cumplimiento puede tocarlo
     location: Mapped[str | None] = mapped_column(String(255))
     notes: Mapped[str | None] = mapped_column(Text)
     # inventario
@@ -225,6 +226,7 @@ class Policy(Base):
     autofix_days: Mapped[str | None] = mapped_column(String(7), default="0123456")
     autofix_from: Mapped[str | None] = mapped_column(String(5))
     autofix_to: Mapped[str | None] = mapped_column(String(5))
+    autofix_by: Mapped[str | None] = mapped_column(String(64))  # quién la activó: solo corrige los equipos que él ve
     rules = relationship("Rule", cascade="all, delete-orphan", passive_deletes=True)
 
 

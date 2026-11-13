@@ -23,7 +23,7 @@ REASONS = {"damaged": N_("Dañado"), "replaced": N_("Reemplazado por otro"), "re
 # lo que pasa del retirado al equipo que lo reemplaza (lo propio del equipo físico: inventario, respaldos, licencia,
 # imagen .fxi, puertos o vecinos, no)
 COPY = ("port", "protocol", "device_type", "credential_id", "group_id", "node_id", "map_role", "location", "notes",
-        "auto_rollback", "custom_backup_cmd", "web_url", "web_enabled")
+        "auto_rollback", "autofix_allowed", "custom_backup_cmd", "web_url", "web_enabled")
 
 
 def active():

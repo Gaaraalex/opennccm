@@ -104,7 +104,10 @@ comprobaciones que una solicitud sin aprobación (`services.example_addresses`, 
 `impact.for_change`), `services.push_commands`, respaldo de después y, si el equipo rechazó algo o la regla sigue sin
 cumplirse, `services.rollback_commands` a la versión de antes. Cada intento queda en `AutoFixRun` y bloquea esa regla
 en ese equipo 24 h (`hold`, que «Reintentar» quita). El ajuste `autofix_paused` la detiene en todo el sistema. Las
-rutas `/compliance/autofix/…` piden la función crítica `autofix` (`app/perms.py`).
+rutas `/compliance/autofix/…` piden la función crítica `autofix` (`app/perms.py`). Cada activación queda a nombre de
+quien la guarda (`Policy.autofix_by`) y `autofix.owner` lo comprueba en cada vuelta: solo corrige los equipos de
+`auth.device_scope` de ese usuario y nada si ya no existe, está desactivado o perdió la función. Un equipo con
+`Device.autofix_allowed` apagado (Editar equipo) nunca se corrige solo.
 
 ## Directorio de datos y archivos del servidor instalado
 
