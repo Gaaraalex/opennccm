@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% block title %}Dispositivos{% endblock %}
 {% block content %}
-{% set can_run = ROLES[user.role] >= 1 %}
+{% set can_run = can(user, 'backup') %}
 {% set trig = {'manual': _('manual'), 'scheduled': _('programado'), 'syslog': 'syslog', 'push': 'push', 'console': _('consola')} %}
 {% set qn = ('&node=' ~ node if node else '') %}
 {% set qs = ('&q=' ~ q|urlencode if q else '') ~ ('&group=' ~ group if group else '') ~ ('&brand=' ~ brand if brand else '') ~ qn %}
@@ -10,7 +10,7 @@
   <div class="sub">{{ _f('{0} en {1}', pl(counts[''], '{0} equipo', '{0} equipos'), pl(n_groups, '{0} grupo', '{0} grupos')) }}<span id="bk-sub">{% if last_global %} · {{ _f('último respaldo global {0}', last_global|ago) }}{% endif %}</span></div></div>
   {% if retired_n %}<a class="btn" href="/retired" title="{{ _('Dañados, reemplazados o dados de baja, con su historial') }}">{{ icon('undo', 's') }}{{ _f('Retirados ({0})', retired_n) }}</a>{% endif %}
   <a class="btn" href="/config-reference">{{ icon('star', 's') }}{{ _('Configuración de referencia') }}</a>
-  {% if user.role == 'admin' %}<a class="btn" href="/credentials#groups">{{ icon('folder', 's') }}Grupos</a>
+  {% if can(user, 'devices') %}<a class="btn" href="/credentials#groups">{{ icon('folder', 's') }}Grupos</a>
   <span class="dropw"><button type="button" class="btn" data-drop="add-menu" aria-haspopup="true" aria-expanded="false">{{ icon('plus', 's') }}Agregar {{ icon('down', 's') }}</button>
     <div class="drop" id="add-menu" hidden>
       <a href="/devices/new" data-sheet data-title="Agregar equipo">{{ icon('plus', 's') }}<span><b>Agregar un equipo</b><span class="desc">Con formulario</span></span></a>
@@ -81,7 +81,7 @@
 {% else %}
 <tr><td colspan="8">{% if q or status or group %}<div class="empty">{{ empty_art('search') }}<h2>Ningún equipo coincide</h2><p>Prueba con otra búsqueda o quita los filtros.</p><a class="btn" href="/devices">Quitar filtros</a></div>
   {% else %}<div class="empty">{{ empty_art('plus') }}<h2>Aún no hay equipos</h2><p>Agrega el primero o impórtalos desde un CSV.</p>
-  {% if user.role == 'admin' %}<div class="row" style="justify-content:center"><a class="btn pri" href="/devices/new" data-sheet data-title="Agregar equipo">{{ icon('plus', 's') }}Agregar equipo</a><a class="btn" href="/devices/import" data-sheet data-title="Importar equipos desde CSV">{{ icon('ul', 's') }}Importar CSV</a></div>{% endif %}</div>{% endif %}</td></tr>
+  {% if can(user, 'devices') %}<div class="row" style="justify-content:center"><a class="btn pri" href="/devices/new" data-sheet data-title="Agregar equipo">{{ icon('plus', 's') }}Agregar equipo</a><a class="btn" href="/devices/import" data-sheet data-title="Importar equipos desde CSV">{{ icon('ul', 's') }}Importar CSV</a></div>{% endif %}</div>{% endif %}</td></tr>
 {% endfor %}
 <tr id="nomatch" hidden><td colspan="8"><div class="empty">{{ empty_art('search') }}<h2>Ningún equipo coincide</h2><p>Prueba con otra búsqueda o quita los filtros.</p></div></td></tr>
 </tbody></table></div></section>
@@ -92,9 +92,9 @@
   <span id="bulk-n">0</span>
   <button class="btn s" name="action" value="audit">Auditar</button>
   <button class="btn s" name="action" value="cve">Buscar CVE</button>
-  {% if user.role == 'admin' and net_nodes %}<select name="node_id" aria-label="{{ _('Nodo de destino') }}"><option value="0">{{ _('— Sin nodo —') }}</option>{% for nd in net_nodes %}<option value="{{ nd.id }}" {{ 'selected' if nd.id == assign }}>{{ nd.name }}</option>{% endfor %}</select>
+  {% if can(user, 'devices') and net_nodes %}<select name="node_id" aria-label="{{ _('Nodo de destino') }}"><option value="0">{{ _('— Sin nodo —') }}</option>{% for nd in net_nodes %}<option value="{{ nd.id }}" {{ 'selected' if nd.id == assign }}>{{ nd.name }}</option>{% endfor %}</select>
   <button class="btn s {{ 'pri' if assign }}" name="action" value="node">{{ icon('pin', 's') }}{{ _('Asignar al nodo') }}</button>{% endif %}
-  {% if user.role == 'admin' %}<select name="group_id" aria-label="Grupo de destino"><option value="0">Sin grupo</option>{% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}</select>
+  {% if can(user, 'devices') %}<select name="group_id" aria-label="Grupo de destino"><option value="0">Sin grupo</option>{% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}</select>
   <button class="btn s" name="action" value="move">{{ icon('folder', 's') }}Mover</button>
   <button class="btn s" name="action" value="enable" title="{{ _('Vuelven a respaldarse y a aceptar consola, comandos y cambios') }}">{{ _('Activar') }}</button>
   <button class="btn s" name="action" value="disable" title="{{ _('Quedan aislados: OpenNCCM no se conecta con ellos (ni respaldos, ni consola, ni comandos, ni cambios)') }}">{{ _('Desactivar') }}</button>{% endif %}

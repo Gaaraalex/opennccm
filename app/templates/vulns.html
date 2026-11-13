@@ -4,7 +4,7 @@
 <div class="ph"><div class="grow"><h1>Vulnerabilidades de firmware</h1>
   <div class="sub">CVE publicados que afectan al firmware instalado. Fuente: NVD{% if has_kev %} y catálogo KEV de CISA{% endif %}{% if last %} · {{ _f('actualizado {0}', last|ago) }}{% endif %}. Son orientativos: confírmalos con el boletín del fabricante.</div></div>
   <a class="btn" href="/reports/vulns.csv">{{ icon('dl', 's') }}Exportar CSV</a>
-  {% if ROLES[user.role] >= 1 %}<form class="inline" method="post" action="/cve/all"><button class="btn pri">{{ icon('search', 's') }}Escanear todos</button></form>{% endif %}</div>
+  {% if can(user, 'audit') %}<form class="inline" method="post" action="/cve/all"><button class="btn pri">{{ icon('search', 's') }}Escanear todos</button></form>{% endif %}</div>
 
 <div class="bento">
   <div class="c3"><div class="kpi static {{ 'alert' if k.crit }}"><span class="label">Críticos</span><span class="v" data-count="{{ k.crit }}">{{ k.crit }}</span><span class="d">{{ _('en 1 equipo') if k.crit_devs == 1 else _f('en {0} equipos', k.crit_devs) }}</span></div></div>

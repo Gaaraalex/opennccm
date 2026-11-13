@@ -5,6 +5,7 @@
     python -m app.cli create-admin <usuario> [contraseña]
     python -m app.cli reset-password <usuario> <contraseña>
     python -m app.cli reset-2fa <usuario>   # quitar la verificación en dos pasos (perdió el teléfono)
+    python -m app.cli set-master <usuario>  # pasar el rol de administrador maestro (recuperar el acceso)
     python -m app.cli seed          # políticas y configlets de ejemplo
     python -m app.cli backup-all    # respaldo inmediato de todos los equipos
     python -m app.cli system-backup [--with-key]   # copia de recuperación de OpenNCCM
@@ -95,7 +96,26 @@ def create_admin(username: str, password: str | None):
         else:
             db.add(User(username=username, password_hash=hash_password(password), role="admin"))
         db.commit()
+    from .db import _ensure_master
+    _ensure_master()  # el primer administrador de una instalación nueva es el maestro
     print(f"Administrador '{username}' listo.")
+
+
+def set_master(username: str):
+    """Recuperar el acceso: el usuario pasa a ser el administrador maestro (y administrador activo); el anterior deja de
+    serlo. Solo desde el servidor: en la web el maestro solo lo puede pasar el maestro."""
+    with SessionLocal() as db:
+        u = db.scalars(select(User).where(User.username == username)).first()
+        if not u:
+            sys.exit(f"No existe el usuario '{username}'")
+        for m in db.scalars(select(User).where(User.is_master.is_(True))):
+            m.is_master = False
+        u.is_master, u.role, u.active, u.perms = True, "admin", True, None
+        u.locked_until, u.failed_logins = None, 0
+        db.commit()
+    from .db import audit
+    audit("(servidor)", "user_master", f"{username} pasa a ser el administrador maestro (opennccm set-master)")
+    print(f"'{username}' es ahora el administrador maestro.")
 
 
 def reset_2fa(username: str):
@@ -119,7 +139,8 @@ def list_users():
         for u in db.scalars(select(User).order_by(User.username)):
             gids = list(db.scalars(select(UserGroup.group_id).where(UserGroup.user_id == u.id)))
             scope = "todos" if u.role == "admin" or not gids else ", ".join(groups.get(g, "?") for g in gids)
-            rows.append((u.username, roles.get(u.role, u.role), "activo" if u.active else "BLOQUEADO", scope))
+            rows.append((u.username, roles.get(u.role, u.role) + (" (maestro)" if u.is_master else ""),
+                         "activo" if u.active else "BLOQUEADO", scope))
     head = ("USUARIO", "ROL", "ESTADO", "EQUIPOS")
     widths = [max(len(str(r[i])) for r in rows + [head]) for i in range(4)]
     for r in [head] + rows:
@@ -163,6 +184,8 @@ def main():
         create_admin(args[1], args[2] if len(args) > 2 else None)
     elif cmd == "reset-2fa" and len(args) >= 2:
         reset_2fa(args[1])
+    elif cmd == "set-master" and len(args) >= 2:
+        set_master(args[1])
     elif cmd == "seed":
         seed()
     elif cmd == "list-users":

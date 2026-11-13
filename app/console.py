@@ -88,14 +88,15 @@ def idle_seconds() -> int:
 def access_for(user, dev: Device | None) -> dict:
     """Cómo puede usar este usuario la consola de este equipo: mode (none/ro/rw), si necesita aprobación (y hasta
     cuándo la tiene), y los comandos prohibidos de su grupo."""
-    mode = role_mode(user.role) if user is not None else "none"
+    from .perms import console_mode, has
+    mode = console_mode(user) if user is not None else "none"
     res = {"mode": mode, "approval": False, "until": None, "deny": ""}
     if dev is None or mode == "none":
         return res
     rule = group_rules().get(str(dev.group_id or ""), {})
     if _setting("console_enforce_deny", "1") == "1":
         res["deny"] = rule.get("deny", "")
-    if rule.get("mode") == "approval" and user.role != "admin":
+    if rule.get("mode") == "approval" and not has(user, "approve"):  # quien aprueba no necesita aprobación
         res["approval"] = True
         with SessionLocal() as db:
             ok = db.scalar(select(ConsoleAccessRequest.until).where(
@@ -108,7 +109,8 @@ def access_for(user, dev: Device | None) -> dict:
 
 def console_allowed(user, device_id: int | None = None) -> bool:
     """¿Puede este usuario abrir la consola (de este equipo)? (Sin contar la aprobación previa de algunos grupos.)"""
-    if user is None or role_mode(user.role) == "none":
+    from .perms import console_mode
+    if user is None or console_mode(user) == "none":
         return False
     if device_id is not None:
         scope = device_scope(user)

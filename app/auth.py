@@ -133,7 +133,15 @@ def require(request: Request, role: str = "viewer") -> User:
     if (user.role == "admin" and not user.totp_enabled and cached_setting("require_2fa_admins", "0") == "1"
             and not request.url.path.startswith(_SETUP_2FA_PATHS) and not getattr(request.state, "api_token", False)):
         raise TwoFactorSetupRequired()
-    if ROLES.get(user.role, 0) < ROLES[role]:
+    if role != "viewer":
+        # la función de la ruta (app/perms.py); sin función conocida, el rol de siempre
+        from . import perms
+        key = perms.for_path(request.url.path)
+        if key is not None:
+            if not perms.has(user, key):
+                raise Forbidden()
+            return user
+    if ROLES.get(user.role, 0) < ROLES[role] and not getattr(user, "is_master", False):
         raise Forbidden()
     return user
 

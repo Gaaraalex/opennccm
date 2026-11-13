@@ -8,11 +8,34 @@
   {% if u and u.locked_until and u.locked_until > now %}<div class="banner warn">{{ icon('lock') }}<span class="grow">{{ _f("Usuario bloqueado hasta {0}", u.locked_until|dt) }} (se desbloquea al guardar una contraseña nueva o esperando).</span></div>{% endif %}
   <div class="f2"><div class="field"><label for="un">Nombre de usuario</label><div class="input"><input id="un" {% if u %}value="{{ u.username }}" readonly{% else %}name="username" required minlength="2" maxlength="64" pattern="[A-Za-z0-9._@\-]+" autocomplete="off"{% endif %}></div></div>
     <div class="field"><label for="ue">Correo (opcional)</label><div class="input"><input id="ue" name="email" type="email" value="{{ (u.email or '') if u }}"></div><span class="help">Para avisos y recuperar el acceso.</span></div></div>
-  <div class="field"><span class="fl">Rol</span><div class="rcards">{% for k, t, d in RC %}<label class="rcard"><input type="radio" name="role" value="{{ k }}" {{ 'checked' if (u and u.role == k) or (not u and k == 'operator') }}><span><b>{{ t }}</b><div class="muted sm">{{ d }}</div></span></label>{% endfor %}</div></div>
+  {% set self_lock = u and u.id == user.id and not user.is_master %}
+  {% if u and u.is_master %}<div class="banner info">{{ icon('shield') }}<span class="grow">{{ _('Administrador maestro: tiene todas las funciones y nadie lo puede eliminar, bloquear ni cambiarle los permisos. Solo él da o quita las funciones críticas a los demás.') }}</span></div>{% endif %}
+  <div class="field"><span class="fl">{{ _('Rol (plantilla de permisos)') }}</span><div class="rcards">{% for k, t, d in RC %}<label class="rcard"><input type="radio" name="role" value="{{ k }}" {{ 'checked' if (u and u.role == k) or (not u and k == 'operator') }} {{ 'disabled' if self_lock or (u and u.is_master) or (k == 'admin' and not user.is_master and not (u and u.role == 'admin')) or (not user.is_master and u and u.role == 'admin' and k != 'admin') }}><span><b>{{ t }}</b><div class="muted sm">{{ d }}</div></span></label>{% endfor %}</div>
+    {% if self_lock %}<span class="help">{{ _('Tu rol y tus permisos los cambia otro usuario con permiso de usuarios (los críticos, el administrador maestro).') }}</span>{% endif %}</div>
+  <div class="field" id="perms"><span class="fl">{{ _('Permisos') }} <span class="muted sm" id="perm-kind" style="font-weight:400"></span></span>
+    <input type="hidden" name="perms_form" value="1">
+    <p class="muted sm" style="margin:2px 0 8px">{{ _('Al elegir un rol se marcan sus funciones; después puede quitar o agregar las que quiera. Ver equipos, configuraciones e informes lo puede todo usuario.') }}{% if not can_crit %} {{ _('Las funciones críticas solo las da o quita el administrador maestro.') }}{% endif %}</p>
+    {% for sec in pcat %}<div class="sec" style="margin-top:6px"><h3 style="font-size:13px">{{ sec.name }}</h3><div class="cklist" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:4px 16px">
+      {% for it in sec['items'] %}<label class="ck"><input type="checkbox" name="perm" value="{{ it.key }}" data-crit="{{ 1 if it.critical else 0 }}" {{ 'checked' if it.key in have }} {{ 'disabled' if locked or self_lock or (u and u.is_master) or (it.critical and not can_crit) }}> {{ it.label }}{% if it.critical %} <span class="pill warn" style="font-size:10px">{{ _('crítica') }}</span>{% endif %}</label>{% endfor %}
+    </div></div>{% endfor %}</div>
+  {% if u and user.is_master and u.id != user.id and not u.is_master and u.active %}<label class="swrow"><span><b>{{ _('Hacerlo administrador maestro') }}</b><div class="muted sm">{{ _('Usted deja de serlo y pasa a ser un administrador normal. Solo el maestro puede pasar este rol.') }}</div></span><input type="checkbox" class="sw" name="make_master"></label>{% endif %}
+  <script type="application/json" id="perm-def">{{ pdef|tojson }}</script>
+  <script>
+  (() => {
+    const DEF = JSON.parse(document.getElementById('perm-def').textContent), f = document.getElementById('userf');
+    const boxes = [...f.querySelectorAll('input[name=perm]')], kind = document.getElementById('perm-kind');
+    const role = () => (f.querySelector('input[name=role]:checked') || {}).value;
+    const show = () => { const d = new Set(DEF[role()] || []), same = boxes.every(b => b.checked === d.has(b.value));
+      kind.textContent = same ? {{ ('· ' + _('los del rol'))|tojson }} : {{ ('· ' + _('personalizados'))|tojson }}; };
+    f.querySelectorAll('input[name=role]').forEach(r => r.addEventListener('change', () => {
+      const d = new Set(DEF[role()] || []); boxes.forEach(b => { if (!b.disabled) b.checked = d.has(b.value); }); show(); }));
+    boxes.forEach(b => b.addEventListener('change', show)); show();
+  })();
+  </script>
   <div class="field"><span class="fl">Restringir a grupos de dispositivos</span>
     {% if groups %}<div class="cklist">{% for g in groups %}<label class="ck"><input type="checkbox" name="group_ids" value="{{ g.id }}" {{ 'checked' if g.id in selected }}> {{ g.name }}</label>{% endfor %}</div>{% else %}<p class="muted sm">No hay grupos. <a href="/groups">Créalos en Grupos</a>.</p>{% endif %}
     <span class="help">Ninguno marcado = puede ver todos los equipos. No aplica a administradores.</span></div>
-  {% if u %}<label class="swrow"><span><b>Cuenta activa</b><div class="muted sm">Si la desactivas, no podrá ingresar.</div></span><input type="checkbox" class="sw" name="active" {{ 'checked' if u.active }} {{ 'disabled' if u.id == user.id }}>{% if u.id == user.id %}<input type="hidden" name="active" value="on">{% endif %}</label>{% endif %}
+  {% if u %}<label class="swrow"><span><b>Cuenta activa</b><div class="muted sm">Si la desactivas, no podrá ingresar.</div></span><input type="checkbox" class="sw" name="active" {{ 'checked' if u.active }} {{ 'disabled' if u.id == user.id or u.is_master }}>{% if u.id == user.id or u.is_master %}<input type="hidden" name="active" value="on">{% endif %}</label>{% endif %}
   {% set ext = u and (u.auth_source or 'local') != 'local' %}
   {% if ext %}<div class="banner info">{{ icon('info') }}<span class="grow">{{ _('Cuenta de Active Directory: su contraseña y su rol vienen del directorio; el rol se actualiza en cada ingreso.') if u.auth_source == 'ldap' else _('Cuenta de Microsoft Entra ID: inicia sesión con Microsoft; el rol se actualiza en cada ingreso.') }}</span></div>
   {% else %}<div class="sec"><h3>{{ _('Cambiar contraseña (opcional)') if u else _('Contraseña') }}</h3><div class="f2">
@@ -20,7 +43,7 @@
     <div class="field"><label for="up2">Repítela</label><div class="input"><input id="up2" name="password2" type="password" {{ 'required' if not u }} minlength="10" autocomplete="new-password"></div></div></div></div>{% endif %}
   {% if u and u.totp_enabled %}<div class="banner info">{{ icon('shield') }}<span class="grow">Tiene la verificación en dos pasos activa.</span><button type="button" class="btn s" data-dialog="tfa-reset">Quitarla (perdió su teléfono)</button></div>{% endif %}
   <div class="row" data-sheet-foot>
-    {% if u and u.id != user.id %}<button type="button" class="btn dz" data-dialog="user-del">{{ icon('trash', 's') }}Eliminar</button>{% endif %}
+    {% if u and u.id != user.id and not u.is_master %}<button type="button" class="btn dz" data-dialog="user-del">{{ icon('trash', 's') }}Eliminar</button>{% endif %}
     <span class="grow"></span><a class="btn ghost" href="/users" data-cancel>Cancelar</a><button class="btn pri">{{ _('Guardar cambios') if u else _('Crear usuario') }}</button></div>
 </form>
 {% if u and u.totp_enabled %}<dialog class="dlg" id="tfa-reset"><form method="post" action="/users/{{ u.id }}/2fa-reset">

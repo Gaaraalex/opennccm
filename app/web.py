@@ -5,7 +5,7 @@ from fastapi.templating import Jinja2Templates
 
 from . import __version__
 from .auth import ROLES
-from . import cronutil
+from . import cronutil, perms
 from .config import BASE_DIR
 from .db import audit
 from .drivers import PROFILE_MAP, PROFILES
@@ -15,6 +15,10 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 i18n.install(templates.env)  # textos de las plantillas en el idioma de cada usuario (app/locales)
 templates.env.globals["ROLES"] = ROLES
 templates.env.globals["VERSION"] = __version__
+templates.env.globals["can"] = perms.has          # {% if can(user, 'push') %}: la función, no el rol (app/perms.py)
+templates.env.globals["can_admin"] = perms.admin_any
+templates.env.globals["ADMIN_TAB_PERM"] = {"/users": "users", "/credentials": "credentials", "/groups": "devices", "/nodes": "settings",
+                                           "/vendors": "settings", "/audit": "users", "/system": "settings", "/settings": "settings"}
 # huella del CSS: fuerza a los navegadores a recargarlo tras cada actualización
 templates.env.globals["CSS_HASH"] = __import__("hashlib").md5(
     (BASE_DIR / "static" / "style.css").read_bytes()).hexdigest()[:8]
@@ -396,7 +400,7 @@ def _donate_toast(request: Request, user) -> str | None:
     """Tras actualizar a una versión nueva, el primer administrador que entra ve una vez el aviso «Apoya OpenNCCM»."""
     from . import __version__
     from .db import get_setting, set_setting
-    if user is None or user.role != "admin" or not donate_links():
+    if user is None or not perms.has(user, "settings") or not donate_links():
         return None
     # solo en una página que se abre de verdad, no en un panel lateral ni en otra petición de fondo
     if request.headers.get("sec-fetch-mode", "navigate") != "navigate" or request.headers.get("x-sheet"):
@@ -412,7 +416,7 @@ def render(request: Request, name: str, user, **ctx):
     flashes = request.session.pop("flash", [])
     undo = request.session.pop("undo", None)  # acción reversible: el aviso ofrece «Deshacer»
     popup = None
-    if user is not None and user.role == "admin" and not request.url.path.startswith("/system/updat"):
+    if user is not None and perms.has(user, "settings") and not request.url.path.startswith("/system/updat"):
         from . import updates
         st = updates.status()  # aviso emergente: una vez por sesión y por versión nueva
         if st["available"] and not st["running"] and request.session.get("upd_dismissed") != st["latest"]:
@@ -421,8 +425,7 @@ def render(request: Request, name: str, user, **ctx):
     if user is not None and not ctx.get("compact"):  # botón «Asistente» de la barra superior
         from . import assistant
         ctx.setdefault("ai_top", assistant.quick_on(user))
-        from .console import role_mode
-        ctx.setdefault("can_console_nav", role_mode(user.role) != "none")
+        ctx.setdefault("can_console_nav", perms.console_mode(user) != "none")
     ctx.setdefault("donate_toast", _donate_toast(request, user) if not ctx.get("compact") else None)
     return templates.TemplateResponse(request, name, {"user": user, "flashes": flashes, "undo": undo, "update_popup": popup,
                                                       "nav_counts": counts,

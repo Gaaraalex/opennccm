@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% block title %}{{ _f('{0} contra {1}', dev.name, ref.name) }}{% endblock %}
 {% block crumbs %}<a href="/config-reference?t={{ tkey|urlencode }}">{{ _('Configuración de referencia') }}</a>{% endblock %}
 {% block content %}
-{% set op = ROLES[user.role] >= 1 %}
+{% set op = can(user, 'audit') %}
 <style>
 .rd-blk{border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden;margin-bottom:12px}
 .rd-h{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface-2);border-bottom:1px solid var(--line);flex-wrap:wrap}

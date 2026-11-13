@@ -1,10 +1,10 @@
 {% extends "base.html" %}{% block title %}Configlets y scripts{% endblock %}
 {% block content %}
 {% import "_warn.html" as w with context %}
-{% set can_run = ROLES[user.role] >= 1 %}
+{% set can_run = can(user, 'push') %}
 {% set n_exec = items|selectattr('kind', 'equalto', 'exec')|list|length %}
 <div class="ph"><div class="grow"><h1>Configlets y scripts</h1><div class="sub">Plantillas con variables <span class="mono">&#123;&#123; nombre &#125;&#125;</span>. Los <b>configlets</b> cambian la configuración; los <b>scripts</b> solo ejecutan comandos de consulta.</div></div>
-  {% if user.role == 'admin' %}<a class="btn pri" href="/configlets/new" data-sheet data-title="Nuevo configlet">{{ icon('plus', 's') }}Nuevo configlet</a>{% endif %}</div>
+  {% if can(user, 'configlets') %}<a class="btn pri" href="/configlets/new" data-sheet data-title="Nuevo configlet">{{ icon('plus', 's') }}Nuevo configlet</a>{% endif %}</div>
 {% if items %}
 <div class="rc-top"><div class="input grow">{{ icon('search', 's') }}<input id="cf-q" type="search" placeholder="{{ _('Buscar por nombre o comando…') }}" aria-label="{{ _('Buscar configlets y scripts') }}"></div>
   <div class="seg" id="cf-kind" role="group" aria-label="{{ _('Tipo') }}"><button type="button" data-k="" class="on" aria-pressed="true">{{ _('Todos') }} <span class="n">{{ items|length }}</span></button><button type="button" data-k="config" aria-pressed="false">{{ _('Configlets') }} <span class="n">{{ items|length - n_exec }}</span></button><button type="button" data-k="exec" aria-pressed="false">{{ _('Scripts') }} <span class="n">{{ n_exec }}</span></button></div></div>
@@ -16,7 +16,7 @@
 </div>
 {{ w.warn_dialog(_('Revisa los configlets antes de usarlos en producción')) }}
 <noscript><ul class="cf-nojs">{% for c in items %}<li><b>{{ c.name }}</b> · {{ _('Script') if c.kind == 'exec' else _('Configlet') }}{% if can_run %} · <a href="/configlets/{{ c.id }}/run">{{ _('Ejecutar') }}</a>{% endif %}</li>{% endfor %}</ul></noscript>
-<script type="application/json" id="cfl-data">{{ {'items': data['items'], 'plats': data.plats, 'admin': user.role == 'admin', 'can_run': can_run, 'open': open_id,
+<script type="application/json" id="cfl-data">{{ {'items': data['items'], 'plats': data.plats, 'admin': can(user, 'configlets'), 'can_run': can_run, 'open': open_id,
   'forum': FORUM_URL, 'issues': ISSUES_URL, 'version': VERSION,
   't': {'yours': _('Tus equipos'), 'for_yours': _('Para tus equipos'), 'for_yours_s': _('Solo lo que puedes ejecutar'), 'not_yours': _('No aplican a tus equipos'),
         'dim_note': _('No hay en tu inventario equipos donde ejecutarlos.'), 'dev_1': _('1 equipo tuyo'), 'dev_n': _('{0} equipos tuyos'), 'none_dev': _('ningún equipo tuyo'),

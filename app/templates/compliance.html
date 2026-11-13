@@ -1,11 +1,11 @@
 {% extends "base.html" %}{% block title %}Cumplimiento{% endblock %}
 {% block content %}
 {% import "_warn.html" as w with context %}{% set rver = verified_map('rule') %}
-{% set is_admin = user.role == 'admin' %}
+{% set is_admin = can(user, 'configlets') %}
 <div class="ph"><div class="grow"><h1>Cumplimiento</h1>
   <div class="sub">{% if pct is not none %}{{ _f('{0} % de las reglas se cumplen en {1} equipos auditados', pct, devices_checked) }}{% if last_audit %} · {{ _f('última auditoría {0}', last_audit|ago) }}{% endif %}{% else %}Aún no se ha auditado ningún equipo.{% endif %}</div></div>
   <a class="btn" href="/reports/compliance.csv">{{ icon('dl', 's') }}Exportar CSV</a>
-  {% if ROLES[user.role] >= 1 %}<form class="inline" method="post" action="/compliance/run"><button class="btn">{{ icon('refresh', 's') }}Auditar todos ahora</button></form>{% endif %}
+  {% if can(user, 'audit') %}<form class="inline" method="post" action="/compliance/run"><button class="btn">{{ icon('refresh', 's') }}Auditar todos ahora</button></form>{% endif %}
   {% if is_admin %}<a class="btn pri" href="/compliance/policies/new" data-sheet data-wide data-title="Nueva política">{{ icon('plus', 's') }}Nueva política</a>{% endif %}</div>
 
 {% if matrix %}
@@ -28,7 +28,7 @@
     {% set ns = namespace(ok=0) %}<div>{% for r in p.rules %}{% set rf = fails_by_rule.get(r.id, []) %}{% if not rf %}{% set ns.ok = ns.ok + 1 %}{% else %}
       <div class="rule">{{ sevtag(r.severity) }}<span>{{ r.name }}{% if not r.remediation %} <span class="muted">· sin corrección automática</span>{% endif %} {% set names = rf|map(attribute='device.name')|list %}<span class="muted sm" {% if names|length > 5 %}title="{{ names|join(', ') }}"{% endif %}>· {{ names[:5]|join(', ') }}{% if names|length > 5 %} {{ _f('y {0} más', names|length - 5) }}{% endif %}</span></span>
         {% if ai_top %}<button type="button" class="btn s ghost" data-ai="compliance" data-id="{{ rf[0].id }}" data-device="{{ rf[0].device_id }}" data-name="{{ rf[0].device.name }}" data-ask="{{ _('¿Cómo lo corrijo?') }}">✦ {{ _('¿Cómo lo corrijo?') }}</button>{% endif %}
-        {% if r.remediation and ROLES[user.role] >= 1 %}{% set sv = rver.get(r.id|string) %}<span class="cfix-act">{{ w.vpill(sv, True) }}<button type="button" class="btn s" data-dialog="fix-{{ r.id }}">{{ _('Corregir') if rf|length == 1 else _f('Corregir en {0} equipos…', rf|length) }}</button></span>
+        {% if r.remediation and can(user, 'push') %}{% set sv = rver.get(r.id|string) %}<span class="cfix-act">{{ w.vpill(sv, True) }}<button type="button" class="btn s" data-dialog="fix-{{ r.id }}">{{ _('Corregir') if rf|length == 1 else _f('Corregir en {0} equipos…', rf|length) }}</button></span>
         <dialog class="dlg cfix" id="fix-{{ r.id }}" aria-labelledby="fix-{{ r.id }}-h"><form method="post" action="/compliance/remediate-rule" class="stack">
           <div class="row nowrap"><span class="qi sig">{{ icon('wrench') }}</span><div class="grow"><h2 id="fix-{{ r.id }}-h">{{ _f('Corregir «{0}»', r.name) }}</h2><p class="muted sm" style="margin-top:4px">{{ _('Se crea una solicitud de cambio por cada equipo marcado · pasa por aprobación, con respaldo antes y después.') }}</p></div>{{ w.vpill(sv) }}</div>
           <pre class="cf-body mono">{{ r.remediation }}</pre>

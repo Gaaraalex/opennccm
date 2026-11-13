@@ -36,7 +36,12 @@ def who() -> str:
 def allowed(user) -> bool:
     """El ajuste deja a este rol ver credenciales (todavía falta comprobar su MFA y su contraseña)."""
     w = who()
-    return user is not None and w != "off" and ROLES.get(user.role, 0) >= ROLES[w]
+    if user is None or w == "off":
+        return False
+    from . import perms
+    if getattr(user, "is_master", False) or perms.custom(user) is not None:  # permisos por usuario: su función «credenciales»
+        return perms.has(user, "credentials")
+    return ROLES.get(user.role, 0) >= ROLES[w]
 
 
 templates.env.globals["can_view_creds"] = allowed
@@ -103,7 +108,8 @@ def _load(user, device_id: int | None, cid: int | None):
                 raise Forbidden()
             cred, target = db.get(Credential, dev.credential_id), dev.name
         else:
-            if user.role != "admin":  # la lista de credenciales es de administradores
+            from . import perms
+            if not perms.has(user, "credentials"):  # la lista de credenciales
                 raise Forbidden()
             cred = db.get(Credential, cid)
             target = cred.name if cred else ""

@@ -50,7 +50,7 @@ Después, la ruta. Casi todas siguen el mismo patrón:
 ```python
 @app.get("/devices")
 def devices(request: Request, q: str = ""):
-    user = require(request)                 # sin sesión → al login; con rol insuficiente → 403
+    user = require(request)                 # sin sesión → al login; sin la función (app/perms.py) → 403
     scope = device_scope(user)              # None = todos; si no, el conjunto de equipos que puede ver
     with SessionLocal() as db:              # una sesión corta de base de datos
         ...                                 # consultas (ver capítulo 9 para que sean rápidas)

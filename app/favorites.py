@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import func, or_, select
 
 from . import consolecore as cc
+from . import perms
 from .auth import Forbidden, require
 from .db import ConsoleFavorite, Device, SessionLocal, audit
 from .drivers import PROFILE_MAP
@@ -78,13 +79,13 @@ def _row(f: ConsoleFavorite, user) -> dict:
     return {"id": f.id, "name": f.name, "command": f.command, "mode": f.mode, "family": f.family,
             "family_label": family_label(f.family), "shared": f.shared, "owner": f.owner,
             "change": is_change(f.family, f.command), "mine": f.owner == user.username,
-            "can_edit": f.owner == user.username if not f.shared else user.role == "admin"}
+            "can_edit": f.owner == user.username if not f.shared else perms.has(user, "settings")}
 
 
 def _console_user(request: Request):
-    from .console import role_mode
     user = require(request)
-    if role_mode(user.role) == "none":
+    from .perms import console_mode
+    if console_mode(user) == "none":
         raise Forbidden()
     return user
 
@@ -126,7 +127,7 @@ async def api_save(request: Request):
     command = str(body.get("command") or "").strip()[:2000]
     fam = str(body.get("family") or ALL).strip()[:32] or ALL
     mode = "type" if body.get("mode") == "type" else "send"
-    shared = bool(body.get("shared")) and user.role == "admin"
+    shared = bool(body.get("shared")) and perms.has(user, "settings")
     if not command:
         return JSONResponse({"error": _("Escribe el comando.")}, 400)
     if not name:
@@ -173,7 +174,7 @@ async def api_restore(request: Request):
     """«Deshacer» después de quitar: vuelve a crearlo en el mismo lugar."""
     user = _console_user(request)
     b = await request.json()
-    shared = bool(b.get("shared")) and user.role == "admin"
+    shared = bool(b.get("shared")) and perms.has(user, "settings")
     with SessionLocal() as db:
         f = ConsoleFavorite(owner=user.username, family=str(b.get("family") or ALL)[:32], name=str(b.get("name") or "")[:64],
                             command=str(b.get("command") or "")[:2000], mode="type" if b.get("mode") == "type" else "send",
@@ -193,7 +194,7 @@ async def api_order(request: Request):
     with SessionLocal() as db:
         for i, fid in enumerate(ids):
             f = db.get(ConsoleFavorite, fid)
-            if f is not None and (f.owner == user.username or user.role == "admin"):
+            if f is not None and (f.owner == user.username or perms.has(user, "settings")):
                 f.pos = i + 1
         db.commit()
     return JSONResponse({"ok": True})
