@@ -884,7 +884,7 @@ _ZTE_CHASSIS = {"C300": ("v", 21, range(2, 21)), "C320": ("h", 4, range(1, 5))}
 _ZTE_CTL = re.compile(r"^(SCX|SMX|SCT|SMT|SCT)", re.I)
 _ZTE_PWR = re.compile(r"^PR[A-Z]", re.I)
 _ZTE_UP = re.compile(r"^(HU|GU|XU)", re.I)  # tarjetas de subida (HUVQ, GUFQ…)
-_ZTE_NOSIG = 20  # más ONU sin señal que esto en una ranura: su número en rojo
+_ZTE_NOSIG = 0.10  # ONU sin señal por encima del 10 % de las dadas de alta en la ranura: su número en rojo
 
 
 def zte_card_status(inventory: str) -> dict[int, tuple[str, str]]:
@@ -937,7 +937,8 @@ def zte_chassis(model: str | None, ports: list[dict], config: str, inventory: st
         slots.append({"n": s, "t": c, "k": kind, "ps": [p["n"] for p in ps],
                       "st": "standby" if st == "STANDBY" else "active" if st == "INSERVICE" else st.lower(),
                       "up": sum(1 for p in ps if p["s"] == "up"), "onu": sum(on), "onut": sum(tot),
-                      "bad": sum(tot) - sum(on) if any(p["onu"][0] is not None for p in ps if p.get("onu")) else 0})
+                      # sin señal: solo de los PON con estado leído (un PON apagado no cuenta sus ONU como caídas)
+                      "bad": sum(p["onu"][1] - p["onu"][0] for p in ps if p.get("onu") and p["onu"][0] is not None)})
     for sl in slots:
-        sl["warn"] = sl["bad"] > _ZTE_NOSIG
+        sl["warn"] = sl["onut"] > 0 and sl["bad"] > sl["onut"] * _ZTE_NOSIG
     return {"model": m.group(1).upper(), "orient": orient, "total": total, "slots": slots, "power": power}

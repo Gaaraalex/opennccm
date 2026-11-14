@@ -278,7 +278,7 @@
       h = '<div class="zch h">' + CH.slots.map(s => {
         if (s.k === 'empty') return `<span class="zsh empty"><span class="sn">${s.n}</span><span class="tp"></span><span class="mu">${esc(T.empty_slot)}</span></span>`;
         const right = s.k === 'ctl' ? led(s) + `<span class="mu">${esc(ctlTxt(s, true))}</span>`
-          : `<span class="zpr">${dots(s)}</span><span class="mu">${esc(T.x_of_y.replace('{0}', s.up).replace('{1}', s.ps.length))}${s.k === 'pon' ? ' · ' + esc(T.onu_n.replace('{0}', s.onut)) : s.k === 'up' ? ' · ' + esc(T.uplink) : ''}</span>`;
+          : `<span class="zpr">${dots(s)}</span><span class="mu">${esc(T.x_of_y.replace('{0}', s.up).replace('{1}', s.ps.length))}${s.k === 'pon' ? ' · ' + esc(T.onu_n.replace('{0}', HAS ? s.onu : s.onut)) : s.k === 'up' ? ' · ' + esc(T.uplink) : ''}</span>`;
         return `<button type="button" class="zsh${s.warn ? ' warn' : ''}" data-slot="${s.n}" aria-pressed="${s.n === csl}" title="${esc(slotTip(s))}"><span class="sn">${s.n}</span><span class="tp">${esc(s.t)}</span>${right}</button>`;
       }).join('') + CH.power.map(s => `<span class="zsh pwr"><span class="sn">P</span><span class="tp">${esc(s.t)}</span>${led(s)}<span class="mu">${esc(T.pwr)}</span></span>`).join('') + '</div>';
     }
