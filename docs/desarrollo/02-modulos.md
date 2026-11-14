@@ -30,13 +30,13 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 
 | Archivo | Líneas | Qué hace |
 |---|---:|---|
-| `app/services.py` | 1958 | Lógica de negocio: |
+| `app/services.py` | 2012 | Lógica de negocio: |
 | `app/drivers.py` | 733 | Perfiles de fabricantes. |
 | `app/shell_drivers.py` | 136 | Drivers de Netmiko propios para sistemas basados en un shell Unix que Netmiko no trae. |
 | `app/legacy_ssh.py` | 83 | Compatibilidad SSH con equipos de red antiguos. |
 | `app/fwtag.py` | 85 | Versión de firmware de cada copia de seguridad (ConfigVersion.fw_version). |
 | `app/chassis.py` | 213 | Parte de atrás del equipo: |
-| `app/ports.py` | 872 | Puertos físicos del equipo y su estado (ficha del equipo: |
+| `app/ports.py` | 944 | Puertos físicos del equipo y su estado (ficha del equipo: |
 | `app/porttable.py` | 378 | Lectores de la tabla de puertos de cada fabricante (app/ports.py los usa al respaldar). |
 | `app/swos.py` | 75 | MikroTik SwitchOS (SwOS y SwOS Lite): |
 | `app/fireware_web.py` | 196 | Feature key de WatchGuard (Fireware) en el formato que se pega para restaurarla. |
@@ -102,7 +102,7 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 |---|---:|---|
 | `app/firmware.py` | 692 | Actualización remota de firmware: |
 | `app/fwupdates.py` | 748 | Actualizaciones de firmware de los equipos: |
-| `app/fwverify.py` | 166 | Versión instalada leída del propio equipo, sin respaldar, y comprobación después de actualizar el firmware. |
+| `app/fwverify.py` | 170 | Versión instalada leída del propio equipo, sin respaldar, y comprobación después de actualizar el firmware. |
 | `app/eol.py` | 147 | Fin de venta / fin de soporte (EOL/EOS): |
 
 ## Integraciones
