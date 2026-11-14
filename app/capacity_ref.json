@@ -1,11 +1,11 @@
 {
  "meta": {
-  "version": "2.43.0",
-  "date": "2026-11-14T17:57:47",
-  "cpus": 16,
-  "ram_gb": 31.9,
-  "os": "Windows-11",
-  "python": "3.12.10",
+  "version": "2.44.0",
+  "date": "2026-11-14T23:17:24",
+  "cpus": 4,
+  "ram_gb": 15.3,
+  "os": "Linux-7.0.0-1014-aws-x86_64-with-glibc2.39",
+  "python": "3.12.3",
   "concurrency": 16,
   "history": 12,
   "db": "sqlite"
@@ -14,144 +14,145 @@
   {
    "devices": 100,
    "backup": {
-    "secs": 40.1,
+    "secs": 40.2,
     "ok": 100,
     "err": 0,
     "changed": 100,
-    "per_min": 149.4,
-    "cpu_avg": 16.1,
-    "cpu_max": 63.5,
-    "rss_max_mb": 150.5,
+    "per_min": 149.2,
+    "cpu_avg": 14.2,
+    "cpu_max": 65.3,
+    "rss_max_mb": 171.9,
     "errors": [],
-    "cpus": 16
+    "cpus": 4,
+    "poll_max": 0.01
    },
    "pages": [
     {
      "page": "Panel",
      "url": "/",
      "status": 200,
-     "first": 0.114,
-     "median": 0.106,
+     "first": 0.029,
+     "median": 0.024,
      "kb": 41
     },
     {
      "page": "Dispositivos",
      "url": "/devices",
      "status": 200,
-     "first": 0.102,
-     "median": 0.033,
+     "first": 0.076,
+     "median": 0.021,
      "kb": 281
     },
     {
      "page": "Dispositivos: buscar uno",
      "url": "/devices?q=CARGA-00042",
      "status": 200,
-     "first": 0.021,
-     "median": 0.019,
+     "first": 0.014,
+     "median": 0.012,
      "kb": 50
     },
     {
      "page": "Ficha de un equipo",
      "url": "/devices/1",
      "status": 200,
-     "first": 0.274,
-     "median": 0.033,
+     "first": 0.2,
+     "median": 0.026,
      "kb": 154
     },
     {
      "page": "Ficha de una OLT grande",
      "url": "/devices/100",
      "status": 200,
-     "first": 0.118,
-     "median": 0.124,
+     "first": 0.088,
+     "median": 0.087,
      "kb": 149
     },
     {
      "page": "Versión grande (ver)",
      "url": "/versions/1337",
      "status": 200,
-     "first": 0.189,
-     "median": 0.104,
+     "first": 0.086,
+     "median": 0.07,
      "kb": 1261
     },
     {
      "page": "Buscar en configs",
      "url": "/search?q=storm-control",
      "status": 200,
-     "first": 0.132,
-     "median": 0.117,
+     "first": 0.155,
+     "median": 0.084,
      "kb": 756
     },
     {
      "page": "Cumplimiento",
      "url": "/compliance",
      "status": 200,
-     "first": 0.134,
-     "median": 0.164,
-     "kb": 485
+     "first": 0.066,
+     "median": 0.035,
+     "kb": 279
     },
     {
      "page": "Análisis",
      "url": "/analytics",
      "status": 200,
-     "first": 0.04,
-     "median": 0.016,
+     "first": 0.03,
+     "median": 0.013,
      "kb": 45
     },
     {
      "page": "Mapa de la red",
      "url": "/topology",
      "status": 200,
-     "first": 0.066,
-     "median": 0.019,
+     "first": 0.05,
+     "median": 0.016,
      "kb": 93
     },
     {
      "page": "Alarmas",
      "url": "/events",
      "status": 200,
-     "first": 0.046,
-     "median": 0.016,
+     "first": 0.035,
+     "median": 0.012,
      "kb": 60
     },
     {
      "page": "Vulnerabilidades",
      "url": "/vulns",
      "status": 200,
-     "first": 0.029,
-     "median": 0.011,
+     "first": 0.022,
+     "median": 0.008,
      "kb": 32
     },
     {
      "page": "Firmware y ciclo de vida",
      "url": "/eol",
      "status": 200,
-     "first": 0.071,
-     "median": 0.019,
+     "first": 0.054,
+     "median": 0.016,
      "kb": 37
     },
     {
      "page": "Informes",
      "url": "/reports",
      "status": 200,
-     "first": 0.021,
-     "median": 0.008,
+     "first": 0.015,
+     "median": 0.006,
      "kb": 40
     },
     {
      "page": "Auditoría",
      "url": "/audit",
      "status": 200,
-     "first": 0.023,
-     "median": 0.009,
+     "first": 0.017,
+     "median": 0.007,
      "kb": 32
     },
     {
      "page": "Solicitudes de cambio",
      "url": "/changes",
      "status": 200,
-     "first": 0.028,
-     "median": 0.011,
+     "first": 0.02,
+     "median": 0.009,
      "kb": 31
     },
     {
@@ -159,180 +160,188 @@
      "url": "/backup/job",
      "status": 200,
      "first": 0.002,
-     "median": 0.003,
+     "median": 0.002,
      "kb": 0
     },
     {
      "page": "Sistema",
      "url": "/system",
      "status": 200,
-     "first": 0.065,
-     "median": 0.017,
-     "kb": 60
+     "first": 0.406,
+     "median": 0.024,
+     "kb": 78
     },
     {
      "page": "Capacidad",
-     "url": "/system/capacity",
-     "status": 404,
-     "first": 0.002,
-     "median": 0.002,
-     "kb": 0
+     "url": "/capacity",
+     "status": 200,
+     "first": 0.035,
+     "median": 0.012,
+     "kb": 36
     }
    ],
    "concurrent": {
     "users": 8,
-    "req_s": 9.2,
-    "p50": 0.38,
-    "p95": 2.42
+    "req_s": 17.4,
+    "by_url": {
+     "/devices?q=CARGA-0": 0.353,
+     "/devices/1": 0.266,
+     "/devices": 0.331,
+     "/": 0.439,
+     "/compliance": 0.907
+    },
+    "p50": 0.373,
+    "p95": 0.932
    },
    "db": {
     "versions": 1337,
     "db_mb": 43.8,
     "data_mb": 43.8
    },
-   "rss_mb": 224.2
+   "rss_mb": 256.9
   },
   {
-   "devices": 500,
+   "devices": 1000,
    "backup": {
-    "secs": 165.7,
-    "ok": 500,
+    "secs": 325.0,
+    "ok": 1000,
     "err": 0,
-    "changed": 500,
-    "per_min": 181.0,
-    "cpu_avg": 20.8,
-    "cpu_max": 106.1,
-    "rss_max_mb": 160.9,
+    "changed": 935,
+    "per_min": 184.6,
+    "cpu_avg": 16.7,
+    "cpu_max": 75.7,
+    "rss_max_mb": 296.0,
     "errors": [],
-    "cpus": 16
+    "cpus": 4,
+    "poll_max": 0.254
    },
    "pages": [
     {
      "page": "Panel",
      "url": "/",
      "status": 200,
-     "first": 0.41,
-     "median": 0.421,
+     "first": 0.084,
+     "median": 0.082,
      "kb": 41
     },
     {
      "page": "Dispositivos",
      "url": "/devices",
      "status": 200,
-     "first": 0.25,
-     "median": 0.115,
-     "kb": 1219
+     "first": 0.023,
+     "median": 0.021,
+     "kb": 84
     },
     {
      "page": "Dispositivos: buscar uno",
      "url": "/devices?q=CARGA-00042",
      "status": 200,
-     "first": 0.046,
-     "median": 0.041,
+     "first": 0.029,
+     "median": 0.029,
      "kb": 50
     },
     {
      "page": "Ficha de un equipo",
      "url": "/devices/1",
      "status": 200,
-     "first": 0.279,
-     "median": 0.034,
-     "kb": 154
+     "first": 0.025,
+     "median": 0.024,
+     "kb": 155
     },
     {
      "page": "Ficha de una OLT grande",
      "url": "/devices/100",
      "status": 200,
-     "first": 0.124,
-     "median": 0.129,
-     "kb": 149
+     "first": 0.093,
+     "median": 0.092,
+     "kb": 152
     },
     {
      "page": "Versión grande (ver)",
-     "url": "/versions/5891",
+     "url": "/versions/11658",
      "status": 200,
-     "first": 0.201,
-     "median": 0.109,
+     "first": 0.141,
+     "median": 0.072,
      "kb": 1261
     },
     {
      "page": "Buscar en configs",
      "url": "/search?q=storm-control",
-     "status": 500,
-     "first": 0.385,
-     "median": 0.345,
-     "kb": 0
+     "status": 200,
+     "first": 0.329,
+     "median": 0.336,
+     "kb": 756
     },
     {
      "page": "Cumplimiento",
      "url": "/compliance",
      "status": 200,
-     "first": 0.631,
-     "median": 0.579,
-     "kb": 1957
+     "first": 0.175,
+     "median": 0.104,
+     "kb": 157
     },
     {
      "page": "Análisis",
      "url": "/analytics",
      "status": 200,
-     "first": 0.053,
-     "median": 0.029,
+     "first": 0.035,
+     "median": 0.033,
      "kb": 45
     },
     {
      "page": "Mapa de la red",
      "url": "/topology",
      "status": 200,
-     "first": 0.09,
-     "median": 0.049,
-     "kb": 99
+     "first": 0.066,
+     "median": 0.066,
+     "kb": 105
     },
     {
      "page": "Alarmas",
      "url": "/events",
      "status": 200,
-     "first": 0.045,
-     "median": 0.017,
+     "first": 0.013,
+     "median": 0.012,
      "kb": 59
     },
     {
      "page": "Vulnerabilidades",
      "url": "/vulns",
      "status": 200,
-     "first": 0.037,
-     "median": 0.018,
+     "first": 0.022,
+     "median": 0.02,
      "kb": 32
     },
     {
      "page": "Firmware y ciclo de vida",
      "url": "/eol",
      "status": 200,
-     "first": 0.104,
-     "median": 0.048,
+     "first": 0.123,
+     "median": 0.061,
      "kb": 37
     },
     {
      "page": "Informes",
      "url": "/reports",
      "status": 200,
-     "first": 0.024,
-     "median": 0.009,
+     "first": 0.009,
+     "median": 0.006,
      "kb": 40
     },
     {
      "page": "Auditoría",
      "url": "/audit",
      "status": 200,
-     "first": 0.023,
-     "median": 0.01,
-     "kb": 32
+     "first": 0.066,
+     "median": 0.007,
+     "kb": 33
     },
     {
      "page": "Solicitudes de cambio",
      "url": "/changes",
      "status": 200,
-     "first": 0.035,
-     "median": 0.018,
+     "first": 0.023,
+     "median": 0.021,
      "kb": 31
     },
     {
@@ -347,38 +356,415 @@
      "page": "Sistema",
      "url": "/system",
      "status": 200,
-     "first": 0.065,
-     "median": 0.018,
-     "kb": 60
+     "first": 0.054,
+     "median": 0.024,
+     "kb": 78
     },
     {
      "page": "Capacidad",
-     "url": "/system/capacity",
-     "status": 404,
-     "first": 0.002,
-     "median": 0.002,
-     "kb": 0
+     "url": "/capacity",
+     "status": 200,
+     "first": 0.032,
+     "median": 0.032,
+     "kb": 36
     }
    ],
    "concurrent": {
     "users": 8,
-    "req_s": 2.0,
+    "req_s": 8.0,
     "by_url": {
-     "/devices/1": 0.143,
-     "/devices": 1.38,
-     "/devices?q=CARGA-0": 1.308,
-     "/": 6.081,
-     "/compliance": 11.152
+     "/devices/1": 0.186,
+     "/devices": 0.578,
+     "/devices?q=CARGA-0": 0.588,
+     "/compliance": 1.576,
+     "/": 2.161
     },
-    "p50": 1.7,
-    "p95": 11.293
+    "p50": 0.629,
+    "p95": 2.244
    },
    "db": {
-    "versions": 6685,
-    "db_mb": 217.2,
-    "data_mb": 217.2
+    "versions": 13440,
+    "db_mb": 346.2,
+    "data_mb": 346.2
    },
-   "rss_mb": 300.2
+   "rss_mb": 380.9
+  },
+  {
+   "devices": 2500,
+   "backup": {
+    "secs": 0,
+    "ok": 0,
+    "err": 0,
+    "changed": 0,
+    "per_min": 0,
+    "cpu_avg": 0,
+    "cpu_max": 0,
+    "rss_max_mb": 380.9,
+    "errors": [],
+    "cpus": 4
+   },
+   "pages": [
+    {
+     "page": "Panel",
+     "url": "/",
+     "status": 200,
+     "first": 0.116,
+     "median": 0.112,
+     "kb": 41
+    },
+    {
+     "page": "Dispositivos",
+     "url": "/devices",
+     "status": 200,
+     "first": 0.033,
+     "median": 0.033,
+     "kb": 84
+    },
+    {
+     "page": "Dispositivos: buscar uno",
+     "url": "/devices?q=CARGA-00042",
+     "status": 200,
+     "first": 0.054,
+     "median": 0.053,
+     "kb": 50
+    },
+    {
+     "page": "Ficha de un equipo",
+     "url": "/devices/1",
+     "status": 200,
+     "first": 0.025,
+     "median": 0.025,
+     "kb": 155
+    },
+    {
+     "page": "Ficha de una OLT grande",
+     "url": "/devices/100",
+     "status": 200,
+     "first": 0.093,
+     "median": 0.091,
+     "kb": 152
+    },
+    {
+     "page": "Versión grande (ver)",
+     "url": "/versions/11658",
+     "status": 200,
+     "first": 0.07,
+     "median": 0.07,
+     "kb": 1261
+    },
+    {
+     "page": "Buscar en configs",
+     "url": "/search?q=storm-control",
+     "status": 200,
+     "first": 0.844,
+     "median": 0.825,
+     "kb": 756
+    },
+    {
+     "page": "Cumplimiento",
+     "url": "/compliance",
+     "status": 200,
+     "first": 0.104,
+     "median": 0.104,
+     "kb": 157
+    },
+    {
+     "page": "Análisis",
+     "url": "/analytics",
+     "status": 200,
+     "first": 0.125,
+     "median": 0.059,
+     "kb": 46
+    },
+    {
+     "page": "Mapa de la red",
+     "url": "/topology",
+     "status": 200,
+     "first": 0.166,
+     "median": 0.236,
+     "kb": 124
+    },
+    {
+     "page": "Alarmas",
+     "url": "/events",
+     "status": 200,
+     "first": 0.014,
+     "median": 0.013,
+     "kb": 59
+    },
+    {
+     "page": "Vulnerabilidades",
+     "url": "/vulns",
+     "status": 200,
+     "first": 0.042,
+     "median": 0.04,
+     "kb": 32
+    },
+    {
+     "page": "Firmware y ciclo de vida",
+     "url": "/eol",
+     "status": 200,
+     "first": 0.194,
+     "median": 0.19,
+     "kb": 37
+    },
+    {
+     "page": "Informes",
+     "url": "/reports",
+     "status": 200,
+     "first": 0.012,
+     "median": 0.007,
+     "kb": 40
+    },
+    {
+     "page": "Auditoría",
+     "url": "/audit",
+     "status": 200,
+     "first": 0.008,
+     "median": 0.008,
+     "kb": 35
+    },
+    {
+     "page": "Solicitudes de cambio",
+     "url": "/changes",
+     "status": 200,
+     "first": 0.042,
+     "median": 0.04,
+     "kb": 31
+    },
+    {
+     "page": "Respaldo en curso (sondeo)",
+     "url": "/backup/job",
+     "status": 200,
+     "first": 0.003,
+     "median": 0.003,
+     "kb": 0
+    },
+    {
+     "page": "Sistema",
+     "url": "/system",
+     "status": 200,
+     "first": 0.055,
+     "median": 0.024,
+     "kb": 78
+    },
+    {
+     "page": "Capacidad",
+     "url": "/capacity",
+     "status": 200,
+     "first": 0.044,
+     "median": 0.044,
+     "kb": 37
+    }
+   ],
+   "concurrent": {
+    "users": 8,
+    "req_s": 5.3,
+    "by_url": {
+     "/devices/1": 0.181,
+     "/devices?q=CARGA-0": 1.316,
+     "/devices": 1.322,
+     "/compliance": 1.742,
+     "/": 3.438
+    },
+    "p50": 1.407,
+    "p95": 3.597
+   },
+   "db": {
+    "versions": 30495,
+    "db_mb": 620.2,
+    "data_mb": 620.2
+   },
+   "rss_mb": 498.2
+  },
+  {
+   "devices": 5000,
+   "backup": {
+    "secs": 1600.3,
+    "ok": 5000,
+    "err": 0,
+    "changed": 4361,
+    "per_min": 187.5,
+    "cpu_avg": 21.6,
+    "cpu_max": 103.4,
+    "rss_max_mb": 646.3,
+    "errors": [],
+    "cpus": 4,
+    "poll_max": 0.333
+   },
+   "pages": [
+    {
+     "page": "Panel",
+     "url": "/",
+     "status": 200,
+     "first": 0.429,
+     "median": 0.35,
+     "kb": 41
+    },
+    {
+     "page": "Dispositivos",
+     "url": "/devices",
+     "status": 200,
+     "first": 0.063,
+     "median": 0.062,
+     "kb": 84
+    },
+    {
+     "page": "Dispositivos: buscar uno",
+     "url": "/devices?q=CARGA-00042",
+     "status": 200,
+     "first": 0.109,
+     "median": 0.107,
+     "kb": 50
+    },
+    {
+     "page": "Ficha de un equipo",
+     "url": "/devices/1",
+     "status": 200,
+     "first": 0.029,
+     "median": 0.027,
+     "kb": 162
+    },
+    {
+     "page": "Ficha de una OLT grande",
+     "url": "/devices/100",
+     "status": 200,
+     "first": 0.096,
+     "median": 0.094,
+     "kb": 160
+    },
+    {
+     "page": "Versión grande (ver)",
+     "url": "/versions/58992",
+     "status": 200,
+     "first": 0.073,
+     "median": 0.071,
+     "kb": 1261
+    },
+    {
+     "page": "Buscar en configs",
+     "url": "/search?q=storm-control",
+     "status": 200,
+     "first": 1.662,
+     "median": 1.534,
+     "kb": 756
+    },
+    {
+     "page": "Cumplimiento",
+     "url": "/compliance",
+     "status": 200,
+     "first": 0.45,
+     "median": 0.46,
+     "kb": 157
+    },
+    {
+     "page": "Análisis",
+     "url": "/analytics",
+     "status": 200,
+     "first": 0.208,
+     "median": 0.208,
+     "kb": 46
+    },
+    {
+     "page": "Mapa de la red",
+     "url": "/topology",
+     "status": 200,
+     "first": 0.521,
+     "median": 0.513,
+     "kb": 156
+    },
+    {
+     "page": "Alarmas",
+     "url": "/events",
+     "status": 200,
+     "first": 0.02,
+     "median": 0.018,
+     "kb": 59
+    },
+    {
+     "page": "Vulnerabilidades",
+     "url": "/vulns",
+     "status": 200,
+     "first": 0.157,
+     "median": 0.083,
+     "kb": 32
+    },
+    {
+     "page": "Firmware y ciclo de vida",
+     "url": "/eol",
+     "status": 200,
+     "first": 1.621,
+     "median": 1.609,
+     "kb": 1628
+    },
+    {
+     "page": "Informes",
+     "url": "/reports",
+     "status": 200,
+     "first": 0.009,
+     "median": 0.008,
+     "kb": 40
+    },
+    {
+     "page": "Auditoría",
+     "url": "/audit",
+     "status": 200,
+     "first": 0.009,
+     "median": 0.009,
+     "kb": 37
+    },
+    {
+     "page": "Solicitudes de cambio",
+     "url": "/changes",
+     "status": 200,
+     "first": 0.232,
+     "median": 0.085,
+     "kb": 31
+    },
+    {
+     "page": "Respaldo en curso (sondeo)",
+     "url": "/backup/job",
+     "status": 200,
+     "first": 0.007,
+     "median": 0.005,
+     "kb": 0
+    },
+    {
+     "page": "Sistema",
+     "url": "/system",
+     "status": 200,
+     "first": 0.056,
+     "median": 0.025,
+     "kb": 79
+    },
+    {
+     "page": "Capacidad",
+     "url": "/capacity",
+     "status": 200,
+     "first": 0.118,
+     "median": 0.12,
+     "kb": 37
+    }
+   ],
+   "concurrent": {
+    "users": 8,
+    "req_s": 3.0,
+    "by_url": {
+     "/devices/1": 0.168,
+     "/devices": 1.931,
+     "/devices?q=CARGA-0": 1.557,
+     "/compliance": 4.295,
+     "/": 8.027
+    },
+    "p50": 2.445,
+    "p95": 8.256
+   },
+   "db": {
+    "versions": 67642,
+    "db_mb": 1377.3,
+    "data_mb": 1377.4
+   },
+   "rss_mb": 869.5
   }
  ],
  "problems": []
