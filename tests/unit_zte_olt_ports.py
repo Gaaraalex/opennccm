@@ -122,5 +122,28 @@ check("el formato sin «O7 State» (otras versiones) también se lee",
       P.zte_onu_counts("1/2/1:1  enable  enable  working  1(GPON)\n1/2/1:2  enable  disable  OffLine  1(GPON)\n")
       == {"1/2/1": {"working": 1, "offline": 1}})
 
+# ---- chasis entero en la cabecera (C300 de pie, C320 acostada): ranuras, controladoras y ONU por ranura
+CARDS = """Rack Shelf Slot CfgType RealType Port  HardVer SoftVer         Status
+-------------------------------------------------------------------------------
+1    1     3    GTGH    GTGHG    16    V1.0.0  V2.1.0          INSERVICE
+1    1     10   SCXN    SCXN     4     V1.0.0  V2.1.0          INSERVICE
+1    1     11   SCXN    SCXN     4     V1.0.0  V2.1.0          STANDBY
+1    1     21   PRWH    PRWH     0     V1.0.0  V1.01           INSERVICE
+"""
+cps, _st = P.parse(P.MARK + P.ZTE_ONU_CMD + "\n1/3/1 working=1\n1/3/2 dyinggasp=1 los=1\n", "zte_olt", CFG, "C300")
+ch = P.zte_chassis("C300", cps, CFG, CARDS)
+sl = {s["n"]: s for s in ch["slots"]}
+check("C300: de pie, 21 ranuras, de la 2 a la 20 aunque estén vacías", ch["orient"] == "v" and ch["total"] == 21
+      and all(n in sl for n in range(2, 21)) and sl[5]["k"] == "empty", sorted(sl))
+check("controladoras activa y en espera (de «show card»)", sl[10]["k"] == "ctl" and sl[10]["st"] == "active"
+      and sl[11]["st"] == "standby")
+check("la fuente va aparte", [p["t"] for p in ch["power"]] == ["PRWH"] and 21 not in sl)
+check("ranura de servicio: puertos activos, ONU en línea y sin señal", sl[3]["k"] == "pon" and sl[3]["up"] == 1
+      and sl[3]["onu"] == 1 and sl[3]["onut"] == 3 and sl[3]["bad"] == 2 and not sl[3]["warn"], sl[3])
+check("cada PON con [en línea, total]", {p["n"]: p.get("onu") for p in cps}["gpon-olt_1/3/2"] == [0, 2])
+check("tarjeta de subida", sl[19]["k"] == "up" and sl[19]["t"] == "HUVQ")
+check("C320: acostada, 4 ranuras", P.zte_chassis("C320", cps, CFG, "")["orient"] == "h")
+check("otros modelos (C350) siguen con la tira de puertos", P.zte_chassis("C350", cps, CFG, "") is None)
+
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)

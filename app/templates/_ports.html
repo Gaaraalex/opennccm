@@ -96,6 +96,66 @@
   }
 </style>
 {% set p_up = ports.ports|selectattr('s', 'equalto', 'up')|list|length %}
+{% if ports.chassis %}
+<style>
+  /* OLT ZTE C300 / C320: el chasis entero en la cabecera (sin barra de desplazamiento) y la ranura elegida al lado */
+  .pstrip.zc{display:block}
+  .zc .zh{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-bottom:12px}.zc .zh .pview{margin-bottom:0}
+  .zc .zml{font:600 12.5px var(--f-sans);color:var(--ink-2)}
+  .zc .zsum{margin-left:auto;font-size:13px;color:var(--ink-2)}.zc .zsum b{color:var(--ok);font-weight:600}
+  .zc .zb{display:flex;flex-wrap:wrap;gap:18px;align-items:stretch}
+  .zc .zlft{flex:none;max-width:100%;min-width:0;overflow-x:auto}
+  .zch{padding:10px;border-radius:12px;background:var(--p-face);border:1px solid var(--p-face-e)}
+  .zch.v{display:flex;gap:4px;width:max-content}.zch.h{display:flex;flex-direction:column;gap:4px;width:560px;box-sizing:border-box}
+  .zsl,.zsh{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;cursor:pointer;box-sizing:border-box}
+  .zsl{width:30px;display:flex;flex-direction:column;align-items:center;gap:6px;padding:6px 0;min-height:236px}
+  .zsl[aria-pressed="true"],.zsh[aria-pressed="true"]{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+  .zsl:focus-visible,.zsh:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+  .zsl.empty,.zsh.empty{background:transparent;border-style:dashed;opacity:.6}
+  .zc .sn{font:700 10px var(--f-sans);color:var(--ink-2)}.zc .warn .sn{color:var(--crit)}
+  .zpc{display:grid;grid-template-columns:10px;grid-auto-rows:10px;gap:3px}.zpr{display:flex;gap:4px}
+  .zp{display:block;width:10px;height:10px;border-radius:2.5px;box-sizing:border-box;flex:none;border:1.5px solid var(--p-down-e)}
+  .zp.up{background:var(--p-up);border-color:var(--p-up)}.zp.off{border-color:var(--p-off-e)}.zp.cur{outline:2px solid var(--ink);outline-offset:1.5px}
+  .zc .vt{writing-mode:vertical-rl;transform:rotate(180deg);font:600 9.5px var(--f-mono);color:var(--muted);margin-top:auto;white-space:nowrap}
+  .zled{display:block;width:7px;height:7px;border-radius:99px;flex:none;background:var(--p-up);box-shadow:0 0 5px var(--p-up)}
+  .zled.stb{background:var(--p-off-e);box-shadow:0 0 5px var(--p-off-e)}.zled.bad{background:var(--crit);box-shadow:none}.zled.na{background:var(--p-down-e);box-shadow:none}
+  .zsh{display:flex;align-items:center;justify-content:flex-start;width:100%;gap:12px;height:30px;padding:0 10px;font-size:12px;text-align:left}
+  .zsh .sn{width:14px;flex:none}.zsh .tp{width:56px;flex:none;font:700 10.5px var(--f-mono);color:var(--muted)}.zsh .mu{color:var(--muted);white-space:nowrap}
+  .zsh.pwr{cursor:default}
+  .zd{flex:1 1 380px;min-width:0;padding:14px 16px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line);display:flex;flex-direction:column;gap:12px}
+  .zd1{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;font-size:12.5px;color:var(--muted)}.zd1 b{font:700 15px var(--f-sans);color:var(--ink)}.zd1 .r{margin-left:auto}
+  .zg{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px}
+  .zg .bp{height:44px;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;box-sizing:border-box;
+    border:1.5px solid var(--p-down-e);background:transparent;cursor:pointer;padding:0;font:inherit;color:var(--ink)}
+  .zg .bp b{font:700 12px var(--f-sans)}.zg .bp span{font:600 10.5px var(--f-mono);color:var(--muted)}
+  .zg .bp.up{background:var(--ok-soft);border-color:var(--p-up)}.zg .bp.up span{color:var(--ok)}
+  .zg .bp.off{border-color:var(--p-off-e)}.zg .bp.off span{color:var(--warn)}
+  .zg .bp[aria-pressed="true"]{outline:2px solid var(--ink);outline-offset:1px}.zg .bp:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+  .zpi{display:flex;flex-direction:column;gap:4px;font-size:13px}.zpi .nm{font:600 14px var(--f-mono);color:var(--ink)}.zpi .l2{color:var(--ink-2)}
+  .zc .zf{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-top:12px;font-size:12.5px}.zc .zf .b{margin-left:auto}
+  .zc .pleg .zp{display:inline-block}.zc .zrear{min-width:300px}
+  .ptab .chip.slot{border-color:var(--brand);background:var(--brand-soft);color:var(--ink);font-weight:700}
+  .pcfg{max-height:360px;overflow:auto}
+  @media (max-width:599px){.zc .zsum{margin-left:0;flex-basis:100%}.zd{flex-basis:100%}.zg{grid-template-columns:repeat(4,minmax(0,1fr))}.zch.h{width:auto;min-width:520px}}
+</style>
+<section class="pstrip zc" aria-label="{{ _('Puertos del equipo') }}" id="pstrip">
+  <div class="zh">
+    <div class="pview" role="group" aria-label="{{ _('Vista del equipo') }}"><button type="button" data-view="front" aria-pressed="true">{{ _('Frente') }}</button><button type="button" data-view="rear" aria-pressed="false">{{ _('Atrás') }}{% if ports.rear.psu|selectattr('s', 'ne', 'ok')|list or ports.rear.fan|selectattr('s', 'ne', 'ok')|list %}<i class="bad" title="{{ _('Hay una fuente o un ventilador que no funciona') }}"></i>{% endif %}</button></div>
+    <span class="zml">ZTE {{ ports.chassis.model }} · {{ _f('{0} ranuras', ports.chassis.total) }}</span>
+    <span class="zsum">{% if ports.status %}<b>{{ _f('{0} activos', p_up) }}</b> {{ _f('de {0}', ports.ports|length) }}{% else %}{{ _f('{0} puertos', ports.ports|length) }} · {{ _('sin estado de enlace') }}{% endif %} · <span title="{{ ports.at|dt }}">{{ _f('leído en el respaldo {0}', ports.at|ago) }}</span></span>
+  </div>
+  <div class="zb">
+    <div class="zlft"><div id="pfp"></div><div class="prear zrear" id="prear" hidden></div></div>
+    <div class="zd" id="psel" aria-live="polite"></div>
+  </div>
+  <div class="zf">
+    <div class="pleg">{% if ports.status %}<span><i class="zp up"></i>{{ _('Activo') }}</span><span><i class="zp"></i>{{ _('Sin enlace') }}</span>{% else %}<span><i class="zp"></i>{{ _('Habilitado') }}</span>{% endif %}<span><i class="zp off"></i>{{ _('Apagado') }}</span><span><i class="zp up cur"></i>{{ _('Elegido') }}</span></div>
+    {% set bad_psu = ports.rear.psu|selectattr('s', 'equalto', 'fail')|list %}{% set bad_fan = ports.rear.fan|selectattr('s', 'equalto', 'fail')|list %}
+    {% if bad_psu or bad_fan %}<span class="alarm" role="status" style="color:var(--crit);font-weight:600">{% if bad_psu %}{{ _f('Sin corriente o con fallo: {0}', bad_psu|map(attribute='n')|join(', ')) }}{% endif %}{% if bad_psu and bad_fan %} · {% endif %}{% if bad_fan %}{{ _f('Ventilador parado: {0}', bad_fan|map(attribute='n')|join(', ')) }}{% endif %}</span>{% endif %}
+    <a href="#ports" data-tab-link data-allports class="b">{{ _('Ver todos los puertos') }} ›</a>
+  </div>
+</section>
+{% else %}
 <section class="pstrip" aria-label="{{ _('Puertos del equipo') }}" id="pstrip">
   <div style="min-width:0;max-width:100%">
   <div class="pview" role="group" aria-label="{{ _('Vista del equipo') }}"><button type="button" data-view="front" aria-pressed="true">{{ _('Frente') }}</button><button type="button" data-view="rear" aria-pressed="false">{{ _('Atrás') }}{% if ports.rear.psu|selectattr('s', 'ne', 'ok')|list or ports.rear.fan|selectattr('s', 'ne', 'ok')|list %}<i class="bad" title="{{ _('Hay una fuente o un ventilador que no funciona') }}"></i>{% endif %}</button></div>
@@ -116,6 +176,7 @@
   </div>
   </div>
 </section>
+{% endif %}
 <script>
 (function () {
   const R = {{ ports.rear|tojson }}, L = {{ ports.layout|tojson }}, P = {{ ports.ports|tojson }}, HAS = {{ ports.status|tojson }}, NAME = {{ device.name|tojson }}, DT = {{ device.device_type|tojson }};
@@ -131,7 +192,13 @@
     'console': _('Consola serie'), 'reset': _('Reset'), 'switch': _('Encendido'), 'ports': _('Interfaces de red'), 'power': _('Encendido'),
     'led_status': _('Status: se enciende 30 s cuando alguien entra por la Web UI o la CLI'),
     'led_mode_on': _('Mode en verde: el Firebox sale a la red externa'),
-    'led_mode_off': _('Mode parpadea: ninguna interfaz externa tiene enlace')}|tojson }};
+    'led_mode_off': _('Mode parpadea: ninguna interfaz externa tiene enlace'),
+    'empty_slot': _('vacía'), 'ctl_on': _('activa'), 'ctl_stb': _('en espera'), 'uplink': _('subida'), 'ctl_on_l': _('Controladora activa'),
+    'ctl_stb_l': _('Controladora en espera'), 'ctl_l': _('Controladora'), 'pwr': _('Fuente'), 'pon_n': _('{0} puertos PON'), 'up_n': _('{0} puertos de subida'),
+    'ports_n': _('{0} puertos'), 'act_n': _('{0} activos'), 'onu_on_n': _('{0} ONU en línea'), 'onu_n': _('{0} ONU'), 'x_of_y': _('{0} de {1}'),
+    'onu_line': _('{0} de {1} ONU en línea'), 'nosig': _('{0} sin señal'), 'see_onu': _('Ver las {0} ONU de este puerto'), 'off_s': _('apag.'),
+    'pon': _('Fibra · PON'), 'empty_l': _('Ranura vacía'), 'slot_card': _('Ranura {0} · {1}'), 'clear_slot': _('Quitar el filtro de la ranura')}|tojson }};
+  const CH = {{ ports.chassis|tojson }};  // OLT ZTE C300 / C320: el chasis entero (app/ports.py, zte_chassis)
   // Y0: fila de arriba; números y rótulos quedan a 12 px del icono: el contorno de selección (5 px) no los toca
   const big = L.rows === 2, CW = 32, SW = 42, H = 28, GAP = 6, GG = 12, SEP = 16, NG = 12, Y0 = 12 + NG;
   const cu = P.filter(p => p.k !== 'sfp'), sf = P.filter(p => p.k === 'sfp');
@@ -190,8 +257,58 @@
     more();
   }
 
+  // ---- OLT ZTE: chasis entero (C300 de pie, C320 acostada) y la ranura elegida a la derecha
+  const byN = {}; P.forEach(p => { byN[p.n] = p; });
+  const slotOf = n => CH && CH.slots.find(s => s.ps.includes(n));
+  let csl = CH ? (slotOf(sel) || CH.slots.find(s => s.ps.length) || {}).n : null, fslot = null;
+  const pcls = p => p.s === 'up' ? 'up' : p.s === 'off' ? 'off' : '';
+  const ctlTxt = (s, long) => s.st === 'standby' ? (long ? T.ctl_stb_l : T.ctl_stb) : s.st === 'active' ? (long ? T.ctl_on_l : T.ctl_on) : (long ? T.ctl_l : s.st);
+  const led = s => `<i class="zled${s.st === 'standby' ? ' stb' : s.st === 'active' || s.st === 'ok' ? '' : s.st === 'bad' ? ' bad' : ' na'}" aria-hidden="true"></i>`;
+  const slotLabel = s => s.k === 'empty' ? T.empty_slot : s.k === 'ctl' ? s.t + (ctlTxt(s) ? ' · ' + ctlTxt(s) : '') : s.k === 'up' ? (s.t ? s.t + ' · ' : '') + T.uplink : s.t;
+  const slotTip = s => T.slot.replace('{0}', s.n) + ' · ' + slotLabel(s) + (s.k === 'pon' ? ' · ' + T.act_n.replace('{0}', s.up) + ' · ' + T.onu_on_n.replace('{0}', s.onu) : '');
+  function chassis(box) {
+    const dots = s => s.ps.map(n => { const p = byN[n]; return `<i class="zp ${pcls(p)}${n === sel ? ' cur' : ''}"></i>`; }).join('');
+    let h;
+    if (CH.orient === 'v') {
+      h = '<div class="zch v">' + CH.slots.map(s => s.k === 'empty'
+        ? `<span class="zsl empty" title="${esc(T.slot.replace('{0}', s.n) + ' · ' + T.empty_slot)}"><span class="sn">${s.n}</span><span class="vt">${esc(T.empty_slot)}</span></span>`
+        : `<button type="button" class="zsl${s.warn ? ' warn' : ''}" data-slot="${s.n}" aria-pressed="${s.n === csl}" title="${esc(slotTip(s))}" aria-label="${esc(slotTip(s))}">` +
+          `<span class="sn">${s.n}</span>${s.k === 'ctl' ? led(s) : ''}${s.ps.length && s.k !== 'ctl' ? `<span class="zpc">${dots(s)}</span>` : ''}<span class="vt">${esc(slotLabel(s))}</span></button>`).join('') + '</div>';
+    } else {
+      h = '<div class="zch h">' + CH.slots.map(s => {
+        if (s.k === 'empty') return `<span class="zsh empty"><span class="sn">${s.n}</span><span class="tp"></span><span class="mu">${esc(T.empty_slot)}</span></span>`;
+        const right = s.k === 'ctl' ? led(s) + `<span class="mu">${esc(ctlTxt(s, true))}</span>`
+          : `<span class="zpr">${dots(s)}</span><span class="mu">${esc(T.x_of_y.replace('{0}', s.up).replace('{1}', s.ps.length))}${s.k === 'pon' ? ' · ' + esc(T.onu_n.replace('{0}', s.onut)) : s.k === 'up' ? ' · ' + esc(T.uplink) : ''}</span>`;
+        return `<button type="button" class="zsh${s.warn ? ' warn' : ''}" data-slot="${s.n}" aria-pressed="${s.n === csl}" title="${esc(slotTip(s))}"><span class="sn">${s.n}</span><span class="tp">${esc(s.t)}</span>${right}</button>`;
+      }).join('') + CH.power.map(s => `<span class="zsh pwr"><span class="sn">P</span><span class="tp">${esc(s.t)}</span>${led(s)}<span class="mu">${esc(T.pwr)}</span></span>`).join('') + '</div>';
+    }
+    box.innerHTML = h;
+  }
+  function zdetail() {
+    const el = document.getElementById('psel'); if (!el) return;
+    const s = CH.slots.find(x => x.n === csl);
+    if (!s) { el.innerHTML = ''; return; }
+    const ps = s.ps.map(n => byN[n]);
+    const sub = s.k === 'pon' ? T.pon_n.replace('{0}', ps.length) : s.k === 'up' ? T.up_n.replace('{0}', ps.length) : s.k === 'ctl' ? ctlTxt(s, true) + (ps.length ? ' · ' + T.ports_n.replace('{0}', ps.length) : '') : T.ports_n.replace('{0}', ps.length);
+    const right = [HAS && ps.length ? T.act_n.replace('{0}', s.up) : '', s.k === 'pon' && HAS ? T.onu_on_n.replace('{0}', s.onu) : s.k === 'pon' ? T.onu_n.replace('{0}', s.onut) : ''].filter(Boolean).join(' · ');
+    const cell = p => { const o = p.onu, v = p.s === 'off' ? T.off_s : p.s === 'up' ? (o ? (o[0] == null ? o[1] : o[0] + '/' + o[1]) : (p.sp || '✓')) : o && o[0] == null ? String(o[1]) : '—';
+      return `<button type="button" class="bp ${pcls(p)}" data-p="${esc(p.n)}" aria-pressed="${p.n === sel}" title="${esc(tip(p))}" aria-label="${esc(tip(p))}"><b>${esc(p.port || tail(p.n))}</b><span>${esc(v)}</span></button>`; };
+    let h = `<div class="zd1"><b>${esc(T.slot_card.replace('{0}', s.n).replace('{1}', s.t || '—'))}</b><span>${esc(sub)}</span>${right ? `<span class="r">${esc(right)}</span>` : ''}</div>`;
+    if (ps.length) h += `<div class="zg">${ps.map(cell).join('')}</div>`;
+    const p = ps.find(x => x.n === sel);
+    if (p) {
+      const o = p.onu, line = o ? (o[0] == null ? T.onu_n.replace('{0}', o[1]) : T.onu_line.replace('{0}', o[0]).replace('{1}', o[1]) + (o[1] - o[0] ? ' · ' + T.nosig.replace('{0}', o[1] - o[0]) : ''))
+        : [p.s === 'up' && p.sp, p.d].filter(Boolean).join(' · ');
+      h += `<div class="zpi"><div class="row" style="gap:8px;flex-wrap:wrap"><span class="nm">${esc(p.n)}</span>${pill(p)}<span class="muted sm">${esc(isPon(p) ? T.pon : kindOf(p))}</span></div>` +
+        (line ? `<div class="l2">${esc(line)}</div>` : '') +
+        (o && o[1] ? `<a href="#ports" class="b" data-onus="${esc(p.n)}">${esc(T.see_onu.replace('{0}', o[1]))} ›</a>` : '') + '</div>';
+    }
+    el.innerHTML = h;
+  }
+
   function front() {
     const box = document.getElementById('pfp'); if (!box) return;
+    if (CH) return chassis(box);
     if (L.ports_rear && L.leds) return leds(box);
     let h = '', W = 0;
     const put = (p, x, y, w, flip, numY) => {
@@ -345,7 +462,8 @@
   function selected() {
     const p = P.find(x => x.n === sel) || P[0];
     const line = [p.d, p.s === 'up' && p.sp, p.net].filter(Boolean).join(' · ');
-    const el = document.getElementById('psel');
+    const el = CH ? null : document.getElementById('psel');
+    if (CH && view === 'front') zdetail();
     if (el) el.innerHTML = `<div class="row" style="gap:10px"><span class="nm">${esc(p.n)}</span>${pill(p)}<span class="muted sm">${esc(kindOf(p))}</span></div>` +
       (line ? `<div class="ln">${esc(line)}</div>` : '') + `<div class="nb">${esc(T.neigh)}: ${esc(p.nb || '—')}</div>`;
     const c = document.getElementById('pcard'); if (!c) return;
@@ -362,9 +480,13 @@
     const f = document.getElementById('pfilt'), rows = document.getElementById('prows'); if (!f || !rows) return;
     const keys = [['all', T.all]].concat(HAS ? [['up', T.fup], ['down', T.fdown]] : []).concat(big || !HAS ? [['off', T.foff]] : [])
       .concat(sf.length ? [['fiber', T.ffib]] : []).concat(big && sf.length ? [['cu', T.fcu]] : []);
-    f.innerHTML = keys.map(([k, n]) => `<button type="button" class="chip" data-f="${k}" aria-pressed="${filt === k}">${esc(n)} <span class="n">${P.filter(p => match(k, p)).length}</span></button>`).join('');
+    // OLT ZTE: «Ver todos los puertos» desde una ranura filtra por ella (chip con ✕ antes de Todos/Activos/Inactivos)
+    const fs = CH && fslot != null ? CH.slots.find(s => s.n === fslot) : null;
+    const inS = p => !fs || fs.ps.includes(p.n);
+    f.innerHTML = (fs ? `<button type="button" class="chip slot" data-fslot-clear title="${esc(T.clear_slot)}" aria-label="${esc(T.clear_slot)}">${esc(T.slot_card.replace('{0}', fs.n).replace('{1}', fs.t || '—'))} ✕</button>` : '') +
+      keys.map(([k, n]) => `<button type="button" class="chip" data-f="${k}" aria-pressed="${filt === k}">${esc(n)} <span class="n">${P.filter(p => inS(p) && match(k, p)).length}</span></button>`).join('');
     const td = (v, cls) => `<td${cls ? ` class="${cls}"` : ''} title="${esc(v)}">${esc(v)}</td>`;
-    rows.innerHTML = P.filter(p => match(filt, p)).map(p => `<tr data-p="${esc(p.n)}" class="${p.n === sel ? 'sel' : ''}" tabindex="0">${td(p.n, 'mono')}${td(p.k === 'sfp' ? T.sfp : T.cu)}` +
+    rows.innerHTML = P.filter(p => inS(p) && match(filt, p)).map(p => `<tr data-p="${esc(p.n)}" class="${p.n === sel ? 'sel' : ''}" tabindex="0">${td(p.n, 'mono')}${td(p.k === 'sfp' ? T.sfp : T.cu)}` +
       `<td title="${esc(T[p.s])}"><span class="pdot" style="background:${p.s === 'up' ? 'var(--p-up)' : p.s === 'off' ? 'var(--p-off-e)' : 'var(--p-down-e)'}"></span>${esc(T[p.s])}</td>${td(p.s === 'up' && p.sp || '—', 'mono')}${td(p.d || '—')}${td(p.nb || '—', 'muted')}</tr>`).join('');
   }
   // tabla: 10 filas a la vista; la barra baja y sube de una en una (también con la rueda)
@@ -404,8 +526,20 @@
   document.addEventListener('click', e => {
     const v = e.target.closest('.pview [data-view]'); if (v) { setView(v.dataset.view); return; }
     const r = e.target.closest('#prear [data-r]'); if (r) { rsel = r.dataset.r; rear(); rearSelected(); return; }
+    if (CH) {  // OLT ZTE: ranura del chasis, «Ver las N ONU», «Ver todos los puertos» y el chip de la ranura
+      const z = e.target.closest('#pfp [data-slot]');
+      if (z) { const s = CH.slots.find(x => x.n === +z.dataset.slot); csl = s.n;
+        if (!s.ps.includes(sel)) sel = (s.ps.find(n => byN[n].s === 'up') || s.ps[0] || sel); draw(); return; }
+      const o = e.target.closest('[data-onus]');
+      if (o) { e.preventDefault(); sel = o.dataset.onus; fslot = (slotOf(sel) || {}).n; filt = 'all'; to = 0;
+        const all = document.querySelector('[data-allports]'); if (all) all.dispatchEvent(new MouseEvent('click', {bubbles: false, cancelable: true}));
+        draw(); const row = document.querySelector(`#prows tr[data-p="${CSS.escape(sel)}"]`); if (row) row.scrollIntoView({block: 'nearest'}); return; }
+      if (e.target.closest('[data-allports]')) { fslot = csl; filt = 'all'; to = 0; if (list) list.scrollTop = 0; draw(); return; }
+      if (e.target.closest('[data-fslot-clear]')) { fslot = null; to = 0; if (list) list.scrollTop = 0; draw(); return; }
+    }
     const b = e.target.closest('[data-p]');
-    if (b && (b.closest('#pfp') || b.closest('#prows') || b.closest('#prear'))) {
+    if (b && (b.closest('#pfp') || b.closest('#prows') || b.closest('#prear') || (CH && b.closest('#psel')))) {
+      if (CH) { const s = slotOf(b.dataset.p); if (s) csl = s.n; }
       // los puertos están en el frente, salvo en los equipos que los tienen atrás (allí también se eligen en las luces)
       const want = b.closest('#pfp') ? 'front' : b.closest('#prear') || L.ports_rear ? 'rear' : 'front';
       sel = b.dataset.p; rsel = null; if (view !== want) setView(want); draw();
