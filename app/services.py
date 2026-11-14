@@ -348,8 +348,7 @@ def _opcodes(la: list[str], lb: list[str]) -> list[tuple]:
     ma, mb = la[pre:len(la) - suf], lb[pre:len(lb) - suf]
     out = [("equal", 0, pre, 0, pre)] if pre else []
     if ma or mb:
-        exact = max(len(ma), len(mb)) <= EXACT_DIFF_MAX
-        for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, ma, mb, autojunk=not exact).get_opcodes():
+        for tag, i1, i2, j1, j2 in _anchored(ma, mb, 0, 0, 0):
             if tag == "equal" and out and out[-1][0] == "equal":
                 t = out.pop()
                 out.append(("equal", t[1], pre + i2, t[3], pre + j2))
@@ -361,6 +360,60 @@ def _opcodes(la: list[str], lb: list[str]) -> list[tuple]:
             out.append(("equal", t[1], len(la), t[3], len(lb)))
         else:
             out.append(("equal", len(la) - suf, len(la), len(lb) - suf, len(lb)))
+    return out
+
+
+def _anchored(a: list[str], b: list[str], oa: int, ob: int, depth: int) -> list[tuple]:
+    """Tramo distinto muy largo (OLT ZTE C300: 40.000 líneas con cambios repartidos por todas las ONU; SequenceMatcher
+    tardaba 6 s y ndiff 13 s): las líneas que salen una sola vez a cada lado y en el mismo orden se toman como fijas
+    («patience diff») y solo se comparan los huecos entre ellas, que son cortos. oa/ob: desplazamiento del tramo."""
+    if max(len(a), len(b)) <= EXACT_DIFF_MAX or depth > 4:
+        return [(t, oa + i1, oa + i2, ob + j1, ob + j2) for t, i1, i2, j1, j2 in
+                difflib.SequenceMatcher(None, a, b, autojunk=max(len(a), len(b)) > EXACT_DIFF_MAX).get_opcodes()]
+    from collections import Counter
+    from bisect import bisect_left
+    ca, cb = Counter(a), Counter(b)
+    jb = {ln: j for j, ln in enumerate(b) if cb[ln] == 1}
+    pairs = [(i, jb[ln]) for i, ln in enumerate(a) if ca[ln] == 1 and ln in jb]
+    # la subsecuencia creciente más larga de las posiciones en b: las fijas que respetan el orden de los dos lados
+    tails, idx, back = [], [], [-1] * len(pairs)
+    for k, (_i, j) in enumerate(pairs):
+        p = bisect_left(tails, j)
+        if p == len(tails):
+            tails.append(j); idx.append(k)
+        else:
+            tails[p] = j; idx[p] = k
+        back[k] = idx[p - 1] if p else -1
+    if not idx:
+        return [(t, oa + i1, oa + i2, ob + j1, ob + j2) for t, i1, i2, j1, j2 in
+                difflib.SequenceMatcher(None, a, b, autojunk=True).get_opcodes()]
+    anchors, k = [], idx[-1]
+    while k >= 0:
+        anchors.append(pairs[k]); k = back[k]
+    anchors.reverse()
+    out: list[tuple] = []
+
+    def add(op):
+        if op[0] == "equal" and out and out[-1][0] == "equal" and out[-1][2] == op[1] and out[-1][4] == op[3]:
+            t = out.pop()
+            op = ("equal", t[1], op[2], t[3], op[4])
+        if op[1] < op[2] or op[3] < op[4]:
+            out.append(op)
+
+    pi = pj = 0
+    for i, j in anchors + [(len(a), len(b))]:
+        if pi < i or pj < j:
+            ga, gb = a[pi:i], b[pj:j]
+            if not ga:
+                add(("insert", oa + pi, oa + pi, ob + pj, ob + j))
+            elif not gb:
+                add(("delete", oa + pi, oa + i, ob + pj, ob + pj))
+            else:
+                for op in _anchored(ga, gb, oa + pi, ob + pj, depth + 1):
+                    add(op)
+        if i < len(a):
+            add(("equal", oa + i, oa + i + 1, ob + j, ob + j + 1))
+        pi, pj = i + 1, j + 1
     return out
 
 
@@ -414,12 +467,13 @@ def _trim_edges(rows: list[tuple], context: int) -> list[tuple]:
 
 
 def diff_stats(a: str, b: str) -> tuple[int, int]:
+    """(líneas agregadas, quitadas). Con las mismas operaciones que la comparación lado a lado: ndiff tardaba 13 s en
+    una OLT ZTE C300 de 40.000 líneas."""
     added = removed = 0
-    for line in difflib.ndiff(a.splitlines(), b.splitlines()):
-        if line.startswith("+ "):
-            added += 1
-        elif line.startswith("- "):
-            removed += 1
+    for tag, i1, i2, j1, j2 in _opcodes(a.splitlines(), b.splitlines()):
+        if tag != "equal":
+            removed += i2 - i1
+            added += j2 - j1
     return added, removed
 
 
