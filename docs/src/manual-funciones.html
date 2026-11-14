@@ -231,7 +231,11 @@ historial.</p>
 <p><b>Equipo desactivado.</b> En lugar de «En línea» dice <b>Desactivado</b> y no ofrece Consola, Interfaz web ni Respaldar
 ahora: el equipo está aislado y OpenNCCM no se conecta con él. Un administrador lo vuelve a activar con <b>Activar</b>, en la
 propia ficha. En la lista de Dispositivos, al marcar varios equipos, <b>Activar</b> y <b>Desactivar</b> lo hacen con todos a la
-vez (solo administradores; queda en Auditoría).</p>
+vez (solo administradores; queda en Auditoría). <b>Eliminar…</b>, en la misma barra, borra los equipos marcados (uno o
+varios) con sus versiones, resultados y eventos: hay que escribir <b>ELIMINAR</b> para confirmar y no se puede deshacer.</p>
+<p><b>Ping desde la lista.</b> Al pasar el puntero sobre un equipo, junto a Consola, Interfaz web y Respaldar ahora está
+<b>Ping</b>: el servidor de OpenNCCM le envía tres paquetes y una ventanita dice si <b>Responde</b> o <b>No responde</b>, con la
+pérdida y el tiempo medio. Está también cuando el equipo tiene error de respaldo, para ver de un clic si sigue en la red.</p>
 <h3>Equipos retirados (dañados o reemplazados)</h3>
 <p>Cuando un equipo se daña, se reemplaza por otro que hará su misma función o se da de baja, no hace falta borrarlo:
 en su ficha, menú <b>⋯ → Retirar o reemplazar…</b> (solo administradores). Se elige el motivo (dañado, reemplazado,
@@ -417,11 +421,14 @@ una pestaña por tipo de equipo, arrastrar para cambiar el orden, editar, quitar
   comunidad o un reporte de GitHub con el nombre de la receta ya escrito.</td></tr>
   <tr><td>Grabaciones</td><td>Cada sesión: usuario, equipo, hora, duración y comandos, con marca roja si hubo un comando que
   corta el servicio. Busca en lo escrito y en lo visto (por ejemplo «reload»). El reproductor tiene línea de tiempo con esas
-  marcas, velocidad 1×, 2× o 4× y <b>Exportar</b> (texto). Se guardan 180 días (se puede cambiar).</td></tr>
+  marcas, velocidad 1×, 2× o 4× y <b>Exportar</b> (texto). Se guardan 180 días (se puede cambiar). Lo que se escribe cuando el
+  equipo pide una contraseña («Password:» de enable, «Contraseña:») no se graba: queda <code>********</code>, también en las
+  grabaciones anteriores, y no va al historial de comandos.</td></tr>
   <tr><td>Herramientas</td><td>Ping, Traceroute, Puerto TCP y DNS desde el servidor de OpenNCCM, con la salida en colores a
   medida que llega, un resumen (pérdida, tiempo, saltos…) y <b>Abrir consola</b> si el destino es un equipo de OpenNCCM. Detrás
-  de la IP o el nombre se pueden poner parámetros, los de siempre de Windows o de Linux (debajo de la casilla se ven los de cada
-  herramienta): <code>8.8.8.8 -t</code> (ping continuo, hasta pulsar <b>Detener</b> o 10 minutos), <code>-n 10</code>,
+  de la IP o el nombre se pueden poner parámetros, los de siempre de Windows o de Linux. Debajo de la casilla está un botón por
+  cada parámetro de la herramienta elegida: tocarlo lo agrega a la línea (con su valor de ejemplo listo para cambiar) y tocarlo
+  otra vez lo quita. Por ejemplo: <code>8.8.8.8 -t</code> (ping continuo, hasta pulsar <b>Detener</b> o 10 minutos), <code>-n 10</code>,
   <code>-l 1400 -f</code> (tamaño sin fragmentar), <code>-i 0.2</code>, <code>--ttl 5</code>, <code>-I ether1</code>;
   traceroute <code>-h 30 -q 3 -w 2</code>, <code>-I</code> (ICMP) o <code>-T -p 443</code> (TCP); puerto TCP
   <code>10.0.0.1:443 -c 5</code> o <code>-t</code>; DNS <code>ejemplo.com MX @1.1.1.1</code> o <code>-x 8.8.8.8</code>. Solo
@@ -542,7 +549,9 @@ trajo la actualización salen en ámbar con «por el firmware». El archivo desc
 («SW-Miramar_v4_EdgeSwitch-1.11.1.txt»). La versión de cada copia no cambia aunque después se actualice el equipo.</p>
 <p>Para encontrar algo dentro de la versión, escriba en <b>Buscar en esta versión</b> (un texto o una IP): las líneas que lo
 tienen se resaltan y <b>Intro</b> / <b>Mayús+Intro</b> (o las flechas) saltan entre ellas. El campo <b>Etiqueta</b> no busca: le
-pone un nombre a la versión. Para buscar en las copias de todos los equipos use <b>Buscar en configs</b> del menú.</p>
+pone un nombre a la versión. Para buscar en las copias de todos los equipos use <b>Buscar en configs</b> del menú.
+<b>Copiar todo</b> copia al portapapeles la versión entera, sin los números de línea. Las copias muy grandes (una OLT C300 pasa
+de 40.000 líneas) se abren al instante: la página solo dibuja la parte que se ve.</p>
 <p>En un <b>MikroTik RouterOS</b>, el menú <b>…</b> de la ficha ofrece además <b>Descargar .rsc (último respaldo)</b>, el
 <code>/export</code> guardado listo para <code>/import</code>, y <b>Descargar .backup del equipo…</b>. Este último lo crea el router
 en el momento (<code>/system backup save</code>), OpenNCCM lo trae por SFTP y lo borra del equipo. Se le puede poner una
@@ -1557,7 +1566,7 @@ sustituye por <code>&lt;oculto&gt;</code> los secretos, contraseñas, comunidade
 repositorio privado. <b>Probar y subir todo ahora</b> exporta todos los equipos de una vez. Si la subida falla, se registra una alarma
 «Copia en Git fallida» y el respaldo no se ve afectado.</p>
 <h2>Apoya OpenNCCM</h2>
-<p>OpenNCCM es software libre y gratis. Los administradores ven en la barra superior el botón <b>Apoya OpenNCCM</b>, y las
+<p>OpenNCCM es software libre y gratis. Todos los usuarios ven en la barra superior los botones <b>Soporte profesional</b> y <b>Apoya OpenNCCM</b> (no se pueden ocultar), y las
 páginas Sistema y Acerca de muestran una tarjeta con las formas de donar (GitHub Sponsors y Ko-fi). Tras actualizar a una versión
 nueva, el primer administrador que entra ve una vez un aviso con <b>Donar</b> y <b>Ahora no</b>. Los enlaces solo se abren si
 se pulsan, en una pestaña nueva, y no se envía ningún dato del servidor.</p>

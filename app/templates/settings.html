@@ -57,7 +57,6 @@
     <div class="f2">{% call F(_('Nombre de la organización'), 'o-name') %}<div class="input"><input id="o-name" name="org_name" value="{{ s.org_name }}"></div>{% endcall %}
       {% call F(_('Correo de contacto para privacidad'), 'o-contact') %}<div class="input"><input id="o-contact" name="org_contact" type="email" value="{{ s.org_contact }}"></div>{% endcall %}</div>
     {% call F(_('Dirección (opcional)'), 'o-addr', _('Aparece en Acerca de, junto a la política de privacidad.')) %}<div class="input"><input id="o-addr" name="org_address" value="{{ s.org_address }}"></div>{% endcall %}
-    <label class="swrow"><span><b>{{ _('Mostrar el botón de soporte profesional') }}</b><div class="muted sm">{{ _('Enlace en la barra superior a la página de soporte de pago de OpenNCCM, para todos los usuarios. No cambia ninguna función: apáguelo si no quiere publicidad del proveedor en el panel.') }}</div></span><input type="checkbox" class="sw" name="support_button" {{ 'checked' if s.support_button == '1' }}></label>
     <label class="swrow"><span><b>{{ _('Logos de marca abreviados en tamaño chico') }}</b><div class="muted sm">{{ _('Donde el logo se ve muy pequeño (listas, chips, mapa), las marcas cuyo logo es su nombre escrito (Cisco, Juniper, Nokia, Dell…) usan una versión abreviada: su símbolo o sus iniciales. Apagado: el logo normal en todos los tamaños.') }}</div></span><input type="checkbox" class="sw" name="logos_small" {{ 'checked' if s.logos_small == '1' }}></label>
   </div></section>
 

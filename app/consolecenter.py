@@ -105,7 +105,7 @@ def center(request: Request, tab: str = "sesiones", q: str = "", rec: int = 0, e
     ctx["brands"] = recipe_brands()
     ctx["recs"] = recordings(user, q, bool(empty))
     ctx["empty"] = bool(empty)
-    ctx["tool_help"] = {k: _(v) for k, v in nettools.HELP.items()}
+    ctx["tool_params"] = {k: [(a, _(t)) for a, t in v] for k, v in nettools.PARAMS.items()}
     if perms.has(user, "settings"):
         ctx["acc"] = {"roles": {r: console.role_mode(r) for r in ("admin", "operator", "viewer")},
                       "record": get_setting("console_record", "1") == "1",
@@ -541,8 +541,14 @@ def recordings(user, q: str = "", empty: bool = False) -> list[dict]:
     for r in rows:
         f = console.REC_DIR / f"{r.id}.jsonl"
         if ql:
-            try:
-                if ql not in f.read_text(encoding="utf-8").lower():
+            try:  # se busca en lo que se ve al reproducirla: sin las contraseñas (una contraseña no encuentra su sesión)
+                ev = []
+                for line in f.read_text(encoding="utf-8").splitlines():
+                    try:
+                        ev.append(json.loads(line))
+                    except ValueError:
+                        continue
+                if ql not in "\n".join(str(e[2]) for e in cc.mask_secrets(ev) if len(e) >= 3).lower():
                     continue
             except OSError:
                 continue
@@ -570,7 +576,7 @@ def _rec(user, sid: int) -> tuple[ConsoleSession, list]:
                     continue
     except OSError:
         pass
-    return r, ev
+    return r, cc.mask_secrets(ev)
 
 
 @router.get("/console/rec/{sid}")

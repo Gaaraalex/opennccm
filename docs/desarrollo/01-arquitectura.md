@@ -152,7 +152,7 @@ Servicios de systemd: `opennccm.service` (la aplicación, sin privilegios, usuar
 | `NCM_TLS_CA` | `/etc/ssl/opennccm/ca.crt` | CA propia del instalador (se descarga desde el login) |
 | `NCM_UPDATE_REPO` | `Gaaraalex/opennccm` | de dónde se buscan las versiones nuevas |
 | `NCM_BACKUP_PASSPHRASE` | vacío | frase para cifrar la copia de recuperación |
-| `NCM_SUPPORT_URL`, `NCM_FORUM_URL`, `NCM_ISSUES_URL`, `NCM_DONATE_*` | enlaces del proyecto | botones de soporte y donación |
+| `NCM_FORUM_URL`, `NCM_ISSUES_URL` | enlaces del proyecto | foro y reportes de recetas (los de soporte y donación son fijos) |
 
 ## Dependencias principales (`requirements.txt`)
 

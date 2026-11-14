@@ -437,6 +437,7 @@ async def console_ws(ws: WebSocket, dev_id: int):
         await ws.send_text(json.dumps({"t": "s", "s": "connected", "sid": sid, "mode": acc["mode"]}))
     bridge = _Bridge(ws, loop)
     last_input = [time.time()]
+    last_out = [""]      # lo último que mostró el equipo: si pide una contraseña, lo que se escriba no se graba
     stats = {"cmds": 0, "danger": False}
     idle = idle_seconds()
     paging = cc.PAGING_OFF.get(os_key) if v2 else None
@@ -501,6 +502,7 @@ async def console_ws(ws: WebSocket, dev_id: int):
                 if data:
                     text = data.decode("utf-8", "replace")
                     tail = (tail + text)[-200:]
+                    last_out[0] = tail
                     if v2 and cc.MORE.search(plain(tail)):  # el equipo pagina igual: se sigue solo
                         chan.send(" ")
                         text = cc.MORE.sub("", plain(text))
@@ -552,6 +554,11 @@ async def console_ws(ws: WebSocket, dev_id: int):
     def run_line(cmd: str, force: bool, ro: bool) -> None:
         """Una línea de la consola nueva: reglas, aviso de peligro, grabación y envío al equipo."""
         c = cmd.strip()
+        if c and cc.asks_secret(plain(last_out[0])):  # contraseña (enable, login…): al equipo sí, a la grabación no
+            rec.add("i", cc.SECRET_MASK)
+            last_out[0] = ""
+            chan.send(cmd + "\n")
+            return
         ro = ro or acc["mode"] == "ro"
         if c and ro and cc.is_change(os_key, c, dev_type):
             rec.add("i", c)

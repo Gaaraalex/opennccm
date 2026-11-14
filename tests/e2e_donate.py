@@ -1,6 +1,5 @@
-"""«Apoya OpenNCCM»: botón solo para administradores, tarjeta en Acerca de y en Sistema, enlaces seguros y aviso tras
-actualizar una sola vez por versión. Requiere haber ejecutado antes e2e.py (usuario admin) y los enlaces de prueba
-NCM_DONATE_* que exporta run-tests.sh."""
+"""«Apoya OpenNCCM»: botón para todos los usuarios (no se puede quitar), tarjeta en Acerca de y en Sistema, enlaces
+seguros y aviso tras actualizar una sola vez por versión. Requiere haber ejecutado antes e2e.py (usuario admin)."""
 import os
 import re
 import sys
@@ -33,18 +32,18 @@ for u, role in (("don_lector", "viewer"), ("don_oper", "operator"), ("don_admin2
 lec, ope, adm2 = (login(u, "Donar-Prueba-2026") for u in ("don_lector", "don_oper", "don_admin2"))
 
 panel = adm.get(B + "/").text
-check("botón «Apoya OpenNCCM» en la barra para administradores",
+check("botón «Apoya OpenNCCM» en la barra",
       'class="donate"' in panel and 'aria-label="Apoya OpenNCCM: donar"' in panel)
-check("el lector no ve el botón", 'class="donate"' not in lec.get(B + "/").text)
-check("el operador no ve el botón", 'class="donate"' not in ope.get(B + "/").text)
+check("también lo ve el lector (no se puede quitar)", 'class="donate"' in lec.get(B + "/").text)
+check("y el operador", 'class="donate"' in ope.get(B + "/").text)
 check("desplegable con GitHub Sponsors y Ko-fi", "GitHub Sponsors" in panel and "Invitar un café (Ko-fi)" in panel
       and 'id="don-dlg"' in panel)
 acerca = lec.get(B + "/acerca").text
-check("tarjeta en Acerca de (visible para todos)", 'id="apoya"' in acerca and "Open Collective" in acerca)
+check("tarjeta en Acerca de (visible para todos)", 'id="apoya"' in acerca and "GitHub Sponsors" in acerca)
 check("privacidad: los enlaces de donación solo se abren si se pulsan", "Donaciones:" in acerca)
 links = re.findall(r'<a class="btn"[^>]*href="(https://[^"]+)"[^>]*>', acerca)
 check("enlaces en pestaña nueva y sin datos de origen",
-      len(re.findall(r'href="https://[^"]+" target="_blank" rel="noopener noreferrer"', acerca)) >= 3, links)
+      len(re.findall(r'href="https://[^"]+" target="_blank" rel="noopener noreferrer"', acerca)) >= 2, links)
 check("tarjeta en Sistema", 'id="apoya"' in adm.get(B + "/system").text)
 
 # ---- aviso tras actualizar: una sola vez por versión y solo a un administrador

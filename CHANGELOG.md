@@ -1,5 +1,24 @@
 # Historial de versiones
 
+## 2.43.0
+- [seguridad] **Consola: las contraseñas ya no quedan en las grabaciones:** Lo que se escribe cuando el equipo pide una
+  contraseña («Password:» de enable, «Contraseña:»…) va al equipo pero no a la grabación: queda `********` al reproducirla,
+  al exportarla y al buscar. Las grabaciones anteriores, que la guardaban tal cual, también se muestran ocultas. En la consola
+  ese texto se escribe oculto y no entra en el historial de comandos.
+- [nuevo] **Eliminar varios equipos a la vez:** En Dispositivos, al marcar uno o varios equipos, la barra de abajo tiene
+  «Eliminar…». Pide escribir ELIMINAR y borra los equipos con sus versiones, resultados y eventos.
+- [nuevo] **Ping desde la lista de equipos:** Al pasar el puntero sobre un equipo, junto a Consola, Interfaz web y Respaldar
+  ahora, está Ping: el servidor envía tres paquetes y dice si responde, con la pérdida y el tiempo medio. Aparece también
+  cuando el equipo tiene error de respaldo.
+- [mejora] **Copiar todo en la versión de una copia:** Un botón copia la configuración entera al portapapeles, sin los
+  números de línea.
+- [mejora] **Las copias muy grandes se abren al instante:** La versión de una OLT C300 (40.000 líneas) tardaba unos
+  segundos en verse; ahora la página solo dibuja lo que está a la vista y pesa menos de la mitad.
+- [mejora] **Herramientas de la consola con botones de parámetros:** Debajo de la casilla, un botón por cada parámetro de
+  Ping, Traceroute, Puerto TCP y DNS: se escribe la IP o el nombre y se tocan los que se quieran (otra vez, se quitan).
+- [mejora] **Soporte profesional y Apoya OpenNCCM siempre visibles:** Los dos botones de la barra superior se ven para todos
+  los usuarios y ya no se pueden ocultar (Ajustes › Organización ya no tiene la casilla).
+
 ## 2.42.0
 - [nuevo] **OLT ZTE C300 y C320: el chasis entero en la ficha:** En lugar de la franja de puertos con barra de desplazamiento,
   la cabecera muestra el chasis completo: la C300 con las tarjetas de pie (ranuras 2 a 20) y la C320 acostada, con la fuente

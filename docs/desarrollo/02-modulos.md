@@ -8,11 +8,11 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 
 | Archivo | Líneas | Qué hace |
 |---|---:|---|
-| `app/main.py` | 3867 | Aplicación web OpenNCCM (FastAPI). |
-| `app/web.py` | 489 | Utilidades compartidas por las rutas web. |
+| `app/main.py` | 3877 | Aplicación web OpenNCCM (FastAPI). |
+| `app/web.py` | 486 | Utilidades compartidas por las rutas web. |
 | `app/auth.py` | 173 | Sesión, roles y alcance: |
 | `app/perms.py` | 169 | Permisos por usuario: |
-| `app/config.py` | 31 | Configuración del proceso por variables de entorno (NCM_*): |
+| `app/config.py` | 30 | Configuración del proceso por variables de entorno (NCM_*): |
 | `app/db.py` | 751 | Base de datos: |
 | `app/crypto.py` | 118 | Cifrado AES-256-GCM de credenciales y configuraciones almacenadas. |
 | `app/i18n.py` | 300 | Idiomas de la interfaz. |
@@ -52,11 +52,11 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 |---|---:|---|
 | `app/rollback.py` | 566 | Generación de comandos de reversión (current -> target) según la familia de sintaxis. |
 | `app/rollback_vendor.py` | 506 | Reversión propia de plataformas que no siguen la sintaxis Cisco/Huawei/set: |
-| `app/console.py` | 725 | Consola SSH web: |
-| `app/consolecenter.py` | 838 | Operar › Consola: |
-| `app/consolecore.py` | 363 | Lo que la consola web sabe de cada sistema: |
+| `app/console.py` | 732 | Consola SSH web: |
+| `app/consolecenter.py` | 844 | Operar › Consola: |
+| `app/consolecore.py` | 391 | Lo que la consola web sabe de cada sistema: |
 | `app/cmdref.py` | 423 | Comandos de cada equipo para la consola (autocompletado y frecuentes) y para el asistente IA, según su tipo, su modelo y su versión de firmware. |
-| `app/nettools.py` | 266 | Herramientas de Operar › Consola con parámetros: |
+| `app/nettools.py` | 276 | Herramientas de Operar › Consola con parámetros: |
 | `app/favorites.py` | 250 | Comandos favoritos de la consola (Dispositivos y Operar › Consola). |
 | `app/credview.py` | 169 | Ver el usuario y la contraseña de la credencial de un equipo. |
 | `app/impact.py` | 448 | Análisis de impacto: |
