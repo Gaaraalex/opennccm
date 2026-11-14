@@ -122,5 +122,46 @@ check("el formato sin «O7 State» (otras versiones) también se lee",
       P.zte_onu_counts("1/2/1:1  enable  enable  working  1(GPON)\n1/2/1:2  enable  disable  OffLine  1(GPON)\n")
       == {"1/2/1": {"working": 1, "offline": 1}})
 
+# ---- chasis entero en la cabecera (C300 de pie, C320 acostada): ranuras, controladoras y ONU por ranura
+CARDS = """Rack Shelf Slot CfgType RealType Port  HardVer SoftVer         Status
+-------------------------------------------------------------------------------
+1    1     3    GTGH    GTGHG    16    V1.0.0  V2.1.0          INSERVICE
+1    1     10   SCXN    SCXN     4     V1.0.0  V2.1.0          INSERVICE
+1    1     11   SCXN    SCXN     4     V1.0.0  V2.1.0          STANDBY
+1    1     21   PRWH    PRWH     0     V1.0.0  V1.01           INSERVICE
+"""
+cps, _st = P.parse(P.MARK + P.ZTE_ONU_CMD + "\n1/3/1 working=1\n1/3/2 dyinggasp=1 los=1\n", "zte_olt", CFG, "C300")
+ch = P.zte_chassis("C300", cps, CFG, CARDS)
+sl = {s["n"]: s for s in ch["slots"]}
+check("C300: de pie, 21 ranuras, de la 2 a la 20 aunque estén vacías", ch["orient"] == "v" and ch["total"] == 21
+      and all(n in sl for n in range(2, 21)) and sl[5]["k"] == "empty", sorted(sl))
+check("controladoras activa y en espera (de «show card»)", sl[10]["k"] == "ctl" and sl[10]["st"] == "active"
+      and sl[11]["st"] == "standby")
+check("la fuente va aparte", [p["t"] for p in ch["power"]] == ["PRWH"] and 21 not in sl)
+check("ranura de servicio: puertos activos, ONU en línea y sin señal", sl[3]["k"] == "pon" and sl[3]["up"] == 1
+      and sl[3]["onu"] == 1 and sl[3]["onut"] == 3 and sl[3]["bad"] == 2, sl[3])
+check("en rojo si las ONU sin señal pasan del 10 % de las dadas de alta (2 de 3)", sl[3]["warn"] is True)
+
+
+def _warn(bad, tot):  # una ranura con «tot» ONU, «bad» de ellas sin señal, repartidas en un PON
+    c = "add-card rackno 1 shelfno 1 slotno 2 GTGH\ninterface gpon-olt_1/2/1\n  no shutdown\n!\n"
+    raw = P.MARK + P.ZTE_ONU_CMD + "\n" + (f"1/2/1 working={tot - bad}" + (f" los={bad}" if bad else "") if tot else "") + "\n"
+    ps_, _s = P.parse(raw, "zte_olt", c, "C300")
+    return {s["n"]: s for s in P.zte_chassis("C300", ps_, c, "")["slots"]}[2]["warn"]
+
+
+check("26 sin señal de 255 (10,2 %): rojo; 12 de 255: normal; 25 de 250 (justo el 10 %): normal",
+      _warn(26, 255) and not _warn(12, 255) and not _warn(25, 250))
+check("sin ONU dadas de alta nunca va en rojo", _warn(0, 0) is False)
+_c = ("add-card rackno 1 shelfno 1 slotno 2 GTGH\ninterface gpon-olt_1/2/1\n  no shutdown\n!\ninterface gpon-olt_1/2/2\n  shutdown\n"
+      + "".join(f"  onu {i} type ZTE-F660 sn ZTEG{i:08d}\n" for i in range(1, 31)) + "!\n")
+_ps, _x = P.parse(P.MARK + P.ZTE_ONU_CMD + "\n1/2/1 working=10\n", "zte_olt", _c, "C300")
+_s2 = {s["n"]: s for s in P.zte_chassis("C300", _ps, _c, "")["slots"]}[2]
+check("las ONU de un PON apagado no cuentan como sin señal", _s2["bad"] == 0 and _s2["onut"] == 40 and not _s2["warn"], _s2)
+check("cada PON con [en línea, total]", {p["n"]: p.get("onu") for p in cps}["gpon-olt_1/3/2"] == [0, 2])
+check("tarjeta de subida", sl[19]["k"] == "up" and sl[19]["t"] == "HUVQ")
+check("C320: acostada, 4 ranuras", P.zte_chassis("C320", cps, CFG, "")["orient"] == "h")
+check("otros modelos (C350) siguen con la tira de puertos", P.zte_chassis("C350", cps, CFG, "") is None)
+
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)

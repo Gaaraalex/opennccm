@@ -822,7 +822,8 @@ def enrich(ports: list[dict], device_type: str, config: str, neighbors: list[dic
             key = n if n in blocks else next((k for k in blocks if _short(k) == _short(n)), None)
             body = blocks.get(key) if key else None
             if body is not None:
-                cfg = [f"interface {key}"] + body[:5]
+                # un PON de una OLT ZTE: todas sus ONU («onu 3 type ZTE-F660 sn …»), que se abren desde la cabecera
+                cfg = [f"interface {key}"] + (body[:129] if device_type == "zte_olt" and n.startswith(("gpon", "epon", "xgpon")) else body[:5])
                 for b in body:
                     b = b.strip()
                     if b.startswith("description ") and not p.get("d"):
@@ -868,5 +869,76 @@ def view(dev, config: str) -> dict | None:
     rear = pj.get("rear") or {}
     if not rear.get("psu") and not rear.get("fan"):
         rear = rear_from_model(dev.model, dev.last_status == "ok") or {"psu": [], "fan": []}
+    chassis = None
+    if dev.device_type == "zte_olt":
+        from .crypto import try_decrypt
+        chassis = zte_chassis(dev.model, pj["ports"], config,
+                              try_decrypt(dev.inventory_raw_enc, "") if dev.inventory_raw_enc else "")
     return {"ports": pj["ports"], "status": bool(pj.get("status")), "at": datetime.fromisoformat(pj["at"]),
-            "layout": layout(dev.model, pj["ports"]), "raw": pj.get("raw") or "", "rear": rear}
+            "layout": layout(dev.model, pj["ports"]), "raw": pj.get("raw") or "", "rear": rear, "chassis": chassis}
+
+
+# chasis de las OLT ZTE en la cabecera de la ficha: la C300 con las tarjetas de pie (columnas, ranuras 2 a 20) y la
+# C320 acostadas (filas, ranuras 1 a 4, con la fuente abajo)
+_ZTE_CHASSIS = {"C300": ("v", 21, range(2, 21)), "C320": ("h", 4, range(1, 5))}
+_ZTE_CTL = re.compile(r"^(SCX|SMX|SCT|SMT|SCT)", re.I)
+_ZTE_PWR = re.compile(r"^PR[A-Z]", re.I)
+_ZTE_UP = re.compile(r"^(HU|GU|XU)", re.I)  # tarjetas de subida (HUVQ, GUFQ…)
+_ZTE_NOSIG = 0.10  # ONU sin señal por encima del 10 % de las dadas de alta en la ranura: su número en rojo
+
+
+def zte_card_status(inventory: str) -> dict[int, tuple[str, str]]:
+    """{ranura: (tarjeta, estado)} de «show card» (estado: INSERVICE, STANDBY, OFFLINE…)."""
+    out: dict[int, tuple[str, str]] = {}
+    for line in (inventory or "").splitlines():
+        t = line.split()
+        if len(t) >= 5 and t[0].isdigit() and t[1].isdigit() and t[2].isdigit() and not t[-1].isdigit():
+            out[int(t[2])] = (t[3], t[-1].upper())
+    return out
+
+
+def zte_chassis(model: str | None, ports: list[dict], config: str, inventory: str = "") -> dict | None:
+    """Ranuras de una OLT ZTE C300 o C320 para dibujar el chasis entero: tarjeta, tipo (servicio, controladora,
+    subida, fuente, vacía), estado de la controladora (activa o en espera, de «show card») y, por ranura, los puertos
+    activos y las ONU en línea y sin señal. A cada PON le agrega «onu»: [en línea, total] (en línea None sin estado)."""
+    m = re.match(r"(?i)^(?:ZXA10\s*)?(C300|C320)", (model or "").strip())
+    if not m or not ports:
+        return None
+    orient, total, base = _ZTE_CHASSIS[m.group(1).upper()]
+    cards = {int(s): c for s, c in re.findall(r"(?m)^add-card rackno \d+ shelfno \d+ slotno (\d+) (\S+)", config or "")}
+    status = zte_card_status(inventory)
+    for s, (c, _st) in status.items():  # una tarjeta que «show card» ve y la configuración no
+        cards.setdefault(s, c)
+    by: dict[int, list[dict]] = {}
+    for p in ports:
+        if p.get("slot") is not None:
+            by.setdefault(p["slot"], []).append(p)
+            cards.setdefault(p["slot"], p.get("card") or "")
+        if p["n"].startswith(("gpon", "epon", "xgpon")):
+            ph = {k.lower(): int(v) for k, v in re.findall(r"(\w+) (\d+)", p.get("st") or "")}
+            if ph:
+                p["onu"] = [ph.get("working", 0), sum(ph.values())]
+            else:
+                n = re.match(r"(\d+)", p.get("d") or "")
+                p["onu"] = [None, int(n.group(1)) if n else 0]
+    slots, power = [], []
+    for s in sorted(set(base) | set(cards)):
+        c = cards.get(s, "")
+        ps = sorted(by.get(s, []), key=lambda p: p.get("port") or 0)
+        st = status.get(s, ("", ""))[1]
+        if c and _ZTE_PWR.match(c):
+            power.append({"n": s, "t": c, "k": "pwr", "st": "ok" if st in ("", "INSERVICE") else "bad"})
+            continue
+        kind = ("empty" if not c and not ps else "ctl" if _ZTE_CTL.match(c) else
+                "pon" if any(p["n"].startswith(("gpon", "epon", "xgpon")) for p in ps) else
+                "up" if ps or _ZTE_UP.match(c) else "other")
+        on = [p["onu"][0] or 0 for p in ps if p.get("onu")]
+        tot = [p["onu"][1] for p in ps if p.get("onu")]
+        slots.append({"n": s, "t": c, "k": kind, "ps": [p["n"] for p in ps],
+                      "st": "standby" if st == "STANDBY" else "active" if st == "INSERVICE" else st.lower(),
+                      "up": sum(1 for p in ps if p["s"] == "up"), "onu": sum(on), "onut": sum(tot),
+                      # sin señal: solo de los PON con estado leído (un PON apagado no cuenta sus ONU como caídas)
+                      "bad": sum(p["onu"][1] - p["onu"][0] for p in ps if p.get("onu") and p["onu"][0] is not None)})
+    for sl in slots:
+        sl["warn"] = sl["onut"] > 0 and sl["bad"] > sl["onut"] * _ZTE_NOSIG
+    return {"model": m.group(1).upper(), "orient": orient, "total": total, "slots": slots, "power": power}

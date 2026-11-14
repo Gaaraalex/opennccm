@@ -289,6 +289,16 @@ de hace…»), con la orden de cada plataforma:</p>
 </table>
 <p>Si el equipo no responde a ninguna, los puertos salen de la configuración en gris (apagado o habilitado) con el aviso «sin
 estado de enlace».</p>
+<h3>OLT ZTE C300 y C320: el chasis entero</h3>
+<p>En las OLT ZXA10 C300 y C320 la cabecera muestra el <b>chasis completo</b>, sin barra de desplazamiento: la C300 con las tarjetas
+de pie (ranuras 2 a 20, cada una con su número, sus puertos y su tipo: GTGH, SCXN, HUVQ, GUFQ…) y la C320 acostada, en filas, con
+la fuente abajo. Las controladoras (SCXN, SMXA) llevan una luz: verde si está <b>activa</b> y ámbar si está <b>en espera</b> (de
+<code>show card</code>); las ranuras vacías salen con borde punteado. El número de una ranura va en <b>rojo</b> cuando las ONU sin
+señal pasan del 10 % de las dadas de alta en ella (las de un PON apagado no cuentan).</p>
+<p>Al tocar una ranura, a la derecha salen sus puertos con las ONU <b>en línea / dadas de alta</b> de cada uno, y debajo el puerto
+elegido («15 de 22 ONU en línea · 7 sin señal»). <b>Ver las N ONU de este puerto</b> abre la pestaña Puertos con ese puerto, cuya
+tarjeta lista sus ONU del respaldo (número, tipo y serie). <b>Ver todos los puertos</b> abre Puertos filtrada por la ranura elegida;
+la ✕ del filtro la quita. Las demás OLT ZTE (C220, C350…) siguen con la franja de puertos.</p>
 <h3>Parte de atrás: fuentes y ventiladores</h3>
 <p>El botón <b>Atrás</b> de la franja muestra las <b>fuentes de alimentación</b> y los <b>ventiladores</b> del equipo: en verde
 los que funcionan (fuente con corriente, ventilador girando) y en rojo los que fallan o están sin corriente; con borde
