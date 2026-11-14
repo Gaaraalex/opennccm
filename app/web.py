@@ -385,11 +385,8 @@ templates.env.globals["donate_links"] = donate_links
 
 
 def support_link() -> str | None:
-    """Enlace del botón «Soporte profesional» (None si el admin lo ocultó en Ajustes). Solo es un enlace: no cambia nada."""
-    from .auth import cached_setting
+    """Enlace del botón «Soporte profesional»: siempre se muestra (no hay ajuste para ocultarlo). Solo es un enlace."""
     from .config import SUPPORT_URL
-    if cached_setting("support_button", "1") != "1" or not SUPPORT_URL.startswith("https://"):
-        return None
     return SUPPORT_URL + ("?lang=en" if i18n.get_lang() == "en" else "")
 
 

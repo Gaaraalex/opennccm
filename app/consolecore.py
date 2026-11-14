@@ -112,6 +112,34 @@ def in_config(os_key: str, prompt_line: str) -> bool:
 
 
 # si aun así el equipo pagina, la consola responde sola con un espacio
+# el equipo pide una contraseña (enable, login, «Password:», «Contraseña:»…): lo que se escriba a continuación no se
+# graba ni se guarda en el historial; en la grabación queda «********»
+PW_PROMPT = re.compile(r"(?i)(pass(?:word|phrase|wd)?|contrase(?:ñ|n)a|secret|clave|passcode|pin)\b[^\n:]{0,40}[:：]\s*$")
+SECRET_MASK = "********"
+_ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b[()][0-9A-Za-z]|\x1b[=>78]|\x07|\x1b\][^\x07]*\x07")
+
+
+def asks_secret(output_tail: str) -> bool:
+    """¿La última línea que mostró el equipo pide una contraseña?"""
+    last = _ANSI_RE.sub("", output_tail or "").replace("\r", "\n").rstrip(" \t").rsplit("\n", 1)[-1]
+    return bool(PW_PROMPT.search(last))
+
+
+def mask_secrets(events: list) -> list:
+    """Grabación [[t, tipo, texto], …]: la entrada que sigue a una petición de contraseña queda «********» (las
+    grabaciones de antes de la 2.43 guardaban la contraseña de enable tal como se escribió)."""
+    out, tail = [], ""
+    for e in events:
+        if len(e) >= 3 and e[1] == "o":
+            tail = (tail + str(e[2]))[-300:]
+        elif len(e) >= 3 and e[1] == "i":
+            if asks_secret(tail):
+                e = [e[0], "i", SECRET_MASK] + list(e[3:])
+            tail = ""
+        out.append(e)
+    return out
+
+
 MORE = re.compile(r"(-+ ?\(?more\)?[^\n]*-*|--More--|---- More ----|Press any key to continue[^\n]*)\s*$", re.I)
 
 # --------------------------------------------------------------------------- clasificación

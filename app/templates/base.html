@@ -85,7 +85,7 @@ window.ocWarn = function (o) {
   <div class="crumbs grow">{% block crumbs %}<b>{{ self.title() }}</b>{% endblock %}</div>
   {% set SUP = support_link() %}{% if SUP %}<a class="btn-soporte" href="{{ SUP }}" target="_blank" rel="noopener" title="{{ _('Soporte profesional') }}">{{ icon('headset') }}<span>{{ _('Soporte profesional') }}</span></a>{% endif %}
   {% set DL = donate_links() %}{% from "_donate.html" import donate_body %}
-  {% if can(user, 'settings') and DL %}<span class="dropw"><button type="button" class="donate" data-drop="don-pop" aria-haspopup="true" aria-expanded="false" aria-label="{{ _('Apoya OpenNCCM: donar') }}" title="{{ _('Apoya OpenNCCM') }}">{{ icon('heart') }}<span class="dt"><b>Apoya OpenNCCM</b><small>Libre y gratis gracias a ti</small></span><span class="dbtn">Donar</span></button>
+  {% if DL %}<span class="dropw"><button type="button" class="donate" data-drop="don-pop" aria-haspopup="true" aria-expanded="false" aria-label="{{ _('Apoya OpenNCCM: donar') }}" title="{{ _('Apoya OpenNCCM') }}">{{ icon('heart') }}<span class="dt"><b>Apoya OpenNCCM</b><small>Libre y gratis gracias a ti</small></span><span class="dbtn">Donar</span></button>
     <div class="drop don-pop" id="don-pop" hidden>{{ donate_body(DL) }}</div></span>{% endif %}
   {% if ai_top %}<button type="button" class="btn s ghost ai-top" data-chat aria-pressed="false" title="{{ ai_top.model }} · {{ ai_top.who }}">{{ ai_logo(ai_top.p, 20) }}{{ _('Asistente') }}</button>{% endif %}
   <button type="button" class="search-top" data-palette aria-label="Buscar">{{ icon('search', 's') }}<span>{{ _('Buscar equipo, IP, MAC o texto…') }}</span><kbd>Ctrl K</kbd></button>

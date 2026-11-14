@@ -258,9 +258,19 @@ def dns_args(d: dict) -> list[str] | None:
     return []
 
 
-HELP = {
-    "ping": "-t · -n 10 · -l 1400 · -f · -w 1000 · -i 0.2 · --ttl 5 · -I ether1 · -4 / -6",
-    "traceroute": "-h 30 · -q 3 · -w 2 · -I (ICMP) · -T -p 443 (TCP) · -f 3 · -r",
-    "tcp": "host 443 · host:443 · -c 5 · -t · -w 2",
-    "dns": N_("ejemplo.com MX · ejemplo.com TXT @1.1.1.1 · -x 8.8.8.8"),
+# botones de parámetros de Herramientas (consola): (lo que se agrega después de la IP o el nombre, qué hace). Tocar uno lo
+# agrega; tocarlo otra vez lo quita. El valor de ejemplo queda elegido para cambiarlo escribiendo encima.
+PARAMS = {
+    "ping": [("-t", N_("continuo, hasta Detener")), ("-n 10", N_("cuántos paquetes")), ("-l 1400", N_("tamaño en bytes")),
+             ("-f", N_("sin fragmentar (prueba de MTU)")), ("-w 1000", N_("espera de cada respuesta, en ms")),
+             ("-i 0.2", N_("intervalo entre paquetes, en s")), ("--ttl 5", N_("TTL")),
+             ("-I ether1", N_("interfaz o dirección de origen")), ("-4", N_("solo IPv4")), ("-6", N_("solo IPv6"))],
+    "traceroute": [("-h 30", N_("saltos como máximo")), ("-q 3", N_("consultas por salto")), ("-w 2", N_("espera por salto, en s")),
+                   ("-I", N_("con ICMP")), ("-T", N_("con TCP")), ("-p 443", N_("puerto (con -T)")), ("-f 3", N_("primer salto")),
+                   ("-r", N_("con nombres de los saltos")), ("-4", N_("solo IPv4")), ("-6", N_("solo IPv6"))],
+    "tcp": [("-c 5", N_("cuántos intentos")), ("-t", N_("continuo, hasta Detener")),
+            ("-w 2", N_("espera de cada intento, en s"))],
+    "dns": [("A", N_("dirección IPv4")), ("AAAA", N_("dirección IPv6")), ("MX", N_("servidores de correo")), ("TXT", N_("textos (SPF…)")),
+            ("NS", N_("servidores de nombres")), ("CNAME", N_("alias")), ("@1.1.1.1", N_("preguntar a este servidor DNS")),
+            ("-x", N_("inversa: el nombre de una IP"))],
 }

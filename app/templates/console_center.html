@@ -128,8 +128,8 @@
       <div class="input mono grow"><input id="tl-target" placeholder="8.8.8.8 -t" aria-label="{{ _('IP o nombre, con parámetros si quiere') }}" spellcheck="false" autocapitalize="off" autocomplete="off"></div>
       <div class="input" style="max-width:110px" id="tl-port-w" hidden><input id="tl-port" value="22" inputmode="numeric" aria-label="{{ _('Puerto') }}"></div>
       <button type="button" class="btn pri" id="tl-run">{{ _('Ejecutar') }}</button><button type="button" class="btn" id="tl-stop" hidden>{{ _('Detener') }}</button></div>
-    <div class="muted sm">{{ _('Desde el servidor OpenNCCM, dentro de la red de gestión. Puede añadir parámetros después de la IP o el nombre:') }}
-      {% for k, h in tool_help.items() %}<span class="mono tl-help" data-for="{{ k }}"{{ ' hidden' if not loop.first }}>{{ h }}</span>{% endfor %}</div>
+    <div class="muted sm">{{ _('Desde el servidor OpenNCCM, dentro de la red de gestión. Escriba la IP o el nombre y toque los parámetros que quiera: se agregan a la línea (otra vez, se quitan).') }}</div>
+    {% for k, ps in tool_params.items() %}<div class="tl-params" data-for="{{ k }}" role="group" aria-label="{{ _('Parámetros') }}"{{ ' hidden' if not loop.first }}>{% for a, t in ps %}<button type="button" class="chip mono" data-arg="{{ a }}" title="{{ t }}" aria-pressed="false"><b>{{ a }}</b><span>{{ t }}</span></button>{% endfor %}</div>{% endfor %}
   </div>
   <div class="cc-tools">
     <div class="cx" data-theme="0" style="height:auto"><div class="cx-out mono" id="tl-out" style="min-height:280px"></div></div>

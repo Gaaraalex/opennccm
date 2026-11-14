@@ -89,8 +89,12 @@
       else cur += ch;
     }
     if (lines.length > MAX) lines.splice(0, lines.length - MAX);
+    // el equipo pide una contraseña (enable, login…): se escribe oculta y no va al historial (como en app/consolecore.py)
+    devSecret = PW.test(cur.replace(/\s+$/, ''));
+    if (typeof inp !== 'undefined' && inp && sid !== null) inp.type = devSecret ? 'password' : 'text';
     render();
   }
+  var devSecret = false, PW = /(pass(word|phrase|wd)?|contrase(ñ|n)a|secret|clave|passcode|pin)\b[^\n:]{0,40}[:：]$/i;
   function noteLine(text, kind) { if (cur) { lines.push({t: cur}); cur = ''; } lines.push({t: text, n: kind || 'info'}); render(); }
   var pending = false;
   function render() {
@@ -166,6 +170,9 @@
   function run(cmd, force) {
     if (sid === null && ws && ws.readyState === 1) {  // usuario y contraseña del equipo antes de conectar
       send({t: 'c', d: cmd}); inp.value = ''; inp.type = 'text'; hideSug(); return;
+    }
+    if (devSecret) {  // la contraseña va al equipo y a ningún otro lado (ni historial ni sugerencias)
+      devSecret = false; send({t: 'c', d: cmd, ro: $('cx-ro').checked}); inp.value = ''; inp.type = 'text'; hideSug(); return;
     }
     if (cmd.trim() && hist[hist.length - 1] !== cmd) { hist.push(cmd); hist = hist.slice(-200); store(HK, JSON.stringify(hist)); }
     hpos = -1;

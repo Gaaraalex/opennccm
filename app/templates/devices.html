@@ -57,7 +57,7 @@
 {% for d in devices %}
 {% set prof = profile_map[d.device_type] if d.device_type in profile_map else none %}
 <tr class="click" data-href="/devices/{{ d.id }}" data-dev="{{ d.id }}" data-drift="{{ 1 if d.baseline_drift else 0 }}" data-text="{{ [d.name, d.host, d.model or '', d.serial or '', d.os_version or '', d.location or '', prof.label if prof else d.device_type]|join(' ')|lower }}">
-  {% if can_run %}<td data-stop><input type="checkbox" name="ids" value="{{ d.id }}" form="bulk" aria-label="{{ _f('Seleccionar {0}', d.name) }}"></td>{% endif %}
+  {% if can_run %}<td data-stop><input type="checkbox" name="ids" value="{{ d.id }}" form="bulk" data-name="{{ d.name }}" aria-label="{{ _f('Seleccionar {0}', d.name) }}"></td>{% endif %}
   <td><div class="dev">{{ vlogo(d.device_type, 30) }}<div><a href="/devices/{{ d.id }}" style="color:var(--ink)">{{ d.name }}</a>{% if not d.enabled %} <span class="tag" title="{{ _('OpenNCCM no se conecta con este equipo') }}">{{ _('desactivado') }}</span>{% endif %}
     <div class="muted sm" style="font-weight:400">{{ prof.label if prof else d.device_type }}</div></div></div></td>
   <td class="mono" style="white-space:nowrap">{{ d.host }}{% if d.port != (23 if d.protocol == 'telnet' else 22) %}<span class="muted">:{{ d.port }}</span>{% endif %}{% if d.protocol == 'telnet' %} <span class="tag crit">telnet</span>{% endif %}</td>
@@ -71,6 +71,8 @@
     {% else %}<span class="pill warn">Pendiente</span>{% endif %}
     {% if d.startup_conflict %}<span class="tag" title="Startup distinta de running">sin guardar</span>{% endif %}</div></td>
   <td data-stop><div class="acts">
+    {# ping desde el servidor (como Herramientas de la consola): para ver de un clic si un equipo que falla responde #}
+    {% if can_console %}<button type="button" class="btn icon s" data-ping="{{ d.host }}" data-name="{{ d.name }}" title="{{ _('Ping') }}" aria-label="{{ _f('Ping a {0}', d.name) }}">{{ icon('pulse', 's') }}</button>{% endif %}
     {% if d.last_status == 'error' and can_run %}<form method="post" action="/devices/{{ d.id }}/backup"><button class="btn s">Reintentar</button></form>
     {% else %}
     {% if can_console and d.protocol == 'ssh' %}<a class="btn icon s" href="/devices/{{ d.id }}/console" target="_blank" rel="noopener" data-console="{{ d.id }}" data-name="{{ d.name }}" data-vl="{{ vkey(d.device_type) }}" title="Consola SSH" aria-label="{{ _f('Consola SSH de {0}', d.name) }}">{{ icon('term', 's') }}</a>{% endif %}
@@ -99,12 +101,26 @@
   <button class="btn s" name="action" value="enable" title="{{ _('Vuelven a respaldarse y a aceptar consola, comandos y cambios') }}">{{ _('Activar') }}</button>
   <button class="btn s" name="action" value="disable" title="{{ _('Quedan aislados: OpenNCCM no se conecta con ellos (ni respaldos, ni consola, ni comandos, ni cambios)') }}">{{ _('Desactivar') }}</button>{% endif %}
   <button class="btn s sig" name="action" value="backup">Respaldar</button>
+  {% if can(user, 'devices') %}<button type="button" class="btn s dz" data-dialog="bulk-del-dlg">{{ icon('trash', 's') }}{{ _('Eliminar…') }}</button>{% endif %}
   <button type="button" class="btn s icon" id="bulk-clear" aria-label="Quitar selección">{{ icon('x', 's') }}</button>
 </form>
+{% if can(user, 'devices') %}
+{# eliminar los equipos elegidos (uno o varios): se escribe ELIMINAR para confirmar, como al eliminar uno desde su ficha #}
+<dialog class="dlg" id="bulk-del-dlg" aria-labelledby="bulk-del-t"><form method="post" action="/devices/bulk">
+  <input type="hidden" name="action" value="delete"><input type="hidden" name="next" value="{{ request.url.path }}{{ '?' ~ request.url.query if request.url.query }}">
+  <div id="bulk-del-ids"></div>
+  <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi crit">{{ icon('trash') }}</span><div><h2 id="bulk-del-t"></h2>
+    <p class="muted" id="bulk-del-names" style="margin-top:6px;overflow-wrap:anywhere"></p>
+    <p class="muted" style="margin-top:6px">{{ _('Se borrarán sus versiones de configuración, resultados y eventos. No se puede deshacer. Si solo quiere dejar de usarlos, «Desactivar» los conserva.') }}</p></div></div>
+  <div class="field"><label for="bulk-del-word">{{ _f('Escriba {0} para confirmar', _('ELIMINAR')) }}</label><div class="input"><input id="bulk-del-word" autocomplete="off" data-expect="{{ _('ELIMINAR') }}"></div></div>
+  <div class="row end"><button type="button" class="btn ghost" data-close>{{ _('Cancelar') }}</button><button class="btn dzf" id="bulk-del-go" disabled></button></div>
+</form></dialog>
+{% endif %}
 {% endif %}
 <script>
 (function () {
-  const T = {{ {'one': _('{0} seleccionado'), 'many': _('{0} seleccionados')}|tojson }};
+  const T = {{ {'one': _('{0} seleccionado'), 'many': _('{0} seleccionados'), 'del1': _('¿Eliminar {0}?'), 'deln': _('¿Eliminar {0} equipos?'),
+    'more': _('y {0} más'), 'go1': _('Eliminar equipo'), 'gon': _('Eliminar {0} equipos')}|tojson }};
   const table = document.getElementById('devtable'), bulk = document.getElementById('bulk');
   const rows = Array.from(table.querySelectorAll('tbody tr.click'));
   const boxes = rows.map(r => r.querySelector('input[name=ids]')).filter(Boolean);
@@ -118,6 +134,65 @@
   boxes.forEach(b => b.addEventListener('change', sync));
   // «todos»: los equipos que deja el filtro, también los de otras páginas del paginador
   if (all) all.addEventListener('change', () => { boxes.forEach(b => { if (!b.closest('tr').classList.contains('pg-out')) b.checked = all.checked; }); sync(); });
+  // «Eliminar…»: el diálogo lleva los equipos elegidos y sus nombres
+  const delBtn = document.querySelector('[data-dialog="bulk-del-dlg"]');
+  if (delBtn) delBtn.addEventListener('click', () => {
+    const on = boxes.filter(b => b.checked), names = on.map(b => b.dataset.name);
+    document.getElementById('bulk-del-ids').innerHTML = '';
+    on.forEach(b => { const i = document.createElement('input'); i.type = 'hidden'; i.name = 'ids'; i.value = b.value; document.getElementById('bulk-del-ids').appendChild(i); });
+    document.getElementById('bulk-del-t').textContent = (on.length === 1 ? T.del1 : T.deln).replace('{0}', on.length === 1 ? names[0] : on.length);
+    document.getElementById('bulk-del-names').textContent = names.slice(0, 12).join(', ') + (names.length > 12 ? ' ' + T.more.replace('{0}', names.length - 12) : '');
+    document.getElementById('bulk-del-go').textContent = (on.length === 1 ? T.go1 : T.gon).replace('{0}', on.length);
+  });
+  // ---- Ping: tres paquetes desde el servidor; la ventanita dice si responde, la pérdida y el tiempo medio
+  const PT = {{ {'title': _('Ping a {0}'), 'run': _('Enviando 3 paquetes…'), 'ok': _('Responde'), 'bad': _('No responde'),
+    'loss': _('Pérdida'), 'avg': _('Tiempo medio'), 'again': _('Repetir'), 'close': _('Cerrar'), 'more': _('Abrir en Herramientas')}|tojson }};
+  let pop = null, prun = null;
+  const pesc = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c]);
+  function pclose() { if (pop) { pop.remove(); pop = null; } if (prun) { fetch('/console/tools/stop', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({run: prun})}); prun = null; } }
+  function ping(btn) {
+    pclose();
+    const host = btn.dataset.ping, run = 'p' + Date.now().toString(36);
+    pop = document.createElement('div'); pop.className = 'pingpop'; pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', PT.title.replace('{0}', btn.dataset.name));
+    pop.innerHTML = `<div class="ph"><b>${pesc(PT.title.replace('{0}', btn.dataset.name))}</b><span class="mono muted sm">${pesc(host)}</span>` +
+      `<button type="button" class="btn icon s ghost" data-pclose aria-label="${pesc(PT.close)}">×</button></div>` +
+      `<div class="pres" aria-live="polite"><span class="pill">${pesc(PT.run)}</span></div><pre class="pout"></pre>` +
+      `<div class="pf"><button type="button" class="btn s" data-pagain>${pesc(PT.again)}</button><a class="btn s ghost" href="/console#herramientas">${pesc(PT.more)}</a></div>`;
+    document.body.appendChild(pop);
+    const r = btn.getBoundingClientRect(), w = pop.offsetWidth;
+    pop.style.top = (scrollY + r.bottom + 6) + 'px'; pop.style.left = Math.max(8, Math.min(scrollX + r.right - w, scrollX + innerWidth - w - 8)) + 'px';
+    pop.querySelector('[data-pagain]').addEventListener('click', () => ping(btn));
+    pop.querySelector('[data-pclose]').addEventListener('click', pclose);
+    const mine = pop, out = pop.querySelector('.pout'), res = pop.querySelector('.pres');
+    prun = run; let buf = '';
+    fetch('/console/tools', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({tool: 'ping', target: host + ' -c 3', run: run})}).then(resp => {
+      if (!resp.ok || (resp.headers.get('content-type') || '').includes('json')) return resp.json().then(j => { res.innerHTML = `<span class="pill crit">${pesc(j.error || 'HTTP ' + resp.status)}</span>`; });
+      const rd = resp.body.getReader(), dec = new TextDecoder();
+      const step = () => rd.read().then(x => {
+        if (pop !== mine) return;
+        if (x.done) { if (prun === run) prun = null; return; }
+        buf += dec.decode(x.value, {stream: true});
+        const cut = buf.indexOf('\x1e');
+        out.textContent = (cut >= 0 ? buf.slice(0, cut) : buf).trim().split('\n').slice(-6).join('\n');
+        if (cut >= 0) {
+          try {
+            const j = JSON.parse(buf.slice(cut + 1)), S = Object.fromEntries(j.summary || []);
+            const n = parseInt(S[Object.keys(S).find(k => /^(Respuestas|Replies)$/.test(k))] || '0', 10);
+            const vals = (j.summary || []).filter(s => s[0] === PT.loss || s[0] === PT.avg).map(s => pesc(s[0]) + ' ' + pesc(s[1])).join(' · ');
+            res.innerHTML = `<span class="pill ${n ? 'ok' : 'crit'}">${pesc(n ? PT.ok : PT.bad)}</span><span class="muted sm">${vals}</span>`;
+          } catch (e) { /* aún no llegó entero */ }
+        }
+        return step();
+      });
+      return step();
+    }).catch(e => { res.innerHTML = `<span class="pill crit">${pesc(e)}</span>`; });
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-ping]'); if (b) { e.preventDefault(); ping(b); return; }
+    if (pop && !e.target.closest('.pingpop')) pclose();
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && pop) pclose(); });
   const clear = document.getElementById('bulk-clear');
   if (clear) clear.addEventListener('click', () => { boxes.forEach(b => { b.checked = false; }); sync(); });
   rows.forEach(r => r.addEventListener('click', e => {  // la fila entera abre el equipo

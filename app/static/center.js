@@ -608,8 +608,26 @@
     var b = e.target.closest('button'); if (!b) return; tool = b.dataset.t;
     Array.prototype.forEach.call(this.children, function (c) { c.classList.toggle('on', c === b); });
     $('tl-port-w').hidden = tool !== 'tcp';
-    Array.prototype.forEach.call(document.querySelectorAll('.tl-help'), function (h) { h.hidden = h.dataset.for !== tool; });
+    Array.prototype.forEach.call(document.querySelectorAll('.tl-params'), function (h) { h.hidden = h.dataset.for !== tool; });
+    paramState();
   });
+  // botones de parámetros: se agregan a la línea después de la IP o el nombre; tocarlo otra vez lo quita. Si lleva valor de
+  // ejemplo («-n 10»), el valor queda elegido para cambiarlo escribiendo encima.
+  var argRe = function (a) { var f = a.split(' ')[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); return new RegExp('(^|\\s)' + f + (a.indexOf(' ') > 0 ? '\\s+\\S+' : '') + '(?=\\s|$)'); };
+  function paramState() {
+    var v = $('tl-target').value;
+    Array.prototype.forEach.call(document.querySelectorAll('.tl-params:not([hidden]) [data-arg]'), function (b) { b.setAttribute('aria-pressed', String(argRe(b.dataset.arg).test(v))); });
+  }
+  document.querySelector('#t-herramientas').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-arg]'); if (!b) return;
+    var inp = $('tl-target'), v = inp.value, a = b.dataset.arg, re = argRe(a);
+    if (re.test(v)) { inp.value = v.replace(re, '').replace(/\s{2,}/g, ' ').trim(); inp.focus(); paramState(); return; }
+    v = v.replace(/\s+$/, ''); inp.value = (v ? v + ' ' : '') + a; inp.focus();
+    var sp = a.indexOf(' ');  // el valor de ejemplo, elegido para escribir encima
+    if (sp > 0) inp.setSelectionRange(inp.value.length - (a.length - sp - 1), inp.value.length); else inp.setSelectionRange(inp.value.length, inp.value.length);
+    paramState();
+  });
+  $('tl-target').addEventListener('input', paramState);
   function toolColors(s) {
     return esc(s).replace(/(\b\d{1,3}(?:\.\d{1,3}){3}\b)/g, '<span class="k-ip">$1</span>').replace(/(\d+(?:\.\d+)?\s?ms)/g, '<span class="k-val">$1</span>')
       .replace(/\b(abierto|open|0% packet loss|0% perdidos)\b/gi, '<span class="k-ok">$1</span>').replace(/(\d+% (?:packet )?loss|no responde|timed out|\* \* \*|Unreachable)/gi, '<span class="k-bad">$1</span>');
