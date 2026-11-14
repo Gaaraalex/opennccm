@@ -13,7 +13,6 @@ from collections import defaultdict
 from datetime import timedelta
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import defer
 
 from . import eol
 from .db import ChangeRequest, ComplianceResult, Device, Rule, SessionLocal, Vulnerability, now
@@ -33,8 +32,11 @@ def summary(scope: set[int] | None, is_admin: bool = False, server: dict | None 
     """eol_rows: eol.report(scope) ya calculado (el panel lo usa también: así se calcula una sola vez)."""
     since = now() - timedelta(hours=24)
     with SessionLocal() as db:
-        devs = [d for d in db.scalars(select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)
-                                      .options(*(defer(c, raiseload=False) for c in eol.HEAVY)))
+        # solo las columnas que se usan (crear miles de objetos Device era lo lento con varios usuarios a la vez)
+        devs = [d for d in db.execute(select(Device.id, Device.name, Device.host, Device.enabled, Device.last_status,
+                                             Device.last_backup_at, Device.last_error, Device.baseline_drift,
+                                             Device.startup_conflict)
+                                      .where(Device.retired_at.is_(None)).order_by(Device.name))
                 if _in(scope, d.id) and d.enabled]
         ids = {d.id for d in devs}
         # contados en la base por equipo y gravedad (con miles de equipos, recorrer cada resultado era lo lento)
@@ -55,7 +57,7 @@ def summary(scope: set[int] | None, is_admin: bool = False, server: dict | None 
         vuln_devs = {v.device_id for v in vulns}
         crit_cves = len({v.cve_id for v in vulns if v.severity == "CRITICAL"})
         pending = sum(1 for _c in db.scalars(select(ChangeRequest.id).where(ChangeRequest.status == "pending")))
-    unsupported = {d.id for d, _e, st in (eol.report(scope) if eol_rows is None else eol_rows)
+    unsupported = {d.id for d, _e, st in (eol.light(scope) if eol_rows is None else eol_rows)
                    if st in ("sin_soporte", "fin_mantenimiento") and d.id in ids}
     total = len(devs)
     backed = sum(1 for d in devs if d.last_status == "ok" and d.last_backup_at and d.last_backup_at >= since)

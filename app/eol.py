@@ -86,6 +86,26 @@ def report(device_ids: set[int] | None = None) -> list[tuple[Device, EolEntry | 
         return rows
 
 
+def light(device_ids: set[int] | None = None) -> list[tuple]:
+    """Como report(), pero cada equipo es una fila con id, name, host, device_type y model (sin cargar el objeto entero):
+    para el panel y Dispositivos, que solo cuentan o nombran. Con 5.000 equipos, crear cada objeto era lo que más
+    tardaba con varios usuarios a la vez (prueba de carga, 2.44)."""
+    with SessionLocal() as db:
+        entries = list(db.scalars(select(EolEntry).order_by(EolEntry.id)))
+        rows = db.execute(select(Device.id, Device.name, Device.host, Device.device_type, Device.model)
+                          .where(Device.retired_at.is_(None)).order_by(Device.name)).all()
+    out, memo = [], {}
+    for d in rows:
+        if device_ids is not None and d.id not in device_ids:
+            continue
+        k = (d.device_type, d.model)
+        if k not in memo:
+            e = match_entry(d, entries)
+            memo[k] = (e, status(e))
+        out.append((d, *memo[k]))
+    return out
+
+
 def import_csv(text: str) -> tuple[int, list[str]]:
     """Columnas: vendor,model_pattern,end_of_sale,end_of_sw_maintenance,end_of_support,replacement,url"""
     created, errors = 0, []

@@ -1,5 +1,20 @@
 # Historial de versiones
 
+## 2.44.0
+- [nuevo] **Problemas de Zabbix junto a los cambios:** En la pestaña Versiones de cada equipo, una franja de 24 h, 7 o 30
+  días muestra juntos los cambios de configuración (v1, v2…), los problemas de Zabbix por gravedad y una métrica (latencia,
+  pérdida, CPU o memoria). La tabla de problemas dice qué cambio hubo justo antes de cada uno, con un enlace para
+  compararlo, y la línea de tiempo marca las versiones que tuvieron problemas poco después. Se activa en Ajustes › Zabbix
+  con un token de API (se guarda cifrado); funciona con Zabbix 6.0 a 7.4 y solo lee.
+- [nuevo] **Administración › Capacidad:** Dice cuánto aguanta el servidor con la red de hoy y qué conviene ampliar:
+  respaldos programados que no terminan a tiempo, días de disco que quedan, cuándo pasar a PostgreSQL, memoria y CPU. Muestra
+  la duración real de los últimos respaldos de muchos equipos y lo medido en la prueba de carga de cada versión.
+- [mejora] **Respaldos a la vez en «Respaldar todos»:** Se elige en Capacidad, de 1 a 16 (antes eran 4 fijos).
+- [mejora] **Redes grandes más rápidas:** Probado con hasta 5.000 equipos simulados. Con más de 400 equipos, Dispositivos y
+  el mapa de Cumplimiento llegan por páginas desde el servidor; el Panel, Dispositivos y Cumplimiento cargan varias veces
+  más rápido y pesan mucho menos; Buscar en configs muestra los 100 primeros equipos y cuenta el resto, y el progreso de
+  «Respaldar todos» ya no envía la lista entera cada 2 segundos.
+
 ## 2.43.0
 - [seguridad] **Consola: las contraseñas ya no quedan en las grabaciones:** Lo que se escribe cuando el equipo pide una
   contraseña («Password:» de enable, «Contraseña:»…) va al equipo pero no a la grabación: queda `********` al reproducirla,

@@ -587,11 +587,16 @@ def dashboard(request: Request):
                                  Device.id).order_by(Device.name)).all()
         week_ago = now() - timedelta(days=7)
         # fecha de alta de cada equipo = la de su primera versión respaldada
+        # (el filtro por tipo, que no cambia el resultado, hace que la base use el índice tipo + fecha: sin él recorría
+        # la tabla de copias con su texto y tardaba más de un segundo con 5.000 equipos; prueba de carga, 2.44)
         first = dict(db.execute(select(ConfigVersion.device_id, func.min(ConfigVersion.created_at))
+                                .where(ConfigVersion.kind.in_(["running", "startup"]))
                                 .group_by(ConfigVersion.device_id)).all())
         added = [first.get(d.id) for d in devs]
         new_week = sum(1 for a in added if a and a >= week_ago)
-        dev_trend = [sum(1 for a in added if a and a <= now() - timedelta(weeks=w)) for w in range(7, -1, -1)]
+        cuts = [now() - timedelta(weeks=w) for w in range(7, -1, -1)]  # una vez (no por cada equipo)
+        added = [a for a in added if a]
+        dev_trend = [sum(1 for a in added if a <= c) for c in cuts]
         backed24 = sum(1 for d in devs if d.last_status == "ok" and d.last_backup_at and d.last_backup_at >= since)
         names = lambda ds: ", ".join(d.name for d in ds[:2]) + (f" +{len(ds) - 2}" if len(ds) > 2 else "")  # noqa: E731
         err_names = names([d for d in devs if d.last_status == "error"])
@@ -602,7 +607,7 @@ def dashboard(request: Request):
         crit_cves = db.scalar(scoped(select(func.count(Vulnerability.id)).where(Vulnerability.severity == "CRITICAL"),
                                      Vulnerability.device_id)) or 0
     from . import eol as eol_mod, health
-    eol_rows = eol_mod.report(scope)  # una sola vez para el panel, la salud de la red y los indicadores
+    eol_rows = eol_mod.light(scope)  # una sola vez para el panel, la salud de la red y los indicadores
     data = reports.analytics(scope, 30, eol_rows)
     unsupported = [(d, e) for d, e, st in eol_rows if st in ("sin_soporte", "fin_mantenimiento")]
     comp = round(100 * cpass / (cpass + cfail)) if (cpass + cfail) else None
@@ -677,8 +682,7 @@ def devices(request: Request, q: str = "", group: int = 0, status: str = "", bra
     user = require(request)
     with SessionLocal() as db:
         # la lista no usa los textos grandes de cada equipo (inventario, vecinos, puertos, licencia): no se leen
-        stmt = (select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)
-                .options(selectinload(Device.group), *(defer(c) for c in LIST_DEFER)))
+        stmt = select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)
         if q:
             like = f"%{q}%"
             stmt = stmt.where(or_(Device.name.ilike(like), Device.host.ilike(like), Device.model.ilike(like),
@@ -690,7 +694,7 @@ def devices(request: Request, q: str = "", group: int = 0, status: str = "", bra
             stmt = stmt.where(Device.node_id == node)
         from . import eol as eol_mod
         scope0 = device_scope(user)
-        unsupported = {d.id for d, _e, st in eol_mod.report(scope0) if st in ("sin_soporte", "fin_mantenimiento")}
+        unsupported = {d.id for d, _e, st in eol_mod.light(scope0) if st in ("sin_soporte", "fin_mantenimiento")}
         if status == "conflict":
             stmt = stmt.where(Device.startup_conflict.is_(True))
         elif status == "eol":
@@ -702,7 +706,9 @@ def devices(request: Request, q: str = "", group: int = 0, status: str = "", bra
         scope = device_scope(user)
         if scope is not None:
             stmt = stmt.where(Device.id.in_(scope))
-        devs = db.scalars(stmt).all()
+        # primero solo id y tipo de todos (marcas, recuentos y páginas); los objetos enteros, solo de los que se muestran:
+        # con miles de equipos, crear todos para dibujar 15 era lo lento (prueba de carga, 2.44)
+        devs = db.execute(stmt.with_only_columns(Device.id, Device.device_type)).all()
         from . import vendorlogos
         # marcas de los equipos de la lista (con los demás filtros, sin el de marca), de la que más tiene a la que menos
         bcount: dict[str, int] = {}
@@ -737,6 +743,10 @@ def devices(request: Request, q: str = "", group: int = 0, status: str = "", bra
         page = min(max(page, 1), pages)
         if paged:
             devs = devs[(page - 1) * per:page * per]
+        want = [d.id for d in devs]
+        objs = {d.id: d for d in db.scalars(select(Device).where(Device.id.in_(want or [0]))
+                                            .options(selectinload(Device.group), *(defer(c) for c in LIST_DEFER)))}
+        devs = [objs[i] for i in want if i in objs]
         latest_ids = select(func.max(ConfigVersion.id)).group_by(ConfigVersion.device_id)
         if paged:
             latest_ids = latest_ids.where(ConfigVersion.device_id.in_([d.id for d in devs]))
