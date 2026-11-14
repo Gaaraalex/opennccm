@@ -1,0 +1,53 @@
+{% extends "base.html" %}{% block title %}{{ _('Capacidad') }}{% endblock %}
+{% block crumbs %}<b>Administración</b>{% endblock %}
+{% block content %}
+{% include "_admin_tabs.html" %}
+{% set sv = s.server %}
+{% set sev_icon = {'crit': 'alert', 'major': 'alert', 'info': 'info', 'ok': 'check'} %}
+<div class="bento">
+  <section class="card c12" aria-labelledby="cap-adv"><div class="card-h"><h2 id="cap-adv">{{ _('Qué conviene hacer') }}</h2><span class="muted sm">{{ _('Según este servidor, la red de hoy y los respaldos medidos') }}</span></div>
+    <ul class="queue cap-adv">{% for a in adv %}
+      <li><span class="qi {{ 'crit' if a.sev == 'crit' else 'warn' if a.sev == 'major' else 'ok' if a.sev == 'ok' else 'info' }}">{{ icon(sev_icon[a.sev]) }}</span>
+        <div style="min-width:0"><div class="qt">{{ a.t }}</div><div class="qs">{{ a.d }}</div></div>
+        {% if a.conc %}<form method="post" action="/capacity/concurrency" class="inline"><input type="hidden" name="backup_concurrency" value="{{ a.conc }}"><button class="btn s sig">{{ _f('Usar {0} a la vez', a.conc) }}</button></form>{% else %}<span></span>{% endif %}</li>
+    {% endfor %}</ul></section>
+
+  <div class="c3"><div class="kpi static"><span class="label">{{ _('Equipos') }}</span><span class="v">{{ s.devices }}</span><span class="d">{{ _f('{0} activos · {1} versiones guardadas', s.active, s.versions) }}</span></div></div>
+  <div class="c3"><div class="kpi static {{ 'alert' if s.cycle_bulk_h > 1 }}"><span class="label">{{ _('«Respaldar todos» tarda') }}</span><span class="v">{{ hours(s.cycle_bulk_h) if s.active else '—' }}</span><span class="d">{{ _f('{0} a la vez · {1} s por equipo', s.conc, '%.1f'|format(s.per_dev)) }}{% if not s.measured %} · {{ _('estimado') }}{% endif %}</span></div></div>
+  <div class="c3"><div class="kpi static {{ 'alert' if s.days_left is not none and s.days_left < 90 }}"><span class="label">{{ _('Disco libre para') }}</span><span class="v">{% if s.days_left is none %}—{% elif s.days_left > 3650 %}{{ _('+10 años') }}{% else %}{{ _f('{0} días', s.days_left|int) }}{% endif %}</span><span class="d">{{ _f('{0} libres · crece {1} al día', hb(sv.disk_free), hb(s.growth_day)) }}</span></div></div>
+  <div class="c3"><div class="kpi static"><span class="label">{{ _('Base de datos') }}</span><span class="v">{{ s.engine }}</span><span class="d">{% if s.db_size is not none %}{{ _f('{0} en disco', hb(s.db_size)) }}{% else %}{{ _('tamaño no disponible') }}{% endif %}</span></div></div>
+
+  <section class="card c7" aria-labelledby="cap-bk"><div class="card-h"><h2 id="cap-bk">{{ _('Respaldos de muchos equipos') }}</h2></div>
+    {% if s.cycles %}<div class="tw"><table class="t"><thead><tr><th>{{ _('Cuándo') }}</th><th>{{ _('Tipo') }}</th><th style="text-align:right">{{ _('Equipos') }}</th><th style="text-align:right">{{ _('Duración') }}</th><th style="text-align:right">{{ _('Tiempo por equipo') }}</th><th style="text-align:right">{{ _('A la vez') }}</th><th style="text-align:right">{{ _('Fallos') }}</th></tr></thead><tbody>
+      {% for c in s.cycles %}<tr><td class="nowrap">{{ c.at|replace('T', ' ')|truncate(16, True, '') }}</td><td>{{ _('Respaldar todos') if c.kind == 'bulk' else _('Programado') }}</td><td class="num" style="text-align:right">{{ c.total }}</td><td class="num" style="text-align:right">{{ hours(c.secs / 3600) }}</td><td class="num" style="text-align:right">{{ '%.1f'|format(c.per_dev) }} s</td><td class="num" style="text-align:right">{{ c.conc }}</td><td class="num" style="text-align:right">{{ c.err or '—' }}</td></tr>{% endfor %}
+    </tbody></table></div>
+    {% else %}<p class="muted sm">{{ _('Aún no hay respaldos de muchos equipos medidos. Aparecen aquí después de cada «Respaldar todos» y de cada respaldo programado.') }}</p>{% endif %}
+    <form method="post" action="/capacity/concurrency" class="row" style="margin-top:14px;gap:10px;flex-wrap:wrap">
+      <label for="cap-conc" class="b sm">{{ _('Respaldos a la vez en «Respaldar todos»') }}</label>
+      <div class="input" style="width:110px"><select id="cap-conc" name="backup_concurrency">{% for n in range(1, 17) %}<option value="{{ n }}" {{ 'selected' if n == s.conc }}>{{ n }}</option>{% endfor %}</select></div>
+      <button class="btn s">{{ icon('save', 's') }}{{ _('Guardar') }}</button>
+      <span class="muted sm" style="flex-basis:100%">{{ _f('Más a la vez termina antes, pero usa más CPU y más conexiones SSH simultáneas. Los respaldos programados usan los hilos del servicio (NCM_WORKERS = {0}).', s.workers) }}{% if s.sched_h %} {{ _f('Tarea programada más frecuente: «{0}», cada {1}; un ciclo completo tarda unas {2}.', s.sched_name, hours(s.sched_h), hours(s.cycle_sched_h)) }}{% endif %}</span>
+    </form></section>
+
+  <section class="card c5" aria-labelledby="cap-srv"><div class="card-h"><h2 id="cap-srv">{{ _('Este servidor') }}</h2><a class="btn s ghost" href="/system">{{ _('Rendimiento') }} {{ icon('right', 's') }}</a></div>
+    <dl class="kv">
+      <dt>{{ _('CPU') }}</dt><dd>{{ pl(sv.cpus, '{0} núcleo', '{0} núcleos') }}</dd>
+      <dt>{{ _('Memoria RAM') }}</dt><dd>{{ _f('{0} en total · {1} % en uso', hb(sv.mem_total), '%.0f'|format(sv.mem_pct)) }}</dd>
+      <dt>{{ _('OpenNCCM usa') }}</dt><dd>{{ hb(sv.app_rss) }}</dd>
+      <dt>{{ _('Disco') }}</dt><dd>{{ _f('{0} libres de {1}', hb(sv.disk_free), hb(sv.disk_total)) }}</dd>
+      <dt>{{ _('Datos de OpenNCCM') }}</dt><dd>{{ hb(sv.data_size) }}</dd>
+      <dt>{{ _('Versiones nuevas') }}</dt><dd>{{ _f('{0} en los últimos 30 días', s.new_30d) }}</dd>
+      <dt>{{ _('Conservar por equipo') }}</dt><dd>{% if s.retention %}{{ _f('las últimas {0} versiones', s.retention) }}{% else %}{{ _('todas') }}{% endif %} · <a href="/settings#flujo">{{ _('Cambiar') }}</a></dd>
+    </dl></section>
+
+  <section class="card c12" aria-labelledby="cap-ref"><div class="card-h"><h2 id="cap-ref">{{ _('Medido en la prueba de carga') }}</h2>{% if ref %}<span class="muted sm">{{ _f('OpenNCCM {0} · {1} núcleos, {2} GB de RAM, {3}', ref.meta.version, ref.meta.cpus, ref.meta.ram_gb, ref.meta.db|replace('sqlite', 'SQLite')) }}</span>{% endif %}</div>
+    {% if ref %}
+    <p class="muted sm" style="margin:-4px 0 12px">{{ _f('Cada versión se prueba con equipos simulados por SSH, por escalones, en un servidor de integración continua: «Respaldar todos» de verdad con {0} a la vez, cada página la primera vez y con {1} usuarios a la vez. En una red real el tiempo por equipo depende de la latencia y de cada equipo; la fila resaltada es la más parecida a esta instalación.', ref.meta.concurrency, ref.steps[0].concurrent.users) }}</p>
+    <div class="tw"><table class="t cap-ref"><thead><tr><th style="text-align:right">{{ _('Equipos') }}</th><th style="text-align:right">{{ _('Respaldar todos') }}</th><th style="text-align:right">{{ _('Equipos por minuto') }}</th><th style="text-align:right">{{ _('Memoria máxima') }}</th><th style="text-align:right">{{ _('Base de datos') }}</th><th>{{ _('Página más lenta') }}</th><th style="text-align:right">{{ _('Varios usuarios (p95)') }}</th></tr></thead><tbody>
+      {% for r in ref.steps %}{% set slow = r.pages|sort(attribute='median')|last %}
+      <tr{% if r.devices == near %} class="cap-near" aria-current="true"{% endif %}><td class="num" style="text-align:right"><b>{{ r.devices }}</b></td>{% if r.backup.secs %}<td class="num" style="text-align:right">{{ hours(r.backup.secs / 3600) }}</td><td class="num" style="text-align:right">{{ r.backup.per_min|int }}</td>{% else %}<td class="muted" style="text-align:right">—</td><td class="muted" style="text-align:right">—</td>{% endif %}<td class="num" style="text-align:right">{{ [r.backup.rss_max_mb, r.rss_mb]|max|int }} MB</td><td class="num" style="text-align:right">{{ r.db.db_mb|int }} MB</td><td>{{ _(slow.page) }} · {{ '%.2f'|format(slow.median) }} s</td><td class="num" style="text-align:right">{{ '%.2f'|format(r.concurrent.p95) }} s</td></tr>{% endfor %}
+    </tbody></table></div>
+    {% else %}<p class="muted sm">{{ _('Esta instalación no trae los resultados de la prueba de carga.') }}</p>{% endif %}
+  </section>
+</div>
+{% endblock %}

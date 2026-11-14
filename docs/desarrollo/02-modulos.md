@@ -8,18 +8,19 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 
 | Archivo | Líneas | Qué hace |
 |---|---:|---|
-| `app/main.py` | 3877 | Aplicación web OpenNCCM (FastAPI). |
-| `app/web.py` | 486 | Utilidades compartidas por las rutas web. |
+| `app/main.py` | 3962 | Aplicación web OpenNCCM (FastAPI). |
+| `app/web.py` | 487 | Utilidades compartidas por las rutas web. |
 | `app/auth.py` | 173 | Sesión, roles y alcance: |
 | `app/perms.py` | 169 | Permisos por usuario: |
 | `app/config.py` | 30 | Configuración del proceso por variables de entorno (NCM_*): |
 | `app/db.py` | 751 | Base de datos: |
 | `app/crypto.py` | 118 | Cifrado AES-256-GCM de credenciales y configuraciones almacenadas. |
 | `app/i18n.py` | 300 | Idiomas de la interfaz. |
-| `app/scheduler.py` | 258 | Tareas programadas (cron) y receptor syslog para detección de cambios en tiempo real. |
+| `app/scheduler.py` | 263 | Tareas programadas (cron) y receptor syslog para detección de cambios en tiempo real. |
 | `app/cli.py` | 226 | Utilidades de línea de comandos. |
 | `app/errors.py` | 36 | Motivo corto y traducido de un error de conexión o de respaldo (Panel «Necesita tu atención», chat del asistente). |
 | `app/metrics.py` | 73 | Rendimiento del servidor para el panel: |
+| `app/capacity.py` | 202 | Página Administración › Capacidad, que dice cuánto aguanta este servidor con la red de hoy y qué conviene ampliar. |
 | `app/security.py` | 142 | Verificación en dos pasos (TOTP), certificado propio del sitio y páginas públicas de privacidad y licencias. |
 | `app/systime.py` | 93 | Fecha, hora y zona horaria del servidor (timedatectl). |
 | `app/updates.py` | 145 | Aviso de versiones nuevas y actualización desde la web. |
@@ -42,7 +43,7 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 | `app/fireware_web.py` | 196 | Feature key de WatchGuard (Fireware) en el formato que se pega para restaurarla. |
 | `app/fxi.py` | 772 | WatchGuard Fireware: |
 | `app/licenses.py` | 127 | Vencimiento de los servicios de la licencia guardada de cada equipo (Profile.license_cmd: |
-| `app/bulkbackup.py` | 223 | «Respaldar todos» (y un grupo o los marcados) con su progreso: |
+| `app/bulkbackup.py` | 234 | «Respaldar todos» (y un grupo o los marcados) con su progreso: |
 | `app/retire.py` | 253 | Equipos retirados (Dispositivos › Retirados): |
 | `app/restore.py` | 222 | Restaurar una copia de seguridad (versión de configuración) en otro equipo del mismo modelo. |
 
@@ -94,7 +95,7 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 | `app/netdoc.py` | 624 | Documento de la red (Informes › Documento de la red): |
 | `app/reports.py` | 218 | Informes tabulares (CSV en pantalla, descarga y envío programado por correo) y analítica. |
 | `app/charts.py` | 248 | Gráficas SVG generadas en el servidor (sin librerías externas). |
-| `app/health.py` | 121 | Panel: |
+| `app/health.py` | 132 | Panel: |
 
 ## Firmware, CVE y ciclo de vida
 
@@ -103,7 +104,7 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 | `app/firmware.py` | 692 | Actualización remota de firmware: |
 | `app/fwupdates.py` | 748 | Actualizaciones de firmware de los equipos: |
 | `app/fwverify.py` | 170 | Versión instalada leída del propio equipo, sin respaldar, y comprobación después de actualizar el firmware. |
-| `app/eol.py` | 147 | Fin de venta / fin de soporte (EOL/EOS): |
+| `app/eol.py` | 155 | Fin de venta / fin de soporte (EOL/EOS): |
 
 ## Integraciones
 
@@ -111,6 +112,7 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 |---|---:|---|
 | `app/extauth.py` | 279 | Inicio de sesión con directorios externos: |
 | `app/zabbix.py` | 189 | Importar equipos desde Zabbix (API JSON-RPC, versiones 6.0 a 7.x). |
+| `app/zbxcorr.py` | 260 | Correlación con Zabbix, que muestra los problemas y algunas métricas de Zabbix junto a la línea de tiempo de cambios de cada equipo, para ver de un vistazo si un problema empezó justo después de un cambio de configuración. |
 | `app/gitexport.py` | 145 | Copia de los respaldos en un repositorio Git (GitHub, GitLab, Gitea…): |
 | `app/vendorlogos.py` | 70 | Logos de marca de los equipos (diseño de Diseño UX, app/vendor_logos.json y static/vendor-logos/*.svg). |
 

@@ -122,7 +122,7 @@ def _hour_key(col):
     return func.to_char(col, "YYYY-MM-DD HH24")
 
 
-def analytics(scope: set[int] | None, days: int = 30) -> dict:
+def analytics(scope: set[int] | None, days: int = 30, eol_rows=None) -> dict:
     """Indicadores del panel y de Analítica. Se cuentan en la base (GROUP BY) y se leen solo las columnas que hacen
     falta: con miles de equipos y copias, traer cada copia (con su texto) para contarla era lo que más tardaba."""
     since = now() - timedelta(days=days)
@@ -184,7 +184,7 @@ def analytics(scope: set[int] | None, days: int = 30) -> dict:
             by_version[f"{vendor} {osv}"] += n
     total_res = sum(t[0] for t in per_policy.values())
     changes = sum(n for _k, _t, n in hours)
-    eol_status = Counter(st for _, _, st in eol.report(scope))
+    eol_status = Counter(st for _, _, st in (eol.report(scope) if eol_rows is None else eol_rows))
     eol_counts = Counter({eol.STATUS_LABEL[k]: n for k, n in eol_status.items()})
     triggers = [t for t in ("manual", "scheduled", "syslog", "push") if by_trigger.get(t)]
     triggers += [t for t, _n in by_trigger.most_common() if t not in triggers]

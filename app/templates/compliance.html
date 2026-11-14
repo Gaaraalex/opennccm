@@ -11,10 +11,11 @@
 
 {% if matrix %}
 <section class="card flush"><div class="card-h"><h2>Mapa: equipo × política</h2><span class="muted sm">% de reglas cumplidas · clic para ver el equipo</span></div>
-  <div class="tw"><table class="t"><thead><tr><th>Equipo</th>{% for p in policies %}<th style="text-align:center" title="{{ p.name }}">{{ p.name|replace(' (IOS)', '')|replace(' (Junos)', '')|replace('Cisco IOS · ', '')|truncate(26) }}</th>{% endfor %}</tr></thead><tbody data-pager>
+  <div class="tw"><table class="t"><thead><tr><th>Equipo</th>{% for p in policies %}<th style="text-align:center" title="{{ p.name }}">{{ p.name|replace(' (IOS)', '')|replace(' (Junos)', '')|replace('Cisco IOS · ', '')|truncate(26) }}</th>{% endfor %}</tr></thead><tbody{% if not mpaged %} data-pager{% endif %}>
   {% for d, vals in matrix %}<tr class="click" data-href="/devices/{{ d.id }}#compliance"><td><div class="dev">{{ vlogo(vend[d.id], 30) }}{{ d.name }}</div></td>
     {% for v in vals %}<td style="text-align:center">{% if v is none %}<span class="muted sm">no aplica</span>{% else %}<span class="mc {{ 'ok' if v >= 90 else 'warn' if v >= 60 else 'crit' }}">{{ v }}%</span>{% endif %}</td>{% endfor %}</tr>{% endfor %}
   </tbody></table></div></section>
+  {% if mpaged %}{% from "_pager.html" import pager %}{{ pager(page, pages, per, shown, '') }}{% endif %}
 {% endif %}
 
 <div class="row between"><h2>{{ _f('Políticas ({0})', policies|length) }}</h2><span class="muted sm">Cada política agrupa reglas regex que se comprueban en la configuración guardada.</span></div>
@@ -27,14 +28,15 @@
       {% if fails %}<span class="pill crit">{{ _f('{0} infracciones', fails) }}</span>{% elif st.ok %}<span class="pill ok">Cumple</span>{% else %}<span class="pill">Sin datos</span>{% endif %}
       {% if is_admin %}<a class="btn s ghost" href="/compliance/policies/{{ p.id }}" data-sheet data-wide data-title="Editar política">{{ icon('edit', 's') }}Editar</a>{% else %}<span></span>{% endif %}</summary>
     {% set ns = namespace(ok=0) %}<div>{% for r in p.rules %}{% set rf = fails_by_rule.get(r.id, []) %}{% if not rf %}{% set ns.ok = ns.ok + 1 %}{% else %}
-      <div class="rule">{{ sevtag(r.severity) }}<span>{{ r.name }}{% if not r.remediation %} <span class="muted">· {{ _('sin comandos de corrección') }}</span>{% endif %} {% set names = rf|map(attribute='device.name')|list %}<span class="muted sm" {% if names|length > 5 %}title="{{ names|join(', ') }}"{% endif %}>· {{ names[:5]|join(', ') }}{% if names|length > 5 %} {{ _f('y {0} más', names|length - 5) }}{% endif %}</span></span>
+      <div class="rule">{{ sevtag(r.severity) }}<span>{{ r.name }}{% if not r.remediation %} <span class="muted">· {{ _('sin comandos de corrección') }}</span>{% endif %} {% set names = rf|map(attribute='device.name')|list %}<span class="muted sm" {% if rf|length > 5 %}title="{{ names[:40]|join(', ') }}{{ ' …' if rf|length > 40 }}"{% endif %}>· {{ names[:5]|join(', ') }}{% if rf|length > 5 %} {{ _f('y {0} más', rf|length - 5) }}{% endif %}</span></span>
         {% if ai_top %}<button type="button" class="btn s ghost" data-ai="compliance" data-id="{{ rf[0].id }}" data-device="{{ rf[0].device_id }}" data-name="{{ rf[0].device.name }}" data-ask="{{ _('¿Cómo lo corrijo?') }}">✦ {{ _('¿Cómo lo corrijo?') }}</button>{% endif %}
         {% if r.remediation and can(user, 'push') %}{% set sv = rver.get(r.id|string) %}<span class="cfix-act">{{ w.vpill(sv, True) }}<button type="button" class="btn s" data-dialog="fix-{{ r.id }}">{{ _('Corregir') if rf|length == 1 else _f('Corregir en {0} equipos…', rf|length) }}</button></span>
         <dialog class="dlg cfix" id="fix-{{ r.id }}" aria-labelledby="fix-{{ r.id }}-h"><form method="post" action="/compliance/remediate-rule" class="stack">
           <div class="row nowrap"><span class="qi sig">{{ icon('wrench') }}</span><div class="grow"><h2 id="fix-{{ r.id }}-h">{{ _f('Corregir «{0}»', r.name) }}</h2><p class="muted sm" style="margin-top:4px">{{ _('Se crea una solicitud de cambio por cada equipo marcado · pasa por aprobación, con respaldo antes y después.') }}</p></div>{{ w.vpill(sv) }}</div>
           <pre class="cf-body mono">{{ r.remediation }}</pre>
           {% if rf|length > 1 %}<label class="row nowrap sm"><input type="checkbox" checked data-all><span>{{ _('Todos') }} (<span data-n>{{ rf|length }}</span>/{{ rf|length }})</span></label>{% endif %}
-          <div class="stack fixlist" style="max-height:min(40vh,300px);overflow:auto;gap:6px">{% for f in rf %}<label class="row nowrap sm"><input type="checkbox" name="result_id" value="{{ f.id }}" checked><span>{{ f.device.name }}</span></label>{% endfor %}</div>
+          {% if rf|length > fixlist_max %}<div class="stack fixlist" style="max-height:min(40vh,300px);overflow:auto;gap:6px" data-lazy="{{ r.id }}"><span class="muted sm">{{ _('Cargando los equipos…') }}</span></div>
+          {% else %}<div class="stack fixlist" style="max-height:min(40vh,300px);overflow:auto;gap:6px">{% for f in rf %}<label class="row nowrap sm"><input type="checkbox" name="result_id" value="{{ f.id }}" checked><span>{{ f.device.name }}</span></label>{% endfor %}</div>{% endif %}
           {{ w.warn_short(fix_issue_url(r.name, p.name, filter_words(p.device_type_filter), sv)) }}
           {{ w.ack(rf[0].device.name if rf|length == 1 else _('los equipos marcados')) }}
           <div class="row end"><button type="button" class="btn ghost" data-close>{{ _('Cancelar') }}</button><button class="btn pri" data-go data-needs-ack disabled>{{ _('Crear solicitud') if rf|length == 1 else _('Crear solicitudes') }}</button></div>
@@ -46,13 +48,25 @@
 <script>
 // «Corregir en N equipos…»: marcar o desmarcar todos y contar los marcados
 document.querySelectorAll('dialog[id^="fix-"] form').forEach(f => {
-  const all = f.querySelector('[data-all]'), boxes = [...f.querySelectorAll('input[name=result_id]')];
-  const sync = () => { const n = boxes.filter(b => b.checked).length, go = f.querySelector('[data-go]');
-    if (all) { f.querySelector('[data-n]').textContent = n; all.checked = n === boxes.length; all.indeterminate = n > 0 && n < boxes.length; }
+  const all = f.querySelector('[data-all]'), boxes = () => [...f.querySelectorAll('input[name=result_id]')];
+  const sync = () => { const bs = boxes(), n = bs.filter(b => b.checked).length, go = f.querySelector('[data-go]');
+    if (all) { f.querySelector('[data-n]').textContent = n; all.checked = n === bs.length; all.indeterminate = n > 0 && n < bs.length; }
     if (n) go.removeAttribute('data-blocked'); else go.setAttribute('data-blocked', '');
     if (window.ocAckSync) window.ocAckSync(go); else go.disabled = !n; };
-  if (all) all.addEventListener('change', () => { boxes.forEach(b => { b.checked = all.checked; }); sync(); });
-  boxes.forEach(b => b.addEventListener('change', sync));
+  if (all) all.addEventListener('change', () => { boxes().forEach(b => { b.checked = all.checked; }); sync(); });
+  f.addEventListener('change', e => { if (e.target.name === 'result_id') sync(); });
+  // con muchos equipos la lista se pide al abrir el cuadro (no viaja en la página)
+  const lazy = f.querySelector('[data-lazy]');
+  if (lazy) document.querySelectorAll('[data-dialog="' + f.closest('dialog').id + '"]').forEach(b => b.addEventListener('click', () => {
+    if (lazy.dataset.done) return;
+    lazy.dataset.done = '1';
+    fetch('/compliance/rules/' + lazy.dataset.lazy + '/fails', {credentials: 'same-origin'}).then(r => r.json()).then(rows => {
+      lazy.textContent = '';
+      rows.forEach(([id, name]) => { const l = document.createElement('label'); l.className = 'row nowrap sm';
+        l.innerHTML = '<input type="checkbox" name="result_id" checked><span></span>'; l.firstChild.value = id; l.lastChild.textContent = name; lazy.appendChild(l); });
+      sync();
+    }).catch(() => { lazy.dataset.done = ''; lazy.textContent = {{ _('No se pudo cargar la lista. Cierra y vuelve a abrir.')|tojson }}; });
+  }));
 });
 document.querySelectorAll('tr.click[data-href]').forEach(tr => tr.addEventListener('click', () => { location.href = tr.dataset.href; }));
 </script>

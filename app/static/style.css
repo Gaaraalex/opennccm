@@ -663,3 +663,24 @@ svg.viz{font-family:var(--font-sans)}svg.viz text.value,svg.viz .axis text{font-
 .pingpop .pres{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-height:24px}
 .pingpop .pout{margin:0;max-height:120px;overflow:auto;padding:8px 10px;border-radius:8px;background:var(--surface-2);font:400 11.5px/16px var(--f-mono);white-space:pre-wrap;word-break:break-all;color:var(--ink-2)}
 .pingpop .pout:empty{display:none}.pingpop .pf{display:flex;gap:8px;justify-content:flex-end}
+/* Ficha del equipo › Versiones: cambios y problemas en Zabbix (static/zbxcorr.js) */
+.zbx{margin-bottom:16px}.zbx .card-h{flex-wrap:wrap;gap:8px}
+.zbx-sum{font-size:13.5px;margin:0 0 10px}.zbx-sum .zbx-rel{color:var(--crit)}
+.zbx-met{margin:0 0 8px}
+.zbx-chart{width:100%;overflow:hidden}.zbx-chart svg{display:block}
+.zbx-chart .zg{stroke:var(--line);stroke-width:1}
+.zbx-chart .zt{fill:var(--muted);font:500 11px var(--f-sans)}
+.zbx-chart .zcv{fill:var(--text);font-weight:700}
+.zbx-chart .zm{fill:none;stroke:var(--brand);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.zbx-chart .zcl{stroke:var(--text);stroke-width:1.5;stroke-dasharray:3 3;opacity:.75}.zbx-chart .zcl.same{opacity:.3}
+.zbx-chart .zc{cursor:pointer;outline:none}.zbx-chart .zc:hover .zcl,.zbx-chart .zc:focus .zcl{opacity:1;stroke-width:2.5}
+.zbx-chart .zp{outline:none}.zbx-chart .zp:focus rect:first-child{stroke:var(--text);stroke-width:1.5}
+.zbx-chart .zcur{stroke:var(--muted);stroke-width:1}
+.zbx-chart .zdot{fill:var(--brand);stroke:var(--surface);stroke-width:2}
+.zbx-leg{display:flex;flex-wrap:wrap;gap:6px 16px;margin:8px 0 12px}.zbx-leg span{display:inline-flex;align-items:center;gap:6px}
+.zbx-leg i{display:inline-block;width:12px;height:8px;border-radius:2px}
+.zbx-leg .zl-chg{width:0;height:12px;border-left:1.5px dashed var(--text);border-radius:0}
+.zbx-leg .zl-met{height:2px;background:var(--brand)}
+.zbx-t tr.zbx-hit td:first-child{box-shadow:inset 3px 0 0 var(--crit)}
+.tl .zbx-tag{cursor:help}.tl .zbx-tag.major{background:var(--major-soft);color:var(--major)}.tl .zbx-tag.warn{background:var(--warn-soft);color:var(--warn)}
+.cap-ref tr.cap-near td{background:var(--brand-soft)}.cap-adv .qs{white-space:normal}

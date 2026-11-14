@@ -159,7 +159,8 @@ grupo.</p>
   estado (ok, error, pendiente, startup ≠ running, fuera de línea base). Cada equipo lleva el <b>logo de su marca</b>; la fila
   <b>MARCA</b> muestra cuántos hay de cada una y filtra con un toque. El menú <b>Marca</b> muestra unas 12 a la vista, con
   barra para bajar y un buscador arriba («Buscar marca»).</li>
-  <li><b>Respaldar todos:</b> respalda todos los equipos (o los del grupo filtrado, o los marcados), 4 a la vez. Se ve el
+  <li><b>Respaldar todos:</b> respalda todos los equipos (o los del grupo filtrado, o los marcados), 4 a la vez (se cambia en
+    <b>Administración › Capacidad</b>, hasta 16). Se ve el
     progreso con su porcentaje: un panel con la barra, cuántos van correctos, con error, respaldándose y en cola, y quién se
     respalda ahora; cada fila de la lista dice su paso («Conectando…», «Leyendo la configuración…», «Guardando…») y se actualiza
     sola al terminar. El respaldo corre en el servidor: se puede salir de la página (la píldora con el porcentaje queda junto a
@@ -168,6 +169,8 @@ grupo.</p>
     con el puerto respondiendo, la base de OpenNCCM ocupada) se comprueba y se reintenta solo; si el equipo no responde o rechaza
     la contraseña, se avisa sin reintentar.</li>
   <li><b>Acciones de la fila:</b> al pasar el ratón aparecen respaldar, consola e interfaz web del equipo.</li>
+  <li><b>Redes grandes:</b> con más de 400 equipos, la lista llega por páginas desde el servidor (15, 25, 50 o 100 por página),
+  para que abra al instante aunque haya miles. El buscador busca entonces en todos los equipos al pulsar <b>Intro</b>.</li>
   <li><b>Acciones masivas:</b> marque varias filas y use la barra inferior para respaldarlas, auditarlas, moverlas a un grupo o
   <b>asignarlas a un nodo</b> (administradores).</li>
   <li><b>+ Agregar</b> (admin): <b>Agregar un equipo</b> abre el formulario de alta en un panel lateral; <b>Importar CSV</b>
@@ -558,6 +561,25 @@ en el momento (<code>/system backup save</code>), OpenNCCM lo trae por SFTP y lo
 contraseña para cifrarlo. El .backup incluye usuarios y contraseñas y solo se restaura en el mismo modelo; para pasar la
 configuración a otro equipo, use el .rsc. El usuario de la credencial necesita la política <i>ftp</i> (SFTP).</p>
 <figure><img src="img/06-version.png" class="tall"><figcaption>Vista de una versión con sus acciones.</figcaption></figure>
+<h2 id="zabbix-cambios">Cambios y problemas en Zabbix</h2>
+<p>Si la red se vigila con Zabbix, la pestaña <b>Versiones</b> de cada equipo muestra, en una sola franja de tiempo, sus
+<b>cambios de configuración</b> (líneas <i>vN</i>), los <b>problemas de Zabbix</b> (barras por gravedad: desastre, alta, media,
+aviso, información) y una <b>métrica</b> (latencia y pérdida del ping, CPU o memoria, la que tenga el host). Así se ve de un
+vistazo si un problema empezó justo después de que alguien cambiara algo.</p>
+<ul>
+  <li>Se elige el periodo: <b>24 h</b>, <b>7 días</b> o <b>30 días</b>. Al pasar el puntero sobre la métrica se ven el valor y
+  los problemas abiertos en ese momento; un clic en una línea <i>vN</i> abre esa versión.</li>
+  <li>Debajo, la tabla de problemas: gravedad, nombre (abre el evento en Zabbix), cuándo empezó, cuánto duró (o «Sigue
+  abierto») y el <b>cambio justo antes</b>: la última versión con diferencias guardada hasta 2 horas antes de que empezara el
+  problema, con un enlace que compara esa versión con la anterior.</li>
+  <li>En la línea de tiempo de versiones, las que tuvieron problemas poco después llevan la etiqueta «N problemas en Zabbix».</li>
+  <li>El equipo se busca en Zabbix por su dirección (una interfaz con esa IP o nombre DNS) y, si no, por su nombre. Si no
+  está, la tarjeta lo dice con lo que buscó. Si Zabbix no responde, la ficha abre igual y solo esa tarjeta avisa.</li>
+</ul>
+<p>Se activa en <b>Administración › Ajustes › Zabbix</b> con la dirección de la interfaz web y un <b>token de API</b> (basta un
+usuario de solo lectura que vea los hosts; el token se guarda cifrado). <b>Probar conexión</b> dice la versión de Zabbix y
+cuántos hosts ve el token. Funciona con Zabbix 6.0 a 7.4 y solo lee: OpenNCCM no cambia nada en Zabbix.</p>
+<figure><img src="img/05d-zabbix-cambios.png"><figcaption>Cambios y problemas en Zabbix: el problema «Link down» empezó 15 minutos después del cambio v4.</figcaption></figure>
 <div class="tip"><b>Retención</b>En Ajustes puede limitar cuántas versiones guardar por equipo. Las versiones etiquetadas (incluida la
 línea base) nunca se borran.</div>
 </section>
@@ -649,7 +671,8 @@ deshacer el cambio automáticamente.</p>
 <h1>9. Búsqueda en configuraciones</h1>
 <p><b>Para qué sirve:</b> encontrar en segundos en qué equipos aparece algo: una IP, una VLAN, una comunidad SNMP, un usuario.</p>
 <p>Escriba el texto (o una expresión regular marcando la casilla) y pulse <b>Buscar</b>. Se busca en la última configuración en
-ejecución de cada equipo y se muestran las líneas con su número.</p>
+ejecución de cada equipo y se muestran las líneas con su número. Si coinciden más de 100 equipos se muestran los 100 primeros
+(por nombre) y se dice cuántos hay en total: afine la búsqueda o elija un grupo para ver los demás.</p>
 <figure><img src="img/09-busqueda.png"><figcaption>Búsqueda de «snmp» en todas las configuraciones.</figcaption></figure>
 <h2 id="mac-ip">Buscar una MAC o una IP</h2>
 <p>En el buscador de la barra superior (<kbd>Ctrl K</kbd>) se puede escribir una MAC (aa:bb:cc:dd:ee:ff, aabb.ccdd.eeff o
@@ -905,7 +928,7 @@ indican qué falta y el comando se escribe con las direcciones reales. Una solic
 <h2>Cómo usarlo</h2>
 <ol class="steps">
   <li>El <b>mapa equipo × política</b> muestra el porcentaje de reglas que cumple cada equipo en cada política (verde, ámbar o
-  rojo); un clic lleva al equipo. Debajo, cada política muestra una barra por gravedad y, al desplegarla, las reglas que fallan y en
+  rojo); un clic lleva al equipo (con más de 400 equipos, el mapa va por páginas). Debajo, cada política muestra una barra por gravedad y, al desplegarla, las reglas que fallan y en
   qué equipos. La severidad se distingue también por la forma (rombo crítica, triángulo mayor, círculo menor). Cada regla con
   corrección muestra su sello («Sin verificar» o «Verificada · versión») y <b>Corregir</b> (o <b>Corregir en N equipos…</b>), que
   abre un diálogo con los comandos, los equipos para marcar (una solicitud por equipo), el aviso con el foro y un reporte de
@@ -1557,6 +1580,24 @@ barra del borde (subir y bajar).</p>
 <p class="small">El servicio no tiene privilegios de administrador: el instalador le concede, mediante una regla de polkit, permiso
 <b>solo</b> para estas tres acciones. Cada cambio queda en Auditoría.</p>
 <figure><img src="img/28-sistema.png"><figcaption>Sistema.</figcaption></figure>
+<h2 id="capacidad">Capacidad</h2>
+<p>La pestaña <b>Capacidad</b> dice cuánto aguanta este servidor con la red de hoy y qué conviene ampliar:</p>
+<ul>
+  <li><b>Qué conviene hacer:</b> recomendaciones concretas, de la más urgente a la menos. Por ejemplo, que el respaldo
+  programado no termina antes del siguiente, que «Respaldar todos» tarda mucho (con un botón para usar más respaldos a la vez),
+  que el disco se llenará en N días al ritmo actual, que conviene PostgreSQL por el número de equipos o que falta memoria o
+  CPU. Si todo va bien, lo dice.</li>
+  <li><b>Indicadores:</b> equipos y versiones guardadas, cuánto tarda «Respaldar todos», para cuántos días alcanza el disco y
+  la base de datos con su tamaño.</li>
+  <li><b>Respaldos de muchos equipos:</b> los últimos «Respaldar todos» y respaldos programados, con su duración, el tiempo por
+  equipo y los fallos. Las estimaciones usan lo medido en esta red. Aquí se elige cuántos respaldos hace a la vez
+  «Respaldar todos» (de 1 a 16; 4 de fábrica).</li>
+  <li><b>Este servidor:</b> núcleos, RAM, disco, lo que ocupa OpenNCCM y cuántas versiones nuevas hubo en 30 días.</li>
+  <li><b>Medido en la prueba de carga:</b> cada versión de OpenNCCM se prueba en GitHub con equipos simulados por SSH, de 100 a
+  5.000, con «Respaldar todos» de verdad, cada página y varios usuarios a la vez. La tabla muestra lo medido; la fila
+  resaltada es la más parecida a esta instalación.</li>
+</ul>
+<figure><img src="img/28b-capacidad.png"><figcaption>Capacidad: recomendaciones, indicadores y lo medido en la prueba de carga.</figcaption></figure>
 <h2>Copia en Git</h2>
 <p>Con <b>Subir cada versión nueva a Git</b>, cada respaldo con cambios se sube como un commit a un repositorio Git (GitHub, GitLab,
 Gitea…), con un mensaje como «R1: +3/-1 líneas [scheduled]». Cada equipo es un archivo <code>&lt;grupo&gt;/&lt;equipo&gt;.cfg</code>
@@ -1578,7 +1619,7 @@ se pulsan, en una pestaña nueva, y no se envía ningún dato del servidor.</p>
 <h1>26. Ajustes</h1>
 <p>Los ajustes están en <b>Administración → Ajustes</b>, separados en secciones que se eligen a la izquierda: Seguridad y acceso,
 Organización, Flujo de cambios, Notificaciones, Fin de vida (Cisco EoX), Vulnerabilidades (NVD), Mapa de la red, Copia en Git,
-Recuperación ante desastres y Actualizaciones. Al modificar
+Zabbix (problemas y métricas junto a los cambios de cada equipo, ver capítulo 5), Recuperación ante desastres y Actualizaciones. Al modificar
 cualquier campo aparece abajo la barra <b>Tienes cambios sin guardar</b> con <b>Descartar</b> y <b>Guardar ajustes</b>; si intenta
 salir de la página sin guardar, el navegador lo advierte.</p>
 <h2>Seguridad y acceso</h2>

@@ -151,7 +151,8 @@ def panel(request: Request):
         ids = {d.id for d in devs}
         since = now() - timedelta(hours=24)
         week = now() - timedelta(days=7)
-        first = dict(db.execute(select(ConfigVersion.device_id, func.min(ConfigVersion.created_at))
+        first = dict(db.execute(select(ConfigVersion.device_id, func.min(ConfigVersion.created_at))  # índice tipo + fecha
+                                .where(ConfigVersion.kind.in_(["running", "startup"]))
                                 .group_by(ConfigVersion.device_id)).all())
         err = [d for d in devs if d.last_status == "error"]
         drift = [d for d in devs if d.baseline_drift]

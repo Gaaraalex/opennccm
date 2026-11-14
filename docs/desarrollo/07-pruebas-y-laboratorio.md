@@ -31,7 +31,7 @@ prueba que fallaba antes del arreglo.
 
 ## 2. Integración continua (`.github/workflows/ci.yml`)
 
-En cada *push* y *pull request*, GitHub Actions corre (15 trabajos):
+En cada *push* y *pull request*, GitHub Actions corre (16 trabajos):
 
 | Trabajo | Qué prueba |
 |---|---|
@@ -40,7 +40,8 @@ En cada *push* y *pull request*, GitHub Actions corre (15 trabajos):
 | Directorios reales | Samba AD (LDAP) y Keycloak (OpenID Connect) |
 | Servidores Linux reales | respaldar Ubuntu 26.04/24.04/22.04 y Debian 13 por SSH (contenedores oficiales) |
 | MikroTik real | RouterOS CHR en QEMU/KVM: cambio no autorizado, reversión en modo seguro, fallo a mitad |
-| Zabbix real | importar equipos desde Zabbix 6 y 7 |
+| Zabbix real | importar equipos desde Zabbix 6.0, 7.0 y 7.4, y los problemas y métricas de cada equipo (correlación con los cambios) |
+| Prueba de carga y capacidad | `tests/load_test.py` con 100, 1.000, 2.500 y 5.000 equipos simulados (`tests/loadsim.py`): «Respaldar todos», cada página y varios usuarios a la vez; falla si una página pasa de 5 s (ver capítulo 9) |
 | Instalación y actualización | `install.sh` desatendido, certificado propio, nginx, zona horaria, actualización desde la versión anterior y vuelta atrás |
 
 Una versión no se publica si algún trabajo falla. Hay dos pruebas que a veces fallan por tiempos en las máquinas de
