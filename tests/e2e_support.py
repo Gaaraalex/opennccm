@@ -10,7 +10,7 @@ import requests
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from app.crypto import hash_password  # noqa: E402
-from app.db import SessionLocal, Setting, User, select, set_setting  # noqa: E402
+from app.db import SessionLocal, User, select, set_setting  # noqa: E402
 
 B = "http://127.0.0.1:8000"
 URL = "https://comunidad.opennccm.com/soporte"
