@@ -6,6 +6,7 @@ en la cabecera Bearer (7.2 rechaza «auth»); hasta 6.0 los grupos se piden con 
 """
 import json
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT, VERSION = int(sys.argv[1]), sys.argv[2]
@@ -89,8 +90,66 @@ class H(BaseHTTPRequestHandler):
                 groups = h.pop("groups")
                 h["hostgroups" if V >= (6, 2) else "groups"] = groups
                 out.append(h)
+            if p.get("countOutput"):
+                return self._send(rid, str(len(HOSTS)))
+            if p.get("hostids"):
+                out = [h for h in out if h["hostid"] in p["hostids"]]
+            if p.get("search"):
+                words = [str(v).lower() for v in p["search"].values()]
+                out = [h for h in out if any(w in h["host"].lower() or w in h["name"].lower() for w in words)]
             return self._send(rid, out)
+        # correlación (app/zbxcorr.py): interfaces, problemas, métricas e historial de RT-Borde
+        if m == "hostinterface.get":
+            (field, val), = p["filter"].items()
+            return self._send(rid, [{"hostid": h["hostid"]} for h in HOSTS for i in h["interfaces"] if i.get(field) == val])
+        if m == "event.get":
+            if "eventids" in p:  # eventos de resolución
+                return self._send(rid, [{"eventid": e["eventid"], "clock": str(e["clock"])} for e in RECOVERY if e["eventid"] in p["eventids"]])
+            for k in ("source", "object", "value", "time_from", "time_till"):
+                if k not in p:
+                    return bad(f"falta {k}")
+            out = [e for e in EVENTS if e["hostid"] in p["hostids"] and p["time_from"] <= e["clock"] <= p["time_till"]]
+            return self._send(rid, [_ev(e) for e in out])
+        if m == "problem.get":
+            return self._send(rid, [_ev(e) for e in EVENTS if e["hostid"] in p["hostids"] and e["r_eventid"] == "0"])
+        if m == "item.get":
+            vt = [str(x) for x in (p.get("filter") or {}).get("value_type", [0, 1, 2, 3, 4])]
+            return self._send(rid, [dict(i) for i in ITEMS if i["hostid"] in p["hostids"] and i["value_type"] in vt])
+        if m == "history.get":
+            if "history" not in p:
+                return bad("falta history")
+            pts = HIST.get(p["itemids"][0], [])
+            return self._send(rid, [{"clock": str(t), "value": str(v)} for t, v in pts if p["time_from"] <= t <= p["time_till"]])
+        if m == "trend.get":
+            pts = HIST.get(p["itemids"][0], [])
+            return self._send(rid, [{"clock": str(t), "value_avg": str(v), "value_max": str(v)} for t, v in pts[::12]
+                                    if p["time_from"] <= t <= p["time_till"]])
         return bad(f"Unknown method {m}")
+
+
+def _ev(e):
+    return {k: (str(v) if k == "clock" else v) for k, v in e.items() if k != "hostid"}
+
+
+# problemas y métricas de RT-Borde (10101), relativos a cuando arranca el simulado; el resto de hosts no tiene
+NOW = int(time.time())
+EVENTS = [
+    {"eventid": "9001", "hostid": "10101", "clock": NOW - 3 * 3600, "name": "Interface ether1(WAN): Link down",
+     "severity": "4", "r_eventid": "9002", "objectid": "500", "acknowledged": "0"},
+    {"eventid": "9003", "hostid": "10101", "clock": NOW - 1800, "name": "High CPU utilization (over 90% for 5m)",
+     "severity": "3", "r_eventid": "0", "objectid": "501", "acknowledged": "1"},
+    {"eventid": "9005", "hostid": "10101", "clock": NOW - 10 * 86400, "name": "Fan 2 failure", "severity": "2",
+     "r_eventid": "0", "objectid": "502", "acknowledged": "0"},
+]
+RECOVERY = [{"eventid": "9002", "clock": NOW - 2 * 3600}]
+ITEMS = [
+    {"itemid": "700", "hostid": "10101", "key_": "icmppingsec", "name": "ICMP response time", "value_type": "0", "units": "s"},
+    {"itemid": "701", "hostid": "10101", "key_": "system.cpu.util[hrProcessorLoad.1]", "name": "CPU utilization",
+     "value_type": "3", "units": "%"},
+    {"itemid": "702", "hostid": "10101", "key_": "system.descr", "name": "System description", "value_type": "4", "units": ""},
+]
+HIST = {"700": [(t, 0.002 + (0.05 if NOW - 3 * 3600 <= t <= NOW - 2 * 3600 else 0)) for t in range(NOW - 3 * 86400, NOW, 300)],
+        "701": [(t, 95 if t >= NOW - 1800 else 20) for t in range(NOW - 3 * 86400, NOW, 300)]}
 
 
 ThreadingHTTPServer(("127.0.0.1", PORT), H).serve_forever()

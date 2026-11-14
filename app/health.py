@@ -12,7 +12,8 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.orm import defer
 
 from . import eol
 from .db import ChangeRequest, ComplianceResult, Device, Rule, SessionLocal, Vulnerability, now
@@ -28,31 +29,41 @@ def _in(scope, dev_id):
     return scope is None or dev_id in scope
 
 
-def summary(scope: set[int] | None, is_admin: bool = False, server: dict | None = None) -> dict:
+def summary(scope: set[int] | None, is_admin: bool = False, server: dict | None = None, eol_rows=None) -> dict:
+    """eol_rows: eol.report(scope) ya calculado (el panel lo usa también: así se calcula una sola vez)."""
     since = now() - timedelta(hours=24)
     with SessionLocal() as db:
-        devs = [d for d in db.scalars(select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)) if _in(scope, d.id) and d.enabled]
+        devs = [d for d in db.scalars(select(Device).where(Device.retired_at.is_(None)).order_by(Device.name)
+                                      .options(*(defer(c, raiseload=False) for c in eol.HEAVY)))
+                if _in(scope, d.id) and d.enabled]
         ids = {d.id for d in devs}
-        # solo las columnas que hacen falta (con miles de resultados, cargar cada fila y su regla era lo lento)
-        results = [r for r in db.execute(select(ComplianceResult.device_id, ComplianceResult.passed, Rule.severity)
-                                         .outerjoin(Rule, Rule.id == ComplianceResult.rule_id)) if r.device_id in ids]
+        # contados en la base por equipo y gravedad (con miles de equipos, recorrer cada resultado era lo lento)
+        n_pass = n_all = 0
         fails = defaultdict(list)
-        for r in results:
-            if not r.passed:
-                fails[r.device_id].append(r.severity or "major")
+        for r in db.execute(select(ComplianceResult.device_id, ComplianceResult.passed, Rule.severity, func.count())
+                            .outerjoin(Rule, Rule.id == ComplianceResult.rule_id)
+                            .group_by(ComplianceResult.device_id, ComplianceResult.passed, Rule.severity)):
+            if r.device_id not in ids:
+                continue
+            n_all += r[3]
+            if r.passed:
+                n_pass += r[3]
+            else:
+                fails[r.device_id] += [r.severity or "major"] * r[3]
         vulns = [v for v in db.execute(select(Vulnerability.device_id, Vulnerability.cve_id, Vulnerability.severity)
                                        .where(Vulnerability.severity.in_(["CRITICAL", "HIGH"]))) if v.device_id in ids]
         vuln_devs = {v.device_id for v in vulns}
         crit_cves = len({v.cve_id for v in vulns if v.severity == "CRITICAL"})
         pending = sum(1 for _c in db.scalars(select(ChangeRequest.id).where(ChangeRequest.status == "pending")))
-    unsupported = {d.id for d, _e, st in eol.report(scope) if st in ("sin_soporte", "fin_mantenimiento") and d.id in ids}
+    unsupported = {d.id for d, _e, st in (eol.report(scope) if eol_rows is None else eol_rows)
+                   if st in ("sin_soporte", "fin_mantenimiento") and d.id in ids}
     total = len(devs)
     backed = sum(1 for d in devs if d.last_status == "ok" and d.last_backup_at and d.last_backup_at >= since)
     parts = []  # (peso, fracción)
     if total:
         parts += [(40, backed / total), (15, 1 - len(vuln_devs) / total), (15, 1 - len(unsupported) / total)]
-    if results:
-        parts.append((30, sum(r.passed for r in results) / len(results)))
+    if n_all:
+        parts.append((30, n_pass / n_all))
     score = round(sum(w * fr for w, fr in parts) / sum(w for w, _fr in parts) * 100) if parts else None
     phrase = next(_(p) for limit, p in PHRASES if score is None or score >= limit) if score is not None else None
     errors = [d for d in devs if d.last_status == "error"]

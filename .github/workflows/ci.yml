@@ -106,6 +106,31 @@ jobs:
       - name: Zabbix ${{ matrix.zabbix }} oficial (PostgreSQL, servidor e interfaz web) e importación en OpenNCCM
         run: bash tests/zabbix-real-test.sh ${{ matrix.zabbix }} .venv/bin/python
 
+  load:
+    # Prueba de carga y capacidad (tests/load_test.py): equipos simulados por SSH, por escalones. Avisa de cualquier
+    # página que tarde más de 5 s o de respaldos que fallen; los números quedan en el resumen y como artefacto.
+    name: Prueba de carga y capacidad (hasta 5.000 equipos)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencias
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -q --upgrade pip
+          .venv/bin/pip install -q -r requirements.txt
+      - name: Escalones de 100, 1.000, 2.500 y 5.000 equipos simulados
+        run: .venv/bin/python tests/load_test.py --steps 100,1000,2500,5000 --backup-steps 100,1000,5000 --out carga-resultados
+      - name: Resumen
+        if: always()
+        run: cat carga-resultados/capacidad.md >> "$GITHUB_STEP_SUMMARY" || true
+      - name: Resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prueba-de-carga
+          path: carga-resultados/
+
   install:
     name: Instalación y actualización (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

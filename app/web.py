@@ -18,7 +18,8 @@ templates.env.globals["VERSION"] = __version__
 templates.env.globals["can"] = perms.has          # {% if can(user, 'push') %}: la función, no el rol (app/perms.py)
 templates.env.globals["can_admin"] = perms.admin_any
 templates.env.globals["ADMIN_TAB_PERM"] = {"/users": "users", "/credentials": "credentials", "/groups": "devices", "/nodes": "settings",
-                                           "/vendors": "settings", "/audit": "users", "/system": "settings", "/settings": "settings"}
+                                           "/vendors": "settings", "/audit": "users", "/system": "settings", "/capacity": "settings",
+                                           "/settings": "settings"}
 # huella del CSS: fuerza a los navegadores a recargarlo tras cada actualización
 templates.env.globals["CSS_HASH"] = __import__("hashlib").md5(
     (BASE_DIR / "static" / "style.css").read_bytes()).hexdigest()[:8]

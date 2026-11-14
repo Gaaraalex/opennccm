@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 AREAS = [
     ("Núcleo de la aplicación", ["main", "web", "auth", "perms", "config", "db", "crypto", "i18n", "scheduler", "cli", "errors",
-                                 "metrics", "security", "systime", "updates", "sysbackup", "__init__"]),
+                                 "metrics", "capacity", "security", "systime", "updates", "sysbackup", "__init__"]),
     ("Equipos: conexión, respaldo e inventario", ["services", "drivers", "shell_drivers", "legacy_ssh", "fwtag", "chassis",
                                                  "ports", "porttable", "swos", "fireware_web", "fxi", "licenses",
                                                  "bulkbackup", "retire", "restore"]),
@@ -19,7 +19,7 @@ AREAS = [
     ("Red: mapa, vecinos, MAC/IP e informes", ["topology", "topolayout", "nodes", "nbwatch", "macfind", "ipam",
                                               "mapreport", "netreports", "netdoc", "reports", "charts", "health"]),
     ("Firmware, CVE y ciclo de vida", ["firmware", "fwupdates", "fwverify", "eol"]),
-    ("Integraciones", ["extauth", "zabbix", "gitexport", "vendorlogos"]),
+    ("Integraciones", ["extauth", "zabbix", "zbxcorr", "gitexport", "vendorlogos"]),
     ("Asistente IA y base de conocimiento", ["assistant", "aichat", "kb"]),
     ("Rutas agrupadas y API", ["routes_ops", "mobile", "mobile_app"]),
     ("Utilidades", ["cronutil"]),

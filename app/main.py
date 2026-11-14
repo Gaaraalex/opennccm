@@ -17,7 +17,7 @@ from starlette.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import case, delete, func, or_, select
-from sqlalchemy.orm import defer, joinedload, selectinload
+from sqlalchemy.orm import defer, selectinload
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import perms, reports, scheduler, services
@@ -572,8 +572,11 @@ def dashboard(request: Request):
             Vulnerability.severity.in_(["CRITICAL", "HIGH"])), Vulnerability.device_id)) or 0
         pending = db.scalar(select(func.count(ChangeRequest.id)).where(ChangeRequest.status == "pending")) or 0
         events = db.scalars(scoped(select(Event), Event.device_id).order_by(Event.id.desc()).limit(10)).all()
-        recent = db.scalars(scoped(select(ConfigVersion).where(ConfigVersion.kind == "running"),
-                                   ConfigVersion.device_id).order_by(ConfigVersion.id.desc()).limit(10)).all()
+        # las 10 más recientes por fecha (el índice tipo + fecha las da directo) y sin su texto: ordenar todas por id y
+        # leerlas enteras tardaba con miles de equipos (prueba de carga, 2.44)
+        recent = db.scalars(scoped(select(ConfigVersion).where(ConfigVersion.kind == "running"), ConfigVersion.device_id)
+                            .options(defer(ConfigVersion.content_enc))
+                            .order_by(ConfigVersion.created_at.desc(), ConfigVersion.id.desc()).limit(10)).all()
         for v in recent:
             v.device.name  # carga la relación antes de cerrar la sesión
         for e in events:
@@ -599,8 +602,9 @@ def dashboard(request: Request):
         crit_cves = db.scalar(scoped(select(func.count(Vulnerability.id)).where(Vulnerability.severity == "CRITICAL"),
                                      Vulnerability.device_id)) or 0
     from . import eol as eol_mod, health
-    data = reports.analytics(scope, 30)
-    unsupported = [(d, e) for d, e, st in eol_mod.report(scope) if st in ("sin_soporte", "fin_mantenimiento")]
+    eol_rows = eol_mod.report(scope)  # una sola vez para el panel, la salud de la red y los indicadores
+    data = reports.analytics(scope, 30, eol_rows)
+    unsupported = [(d, e) for d, e, st in eol_rows if st in ("sin_soporte", "fin_mantenimiento")]
     comp = round(100 * cpass / (cpass + cfail)) if (cpass + cfail) else None
     server = _server_panel() if perms.has(user, "settings") else None
     days = data["per_day"]
@@ -610,7 +614,7 @@ def dashboard(request: Request):
         vend[v.device_id] = v.device.device_type
     return render(request, "dashboard.html", user, total=total, ok=ok, err=err, conflicts=conflicts,
                   changes24=changes24, comp=comp, alarms=alarms, vcrit=vcrit, pending=pending, drift=drift,
-                  events=events, recent=recent, h=health.summary(scope, perms.has(user, "settings"), server),
+                  events=events, recent=recent, h=health.summary(scope, perms.has(user, "settings"), server, eol_rows),
                   new_week=new_week, dev_trend=dev_trend, backed24=backed24, err_names=err_names,
                   drift_names=drift_names, conflict_names=conflict_names, unsupported=unsupported, oldest=oldest,
                   crit_cves=crit_cves, days=days, peak=peak, vend=vend, groups_n=len({d.group_id for d in devs if d.group_id}))
@@ -662,8 +666,14 @@ LIST_DEFER = (Device.inventory_raw_enc, Device.neighbors, Device.ports, Device.p
               Device.fxi_key_enc, Device.custom_backup_cmd, Device.notes, Device.retired_note)
 
 
+# Dispositivos: hasta BIG_LIST equipos la lista va entera y se pagina en el navegador (filtro al escribir); con más, se
+# pagina en el servidor (?per=&page=), porque dibujar miles de filas tarda segundos y pesa megas (prueba de carga, 2.44)
+BIG_LIST = 400
+
+
 @app.get("/devices")
-def devices(request: Request, q: str = "", group: int = 0, status: str = "", brand: str = "", node: int = 0, assign: int = 0):
+def devices(request: Request, q: str = "", group: int = 0, status: str = "", brand: str = "", node: int = 0, assign: int = 0,
+            page: int = 1, per: int = 15):
     user = require(request)
     with SessionLocal() as db:
         # la lista no usa los textos grandes de cada equipo (inventario, vecinos, puertos, licencia): no se leen
@@ -720,7 +730,16 @@ def devices(request: Request, q: str = "", group: int = 0, status: str = "", bra
                   "conflict": sum(bool(d.startup_conflict) for d in every), "drift": sum(bool(d.baseline_drift) for d in every),
                   "eol": sum(d.id in unsupported for d in every)}
         # origen del último respaldo de cada equipo (manual, programado, syslog, push) y último respaldo global
+        shown = len(devs)
+        paged = shown > BIG_LIST
+        per = per if per in (15, 25, 50, 100) else 15
+        pages = max(1, -(-shown // per))
+        page = min(max(page, 1), pages)
+        if paged:
+            devs = devs[(page - 1) * per:page * per]
         latest_ids = select(func.max(ConfigVersion.id)).group_by(ConfigVersion.device_id)
+        if paged:
+            latest_ids = latest_ids.where(ConfigVersion.device_id.in_([d.id for d in devs]))
         src = dict(db.execute(select(ConfigVersion.device_id, ConfigVersion.trigger)
                               .where(ConfigVersion.id.in_(latest_ids))).all())
         last_global = max((d.last_backup_at for d in every if d.last_backup_at), default=None)
@@ -731,7 +750,8 @@ def devices(request: Request, q: str = "", group: int = 0, status: str = "", bra
                   retired_n=_ret.retired_count(user), retired_hits=_ret.retired_hits(user, q),
                   brand=brand, brands=brands, brand_names={k: vendorlogos.name(k) for k in vendorlogos.BRANDS}, counts=counts,
                   node=node, assign=assign if perms.has(user, "devices") else 0, net_nodes=net_nodes,
-                  node_names={n.id: n.name for n in net_nodes}, can_console=console_allowed(user), src=src, last_global=last_global, n_groups=n_groups)
+                  node_names={n.id: n.name for n in net_nodes}, can_console=console_allowed(user), src=src, last_global=last_global, n_groups=n_groups,
+                  paged=paged, page=page, pages=pages, per=per, shown=shown)
 
 
 @app.post("/devices/bulk")
@@ -1211,7 +1231,9 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
     from . import licenses as _lic  # servicios de la licencia y su vencimiento
     license_groups = _lic.groups(try_decrypt(dev.license_enc, "") or "") if dev.license_enc else []
     from . import retire as _ret
+    from . import zbxcorr
     return render(request, "device.html", user, key_error=key_error, can_console=console_allowed(user, dev.id), device=dev,
+                  zbx_on=zbxcorr.enabled(),
                   ret=_ret.links(dev),
                   fw_of=fw_of, last_fw=last_fw,
                   ports=pinfo, license_partial=license_partial, license_groups=license_groups, license_soon=_lic.SOON,
@@ -1962,6 +1984,9 @@ def ipam_csv(request: Request, group: int = 0, tab: str = "ip"):
 
 
 # --------------------------------------------------------------------------- búsqueda
+SEARCH_MAX = 100  # equipos con coincidencias que se muestran en «Buscar en configs» (los demás solo se cuentan)
+
+
 @app.get("/search")
 def search(request: Request, q: str = "", regex: int = 0, cs: int = 0, group: int = 0, latest: int = 0, sent: int = 0):
     """Buscar texto o expresiones regulares en las configuraciones (como el prototipo: grupo, mayúsculas y versiones)."""
@@ -1969,6 +1994,7 @@ def search(request: Request, q: str = "", regex: int = 0, cs: int = 0, group: in
     if not sent:  # sin enviar el formulario: por omisión, solo la última versión
         latest = 1
     results, err = [], ""
+    more = {"devs": 0, "lines": 0}  # equipos con coincidencias que no se muestran (más de SEARCH_MAX)
     with SessionLocal() as db:
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
         if q:
@@ -1990,6 +2016,10 @@ def search(request: Request, q: str = "", regex: int = 0, cs: int = 0, group: in
                         continue
                     lines = decrypt(v.content_enc).splitlines()
                     hits = [i for i, line in enumerate(lines) if pat.search(line)]
+                    if hits and len(results) >= SEARCH_MAX:  # se cuentan, pero no se dibujan (página de megas)
+                        more["devs"] += 1
+                        more["lines"] += len(hits)
+                        break
                     if hits:
                         n = db.scalar(select(func.count(ConfigVersion.id)).where(ConfigVersion.device_id == dev.id,
                                                                                   ConfigVersion.id <= v.id))
@@ -1997,7 +2027,8 @@ def search(request: Request, q: str = "", regex: int = 0, cs: int = 0, group: in
                                         "total": len(hits), "vend": dev.device_type})
                         break
     return render(request, "search.html", user, q=q, regex=regex, cs=cs, group=group, latest=latest, groups=groups,
-                  results=results, err=err, total=sum(r["total"] for r in results))
+                  results=results, err=err, total=sum(r["total"] for r in results) + more["lines"], more=more["devs"],
+                  max_shown=SEARCH_MAX)
 
 
 # --------------------------------------------------------------------------- credenciales y grupos
@@ -2494,8 +2525,21 @@ async def change_review(request: Request, cr_id: int):
 
 
 # --------------------------------------------------------------------------- cumplimiento
+FIXLIST_MAX = 60  # en «Corregir en N equipos…», con más equipos la lista se pide al abrir el cuadro
+
+
+class _Fails(list):
+    """Infracciones de una regla: lleva las primeras FIXLIST_MAX, pero su largo (|length en la plantilla) es el total."""
+    def __init__(self, total: int):
+        super().__init__()
+        self.total = total
+
+    def __len__(self):
+        return self.total
+
+
 @app.get("/compliance")
-def compliance(request: Request):
+def compliance(request: Request, page: int = 1, per: int = 15):
     user = require(request)
     with SessionLocal() as db:
         policies = db.scalars(select(Policy).order_by(Policy.name)).all()
@@ -2504,49 +2548,83 @@ def compliance(request: Request):
         groups = db.scalars(select(DeviceGroup).order_by(DeviceGroup.name)).all()
         scope = device_scope(user)
         retired = set(db.scalars(select(Device.id).where(Device.retired_at.is_not(None))))  # fuera de lo activo
-        fails = [f for f in db.scalars(select(ComplianceResult).where(ComplianceResult.passed.is_(False))
-                                       .options(joinedload(ComplianceResult.device).load_only(Device.id, Device.name),
-                                                joinedload(ComplianceResult.rule), joinedload(ComplianceResult.policy))
-                                       .order_by(ComplianceResult.device_id)) if (scope is None or f.device_id in scope) and f.device_id not in retired]
-        fails_by_rule: dict[int, list] = {}  # (antes se filtraba en la plantilla, regla por regla, sobre todas las fallas)
-        for f in fails:
-            fails_by_rule.setdefault(f.rule_id, []).append(f)
-        summary = [s for s in db.execute(select(ComplianceResult.device_id,
-                                                func.sum(case((ComplianceResult.passed.is_(True), 1), else_=0)),
-                                                func.count()).group_by(ComplianceResult.device_id)).all()
-                   if (scope is None or s[0] in scope) and s[0] not in retired]
-        # «Señal»: mapa equipo × política y barras por gravedad de cada política (sobre los equipos visibles)
-        results = [r for r in db.execute(select(ComplianceResult.device_id, ComplianceResult.policy_id, ComplianceResult.rule_id,
-                                                ComplianceResult.passed))
-                   if (scope is None or r.device_id in scope) and r.device_id not in retired]
+        # contado en la base de datos, con el ámbito del usuario y sin los retirados en la propia consulta: con miles de
+        # equipos, traer cada resultado (y cada infracción con su equipo, regla y política) para sumarlo aquí tardaba
+        # segundos con varios usuarios a la vez (prueba de carga, 2.44)
+        def visible(stmt):
+            if retired:
+                stmt = stmt.where(ComplianceResult.device_id.not_in(list(retired)))
+            return stmt if scope is None else stmt.where(ComplianceResult.device_id.in_(list(scope) or [0]))
         sev_of = {r.id: r.severity for p in policies for r in p.rules}
-        cell: dict[tuple, list] = {}
-        pstat = {p.id: {"ok": 0, "critical": 0, "major": 0, "minor": 0, "fix": 0} for p in policies}
         fixable = {r.id for p in policies for r in p.rules if r.remediation}
-        for r in results:
-            c = cell.setdefault((r.device_id, r.policy_id), [0, 0])
-            c[1] += 1
-            st = pstat.setdefault(r.policy_id, {"ok": 0, "critical": 0, "major": 0, "minor": 0, "fix": 0})
-            if r.passed:
-                c[0] += 1
-                st["ok"] += 1
+        pstat = {p.id: {"ok": 0, "critical": 0, "major": 0, "minor": 0, "fix": 0} for p in policies}
+        n_pass = n_all = 0
+        fail_n: dict[int, int] = {}
+        for pid, rid, passed, n in db.execute(visible(
+                select(ComplianceResult.policy_id, ComplianceResult.rule_id, ComplianceResult.passed, func.count())
+                .group_by(ComplianceResult.policy_id, ComplianceResult.rule_id, ComplianceResult.passed))):
+            st = pstat.setdefault(pid, {"ok": 0, "critical": 0, "major": 0, "minor": 0, "fix": 0})
+            n_all += n
+            if passed:
+                st["ok"] += n
+                n_pass += n
             else:
-                st[sev_of.get(r.rule_id, "major") if sev_of.get(r.rule_id) in ("critical", "major") else "minor"] += 1
-                st["fix"] += r.rule_id in fixable
-        dev_ids = sorted({d for d, _p in cell})
+                st[sev_of.get(rid, "major") if sev_of.get(rid) in ("critical", "major") else "minor"] += n
+                st["fix"] += n if rid in fixable else 0
+                fail_n[rid] = fail_n.get(rid, 0) + n
+        # infracciones de cada regla: solo las primeras FIXLIST_MAX (nombres a la vista y «Corregir» sin pedirlas)
+        rn = func.row_number().over(partition_by=ComplianceResult.rule_id, order_by=ComplianceResult.device_id).label("rn")
+        sub = visible(select(ComplianceResult.id, ComplianceResult.device_id, ComplianceResult.rule_id, Device.name, rn)
+                      .join(Device, Device.id == ComplianceResult.device_id)
+                      .where(ComplianceResult.passed.is_(False))).subquery()
+        fails_by_rule: dict[int, _Fails] = {}
+        for f in db.execute(select(sub).where(sub.c.rn <= FIXLIST_MAX).order_by(sub.c.rule_id, sub.c.rn)):
+            fails_by_rule.setdefault(f.rule_id, _Fails(fail_n.get(f.rule_id, 0))).append(
+                {"id": f.id, "device_id": f.device_id, "rule_id": f.rule_id, "device": {"name": f.name}})
+        # «Señal»: mapa equipo × política (% de reglas cumplidas) y cuántos equipos cumplen todo
+        cell = {(d, pid): (ok, tot) for d, pid, ok, tot in db.execute(visible(
+            select(ComplianceResult.device_id, ComplianceResult.policy_id,
+                   func.sum(case((ComplianceResult.passed.is_(True), 1), else_=0)), func.count())
+            .group_by(ComplianceResult.device_id, ComplianceResult.policy_id)))}
+        per_dev: dict[int, list] = {}
+        for (d, _pid), (ok, tot) in cell.items():
+            acc = per_dev.setdefault(d, [0, 0])
+            acc[0] += ok or 0
+            acc[1] += tot
+        dev_ids = sorted(per_dev)
         devs = {d.id: d for d in db.execute(select(Device.id, Device.name, Device.device_type).where(Device.id.in_(dev_ids or [0])))}
-        matrix = [(devs[d], [round(100 * cell[(d, p.id)][0] / cell[(d, p.id)][1]) if (d, p.id) in cell else None
+        matrix = [(devs[d], [round(100 * (cell[(d, p.id)][0] or 0) / cell[(d, p.id)][1]) if (d, p.id) in cell else None
                              for p in policies]) for d in dev_ids if d in devs]
         matrix.sort(key=lambda row: row[0].name)
         vend = {d.id: d.device_type
                 for d in devs.values()}
+        # el mapa equipo × política, como Dispositivos: con muchos equipos se pagina en el servidor
+        mshown = len(matrix)
+        mpaged = mshown > BIG_LIST
+        per = per if per in (15, 25, 50, 100) else 15
+        mpages = max(1, -(-mshown // per))
+        page = min(max(page, 1), mpages)
+        if mpaged:
+            matrix = matrix[(page - 1) * per:page * per]
         last_audit = db.scalar(select(func.max(ComplianceResult.checked_at)))
-    total_r = len(results)
-    pct = round(100 * sum(1 for r in results if r.passed) / total_r) if total_r else None
-    return render(request, "compliance.html", user, policies=policies, groups=groups, fails=fails, fail_rows=fails,
-                  fails_by_rule=fails_by_rule,
-                  devices_checked=len(summary), devices_ok=sum(1 for _k, p, t in summary if p == t),
-                  matrix=matrix, pstat=pstat, pct=pct, last_audit=last_audit, vend=vend)
+    pct = round(100 * n_pass / n_all) if n_all else None
+    return render(request, "compliance.html", user, policies=policies, groups=groups, fails_by_rule=fails_by_rule,
+                  devices_checked=len(per_dev), devices_ok=sum(1 for ok, tot in per_dev.values() if ok == tot),
+                  matrix=matrix, pstat=pstat, pct=pct, last_audit=last_audit, vend=vend, fixlist_max=FIXLIST_MAX,
+                  mpaged=mpaged, page=page, pages=mpages, per=per, shown=mshown)
+
+
+@app.get("/compliance/rules/{rid}/fails")
+def compliance_rule_fails(request: Request, rid: int):
+    """Equipos que incumplen una regla (id del resultado y nombre), para «Corregir en N equipos…» con muchos equipos."""
+    user = require(request)
+    scope = device_scope(user)
+    with SessionLocal() as db:
+        rows = db.execute(select(ComplianceResult.id, ComplianceResult.device_id, Device.name)
+                          .join(Device, Device.id == ComplianceResult.device_id)
+                          .where(ComplianceResult.rule_id == rid, ComplianceResult.passed.is_(False),
+                                 Device.retired_at.is_(None)).order_by(Device.name)).all()
+    return JSONResponse([[r.id, r.name] for r in rows if scope is None or r.device_id in scope])
 
 
 @app.post("/compliance/policies")
@@ -3503,16 +3581,17 @@ SETTING_KEYS = ["smtp_host", "smtp_port", "smtp_security", "smtp_user", "smtp_fr
                 "ldap_enabled", "ldap_url", "ldap_starttls", "ldap_verify_tls", "ldap_bind_dn", "ldap_base_dn",
                 "ldap_user_filter", "ldap_group_admin", "ldap_group_operator", "ldap_group_viewer", "ldap_default_role",
                 "oidc_enabled", "oidc_tenant", "oidc_client_id", "oidc_discovery", "oidc_button", "oidc_redirect",
-                "oidc_group_admin", "oidc_group_operator", "oidc_group_viewer", "oidc_default_role"]
+                "oidc_group_admin", "oidc_group_operator", "oidc_group_viewer", "oidc_default_role",
+                "zabbix_link", "zabbix_url", "zabbix_verify"]
 CHECKBOX_KEYS = ("require_approval", "allow_self_approval", "notify_compliance", "require_2fa_admins",
                  "console_autologin", "update_check", "ldap_enabled", "ldap_starttls", "ldap_verify_tls", "oidc_enabled",
-                 "topology_enabled", "topology_romon", "git_enabled", "git_mask", "logos_small")
+                 "topology_enabled", "topology_romon", "git_enabled", "git_mask", "logos_small", "zabbix_link", "zabbix_verify")
 # valores por defecto cuando el ajuste nunca se guardó
 SETTING_DEFAULTS = {"allow_self_approval": "1", "cred_view": "off", "session_idle_minutes": "30", "remember_days": "14", "require_2fa_admins": "0",
                     "console_access": "admin", "console_autologin": "0", "update_check": "1", "topology_enabled": "1", "git_mask": "1", "logos_small": "0", "git_branch": "main",
-                    "ldap_verify_tls": "1", "ldap_user_filter": "(&(objectClass=user)(sAMAccountName={username}))"}
+                    "ldap_verify_tls": "1", "zabbix_verify": "1", "ldap_user_filter": "(&(objectClass=user)(sAMAccountName={username}))"}
 SECRET_FORM_KEYS = ["git_token", "smtp_password", "cisco_api_secret", "dr_remote_password", "ldap_bind_password", "oidc_client_secret",
-                    "nvd_api_key"]
+                    "nvd_api_key", "zabbix_token"]
 ROLE_KEYS = ("ldap_default_role", "oidc_default_role")
 
 
@@ -3856,6 +3935,12 @@ app.include_router(topolayout.router)
 from . import nodes as net_nodes_mod  # noqa: E402  (nodos de la red)
 
 app.include_router(net_nodes_mod.router)
+from . import zbxcorr  # noqa: E402  (correlación con Zabbix en la ficha del equipo)
+
+app.include_router(zbxcorr.router)
+from . import capacity  # noqa: E402  (Administración › Capacidad)
+
+app.include_router(capacity.router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)

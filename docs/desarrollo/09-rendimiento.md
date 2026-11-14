@@ -65,4 +65,46 @@ Para ver **dónde** se va el tiempo de una página: `cProfile` alrededor de la l
 | App móvil: lista de equipos | 144 ms | 153 ms | 961 KB → 50 KB |
 
 Lo que queda más lento es dibujar la lista de 2000 equipos (unos 400 ms, casi todo en la plantilla). Si hiciera
-falta, el siguiente paso sería paginarla en el servidor (hoy se pagina en el navegador con `data-pager`).
+falta, el siguiente paso sería paginarla en el servidor (hoy se pagina en el navegador con `data-pager`). Se hizo en la
+2.44: ver abajo.
+
+## Prueba de carga y capacidad (2.44)
+
+`tests/load_test.py` levanta un OpenNCCM nuevo en una carpeta temporal (puerto 8300) y `tests/loadsim.py`, un proceso
+que simula miles de Cisco IOS por SSH en un solo puerto (2300; el tamaño de la configuración lo da el usuario con el que
+se entra: ~250, ~3.000 o ~40.000 líneas). Por escalones agrega equipos con su historial, hace «Respaldar todos» de
+verdad, mide cada página (la primera vez y la mediana de 3), varios usuarios a la vez, la memoria y la base de datos, y
+termina con error si una página pasa de `--limit` segundos o falla un respaldo:
+
+```bash
+python tests/load_test.py --steps 100,500                 # en un PC: unos 5 minutos
+python tests/load_test.py --steps 100,1000,2500,5000 --backup-steps 100,1000,5000   # lo que corre la CI
+```
+
+El trabajo «Prueba de carga y capacidad» de la CI deja `capacidad.md` en el resumen y `capacidad.json` como artefacto.
+Ese JSON, copiado a `app/capacity_ref.json`, es la tabla «Medido en la prueba de carga» de Administración › Capacidad
+(`app/capacity.py`), que además estima con los respaldos medidos en cada instalación (`capacity.record_cycle`).
+
+Lo que encontró y cómo se resolvió (500 equipos, un PC; 8 usuarios a la vez):
+
+| Página | Antes | Después |
+|---|---:|---:|
+| Dispositivos | 1.219 KB · 0,17 s | 84 KB · 0,04 s (paginada en el servidor con más de `main.BIG_LIST` = 400 equipos) |
+| Cumplimiento | 1.957 KB · 0,57 s | 157 KB · 0,10 s en el servidor (todo contado en SQL; lista de «Corregir» al abrir el cuadro) |
+| Panel | 0,40 s | 0,18 s (`eol.report` una sola vez; las 10 copias recientes por el índice tipo + fecha, sin su texto) |
+| Buscar en configs | 3.652 KB | 756 KB (se dibujan los primeros `main.SEARCH_MAX` = 100 equipos; los demás se cuentan) |
+| Progreso de «Respaldar todos» | toda la lista cada 2 s por pestaña | solo las filas a la vista y las que fallaron (`/backup/job?ids=`) |
+
+Reglas nuevas que salen de esto:
+
+9. **Lo que crece con los equipos se pagina en el servidor** pasado un umbral (`BIG_LIST`): por debajo se mantiene la
+   lista entera con filtro al escribir, como siempre.
+10. **Un cuadro que necesita una lista larga la pide al abrirse** (`/compliance/rules/{id}/fails`), no viaja en la página.
+11. **Lo que se sondea cada pocos segundos pide solo lo que se ve.**
+12. **Lo caro que necesitan varias partes de una página se calcula una vez** y se pasa (`eol_rows` en el panel).
+
+Lo que la prueba deja a la vista para más adelante: con un equipo simulado, cada respaldo tarda ~6 s y casi 4 son
+de netmiko, que antes de cada comando vuelve a leer el prompt (`find_prompt`, ~0,45 s). OpenNCCM usa en promedio un
+20 % de un núcleo durante los respaldos: espera al equipo. Pasar el prompt ya leído (`expect_string`) ahorraría ese
+tiempo, pero hay plataformas cuyo prompt cambia en cada comando (Extreme EXOS lleva un contador), así que hay que hacerlo
+plataforma por plataforma y probarlo en el laboratorio.

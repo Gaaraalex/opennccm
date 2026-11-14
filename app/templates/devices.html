@@ -51,9 +51,9 @@
   {% for k, n in brands %}<a class="chip {{ 'on' if k == brand }}" href="?{{ 'brand=' ~ k if k != brand }}{{ qb }}" {{ 'aria-current="true"'|safe if k == brand }}>{{ vlk(k, 20) }}{{ brand_names[k] }} <span class="n">{{ n }}</span></a>{% endfor %}</div>{% endif %}
 
 {% if assign and node_names.get(assign) %}<div class="banner info">{{ icon('pin') }}<span class="grow">{{ _f('Marca los equipos de «{0}» y pulsa «Asignar al nodo» en la barra de abajo.', node_names[assign]) }}</span><a class="btn s ghost" href="/nodes">{{ _('Volver a Nodos') }}</a></div>{% endif %}
-<section class="card flush"><div class="tw"><table class="t" id="devtable"><thead><tr>
+<section class="card flush"><div class="tw"><table class="t" id="devtable"{% if paged %} data-paged="1"{% endif %}><thead><tr>
   {% if can_run %}<th style="width:44px"><input type="checkbox" id="selall" aria-label="Seleccionar todos"></th>{% endif %}
-  <th>Equipo</th><th>Dirección</th><th>Modelo · firmware</th><th>Grupo</th><th>Último respaldo</th><th>Estado</th><th><span class="vh">Acciones</span></th></tr></thead><tbody data-pager>
+  <th>Equipo</th><th>Dirección</th><th>Modelo · firmware</th><th>Grupo</th><th>Último respaldo</th><th>Estado</th><th><span class="vh">Acciones</span></th></tr></thead><tbody{% if not paged %} data-pager{% endif %}>
 {% for d in devices %}
 {% set prof = profile_map[d.device_type] if d.device_type in profile_map else none %}
 <tr class="click" data-href="/devices/{{ d.id }}" data-dev="{{ d.id }}" data-drift="{{ 1 if d.baseline_drift else 0 }}" data-text="{{ [d.name, d.host, d.model or '', d.serial or '', d.os_version or '', d.location or '', prof.label if prof else d.device_type]|join(' ')|lower }}">
@@ -87,6 +87,7 @@
 {% endfor %}
 <tr id="nomatch" hidden><td colspan="8"><div class="empty">{{ empty_art('search') }}<h2>Ningún equipo coincide</h2><p>Prueba con otra búsqueda o quita los filtros.</p></div></td></tr>
 </tbody></table></div></section>
+{% if paged %}{% from "_pager.html" import pager %}{{ pager(page, pages, per, shown, ('status=' ~ status) ~ qs) }}{% endif %}
 
 {% if can_run %}
 <form id="bulk" class="bulk" method="post" action="/devices/bulk" hidden>
@@ -200,7 +201,8 @@
     location.href = r.dataset.href;
   }));
   const q = document.getElementById('devq'), none = document.getElementById('nomatch');
-  q.addEventListener('input', () => {  // filtro al escribir (Enter busca también en el servidor)
+  if (table.dataset.paged) q.closest('form').title = {{ _('Escribe y pulsa Enter para buscar entre todos los equipos') |tojson }};
+  else q.addEventListener('input', () => {  // filtro al escribir (Enter busca también en el servidor; con muchos equipos, solo Enter)
     const v = q.value.trim().toLowerCase();
     let shown = 0;
     rows.forEach(r => { const out = !!v && !r.dataset.text.includes(v); r.classList.toggle('pg-out', out); r.hidden = out; if (!out) shown++; });

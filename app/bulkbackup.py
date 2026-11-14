@@ -137,6 +137,11 @@ def _run(job: dict) -> None:
     services.add_event("info" if not er else "warning", "Respaldar todos",
                        msg + " · " + _f("{0} equipos en {1}", j["total"], dur(secs)), notify=False)
     audit(job["user"], "backup_all_done", f"{msg} · {j['total']} equipos · {dur(secs)} · {j['changed']} cambiaron")
+    if not job["cancel"]:  # para Administración › Capacidad: cuánto tarda cada equipo en esta red
+        from . import capacity
+        durs = [d["secs"] for d in j["devs"] if d.get("secs")]
+        capacity.record_cycle("bulk", j["total"], ok, er, time.time() - job["started"], job["conc"],
+                              sum(durs) / len(durs) if durs else None)
 
 
 def summary(ok: int, er: int) -> str:
@@ -179,13 +184,19 @@ def start_selected(user, ids: list[int], request) -> bool:
 
 
 @router.get("/backup/job")
-def backup_job(request: Request):
+def backup_job(request: Request, ids: str | None = None):
+    """Estado del respaldo en curso. Con «ids» (las filas que la página tiene a la vista) solo se envían esos equipos y
+    los que fallaron (hasta 100): con miles de equipos, la lista entera pesaba cientos de KB cada 2 s por pestaña."""
     require(request)
     j = state()
     if j and not j["closed"]:
         scope = device_scope(require(request))
         if scope is not None:
             j["devs"] = [d for d in j["devs"] if d["id"] in scope]
+        if ids is not None:
+            want = {int(x) for x in ids.split(",") if x.strip().isdigit()}
+            errs = [d for d in j["devs"] if d["st"] == "err" and d["id"] not in want][:100]
+            j["devs"] = [d for d in j["devs"] if d["id"] in want] + errs
     return JSONResponse({"job": j if j and not j["closed"] else None, "at": now().isoformat()})
 
 

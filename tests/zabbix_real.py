@@ -8,7 +8,7 @@ import requests
 
 sys.path.insert(0, ".")
 from app import zabbix  # noqa: E402
-from app.db import Device, SessionLocal  # noqa: E402
+from app.db import Device, SessionLocal, set_setting  # noqa: E402
 
 ZBX, B = sys.argv[1], "http://127.0.0.1:8000"
 fails = []
@@ -75,6 +75,23 @@ check("RT-Borde con IP, descripción e inventario", rt and rt.host == "192.0.2.1
       and rt.device_type == "mikrotik_routeros")
 check("FW-DMZ por nombre DNS", d.get("FW-DMZ") and d["FW-DMZ"].host == "fw-dmz.example.net")
 check("sin credencial: desactivados", all(not x.enabled for x in d.values()) and len(d) == 3, sorted(d))
+
+# 3. correlación (2.44): problemas y métricas de cada equipo con el token guardado
+set_setting("zabbix_url", ZBX + "/")
+set_setting("zabbix_verify", "0")
+set_setting("zabbix_token", token)
+set_setting("zabbix_link", "1")
+r = s.post(B + "/settings/zabbix-test", data={"zabbix_url": ZBX + "/"}).json()
+check("Probar conexión con el token guardado", r.get("ok") and z.version in r.get("msg", ""), r)
+for days in (1, 7, 30):
+    j = s.get(B + f"/devices/{d['SRV-Linux'].id}/zabbix?days={days}").json()
+    check(f"SRV-Linux ({days} días): encontrado, problemas y métricas de la plantilla Linux",
+          j.get("ok") and j["host"]["name"] == "SRV-Linux" and isinstance(j["problems"], list)
+          and "system.cpu.util" in {m["key"] for m in j["metrics"]}, j.get("msg") or [m["key"] for m in j.get("metrics", [])])
+j = s.get(B + f"/devices/{rt.id}/zabbix").json()
+check("RT-Borde: encontrado por la IP de su interfaz SNMP", j.get("ok") and j["host"]["name"] == "RT-Borde", j.get("msg"))
+j = s.get(B + f"/devices/{d['FW-DMZ'].id}/zabbix").json()
+check("FW-DMZ: encontrado por el nombre DNS de su interfaz", j.get("ok") and j["host"]["name"] == "FW-DMZ", j.get("msg"))
 
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)

@@ -134,6 +134,23 @@
 {% endif %}
 
 <section id="versions" aria-label="Versiones">
+  {% if zbx_on %}
+  <section class="card zbx" id="zbx" data-dev="{{ device.id }}"><div class="card-h"><h2>{{ _('Cambios y problemas en Zabbix') }}</h2>
+    <div class="row"><span class="sm" id="zbx-host"></span><div class="seg" id="zbx-range" role="group" aria-label="{{ _('Periodo') }}">{% for d, l in [(1, _('24 h')), (7, _('7 días')), (30, _('30 días'))] %}<button type="button" data-d="{{ d }}" class="{{ 'on' if d == 7 }}" aria-pressed="{{ 'true' if d == 7 else 'false' }}">{{ l }}</button>{% endfor %}</div></div></div>
+    <div id="zbx-body" aria-live="polite"><p class="muted sm">{{ _('Consultando Zabbix…') }}</p></div></section>
+  <script type="application/json" id="zbx-i18n">{{ {'loading': _('Consultando Zabbix…'), 'failed': _('No se pudo consultar a Zabbix.'), 'open_in': _('{0} en Zabbix'),
+    'p1': _('1 problema en este periodo'), 'pn': _('{0} problemas en este periodo'), 'open_n': _('{0} siguen abiertos'),
+    'rel1': _('1 empezó poco después de un cambio'), 'reln': _('{0} empezaron poco después de un cambio'),
+    'c1': _('1 cambio de configuración'), 'cn': _('{0} cambios de configuración'), 'metric': _('Métrica'),
+    'leg_change': _('Cambio de configuración (clic para abrirlo)'), 'no_metrics': _('Este host no tiene en Zabbix métricas de latencia, pérdida de paquetes, CPU ni memoria: solo se muestran los problemas.'),
+    'no_data': _('Zabbix no tiene datos de esta métrica en el periodo.'), 'no_problems': _('Sin problemas en Zabbix en este periodo.'),
+    'th_sev': _('Gravedad'), 'th_prob': _('Problema'), 'th_start': _('Empezó'), 'th_dur': _('Duración'), 'th_after': _('Cambio justo antes'),
+    'after_v': _('v{0} · {1} min antes'), 'after_min': _('{0} min después del cambio'), 'ongoing': _('Sigue abierto'),
+    'tag1': _('1 problema en Zabbix'), 'tagn': _('{0} problemas en Zabbix'),
+    'chart_label': _('Cambios de configuración, problemas y métrica de Zabbix en el periodo'),
+    'min': _('{0} min'), 'hmin': _('{0} h {1} min'), 'dh': _('{0} d {1} h')}|tojson }}</script>
+  <script src="/static/zbxcorr.js?v={{ VERSION }}" defer></script>
+  {% endif %}
   {% if tl %}
   <div class="bento"><section class="card c5"><div class="card-h"><h2>Historial</h2><span class="muted sm">{{ _f('{0} versiones', total_v) }}{% if total_v > 12 %} {{ _f('(se muestran {0})', 12) }}{% endif %}</span></div>
     <p class="muted sm" style="margin:-6px 0 10px">Clic en una versión: primero elige <b>A</b>, luego <b>B</b>. La flecha abre la versión para verla, descargarla, etiquetarla o marcarla como línea base.</p>

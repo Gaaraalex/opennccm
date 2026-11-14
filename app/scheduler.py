@@ -34,7 +34,12 @@ def run_schedule(schedule_id: int):
     ids = services.device_ids(group_id)
     log.info("Ejecutando tarea '%s' (%s) sobre %d equipos", name, action, len(ids))
     if action == "backup":
+        t0 = time.time()
         summary = services.backup_many(ids, "scheduled", "scheduler")
+        from . import capacity
+        from .config import WORKERS
+        bad = sum(n for k, n in summary.items() if k in ("error", "missing", "busy"))
+        capacity.record_cycle("scheduled", len(ids), len(ids) - bad, bad, time.time() - t0, WORKERS)
         services.add_event("info", "Respaldo programado", f"'{name}': {summary}", notify=False)
     elif action == "compliance":
         for i in ids:

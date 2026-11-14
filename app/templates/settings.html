@@ -3,7 +3,7 @@
 {% block content %}
 {% include "_admin_tabs.html" %}
 {% set SECS = [('seguridad', _('Seguridad y acceso'), 'lock'), ('inicio', _('Inicio de sesión'), 'key'), ('organizacion', _('Organización'), 'users'), ('flujo', _('Flujo de cambios'), 'branch'),
-               ('notificaciones', _('Notificaciones'), 'bell'), ('asistente', _('Asistente IA'), 'chip'), ('eox', _('Fin de vida (Cisco EoX)'), 'clock'), ('nvd', _('Vulnerabilidades (NVD)'), 'bug'), ('mapa', _('Mapa de la red'), 'globe'), ('git', _('Copia en Git'), 'branch'),
+               ('notificaciones', _('Notificaciones'), 'bell'), ('asistente', _('Asistente IA'), 'chip'), ('eox', _('Fin de vida (Cisco EoX)'), 'clock'), ('nvd', _('Vulnerabilidades (NVD)'), 'bug'), ('mapa', _('Mapa de la red'), 'globe'), ('git', _('Copia en Git'), 'branch'), ('zabbix', 'Zabbix', 'pulse'),
                ('recuperacion', _('Recuperación ante desastres'), 'db'),
                ('actualizaciones', _('Actualizaciones'), 'refresh')] %}
 {% macro F(label, id, help='') %}<div class="field"><label for="{{ id }}">{{ label }}</label>{{ caller() }}{% if help %}<span class="help">{{ help }}</span>{% endif %}</div>{% endmacro %}
@@ -180,6 +180,14 @@
     <label class="swrow"><span><b>{{ _('Ocultar contraseñas y claves') }}</b><div class="muted sm">{{ _('Sustituye por «<oculto>» los secretos, contraseñas, comunidades SNMP y claves que reconoce. Revise el repositorio: no se garantiza para todas las plataformas.') }}</div></span><input type="checkbox" class="sw" name="git_mask" {{ 'checked' if s.git_mask == '1' }}></label>
     <div class="row"><span class="muted sm grow">{{ _('Guarde los ajustes antes de probar.') }}</span><button type="submit" class="btn s" form="git-exp">{{ icon('refresh', 's') }}{{ _('Probar y subir todo ahora') }}</button></div>
   </div></section>
+  <section class="card" id="zabbix" data-secp><div class="card-h"><h2>Zabbix</h2></div><div class="stack">
+    <p class="muted sm">{{ _('En la ficha de cada equipo, junto a sus versiones, se muestran los problemas y las métricas de Zabbix (latencia, pérdida, CPU, memoria) con cada cambio de configuración marcado: así se ve si un problema empezó justo después de un cambio. El equipo se busca en Zabbix por su dirección y, si no, por su nombre. Solo se lee: OpenNCCM no cambia nada en Zabbix.') }}</p>
+    <label class="swrow"><span><b>{{ _('Mostrar los problemas y métricas de Zabbix en cada equipo') }}</b></span><input type="checkbox" class="sw" name="zabbix_link" {{ 'checked' if s.zabbix_link == '1' }}></label>
+    {% call F(_('Dirección de Zabbix'), 's-zbx-url', _('La de la interfaz web, como se abre en el navegador (https://zabbix.empresa.local/zabbix/).')) %}<div class="input mono"><input id="s-zbx-url" name="zabbix_url" value="{{ s.zabbix_url }}" placeholder="https://zabbix.empresa.local/zabbix/" spellcheck="false"></div>{% endcall %}
+    {% call F(_('Token de API'), 's-zbx-tok', _('Zabbix › Usuarios › Tokens de API. Basta un usuario con permiso de lectura sobre los hosts. Se guarda cifrado; déjelo vacío para no cambiarlo.')) %}<div class="input mono" style="max-width:520px"><input id="s-zbx-tok" name="zabbix_token" type="password" autocomplete="new-password" spellcheck="false" {% if s.zabbix_token_set %}placeholder="{{ _('•••••••• (guardada)') }}"{% endif %}></div>{% endcall %}
+    <label class="swrow"><span><b>{{ _('Verificar el certificado HTTPS') }}</b><div class="muted sm">{{ _('Desactívelo solo si Zabbix usa un certificado autofirmado.') }}</div></span><input type="checkbox" class="sw" name="zabbix_verify" {{ 'checked' if s.zabbix_verify != '0' }}></label>
+    <div class="row"><button type="button" class="btn" id="zbx-test">{{ icon('play', 's') }}{{ _('Probar conexión') }}</button><span class="sm" id="zbx-res" role="status" aria-live="polite"></span></div>
+  </div></section>
   <section class="card" id="nvd" data-secp><div class="card-h"><h2>{{ _('Vulnerabilidades (NVD)') }}</h2></div><div class="stack">
     <p class="muted sm">{{ _('Opcional. Sin clave, NVD permite unas 5 consultas cada 30 segundos; con una clave gratuita, unas 50, así que la búsqueda de CVE y de versiones de firmware es mucho más rápida.') }} <a href="https://nvd.nist.gov/developers/request-an-api-key" target="_blank" rel="noopener">{{ _('Pedir una clave en nvd.nist.gov') }}</a></p>
     {% call F(_('Clave de la API de NVD'), 's-nvd', _('Se guarda cifrada. Déjala vacía para no cambiarla.')) %}<div class="input mono" style="max-width:420px"><input id="s-nvd" name="nvd_api_key" type="password" autocomplete="new-password" spellcheck="false" {% if s.nvd_api_key_set %}placeholder="{{ _('•••••••• (guardada)') }}"{% endif %}></div>{% endcall %}
@@ -220,6 +228,14 @@
       const j = await (await fetch('/settings/ldap-test', {method: 'POST', body: new FormData(document.getElementById('setf')), credentials: 'same-origin'})).json();
       lr.textContent = j.msg; lr.style.color = j.ok ? 'var(--ok)' : 'var(--crit)';
     } catch (e) { lr.textContent = {{ _('No se pudo hacer la prueba.')|tojson }}; lr.style.color = 'var(--crit)'; }
+  });
+  const zt = document.getElementById('zbx-test'), zr = document.getElementById('zbx-res');
+  zt.addEventListener('click', async () => {
+    zr.textContent = {{ _('Probando…')|tojson }}; zr.style.color = '';
+    try {
+      const j = await (await fetch('/settings/zabbix-test', {method: 'POST', body: new FormData(document.getElementById('setf')), credentials: 'same-origin'})).json();
+      zr.textContent = j.msg; zr.style.color = j.ok ? 'var(--ok)' : 'var(--crit)';
+    } catch (e) { zr.textContent = {{ _('No se pudo hacer la prueba.')|tojson }}; zr.style.color = 'var(--crit)'; }
   });
   const prov = () => (document.querySelector('[name=ai_provider]:checked') || {}).value;
   const baseF = document.getElementById('ai-base-f');

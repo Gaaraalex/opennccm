@@ -108,7 +108,9 @@
     document.body.appendChild(t); setTimeout(function () { t.remove(); }, 3500);
   }
   function poll() {
-    fetch('/backup/job', {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (r) {
+    // solo los equipos que esta página muestra (y el servidor añade los que fallaron): no la lista entera
+    var vis = [].map.call(document.querySelectorAll('#devtable tr[data-dev]'), function (tr) { return tr.getAttribute('data-dev'); });
+    fetch('/backup/job?ids=' + vis.join(','), {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (r) {
       var j = r.job;
       if (j && !j.ended) seenRun = true;
       if (j && j.ended && seenRun) { seenRun = false; toast(j.cancel ? T.cancelled : T.toast); }
