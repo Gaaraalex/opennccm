@@ -95,6 +95,12 @@ def public_keys() -> dict[str, str]:
 EN_USO_MSG = N_("Esta licencia se está usando en otro servidor. Si este es el servidor correcto, libera la instalación anterior en Mi cuenta › Licencias y vuelve a activar la clave aquí.")  # noqa: E501
 
 
+def nombre_servidor() -> str:
+    """El nombre de este servidor que se ve en Alta disponibilidad y en Mi cuenta de la web (el hostname; hasta 64)."""
+    import socket
+    return (os.environ.get("NCM_NOMBRE_SERVIDOR") or socket.gethostname() or "")[:64]
+
+
 def install_id() -> str:
     """Id de esta instalación: se crea la primera vez y no cambia (va en la licencia a la que queda atada)."""
     iid = get_setting("install_id", "")
@@ -425,7 +431,8 @@ def activate(key: str) -> dict:
     key = normalize_key(key)
     if not KEY_RE.match(key):
         raise LicenseError(_("La clave tiene la forma OPNC-XXXX-XXXX-XXXX-XXXX."))
-    r = _post("/api/licencias/activar", {"clave": key, "instalacion": install_id(), "huella": fingerprint(), "version": __version__})
+    r = _post("/api/licencias/activar", {"clave": key, "instalacion": install_id(), "huella": fingerprint(), "version": __version__,
+                                          "nombre": nombre_servidor()})
     if r.status_code == 409:
         e = _err(r)
         if e.get("error") == "prueba_usada":  # nada de esa clave se activa (contrato de pruebas, sección 3)
@@ -469,7 +476,7 @@ def refresh() -> str:
         return "en_uso"  # hasta volver a activar la clave en este servidor (con su id nuevo)
     try:
         from . import __version__
-        body = {"clave": key, "instalacion": install_id(), "huella": fingerprint(), "version": __version__}
+        body = {"clave": key, "instalacion": install_id(), "huella": fingerprint(), "version": __version__, "nombre": nombre_servidor()}
         if get_setting("licencia_sello", ""):
             body["sello"] = get_setting("licencia_sello", "")
         r = _post("/api/licencias/actualizar", body)

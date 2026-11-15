@@ -51,7 +51,7 @@
       <form method="post" action="/license/trial-used/dismiss"><button class="btn s ghost" aria-label="{{ _('Cerrar') }}">✕</button></form></div>
     {% elif can_try and (not ped or ped.estado == 'rechazado') %}<p class="sm" style="margin:12px 0 0">{{ _('¿Todavía no tienes clave?') }} <button type="button" class="lnk" data-dialog="lic-try">{{ _('Pide una prueba gratis') }}</button> {{ _('o compra en comunidad.opennccm.com') }}</p>{% endif %}
     {% endif %}
-    <p class="muted sm" style="margin-top:12px">{{ _('OpenNCCM Pro necesita conexión a internet para activar y comprobar la licencia. Solo se envían la clave, el id de esta instalación y la huella del servidor.') }}</p>
+    <p class="muted sm" style="margin-top:12px">{{ _('OpenNCCM Pro necesita conexión a internet para activar y comprobar la licencia. Solo se envían la clave, el id de esta instalación, la huella y el nombre del servidor que configuraste.') }}</p>
     <p class="muted sm" style="margin-top:6px">{{ _f('Id de esta instalación: {0}', install) }}</p></section>
 
   <section class="card c12" aria-labelledby="lic-m"><div class="card-h"><h2 id="lic-m">{{ _('Módulos') }}</h2></div>
