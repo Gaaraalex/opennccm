@@ -47,9 +47,9 @@ from .i18n import N_, _, _f
 
 log = logging.getLogger("opennccm")
 
-# claves públicas de firma de comunidad.opennccm.com: {kid: clave pública Ed25519 en base64url (32 bytes)}. La de
-# producción («k1») la entrega la web cuando la genere; para pruebas se agregan con NCM_LICENSE_KEYS="k0=…,k9=…".
-PUBLIC_KEYS: dict[str, str] = {}
+# claves públicas de firma de comunidad.opennccm.com: {kid: clave pública Ed25519 en base64url (32 bytes)}. «k1» es la
+# de producción (la privada solo está en la web); para pruebas se agregan otras con NCM_LICENSE_KEYS="k0=…,k9=…".
+PUBLIC_KEYS: dict[str, str] = {"k1": "4CRggzpVI-SVyDWIept_nhnQjgklVa3xgHNNvjLa6Kg"}
 LICENSE_URL = os.environ.get("NCM_LICENSE_URL", "https://comunidad.opennccm.com").rstrip("/")
 BUY_URL = "https://comunidad.opennccm.com/pro"
 CONTACT_URL = "mailto:soporte@opennccm.com"
