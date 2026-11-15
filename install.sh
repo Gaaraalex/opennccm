@@ -45,6 +45,8 @@ SMTP_HOST=""; SMTP_PORT="587"; SMTP_SEC="starttls"; SMTP_USER=""; SMTP_PASS=""; 
 SYSLOG_PORT=514
 FORCE=0
 REINSTALL=0
+MODO=""               # recolector: respalda los equipos de una sede para otro OpenNCCM (sin interfaz web)
+RC_CENTRAL=""; RC_CLAVE=""
 
 # Reinstalación: partir de las opciones guardadas (los argumentos las pueden cambiar)
 if [[ -r $CONF ]]; then
@@ -76,6 +78,8 @@ Sin opciones abre un asistente con menús. Opciones para instalación desatendid
   --source DIRECTORIO       Instalar desde una copia local del repositorio
   --force                   Continuar aunque la versión de Ubuntu no sea 22.04/24.04
   --reinstall               Volver a ejecutar la instalación sobre una existente (conserva los datos)
+  --recolector URL --clave CLAVE   Modo recolector: respalda los equipos de esta sede para el OpenNCCM de URL
+                            (sin interfaz web; el comando completo lo da el servidor central al agregar la sede)
 
 Si OpenNCCM ya está instalado, para actualizar use:  sudo opennccm update
 EOF
@@ -111,11 +115,21 @@ while [[ $# -gt 0 ]]; do
     --source) SOURCE_DIR="$2"; shift ;;
     --force) FORCE=1 ;;
     --reinstall) REINSTALL=1 ;;
+    --recolector) MODO="recolector"; RC_CENTRAL="${2%/}"; shift ;;
+    --clave) RC_CLAVE="$2"; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Opción desconocida: $1"; usage; exit 2 ;;
   esac
   shift
 done
+
+# Modo recolector: sin web, sin nginx ni puertos abiertos (la sede siempre llama al central), sin preguntas
+if [[ $MODO == recolector ]]; then
+  [[ $RC_CENTRAL =~ ^https?:// ]] || { echo "--recolector necesita la dirección del servidor central (https://…)"; exit 2; }
+  [[ $APPLY_ONLY -eq 1 || $RC_CLAVE == ra_* || -r $CONF ]] || { echo "--recolector necesita --clave (la clave de alta de la sede)"; exit 2; }
+  UNATTENDED=1; TLS_MODE="none"; FIREWALL="no"
+  [[ -d $APP_DIR/.git ]] && REINSTALL=1   # otra clave de alta en un recolector ya instalado: se reinstala conservando los datos
+fi
 
 # ----------------------------------------------------------------- interfaz
 # Paleta del asistente (whiptail/newt)
@@ -582,7 +596,11 @@ KEY_FILE_TLS='$KEY_FILE_TLS'
 DB_MODE='$DB_MODE'
 FIREWALL='$FIREWALL'
 SYSLOG_PORT='$SYSLOG_PORT'
+MODO='$MODO'
+RC_CENTRAL='$RC_CENTRAL'
 EOF
+  sed -i '/^NCM_MODO=/d' $ETC_DIR/opennccm.env
+  [[ $MODO == recolector ]] && echo "NCM_MODO=recolector" >> $ETC_DIR/opennccm.env
   chown -R $SVC_USER:$SVC_USER $DATA_DIR $ETC_DIR
   chmod 700 $ETC_DIR; chmod 600 $ETC_DIR/secret.key $ETC_DIR/opennccm.env $CONF
 }
@@ -601,7 +619,8 @@ User=$SVC_USER
 Group=$SVC_USER
 WorkingDirectory=$APP_DIR
 EnvironmentFile=$ETC_DIR/opennccm.env
-ExecStart=$APP_DIR/.venv/bin/uvicorn app.main:app --host $listen --port 8000 --workers 1 --proxy-headers
+ExecStart=$(if [[ $MODO == recolector ]]; then echo "$APP_DIR/.venv/bin/python -m app.cli recolector correr"
+            else echo "$APP_DIR/.venv/bin/uvicorn app.main:app --host $listen --port 8000 --workers 1 --proxy-headers"; fi)
 Restart=on-failure
 RestartSec=5
 # CAP_NET_RAW: ping y traceroute de Operar › Consola › Herramientas (sockets ICMP)
@@ -808,6 +827,20 @@ setup_firewall() {
 }
 
 start_and_check() {
+  if [[ $MODO == recolector ]]; then
+    if [[ -n $RC_CLAVE ]]; then
+      progress 85 "Dando de alta el recolector en $RC_CENTRAL…"
+      run systemctl stop opennccm || true
+      run cli recolector alta "$RC_CENTRAL" "$RC_CLAVE"
+    fi
+    progress 90 "Iniciando el recolector…"
+    run systemctl restart opennccm
+    sleep 8
+    systemctl is-active --quiet opennccm && return 0
+    journalctl -u opennccm -n 40 --no-pager >>"$LOG" 2>&1 || true
+    echo "El recolector no quedó funcionando" >>"$LOG"
+    return 1
+  fi
   progress 85 "Iniciando OpenNCCM…"
   run systemctl restart opennccm
   local i
@@ -828,7 +861,7 @@ as_app() {
 cli() { as_app "$APP_DIR/.venv/bin/python" -m app.cli "$@"; }
 
 initial_data() {
-  [[ -f $DATA_DIR/.admin_created ]] && return 0
+  [[ -f $DATA_DIR/.admin_created || $MODO == recolector ]] && return 0
   progress 92 "Creando el administrador y los datos de ejemplo…"
   [[ -n $ADMIN_PASS ]] || ADMIN_PASS=$(openssl rand -base64 18 | tr -d '/+=' | cut -c1-14)
   run cli create-admin "$ADMIN_USER" "$ADMIN_PASS"
@@ -861,6 +894,17 @@ EOF
 
 finish() {
   local ver; ver=$(grep -oP '__version__ = "\K[^"]+' $APP_DIR/app/__init__.py)
+  if [[ $MODO == recolector ]]; then
+    progress 100 "¡Listo! Recolector de OpenNCCM $ver instalado."
+    gauge_stop
+    echo
+    echo "${c_ok}${c_b}  El recolector de OpenNCCM $ver está funcionando${c_0}"
+    echo "  Servidor central: $RC_CENTRAL"
+    echo "  Comandos:    opennccm recolector estado | opennccm logs | opennccm update"
+    echo "  Registro:    $LOG"
+    echo "  Respalde $ETC_DIR/secret.key: cifra las credenciales de los equipos de esta sede."
+    return 0
+  fi
   progress 100 "¡Listo! OpenNCCM $ver instalado."
   sleep 0.6; gauge_stop
   local creds=""

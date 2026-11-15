@@ -179,6 +179,27 @@ def _check_stored(mid: str) -> None:
     verify_package(pkg.read_bytes(), sig.read_text(encoding="utf-8"))
 
 
+def _import(mid: str):
+    name = f"opennccm_pro_{mid}"
+    if name in sys.modules:
+        return sys.modules[name]
+    spec = importlib.util.spec_from_file_location(name, DIR / mid / "modulo" / "__init__.py",
+                                                  submodule_search_locations=[str(DIR / mid / "modulo")])
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def code(mid: str):
+    """El código de un módulo instalado, con su firma comprobada, sin registrarlo en la web (lo usa el modo
+    recolector, app/recolector.py, que no tiene web ni licencia propia: trabaja para el servidor central)."""
+    if not installed(mid):
+        raise ModuleError(_("Falta el paquete firmado del módulo."))
+    _check_stored(mid)
+    return _import(mid)
+
+
 def load(app, mid: str) -> bool:
     """Carga un módulo instalado si la licencia lo incluye, su firma sigue bien y es para esta versión."""
     if mid in LOADED:
@@ -192,12 +213,7 @@ def load(app, mid: str) -> bool:
         if not compatible(man.get("nucleo")):
             raise ModuleError(_f("El módulo instalado es para OpenNCCM {0}; se baja el de esta versión.", man.get("nucleo")))
         _check_stored(mid)
-        name = f"opennccm_pro_{mid}"
-        spec = importlib.util.spec_from_file_location(name, DIR / mid / "modulo" / "__init__.py",
-                                                      submodule_search_locations=[str(DIR / mid / "modulo")])
-        mod = importlib.util.module_from_spec(spec)
-        sys.modules[name] = mod
-        spec.loader.exec_module(mod)
+        mod = _import(mid)
         mod.register(app, context())
     except Exception as e:  # noqa: BLE001  (un módulo que falla nunca tumba OpenNCCM)
         PROBLEMS[mid] = str(e)[:300]
