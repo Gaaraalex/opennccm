@@ -60,6 +60,10 @@ def _sesion(fp: str | None):
 
     s = requests.Session()
     if fp:
+        # la huella reemplaza a las autoridades de certificación: un central con certificado propio también vale
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        s.verify = False
         s.mount("https://", _Pin())
     return s
 
