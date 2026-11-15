@@ -9,7 +9,6 @@
     <h2>{{ _(o.title) }}</h2>
     <p>{{ _(o.lead) }}</p>
     <ul class="pro-inc">{% for it in o['items'] %}<li><span class="pro-tk" aria-hidden="true">✓</span>{{ _(it) }}</li>{% endfor %}</ul>
-    <div class="pro-price"><b>{{ _(o.price) }}</b><span class="muted sm">{{ _(o.price_note) }}</span></div>
     <div class="row" style="margin-top:14px"><a class="btn pri" href="/license#clave">{{ _('Tengo una clave') }}</a>
       <a class="btn" href="{{ buy_url }}" target="_blank" rel="noopener">{{ _('Ver planes y precios') }} ↗</a></div>
     <p class="muted sm" style="margin-top:12px">{{ _('Lo que ya usas sigue igual y gratis. Esto solo agrega funciones nuevas.') }}</p>

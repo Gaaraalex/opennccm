@@ -701,4 +701,4 @@ svg.viz{font-family:var(--font-sans)}svg.viz text.value,svg.viz .axis text{font-
 .pro-wm{position:absolute;top:44%;left:50%;transform:translate(-50%,-50%) rotate(-24deg);font-weight:800;font-size:68px;color:rgba(91,98,232,.14);letter-spacing:.1em;pointer-events:none}
 .lic-key{min-height:38px;padding:0 14px;letter-spacing:.04em}
 .lic-mr{display:grid;grid-template-columns:1.7fr auto 1.2fr auto;gap:14px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}.lic-mr:first-child{border-top:0}.lic-mr>div{display:flex;flex-direction:column;gap:2px}
-@media (max-width:700px){.lic-mr{grid-template-columns:1fr auto}.lic-mr>.muted{grid-column:1/-1}.pro-offer{padding:18px}}
+@media (max-width:700px){.lic-mr{grid-template-columns:1fr auto}.lic-mr>.muted{grid-column:1/-1}.pro-offer{padding:18px}.pro-of-r{max-height:300px;padding:10px}.pro-paper{zoom:.6;width:540px;max-width:none}}

@@ -114,9 +114,11 @@ class H(BaseHTTPRequestHandler):
             if code == 200:
                 out = {"licencia": lic([{"id": "informes_pro", "hasta": iso(now + timedelta(days=300))}]), "cliente": "Valnet S.A."}
         elif self.path == "/api/licencias/actualizar":
-            code = 410 if REVOKE else 200
-            out = {} if REVOKE else {"licencia": lic([{"id": "informes_pro", "hasta": iso(now + timedelta(days=400))},
-                                                      {"id": "recolectores", "hasta": iso(now + timedelta(days=400)), "limites": {"sedes": 3}}])}
+            code = {"revocada": 410, "liberada": 409}.get(REVOKE, 200)
+            mods = [{"id": "informes_pro", "hasta": iso(now + timedelta(days=400))}]
+            if REVOKE != "sin_recolectores":
+                mods.append({"id": "recolectores", "hasta": iso(now + timedelta(days=400)), "limites": {"sedes": 3}})
+            out = {"error": "no_activa"} if code == 409 else {} if code != 200 else {"licencia": lic(mods)}
         data = json.dumps(out).encode()
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
@@ -125,7 +127,7 @@ class H(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
 
-REVOKE = False
+REVOKE = None
 srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 licencia.LICENSE_URL = f"http://127.0.0.1:{srv.server_address[1]}"
@@ -147,10 +149,18 @@ check("actualizar: trae la licencia más nueva (renovación, más sedes)", licen
       and licencia.state()["modules"]["recolectores"]["state"] == "activo" and licencia.limit("recolectores", "sedes") == 3)
 sent = [c for c in CALLS if c[0] == "/api/licencias/actualizar"][-1][1]
 check("actualizar: solo envía clave e instalación", set(sent) == {"clave", "instalacion"})
-REVOKE = True
+REVOKE = "sin_recolectores"
+check("un módulo revocado (200 sin él): pasa a «No incluido» y los demás siguen", licencia.refresh() == "ok"
+      and licencia.state()["modules"]["recolectores"]["state"] == "no_incluido"
+      and licencia.state()["modules"]["informes_pro"]["state"] == "activo")
+REVOKE = "liberada"
+check("instalación liberada (409 no_activa): lo dice y pide volver a activar", licencia.refresh() == "liberada"
+      and "vuelve a activarla" in licencia.state()["problem"]
+      and licencia.state()["modules"]["informes_pro"]["state"] == "no_incluido")
+REVOKE = "revocada"
 check("actualizar con 410: revocada, módulos no incluidos y el motivo", licencia.refresh() == "revocada"
       and licencia.state()["modules"]["informes_pro"]["state"] == "no_incluido" and "revocada" in licencia.state()["problem"])
-REVOKE = False
+REVOKE = None
 licencia.refresh()
 check("si vuelve a validar, deja de estar revocada", licencia.state()["modules"]["informes_pro"]["state"] == "activo")
 srv.shutdown()

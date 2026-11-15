@@ -131,6 +131,9 @@ def state(now: datetime | None = None) -> dict:
     if get_setting("licencia_revocada", "") == "1":
         out["problem"] = _("La licencia fue revocada. Revise su cuenta en comunidad.opennccm.com.")
         data = None
+    elif get_setting("licencia_revocada", "") == "liberada":
+        out["problem"] = _("Esta clave se liberó desde Mi cuenta; vuelve a activarla.")
+        data = None
     if data and data.get("instalacion") not in (None, install_id()):
         out["problem"] = _("La licencia es de otra instalación de OpenNCCM.")
         data = None
@@ -221,6 +224,9 @@ def refresh() -> str:
         if r.status_code == 410:
             set_setting("licencia_revocada", "1")
             return "revocada"
+        if r.status_code == 409:  # «no_activa»: la instalación se liberó desde Mi cuenta (contrato, detalles comunes)
+            set_setting("licencia_revocada", "liberada")
+            return "liberada"
         if r.status_code != 200:
             return _f("comunidad.opennccm.com respondió {0}. Se sigue con la licencia guardada.", r.status_code)
         _save(r.json()["licencia"])
@@ -248,7 +254,7 @@ def daily() -> None:
     if not get_setting("licencia_clave", "") and not get_setting("licencia", ""):
         return
     res = refresh()
-    if res not in ("ok", "sin_clave", "revocada"):
+    if res not in ("ok", "sin_clave", "revocada", "liberada"):
         log.info("Licencia: %s", res)
     from .services import add_event
     st = state()
