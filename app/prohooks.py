@@ -12,7 +12,9 @@ Sin módulos, todo queda en None y OpenNCCM funciona como siempre.
   dentro de su lista de datos), «devices_bulk» y «devices_end» (la barra de selección de Dispositivos y después de ella)
   y «dashboard_kpis» (los indicadores del Panel).
 * providers: datos que los módulos suman a cálculos del núcleo. Cada uno es una lista de funciones (**contexto) -> dict.
-  «attention» (health.summary, el Panel): {"chips": [(clase, n, texto, enlace)], "queue": [elementos de la bandeja]}:
+  «attention» (health.summary, el Panel): {"chips": [(clase, n, texto, enlace)], "queue": [elementos de la bandeja],
+  "titular": texto}. «titular» solo cuando hay algo urgente: reemplaza la frase de arriba del Panel («Tu red está
+  bien»), nunca la puntuación:
   lo que necesita atención por culpa del módulo (por ejemplo, sedes que no reportan)."""
 from __future__ import annotations
 
