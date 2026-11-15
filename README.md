@@ -171,3 +171,7 @@ Las versiones se publican con una etiqueta `vX.Y.Z`. Ver [CONTRIBUTING.md](CONTR
 
 [GPL-3.0](LICENSE). Puede usar, estudiar, modificar y distribuir OpenNCCM; si distribuye versiones modificadas,
 debe publicarlas con la misma licencia.
+
+Con un permiso adicional según la sección 7 de la GPL-3.0, la [excepción de módulos](LICENSE-EXCEPTION): OpenNCCM se
+puede combinar con módulos que se cargan por su interfaz de módulos firmados (como los de OpenNCCM Pro) aunque esos
+módulos tengan otra licencia. Cualquier cambio al núcleo sigue siendo GPL-3.0.

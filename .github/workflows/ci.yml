@@ -24,6 +24,8 @@ jobs:
         run: |
           python3 -m pip install -q pyflakes
           python3 -m pyflakes app tests
+      - name: Excepción de módulos (LICENSE-EXCEPTION y la única puerta de carga)
+        run: python3 scripts/check_module_door.py
 
   app:
     name: Aplicación (${{ matrix.os }})

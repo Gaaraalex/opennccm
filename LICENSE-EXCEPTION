@@ -1,0 +1,83 @@
+EXCEPCIÓN DE OPENNCCM PARA MÓDULOS · versión 1.0, 15 de noviembre de 2026
+(English text below)
+
+Este archivo es un permiso adicional según la sección 7 de la Licencia Pública General de GNU, versión 3 («GPLv3»),
+que conceden los titulares de los derechos de autor de OpenNCCM. Se inspira en excepciones del mismo tipo, como la
+«GCC Runtime Library Exception» y la «Classpath exception», adaptadas a la forma en que OpenNCCM carga sus módulos.
+
+0. Definiciones
+
+   «El Núcleo»: OpenNCCM, el programa que se publica bajo la GPLv3 junto con este permiso adicional.
+
+   «La Interfaz de Módulos»: el mecanismo documentado por el que el Núcleo carga paquetes de módulos firmados: el
+   cargador de módulos (app/promod.py), que verifica la firma del paquete y llama a la función register() del módulo,
+   y los puntos de enganche que el Núcleo ofrece a los módulos (app/prohooks.py), tal como existen en la versión del
+   Núcleo con la que se distribuyen.
+
+   «Módulo de OpenNCCM»: un programa que el Núcleo carga solo a través de la Interfaz de Módulos y que no contiene
+   código copiado del Núcleo ni versiones modificadas de él. Usar los nombres, las funciones, las clases y los datos
+   que el Núcleo pone a disposición a través de esa interfaz, o importarlos en tiempo de ejecución, no es copiar
+   código del Núcleo.
+
+   «Una Combinación»: el Núcleo junto con uno o más Módulos de OpenNCCM cargados por la Interfaz de Módulos.
+
+1. Permiso adicional
+
+   Se le permite combinar el Núcleo con Módulos de OpenNCCM y distribuir una Combinación, aunque esos módulos tengan
+   otra licencia, incluida una licencia privativa, siempre que el Núcleo que forma parte de la Combinación se siga
+   distribuyendo bajo la GPLv3, con acceso a su Código Fuente Correspondiente en los términos de la GPLv3. Un Módulo de
+   OpenNCCM no queda sujeto a la GPLv3 por el solo hecho de cargarse en el Núcleo ni de distribuirse junto con él.
+
+2. Lo que este permiso no cambia
+
+   Este permiso no modifica la licencia del Núcleo. Cualquier modificación del Núcleo, incluida cualquier modificación
+   de la Interfaz de Módulos, sigue sujeta a la GPLv3. El permiso no alcanza a programas que se integren con el Núcleo
+   por otros medios distintos de la Interfaz de Módulos ni a programas que copien o modifiquen código del Núcleo.
+
+3. Versiones modificadas
+
+   Si usted modifica el Núcleo, puede extender este permiso a su versión, pero no está obligado a hacerlo. Si no desea
+   hacerlo, borre este permiso de su versión.
+
+
+------------------------------------------------------------------------------------------------------------------------
+
+OPENNCCM MODULE EXCEPTION · version 1.0, November 15, 2026
+
+This file is an additional permission under section 7 of the GNU General Public License, version 3 ("GPLv3"), granted
+by the copyright holders of OpenNCCM. It is modeled on exceptions of the same kind, such as the GCC Runtime Library
+Exception and the Classpath exception, adapted to the way OpenNCCM loads its modules.
+
+0. Definitions
+
+   "The Core": OpenNCCM, the program released under the GPLv3 together with this additional permission.
+
+   "The Module Interface": the documented mechanism through which the Core loads signed module packages: the module
+   loader (app/promod.py), which verifies the package signature and calls the module's register() function, and the
+   hook points the Core offers to modules (app/prohooks.py), as they exist in the version of the Core they are
+   distributed with.
+
+   "An OpenNCCM Module": a program that the Core loads only through the Module Interface and that contains no code
+   copied from the Core and no modified versions of it. Using the names, functions, classes and data that the Core
+   makes available through that interface, or importing them at run time, is not copying code from the Core.
+
+   "A Combination": the Core together with one or more OpenNCCM Modules loaded through the Module Interface.
+
+1. Additional permission
+
+   You are permitted to combine the Core with OpenNCCM Modules and to distribute a Combination, even if those modules
+   are under a different license, including a proprietary license, provided that the Core that is part of the
+   Combination continues to be distributed under the GPLv3, with access to its Corresponding Source under the terms of
+   the GPLv3. An OpenNCCM Module does not become subject to the GPLv3 merely by being loaded into the Core or by being
+   distributed together with it.
+
+2. What this permission does not change
+
+   This permission does not modify the license of the Core. Any modification of the Core, including any modification
+   of the Module Interface, remains subject to the GPLv3. The permission does not extend to programs that integrate
+   with the Core by means other than the Module Interface, nor to programs that copy or modify code from the Core.
+
+3. Modified versions
+
+   If you modify the Core, you may extend this permission to your version, but you are not obligated to do so. If you
+   do not wish to do so, delete this permission from your version.
