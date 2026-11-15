@@ -148,6 +148,9 @@ def _rows(st: dict, ped: dict | None, used: dict) -> dict:
             continue
         if m["tipo"] == "prueba" and m["state"] == "activo":
             kind = "trial"
+            from . import promod
+            if licencia.MODULES[mid].get("soon") or promod.info(mid).get("problem"):
+                kind = "trial_nopkg"  # la prueba está en el archivo pero no hay paquete para esta versión: gris, nunca rojo
         elif m["tipo"] == "prueba" and m["state"] in ("vencido", "pausado"):
             kind = "trial_over" if m["state"] == "vencido" else "paused"
         elif m["state"] != "no_incluido":

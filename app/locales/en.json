@@ -6104,7 +6104,7 @@
 "Tu equipo ya usa su licencia en otro servidor. Pide la prueba desde ese servidor, o libera la instalación en Mi cuenta › Licencias.": "Your team already uses its license on another server. Request the trial from that server, or release the installation in My account › Licenses.",
 "Tu pedido de prueba de {0} no fue aprobado.": "Your trial request for {0} was not approved.",
 "Tu pedido de prueba no fue aprobado": "Your trial request was not approved",
-"Tu prueba de {0} fue aprobada. Actívala en Administración › Licencia y módulos.": "Your {0} trial was approved. Activate it in Administration › License and modules.",
+"Tu prueba de {0} fue aprobada: actívala en Licencia y módulos.": "Your {0} trial was approved: activate it in License and modules.",
 "Tu prueba fue aprobada": "Your trial was approved",
 "Vence el {0}. Ese día los módulos se pausan; los informes que generes se conservan y lo gratis sigue igual. Te avisamos 3 días antes.": "It ends on {0}. That day the modules are paused; the reports you generate are kept and the free features stay the same. We'll remind you 3 days before.",
 "Ver precios": "See pricing",

@@ -142,7 +142,7 @@ def poll(force: bool = False) -> dict | None:
     if st == "aprobado":
         p.update({"estado": "aprobado", "clave": b.get("clave") or "", "dias": b.get("dias"), "vence": b.get("vence") or ""})
         _put(p)
-        _notify(_f("Tu prueba de {0} fue aprobada. Actívala en Administración › Licencia y módulos.", licencia.module_names(p["modulos"])))
+        _notify(_f("Tu prueba de {0} fue aprobada: actívala en Licencia y módulos.", licencia.module_names(p["modulos"])))
     elif st == "rechazado":
         p.update({"estado": "rechazado", "motivo": (b.get("motivo") or "")[:500]})
         _put(p)

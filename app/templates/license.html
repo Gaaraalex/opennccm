@@ -59,15 +59,16 @@
       <div class="lic-mr"><div><b>{{ _(meta.name) }}</b><span class="muted sm">{{ _(meta.desc) }}</span></div>
         {% if r.kind == 'waiting' %}<span class="pill">{{ _('Prueba aprobada') }}</span>
         {% elif r.kind == 'blocked' %}<span class="pill">{{ _('No incluido') }}</span>
-        {% elif r.kind == 'trial' %}<span class="pill info">{% if m.days_cal <= 0 %}{{ _('Prueba · vence hoy') }}{% elif m.days_cal == 1 %}{{ _('Prueba · queda 1 día') }}{% else %}{{ _f('Prueba · quedan {0} días', m.days_cal) }}{% endif %}</span>
+        {% elif r.kind in ('trial', 'trial_nopkg') %}<span class="pill info">{% if m.days_cal <= 0 %}{{ _('Prueba · vence hoy') }}{% elif m.days_cal == 1 %}{{ _('Prueba · queda 1 día') }}{% else %}{{ _f('Prueba · quedan {0} días', m.days_cal) }}{% endif %}</span>
         {% elif r.kind == 'trial_over' %}<span class="pill crit">{{ _f('La prueba terminó el {0}', short(m.until_local)) }}</span>
         {% elif r.kind == 'pending' %}<span class="pill warn">{{ _('Prueba pedida') }}</span>
         {% elif r.kind == 'approved' %}<span class="pill ok">{{ _('Prueba aprobada') }}</span>
         {% elif r.kind == 'soon' %}<span class="pill">{{ _('Próximamente') }}</span>
         {% else %}<span class="pill {{ 'ok' if m.state == 'activo' else 'warn' if m.state == 'gracia' else 'crit' if m.state in ('vencido', 'pausado') else '' }}">{% if m.state == 'pausado' %}{{ _('Pausado') }}{% elif m.state == 'activo' %}{{ _f('Activo hasta el {0}', m.until.strftime('%d-%m-%Y')) }}{% elif m.state == 'gracia' %}{{ _f('En gracia hasta el {0}', m.grace_until.strftime('%d-%m-%Y')) }}{% elif m.state == 'vencido' %}{{ _f('Venció el {0}', m.until.strftime('%d-%m-%Y')) }}{% else %}{{ _('No incluido') }}{% endif %}</span>{% endif %}
-        <span class="muted sm">{% if mi.problem and r.kind not in ('waiting', 'blocked', 'nopkg') %}<span style="color:var(--crit)">{{ mi.problem }}</span> {% endif %}
+        <span class="muted sm">{% if mi.problem and r.kind in ('owned', 'paused') %}<span style="color:var(--crit)">{{ mi.problem }}</span> {% endif %}
           {%- if r.kind == 'waiting' %}{{ _f('Disponible pronto · tu prueba de {0} días empieza cuando salga', r.days) if r.days else _('Disponible pronto · tu prueba empieza cuando salga') }}
           {%- elif r.kind == 'blocked' %}{{ r.text }}
+          {%- elif r.kind == 'trial_nopkg' %}{{ _('Disponible pronto · tu prueba empieza cuando salga') }}
           {%- elif r.kind == 'trial' %}{{ _f('hasta el {0}', short(m.until_local)) }}{% for k, v in m.limits.items() %} · {{ _f('{0}: {1}', _(k), v if v else _('sin límite')) }}{% endfor %}
           {%- elif r.kind == 'trial_over' %}{{ _('Pausado · no se borró nada') }}
           {%- elif r.kind == 'pending' %}{{ _('en revisión') }}
@@ -77,7 +78,7 @@
         {% if r.kind == 'paused' %}<span class="lic-nobtn"></span>{# la salida está arriba: Actualizar o Volver a activar aquí #}
         {% elif r.kind == 'soon' %}<a class="btn s" href="{{ buy_url }}" target="_blank" rel="noopener">{{ _('Avísame cuando esté') }} ↗</a>
         {% elif r.kind == 'free' %}<div class="row lic-btns">{% if not ped or ped.estado == 'rechazado' %}<button type="button" class="btn s" data-dialog="lic-try" data-mod="{{ mid }}">{{ _('Probar gratis') }}</button>{% endif %}<a class="btn s pri" href="{{ buy_url }}" target="_blank" rel="noopener">{{ _('Comprar') }}</a></div>
-        {% elif r.kind in ('trial', 'trial_over', 'pending', 'approved', 'used', 'waiting', 'blocked', 'nopkg') %}<a class="btn s {{ 'pri' if r.kind in ('trial_over', 'used', 'blocked', 'nopkg') }}" href="{{ buy_url }}" target="_blank" rel="noopener">{{ _('Comprar') }}</a>
+        {% elif r.kind in ('trial', 'trial_nopkg', 'trial_over', 'pending', 'approved', 'used', 'waiting', 'blocked', 'nopkg') %}<a class="btn s {{ 'pri' if r.kind in ('trial_over', 'used', 'blocked', 'nopkg') }}" href="{{ buy_url }}" target="_blank" rel="noopener">{{ _('Comprar') }}</a>
         {% else %}<a class="btn s {{ 'pri' if m.state == 'no_incluido' }}" href="{{ buy_url }}" target="_blank" rel="noopener">{{ _('Comprar') if m.state == 'no_incluido' else _('Renovar') }}</a>{% endif %}</div>
     {% endfor %}</div></section>
 

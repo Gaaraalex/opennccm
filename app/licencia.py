@@ -233,7 +233,8 @@ def _store_waiting(raw) -> None:
     from .services import add_event
     for mid in gone:
         m = st["modules"].get(mid)
-        if m and m["tipo"] == "prueba" and m["state"] == "activo" and m["until_local"]:
+        # solo si ya hay paquete para esta versión: si no, la fila sigue en gris «Disponible pronto»
+        if m and m["tipo"] == "prueba" and m["state"] == "activo" and m["until_local"] and not MODULES[mid].get("soon"):
             add_event("warning", "Licencia", _f("Ya puedes usar tu prueba de {0}: vence el {1}.", _(MODULES[mid]["name"]),
                                              short_date(m["until_local"])), notify=False)
 
