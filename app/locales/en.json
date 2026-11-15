@@ -2065,7 +2065,6 @@
 "OpenNCCM se está reiniciando con la versión nueva… ({0} s)": "OpenNCCM is restarting with the new version… ({0} s)",
 "OpenNCCM se está reiniciando para usar la nueva hora. Esta página se recargará sola en unos segundos.": "OpenNCCM is restarting to use the new time. This page will reload by itself in a few seconds.",
 "OpenNCCM se está reiniciando para usar la nueva hora. Esta página vuelve sola a Sistema en cuanto termine.": "OpenNCCM is restarting to use the new time. This page goes back to System by itself as soon as it finishes.",
-"OpenNCCM se ofrece gratuitamente: no hay compras, suscripciones ni pagos, por lo que no aplica una política de reembolsos.": "OpenNCCM is offered free of charge: there are no purchases, subscriptions or payments, so no refund policy applies.",
 "OpenNCCM usa {0}": "OpenNCCM uses {0}",
 "OpenNCCM {0} es la versión más reciente.": "OpenNCCM {0} is the latest version.",
 "OpenNCCM {0} está al día": "OpenNCCM {0} is up to date",
@@ -6133,5 +6132,7 @@
 "Ya puedes usar tu prueba de {0}: vence el {1}.": "You can now use your {0} trial: it ends on {1}.",
 "Pedido al recolector de su sede: la copia llega en cuanto la haga.": "Requested from its site's collector: the copy arrives as soon as it's made.",
 ", con la": ", with the",
-"excepción de módulos": "module exception"
+"excepción de módulos": "module exception",
+"OpenNCCM es gratis. Los módulos Pro son opcionales y se compran en comunidad.opennccm.com: los pagos, las cancelaciones y los reembolsos se rigen por los": "OpenNCCM is free. Pro modules are optional and are purchased at comunidad.opennccm.com: payments, cancellations and refunds are governed by the",
+"Términos de OpenNCCM Pro": "OpenNCCM Pro Terms"
 }
