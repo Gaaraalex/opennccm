@@ -62,3 +62,4 @@ try {
 }
 if ($fallos.Count) { Write-Host "RESULTADO: $($fallos.Count) fallos: $($fallos -join '; ')"; exit 1 }
 Write-Host "RESULTADO: TODO OK"
+exit 0  # el último programa (schtasks /Delete de una tarea que ya no existe) no es el resultado
