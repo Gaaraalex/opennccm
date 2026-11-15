@@ -68,15 +68,16 @@ def _sesion(fp: str | None):
     return s
 
 
-def bajar_modulo(central: str, clave: str) -> dict:
-    """Baja del central el módulo firmado (la clave de alta lo autoriza; no se gasta) y lo instala si la firma vale."""
+def bajar_modulo(central: str, clave: str, mid: str = MID, ruta: str = "/api/recolector/paquete") -> dict:
+    """Baja del central el módulo firmado (la clave de alta lo autoriza; no se gasta) y lo instala si la firma vale.
+    También lo usa el modo espera de alta disponibilidad (app/espera.py), con su módulo y su ruta."""
     import requests
     central = central.rstrip("/")
     if urlparse(central).scheme not in ("http", "https"):
         raise RecolectorError(f"La dirección del servidor central no es válida: {central}")
     try:
         fp = huella(central)
-        r = _sesion(fp).get(central + "/api/recolector/paquete", headers={"X-OPNC-Alta": clave}, timeout=120)
+        r = _sesion(fp).get(central + ruta, headers={"X-OPNC-Alta": clave}, timeout=120)
     except (OSError, requests.RequestException) as e:
         raise RecolectorError(f"No se pudo conectar con {central}: {str(e).splitlines()[0][:200]}") from e
     if r.status_code != 200:
@@ -86,21 +87,22 @@ def bajar_modulo(central: str, clave: str) -> dict:
             msg = None
         raise RecolectorError(msg or f"El servidor central respondió {r.status_code}.")
     try:
-        return promod.install(MID, r.content, r.headers.get("X-OPNC-Firma", ""), r.headers.get("X-OPNC-Kid") or None)
+        return promod.install(mid, r.content, r.headers.get("X-OPNC-Firma", ""), r.headers.get("X-OPNC-Kid") or None)
     except promod.ModuleError as e:
         raise RecolectorError(str(e)) from e
 
 
-def modulo():
-    """El código del módulo instalado, con su firma comprobada. No se registra en la web: aquí no hay web."""
-    if not promod.installed(MID):
-        raise RecolectorError("Este recolector todavía no se dio de alta: sudo opennccm recolector alta <central> <clave>")
+def modulo(mid: str = MID, funcion: str = "recolector",
+           falta: str = "Este recolector todavía no se dio de alta: sudo opennccm recolector alta <central> <clave>"):
+    """El código del módulo instalado, con su firma comprobada, sin registrarlo en la web."""
+    if not promod.installed(mid):
+        raise RecolectorError(falta)
     try:
-        mod = promod.code(MID)
+        mod = promod.code(mid)
     except promod.ModuleError as e:
         raise RecolectorError(str(e)) from e
-    if not hasattr(mod, "recolector"):
-        raise RecolectorError("El módulo instalado no trae el recolector.")
+    if not hasattr(mod, funcion):
+        raise RecolectorError(f"El módulo instalado no trae «{funcion}».")
     return mod
 
 

@@ -11,6 +11,7 @@
     python -m app.cli system-backup [--with-key]   # copia de recuperación de OpenNCCM
     python -m app.cli restore <archivo.tar.gz>      # restaurar (con el servicio detenido)
     python -m app.cli recolector alta <central> <clave> | correr | estado   # modo recolector (app/recolector.py)
+    python -m app.cli espera alta <activo> <clave>   # servidor en espera de alta disponibilidad (app/espera.py)
 """
 import getpass
 import sys
@@ -184,6 +185,9 @@ def main():
     if cmd == "recolector":
         from . import recolector
         sys.exit(recolector.main(args[1:]))
+    if cmd == "espera":
+        from . import espera
+        sys.exit(espera.main(args[1:]))
     if cmd in ("create-admin", "reset-password") and len(args) >= 2:
         create_admin(args[1], args[2] if len(args) > 2 else None)
     elif cmd == "reset-2fa" and len(args) >= 2:

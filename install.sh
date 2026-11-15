@@ -46,6 +46,7 @@ SYSLOG_PORT=514
 FORCE=0
 REINSTALL=0
 MODO=""               # recolector: respalda los equipos de una sede para otro OpenNCCM (sin interfaz web)
+                      # espera: servidor en espera de otro OpenNCCM (alta disponibilidad); RC_CENTRAL es el activo
 RC_CENTRAL=""; RC_CLAVE=""
 
 # Reinstalación: partir de las opciones guardadas (los argumentos las pueden cambiar)
@@ -80,6 +81,8 @@ Sin opciones abre un asistente con menús. Opciones para instalación desatendid
   --reinstall               Volver a ejecutar la instalación sobre una existente (conserva los datos)
   --recolector URL --clave CLAVE   Modo recolector: respalda los equipos de esta sede para el OpenNCCM de URL
                             (sin interfaz web; el comando completo lo da el servidor central al agregar la sede)
+  --espera URL --clave CLAVE       Servidor en espera del OpenNCCM de URL (alta disponibilidad; el comando lo da
+                            el servidor activo en Administración › Alta disponibilidad)
 
 Si OpenNCCM ya está instalado, para actualizar use:  sudo opennccm update
 EOF
@@ -116,6 +119,7 @@ while [[ $# -gt 0 ]]; do
     --force) FORCE=1 ;;
     --reinstall) REINSTALL=1 ;;
     --recolector) MODO="recolector"; RC_CENTRAL="${2%/}"; shift ;;
+    --espera) MODO="espera"; RC_CENTRAL="${2%/}"; shift ;;
     --clave) RC_CLAVE="$2"; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Opción desconocida: $1"; usage; exit 2 ;;
@@ -129,6 +133,13 @@ if [[ $MODO == recolector ]]; then
   [[ $APPLY_ONLY -eq 1 || $RC_CLAVE == ra_* || -r $CONF ]] || { echo "--recolector necesita --clave (la clave de alta de la sede)"; exit 2; }
   UNATTENDED=1; TLS_MODE="none"; FIREWALL="no"
   [[ -d $APP_DIR/.git ]] && REINSTALL=1   # otra clave de alta en un recolector ya instalado: se reinstala conservando los datos
+fi
+# Servidor en espera (alta disponibilidad): OpenNCCM completo, con su web; los usuarios y los datos llegan del activo
+if [[ $MODO == espera ]]; then
+  [[ $RC_CENTRAL =~ ^https?:// ]] || { echo "--espera necesita la dirección del servidor activo (https://…)"; exit 2; }
+  [[ $APPLY_ONLY -eq 1 || $RC_CLAVE == ha_* || -r $CONF ]] || { echo "--espera necesita --clave (la clave de alta del par)"; exit 2; }
+  UNATTENDED=1
+  [[ -d $APP_DIR/.git ]] && REINSTALL=1
 fi
 
 # ----------------------------------------------------------------- interfaz
@@ -827,6 +838,11 @@ setup_firewall() {
 }
 
 start_and_check() {
+  if [[ $MODO == espera && -n $RC_CLAVE ]]; then
+    progress 82 "Sumando este servidor como espera de $RC_CENTRAL (copia de los datos)…"
+    run systemctl stop opennccm || true
+    run cli espera alta "$RC_CENTRAL" "$RC_CLAVE"
+  fi
   if [[ $MODO == recolector ]]; then
     if [[ -n $RC_CLAVE ]]; then
       progress 85 "Dando de alta el recolector en $RC_CENTRAL…"
@@ -861,7 +877,7 @@ as_app() {
 cli() { as_app "$APP_DIR/.venv/bin/python" -m app.cli "$@"; }
 
 initial_data() {
-  [[ -f $DATA_DIR/.admin_created || $MODO == recolector ]] && return 0
+  [[ -f $DATA_DIR/.admin_created || $MODO == recolector || $MODO == espera ]] && return 0  # en espera: llegan del activo
   progress 92 "Creando el administrador y los datos de ejemplo…"
   [[ -n $ADMIN_PASS ]] || ADMIN_PASS=$(openssl rand -base64 18 | tr -d '/+=' | cut -c1-14)
   run cli create-admin "$ADMIN_USER" "$ADMIN_PASS"
@@ -903,6 +919,16 @@ finish() {
     echo "  Comandos:    opennccm recolector estado | opennccm logs | opennccm update"
     echo "  Registro:    $LOG"
     echo "  Respalde $ETC_DIR/secret.key: cifra las credenciales de los equipos de esta sede."
+    return 0
+  fi
+  if [[ $MODO == espera ]]; then
+    progress 100 "¡Listo! OpenNCCM $ver instalado en espera."
+    gauge_stop
+    echo
+    echo "${c_ok}${c_b}  OpenNCCM $ver está en espera de $RC_CENTRAL${c_0}"
+    echo "  Replica los datos cada minuto y pasa a activo si el otro cae (Administración › Alta disponibilidad)."
+    echo "  Usuarios y contraseñas: los mismos del servidor activo."
+    echo "  Registro:    $LOG"
     return 0
   fi
   progress 100 "¡Listo! OpenNCCM $ver instalado."
