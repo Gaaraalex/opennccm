@@ -101,7 +101,7 @@ set_setting("licencia_validada", (now - timedelta(days=9)).isoformat(timespec="s
 st = licencia.state()
 check("sin comprobar 7 días: el módulo queda «pausado» y no se usa", st["modules"]["informes_pro"]["state"] == "pausado"
       and not licencia.usable("informes_pro") and st["paused"] == "sin_comprobar")
-check("…y dice desde cuándo y qué revisar", "No se pudo comprobar la licencia desde el " + (now - timedelta(days=9)).astimezone().strftime("%d-%m-%Y") in st["problem"]
+check("…y dice desde cuándo y qué revisar", "No se pudo comprobar la licencia desde el " + (now - timedelta(days=9)).astimezone().strftime("%Y-%m-%d") in st["problem"]
       and "comunidad.opennccm.com" in st["problem"], st["problem"])
 set_setting("licencia", lic([{"id": "informes_pro", "hasta": iso(now + timedelta(days=90))}], emitida=now - timedelta(days=6)))
 check("dentro de los 7 días sigue activo", licencia.state()["modules"]["informes_pro"]["state"] == "activo")

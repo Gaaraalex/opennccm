@@ -196,7 +196,7 @@ def state(now: datetime | None = None) -> dict:
             out["paused"] = "sin_comprobar"
             since = (checked or deadline - timedelta(days=CHECK_DAYS)).astimezone()
             out["problem"] = _f("No se pudo comprobar la licencia desde el {0}. Revisa que el servidor llegue a comunidad.opennccm.com.",
-                                since.strftime("%d-%m-%Y"))
+                                since.strftime("%Y-%m-%d"))  # como «ago» y «dt» en el resto del sistema
     grace = timedelta(days=int((data or {}).get("gracia_dias") or 15))
     lic = {m.get("id"): m for m in (data or {}).get("modulos", []) if isinstance(m, dict)}
     for mid in MODULES:
