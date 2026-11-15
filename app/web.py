@@ -15,6 +15,7 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 i18n.install(templates.env)  # textos de las plantillas en el idioma de cada usuario (app/locales)
 templates.env.globals["ROLES"] = ROLES
 templates.env.globals["VERSION"] = __version__
+templates.env.globals["pro_slot"] = __import__("app.prohooks", fromlist=["x"]).render_slot  # ranuras de los módulos Pro
 templates.env.globals["can"] = perms.has          # {% if can(user, 'push') %}: la función, no el rol (app/perms.py)
 templates.env.globals["can_admin"] = perms.admin_any
 templates.env.globals["ADMIN_TAB_PERM"] = {"/users": "users", "/credentials": "credentials", "/groups": "devices", "/nodes": "settings",

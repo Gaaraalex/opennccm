@@ -37,6 +37,7 @@
     <span class="d">{% if unsupported %}{% set d0, e0 = unsupported[0] %}{{ d0.name }}{% if e0 and e0.end_of_support %} · {{ _f('desde {0}', e0.end_of_support.year) }}{% endif %}{% if unsupported|length > 1 %} +{{ unsupported|length - 1 }}{% endif %}{% else %}todos con soporte{% endif %}</span></a></div>
   <div class="c3"><a class="kpi" href="/changes?status=pending"><span class="label">Cambios por aprobar</span><span class="v">{{ pending }}</span><span class="d">{% if oldest %}{{ _f('el más antiguo, {0}', oldest|ago) }}{% else %}ninguno pendiente{% endif %}</span></a></div>
 
+  {{ pro_slot('dashboard_kpis', user=user) }}
   <section class="card flush c7 r2" aria-labelledby="cola-t"><div class="card-h"><h2 id="cola-t">Necesita tu atención</h2><span class="grow"></span><a href="/events?unack=1" class="sm">{{ _f('Ver todas las alarmas ({0})', alarms) }}</a></div>
     {% if h.queue %}<ul class="queue">{% for q in h.queue[:5] %}
       <li><span class="qi {{ q.sev }}">{{ icon('alert' if q.sev == 'crit' else 'shield' if q.sev == 'major' else 'clock') }}</span>

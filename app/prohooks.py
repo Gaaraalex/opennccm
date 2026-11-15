@@ -6,13 +6,31 @@ Sin módulos, todo queda en None y OpenNCCM funciona como siempre.
   el recolector de una sede, el módulo le pasa el pedido y devuelve "queued"; si no, None y el núcleo se conecta
   como siempre. Lo que lee el recolector vuelve por services.store_remote() y se guarda igual que un respaldo de aquí.
 * remote_site(device_id) -> str | None: el nombre de la sede si el equipo se respalda desde un recolector (para no
-  intentar desde aquí lo que solo se puede hacer con el equipo al alcance, como la reversión automática)."""
+  intentar desde aquí lo que solo se puede hacer con el equipo al alcance, como la reversión automática).
+* slots: ranuras de las pantallas del núcleo donde un módulo dibuja lo suyo ({{ pro_slot('nombre', …) }} en la
+  plantilla). Cada una es una lista de funciones (**contexto) -> HTML. Ranuras: «device_info» (la ficha del equipo,
+  dentro de su lista de datos), «devices_bulk» y «devices_end» (la barra de selección de Dispositivos y después de ella)
+  y «dashboard_kpis» (los indicadores del Panel)."""
 from __future__ import annotations
 
 from typing import Callable
 
 remote_backup: Callable[[int, str, str | None], str | None] | None = None
 remote_site: Callable[[int], str | None] | None = None
+slots: dict[str, list[Callable[..., str]]] = {}
+
+
+def render_slot(name: str, **ctx):
+    """Lo que los módulos dibujan en esa ranura (nada si no hay módulos o si uno falla)."""
+    from markupsafe import Markup
+    out = []
+    for fn in slots.get(name, []):
+        try:
+            out.append(str(fn(**ctx) or ""))
+        except Exception:  # noqa: BLE001  (un módulo que falla nunca rompe la pantalla)
+            import logging
+            logging.getLogger("opennccm").exception("Ranura %s de un módulo Pro", name)
+    return Markup("".join(out))
 
 
 def site_of(device_id: int) -> str | None:
