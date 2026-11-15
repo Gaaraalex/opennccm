@@ -8,7 +8,7 @@ Authenticode (Windows muestra el aviso de editor desconocido; la ventana de alta
                        [/carpeta=C:\\otra]                  instala en otra carpeta (los datos van en su subcarpeta «datos»)
                        [/sin-tarea]                        sin tarea programada (prueba: no toca nada del sistema)
     opennccm-recolector.exe estado                          sede, servidor central y cola
-    opennccm-recolector.exe correr                          el servicio (lo arranca la tarea programada)
+    opennccm-recolector.exe correr                          el servicio (lo arranca la tarea programada; revocado: la deshabilita)
     opennccm-recolector.exe desinstalar [/todo]             quita la tarea y el programa (/todo: también los datos)
 """
 from __future__ import annotations
@@ -78,7 +78,12 @@ def tarea_xml(exe: Path) -> str:
     return f"""<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo><Description>Respalda los equipos de esta sede para el servidor central de OpenNCCM.</Description></RegistrationInfo>
-  <Triggers><BootTrigger><Enabled>true</Enabled><Delay>PT30S</Delay></BootTrigger></Triggers>
+  <Triggers>
+    <BootTrigger><Enabled>true</Enabled><Delay>PT30S</Delay></BootTrigger>
+    <!-- cada minuto: si el proceso murió (o lo mataron), vuelve a arrancar; si ya corre, no se abre otro -->
+    <TimeTrigger><StartBoundary>2026-01-01T00:00:00</StartBoundary><Enabled>true</Enabled>
+      <Repetition><Interval>PT1M</Interval><StopAtDurationEnd>false</StopAtDurationEnd></Repetition></TimeTrigger>
+  </Triggers>
   <Principals><Principal id="Author"><UserId>S-1-5-18</UserId><RunLevel>HighestAvailable</RunLevel></Principal></Principals>
   <Settings>
     <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
@@ -170,7 +175,11 @@ def main(argv: list[str]) -> int:
             print("El recolector no está instalado con este .exe.")
             return 1
         preparar_entorno(Path(conf["datos"]))
-        return recolector(accion)
+        rc = recolector(accion)
+        if accion == "correr" and rc == 0 and conf.get("tarea"):
+            # sale con 0 solo si el central lo revocó: la tarea se deshabilita para que no vuelva a arrancar
+            subprocess.run(["schtasks", "/Change", "/TN", TAREA, "/DISABLE"], capture_output=True, check=False)
+        return rc
     print(__doc__)
     return 2
 
