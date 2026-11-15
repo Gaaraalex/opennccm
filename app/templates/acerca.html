@@ -36,7 +36,9 @@
   <ul>
     <li><b>NVD (nist.gov):</b> al buscar vulnerabilidades se envía el fabricante y la versión de firmware (sin datos personales).</li>
     <li><b>Cisco EoX:</b> si se configura, se envían modelos de equipos Cisco para obtener sus fechas de fin de vida.</li>
-    <li><b>Licencia de OpenNCCM Pro (solo si la activas):</b> al activar y una vez al día se envían a comunidad.opennccm.com la clave, el id de esta instalación y la versión, nunca configuraciones. La web guarda la fecha y la IP de la última comprobación para avisarte si la misma licencia se usa en dos servidores.</li>
+    <li><b>Licencia de OpenNCCM Pro (solo si la activas):</b> al activar y una vez al día se envían a comunidad.opennccm.com la clave, el id de esta instalación, la huella del servidor y la versión, nunca configuraciones. La web guarda la fecha y la IP de la última comprobación para avisarte si la misma licencia se usa en dos servidores.</li>
+    <li><b>Pedido de prueba de OpenNCCM Pro (solo si lo pides):</b> se envían a comunidad.opennccm.com el correo, la organización, para qué la quieres, los módulos, la huella del servidor, el id de esta instalación y la versión.</li>
+    <li><b>Huella del servidor:</b> es un código calculado a partir del id de la máquina (un hash: no permite saber de qué máquina se trata ni identifica tu red). No cambia al reinstalar OpenNCCM y sirve para que cada servidor pruebe cada módulo Pro una sola vez. Solo se envía con la licencia Pro y los pedidos de prueba.</li>
     <li><b>GitHub:</b> si está activado en Ajustes, se consulta una vez al día si hay versiones nuevas de OpenNCCM.</li>
     <li><b>Correo, Telegram o webhook:</b> si se configuran, se envían allí las alertas y los informes.</li>
     <li><b>SFTP:</b> si se configura, se envían allí las copias de recuperación.</li>

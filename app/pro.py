@@ -131,12 +131,54 @@ def high_availability(request: Request):
     return _module_page(request, "alta_disponibilidad", "pro_admin.html")
 
 
+def _rows(st: dict, ped: dict | None, used: dict) -> dict:
+    """Qué muestra cada módulo (Pruebas 5 a 9): prueba activa o terminada, pedida, aprobada, ya probada o «Probar gratis»."""
+    out = {}
+    for mid, m in st["modules"].items():
+        in_ped = ped and mid in (ped.get("modulos") or [])
+        if m["tipo"] == "prueba" and m["state"] == "activo":
+            kind = "trial"
+        elif m["tipo"] == "prueba" and m["state"] in ("vencido", "pausado"):
+            kind = "trial_over" if m["state"] == "vencido" else "paused"
+        elif m["state"] != "no_incluido":
+            kind = "paused" if m["state"] == "pausado" else "owned"
+        elif in_ped and ped["estado"] == "en_revision":
+            kind = "pending"
+        elif in_ped and ped["estado"] == "aprobado":
+            kind = "approved"
+        elif licencia.soon(mid):
+            kind = "soon"
+        elif mid in used:
+            kind = "used"
+        else:
+            kind = "free"
+        out[mid] = {"kind": kind, "used_on": licencia.short_date(used.get(mid)) if used.get(mid) else ""}
+    return out
+
+
 @router.get("/license")
 def license_page(request: Request):
     user = require(request, "admin")
+    from . import pruebas
+    if not get_setting("licencia_clave", ""):
+        licencia.fetch_used()  # sin licencia: qué módulos ya probó este servidor (con licencia lo trae «actualizar»)
+    pruebas.poll()
     st = licencia.state()
+    ped = pruebas.view()
+    used = licencia.used_trials()
+    trials = [m for m in st["modules"].values() if m["tipo"] == "prueba" and m["state"] == "activo"]
+    import json as _json
+    try:
+        tu = _json.loads(get_setting("licencia_prueba_usada", "") or "null")
+    except ValueError:
+        tu = None
     from . import promod
     return render(request, "license.html", user, st=st, modules=licencia.MODULES, offers=OFFERS, state_label=STATE_LABEL,
+                  ped=ped, rows=_rows(st, ped, used), used=used, short=licencia.short_date, contact_url=licencia.CONTACT_URL,
+                  trial_end=min((m["until_local"] for m in trials), default=None),
+                  trial_used=tu if tu and not st["key"] else None,
+                  trial_used_text=licencia.trial_used_text(tu["modulos"], tu["fecha"]) if tu and not st["key"] else "",
+                  trial_email=user.email or "", trial_org=get_setting("org_name", ""),
                   mods={mid: promod.info(mid) for mid in licencia.MODULES},
                   soon={mid: licencia.soon(mid) for mid in licencia.MODULES},
                   masked=licencia.mask_key(st["key"]) if st["key"] else "", buy_url=licencia.BUY_URL,
@@ -151,6 +193,8 @@ async def license_activate(request: Request):
     try:
         key = form.get("key") or (get_setting("licencia_clave", "") if form.get("again") else "")
         data = licencia.activate(key)
+    except licencia.TrialUsed:
+        return go("/license#clave")  # el recuadro rojo de «prueba ya usada» (Pruebas 9) lo dibuja la pantalla
     except licencia.LicenseError as e:
         flash(request, str(e), "error")
         return go("/license")
@@ -202,4 +246,72 @@ async def license_prefs(request: Request):
     set_setting("licencia_aviso30", "1" if form.get("notify30") == "on" else "0")
     log_action(request, user, "license_prefs")
     flash(request, _("Preferencias guardadas."))
+    return go("/license")
+
+
+# ------------------------------------------------------------------ pruebas gratis (contrato de pruebas, secciones 4 y 6)
+@router.post("/license/trial")
+async def trial_ask(request: Request):
+    """«Enviar pedido» de la ventana «Pedir una prueba gratis»."""
+    from . import pruebas
+    user = require(request, "admin")
+    form = await request.form()
+    try:
+        p = pruebas.ask(form.get("correo", ""), form.get("organizacion", ""), form.getlist("modulos"), form.get("motivo", ""))
+    except pruebas.TrialError as e:
+        flash(request, str(e), "error")
+        return go("/license")
+    log_action(request, user, "license_trial_ask", f"{p['pedido']} · {', '.join(p['modulos'])}")
+    flash(request, _f("Pedido enviado. Confirma el correo que te llegó a {0}; te avisamos aquí cuando se revise.", p["correo"]))
+    if p.get("descartados"):
+        flash(request, _f("No se pidió {0}: este servidor ya lo probó.", licencia.module_names(p["descartados"])), "error")
+    return go("/license")
+
+
+@router.post("/license/trial/cancel")
+def trial_cancel(request: Request):
+    from . import pruebas
+    user = require(request, "admin")
+    try:
+        pruebas.cancel()
+    except pruebas.TrialError as e:
+        flash(request, str(e), "error")
+        return go("/license")
+    log_action(request, user, "license_trial_cancel")
+    flash(request, _("Pedido de prueba cancelado."))
+    return go("/license")
+
+
+@router.post("/license/trial/activate")
+def trial_activate(request: Request):
+    """«Activar prueba»: un clic, sin pegar nada."""
+    from . import pruebas
+    user = require(request, "admin")
+    try:
+        pruebas.activate()
+    except licencia.TrialUsed:
+        return go("/license#clave")
+    except (pruebas.TrialError, licencia.LicenseError) as e:
+        flash(request, str(e), "error")
+        return go("/license")
+    from . import promod
+    from .main import app
+    got = promod.sync(app)
+    log_action(request, user, "license_trial_activate", ", ".join(got))
+    flash(request, _("Prueba activada."))
+    return go("/license")
+
+
+@router.post("/license/trial/dismiss")
+def trial_dismiss(request: Request):
+    from . import pruebas
+    require(request, "admin")
+    pruebas.dismiss()
+    return go("/license")
+
+
+@router.post("/license/trial-used/dismiss")
+def trial_used_dismiss(request: Request):
+    require(request, "admin")
+    set_setting("licencia_prueba_usada", "")
     return go("/license")

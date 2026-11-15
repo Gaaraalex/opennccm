@@ -17,18 +17,26 @@ compartido con comunidad.opennccm.com (Diseño UX, «CONTRATO-LICENCIAS.md», v1
     crea un id de instalación nuevo (el viejo queda en licencia_inst_anteriores). Si este es el servidor correcto, el
     cliente libera la instalación anterior en Mi cuenta y vuelve a activar la clave; si es la copia, queda sin licencia.
     El sello se guarda en la base (ajuste cifrado), así un respaldo y restauración del mismo servidor no lo pierde.
-  * Red: POST /api/licencias/activar y /actualizar. Solo se envían la clave, el id de instalación, el sello y la
-    versión; nunca configuraciones ni datos de equipos.
+  * Red: POST /api/licencias/activar y /actualizar. Solo se envían la clave, el id de instalación, la huella, el sello
+    y la versión; nunca configuraciones ni datos de equipos.
+  * Huella (contrato de pruebas, «CONTRATO-PRUEBAS.md», sección 1): «h_» + SHA-256 de "opennccm-huella:" + el id de la
+    máquina (/etc/machine-id en Linux y en Docker con el del anfitrión montado; MachineGuid en Windows; si no hay, un
+    UUID guardado en el volumen de datos). No cambia al reinstalar: la web la usa para «una prueba por módulo en cada
+    servidor». Es un hash: no dice de qué máquina se trata.
+  * Tipo de cada módulo (contrato de pruebas, sección 7): «compra» y «manual» con 15 días de gracia; «prueba» sin
+    gracia (el módulo se pausa el día que vence y no se borra nada).
 """
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import logging
 import os
 import re
 import uuid
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import requests
 from cryptography.exceptions import InvalidSignature
@@ -44,6 +52,7 @@ log = logging.getLogger("opennccm")
 PUBLIC_KEYS: dict[str, str] = {}
 LICENSE_URL = os.environ.get("NCM_LICENSE_URL", "https://comunidad.opennccm.com").rstrip("/")
 BUY_URL = "https://comunidad.opennccm.com/pro"
+CONTACT_URL = "https://comunidad.opennccm.com/contacto"
 KEY_RE = re.compile(r"^OPNC-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$")
 TIMEOUT = 20
 CHECK_DAYS = 7  # si la licencia no trae «comprobar_antes»: emitida (o la última comprobación) + 7 días
@@ -92,6 +101,132 @@ def install_id() -> str:
         iid = "inst_" + uuid.uuid4().hex
         set_setting("install_id", iid)
     return iid
+
+
+def _machine_id() -> str:
+    for f in ("/etc/machine-id", "/var/lib/dbus/machine-id"):
+        try:
+            v = Path(f).read_text(encoding="ascii").strip()
+        except (OSError, UnicodeDecodeError):
+            continue
+        if v:
+            return v
+    if os.name == "nt":
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Cryptography", 0,
+                                winreg.KEY_READ | getattr(winreg, "KEY_WOW64_64KEY", 0)) as k:
+                v = str(winreg.QueryValueEx(k, "MachineGuid")[0]).strip()
+                if v:
+                    return v
+        except OSError:
+            pass
+    return ""
+
+
+def fingerprint() -> str:
+    """Huella de este servidor: «h_» + SHA-256 de "opennccm-huella:" + id de la máquina (sin id: un UUID guardado en el
+    volumen de datos, que cambia si se borran los datos)."""
+    mid = _machine_id()
+    if not mid:
+        from .config import DATA_DIR
+        f = DATA_DIR / "huella.id"
+        try:
+            mid = f.read_text(encoding="ascii").strip()
+        except (OSError, UnicodeDecodeError):
+            mid = ""
+        if not mid:
+            mid = uuid.uuid4().hex
+            try:
+                f.parent.mkdir(parents=True, exist_ok=True)
+                f.write_text(mid, encoding="ascii")
+            except OSError:
+                log.warning("No se pudo guardar %s: la huella cambiará al reiniciar", f)
+    return "h_" + hashlib.sha256(("opennccm-huella:" + mid).encode()).hexdigest()
+
+
+class TrialUsed(Exception):
+    """409 «prueba_usada»: este servidor ya probó alguno de esos módulos."""
+
+    def __init__(self, mods: list[str], fecha: str):
+        self.mods, self.fecha = mods, fecha
+        super().__init__(trial_used_text(mods, fecha))
+
+
+def module_names(mods: list[str]) -> str:
+    names = [_(MODULES[m]["name"]) if m in MODULES else m for m in mods]
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " " + _("y") + " " + names[-1] if names else ""
+
+
+def short_date(d: datetime | str | None) -> str:
+    """«2 mar 2026» (como el resto de la pantalla de pruebas)."""
+    if isinstance(d, str):
+        d = _when(d[:10] if len(d) >= 10 else d)
+    if not d:
+        return ""
+    return f"{d.day} {_(SHORT_MONTHS[d.month - 1])} {d.year}"
+
+
+SHORT_MONTHS = [N_("ene"), N_("feb"), N_("mar"), N_("abr"), N_("may"), N_("jun"), N_("jul"), N_("ago"), N_("sep"), N_("oct"),
+                N_("nov"), N_("dic")]
+
+
+def trial_used_text(mods: list[str], fecha: str) -> str:
+    """El texto de la sección 3 del contrato de pruebas."""
+    when = short_date(fecha)
+    return (_f("Este servidor ya usó una prueba de {0} ({1}). Cada servidor puede probar un módulo una sola vez. Para seguir usándolo, compra la licencia.",  # noqa: E501
+               module_names(mods), when) if when else
+            _f("Este servidor ya usó una prueba de {0}. Cada servidor puede probar un módulo una sola vez. Para seguir usándolo, compra la licencia.",  # noqa: E501
+               module_names(mods)))
+
+
+UPDATE_MSG = N_("Para usar pruebas, actualiza OpenNCCM a la versión 2.45 o más nueva.")
+
+
+def _err(r) -> dict:
+    try:
+        b = r.json()
+        return b if isinstance(b, dict) else {}
+    except ValueError:
+        return {}
+
+
+def used_trials() -> dict[str, str]:
+    """Módulos que este servidor (su huella) ya probó: {módulo: fecha o ""}. Los manda la web en «actualizar» o, sin
+    licencia, en POST /api/pruebas/usadas."""
+    try:
+        v = json.loads(get_setting("licencia_pruebas_usadas", "") or "{}")
+    except ValueError:
+        return {}
+    return v if isinstance(v, dict) else {}
+
+
+def _store_used(raw) -> None:
+    """Acepta la lista de módulos, una lista de {modulo, fecha} o un {modulo: fecha}."""
+    out: dict[str, str] = {}
+    if isinstance(raw, dict):
+        out = {str(k): str(v or "") for k, v in raw.items()}
+    elif isinstance(raw, list):
+        for x in raw:
+            if isinstance(x, str):
+                out[x] = ""
+            elif isinstance(x, dict) and x.get("modulo"):
+                out[str(x["modulo"])] = str(x.get("fecha") or "")
+    else:
+        return
+    set_setting("licencia_pruebas_usadas", json.dumps(out))
+
+
+def fetch_used() -> None:
+    """Sin licencia: pregunta a la web qué módulos ya probó esta huella (al abrir Licencia y módulos). Sin red, sigue
+    con lo último que se supo."""
+    try:
+        r = requests.post(LICENSE_URL + "/api/pruebas/usadas", json={"huella": fingerprint()}, timeout=6)
+        if r.status_code == 200:
+            b = r.json()
+            _store_used(b.get("pruebas_usadas") if isinstance(b, dict) else b)
+    except (requests.RequestException, ValueError):
+        pass
 
 
 def in_use() -> None:
@@ -187,7 +322,6 @@ def state(now: datetime | None = None) -> dict:
         data = None
     if data:
         out["cliente"] = (data.get("cliente") or {}).get("nombre", "")
-        out["prueba"] = bool(data.get("prueba"))
         deadline = check_before(data)
         if en_uso:
             out["paused"] = "en_uso"
@@ -197,11 +331,15 @@ def state(now: datetime | None = None) -> dict:
             since = (checked or deadline - timedelta(days=CHECK_DAYS)).astimezone()
             out["problem"] = _f("No se pudo comprobar la licencia desde el {0}. Revisa que el servidor llegue a comunidad.opennccm.com.",
                                 since.strftime("%Y-%m-%d"))  # como «ago» y «dt» en el resto del sistema
-    grace = timedelta(days=int((data or {}).get("gracia_dias") or 15))
+    lic_grace = int((data or {}).get("gracia_dias") or 15)
     lic = {m.get("id"): m for m in (data or {}).get("modulos", []) if isinstance(m, dict)}
     for mid in MODULES:
         m = lic.get(mid)
         until = _when(m.get("hasta")) if m else None
+        # tipo de cada módulo (compra, manual o prueba); las licencias de antes lo decían para toda la licencia
+        tipo = (m or {}).get("tipo") or ("prueba" if (data or {}).get("prueba") else "compra")
+        g = (m or {}).get("gracia_dias")
+        grace = timedelta(days=int(g) if isinstance(g, (int, float)) else (0 if tipo == "prueba" else lic_grace))
         if not m or until is None:
             st = "no_incluido"
         elif now <= until:
@@ -213,7 +351,13 @@ def state(now: datetime | None = None) -> dict:
         if out["paused"] and st in ("activo", "gracia"):
             st = "pausado"  # igual que vencido: no se borra nada y sigue solo al volver a comprobar
         out["modules"][mid] = {"id": mid, "state": st, "until": until, "grace_until": until + grace if until else None,
-                               "limits": (m or {}).get("limites") or {}, "days_left": (until - now).days if until else None}
+                               "limits": (m or {}).get("limites") or {}, "days_left": (until - now).days if until else None,
+                               "tipo": tipo if m else "",
+                               # «quedan 15 días» y «hasta el 30 nov 2026»: en días del calendario de este servidor
+                               "days_cal": (until.astimezone().date() - now.astimezone().date()).days if until else None,
+                               "until_local": until.astimezone().replace(tzinfo=None) if until else None}
+    inc = [x for x in out["modules"].values() if x["tipo"]]
+    out["prueba"] = bool(inc) and all(x["tipo"] == "prueba" for x in inc)
     return out
 
 
@@ -258,7 +402,18 @@ def activate(key: str) -> dict:
     key = normalize_key(key)
     if not KEY_RE.match(key):
         raise LicenseError(_("La clave tiene la forma OPNC-XXXX-XXXX-XXXX-XXXX."))
-    r = _post("/api/licencias/activar", {"clave": key, "instalacion": install_id(), "version": __version__})
+    r = _post("/api/licencias/activar", {"clave": key, "instalacion": install_id(), "huella": fingerprint(), "version": __version__})
+    if r.status_code == 409:
+        e = _err(r)
+        if e.get("error") == "prueba_usada":  # nada de esa clave se activa (contrato de pruebas, sección 3)
+            mods = [m for m in e.get("modulos") or [] if isinstance(m, str)]
+            set_setting("licencia_prueba_usada", json.dumps({"clave": key, "modulos": mods, "fecha": str(e.get("fecha") or "")}))
+            used = used_trials()
+            used.update({m: str(e.get("fecha") or "") for m in mods})
+            set_setting("licencia_pruebas_usadas", json.dumps(used))
+            raise TrialUsed(mods, str(e.get("fecha") or ""))
+        if e.get("error") == "actualiza_el_sistema":
+            raise LicenseError(_(UPDATE_MSG))
     errs = {404: _("Esa clave no existe. Revise que esté bien escrita."),
             409: _("Esa clave ya está activa en otra instalación. Libérela en Mi cuenta de comunidad.opennccm.com."),
             410: _("Esa clave fue revocada."), 429: _("Demasiados intentos. Espere una hora y vuelva a probar.")}
@@ -273,6 +428,9 @@ def activate(key: str) -> dict:
         raise LicenseError(_("La respuesta de comunidad.opennccm.com no es válida.")) from e
     data = _save(token, body.get("sello"))
     set_setting("licencia_clave", key)
+    set_setting("licencia_prueba_usada", "")
+    if "pruebas_usadas" in body:
+        _store_used(body["pruebas_usadas"])
     return data
 
 
@@ -286,7 +444,7 @@ def refresh() -> str:
         return "en_uso"  # hasta volver a activar la clave en este servidor (con su id nuevo)
     try:
         from . import __version__
-        body = {"clave": key, "instalacion": install_id(), "version": __version__}
+        body = {"clave": key, "instalacion": install_id(), "huella": fingerprint(), "version": __version__}
         if get_setting("licencia_sello", ""):
             body["sello"] = get_setting("licencia_sello", "")
         r = _post("/api/licencias/actualizar", body)
@@ -301,12 +459,16 @@ def refresh() -> str:
             if err == "en_uso":  # otro servidor usó el sello: copia de esta instalación (contrato, sección 5)
                 in_use()
                 return "en_uso"
+            if err == "actualiza_el_sistema":
+                return _(UPDATE_MSG)
             set_setting("licencia_revocada", "liberada")  # «no_activa»: se liberó desde Mi cuenta
             return "liberada"
         if r.status_code != 200:
             return _f("comunidad.opennccm.com respondió {0}. Se sigue con la licencia guardada.", r.status_code)
         out = r.json()
         _save(out["licencia"], out.get("sello"))
+        if "pruebas_usadas" in out:
+            _store_used(out["pruebas_usadas"])
         return "ok"
     except (LicenseError, ValueError, KeyError, TypeError) as e:
         return str(e)
@@ -314,7 +476,7 @@ def refresh() -> str:
 
 def clear() -> None:
     """«Cambiar clave»: quita la clave y la licencia (los módulos quedan como no incluidos; no se borra nada más)."""
-    for k in ("licencia", "licencia_clave", "licencia_validada", "licencia_sello"):
+    for k in ("licencia", "licencia_clave", "licencia_validada", "licencia_sello", "licencia_prueba_usada"):
         set_setting(k, "")
     set_setting("licencia_revocada", "0")
 
@@ -341,7 +503,13 @@ def daily() -> None:
             continue
         name = _(MODULES[mid]["name"])
         tag = None
-        if m["state"] == "activo" and m["days_left"] is not None and m["days_left"] <= 30 \
+        if m["tipo"] == "prueba":
+            if m["state"] == "activo" and m["days_cal"] is not None and m["days_cal"] <= 3:
+                tag, msg = "prueba3", _f("La prueba de {0} vence el {1}. Ese día el módulo se pausa; no se borra nada.", name,
+                                         short_date(m["until_local"]))
+            elif m["state"] == "vencido":
+                tag, msg = "prueba_fin", _f("Terminó la prueba de {0}. No se borró nada; para seguir usándolo, compra la licencia.", name)
+        elif m["state"] == "activo" and m["days_left"] is not None and m["days_left"] <= 30 \
                 and get_setting("licencia_aviso30", "1") == "1":
             tag, msg = "30", _f("{0} vence el {1}. Renuévelo en comunidad.opennccm.com para no pausar sus envíos.", name,
                                 m["until"].strftime("%d-%m-%Y"))

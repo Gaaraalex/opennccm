@@ -659,7 +659,8 @@ class Setting(Base):
 
 
 SECRET_SETTINGS = {"git_token", "smtp_password", "cisco_api_secret", "dr_remote_password", "ldap_bind_password", "oidc_client_secret",
-                   "nvd_api_key", "ai_key_anthropic", "ai_key_openai", "ai_key_gemini", "ai_key_mistral", "ai_key_compat", "zabbix_token", "licencia_clave", "licencia_sello"}
+                   "nvd_api_key", "ai_key_anthropic", "ai_key_openai", "ai_key_gemini", "ai_key_mistral", "ai_key_compat", "zabbix_token", "licencia_clave", "licencia_sello",
+                   "licencia_pedido"}
 
 
 def init_db():

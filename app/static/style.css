@@ -701,6 +701,15 @@ svg.viz{font-family:var(--font-sans)}svg.viz text.value,svg.viz .axis text{font-
 .pro-wm{position:absolute;top:44%;left:50%;transform:translate(-50%,-50%) rotate(-24deg);font-weight:800;font-size:68px;color:rgba(91,98,232,.14);letter-spacing:.1em;pointer-events:none}
 .lic-key{min-height:38px;padding:0 14px;letter-spacing:.04em}
 .lic-mr{display:grid;grid-template-columns:1.7fr auto 1.2fr auto;gap:14px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}.lic-mr:first-child{border-top:0}.lic-mr>div{display:flex;flex-direction:column;gap:2px}.lic-nobtn{min-width:75px}
+.banner.ok{background:var(--ok-soft);border-color:color-mix(in srgb,var(--ok) 30%,transparent)}.banner.ok>.ico{color:var(--ok)}
+.banner.mute{background:var(--surface-2)}.banner.mute>.ico{color:var(--muted)}
+.lic-bx{align-items:flex-start}.lic-bx>.ico{margin-top:2px}.lic-bx b{display:block;margin-bottom:2px}.lic-bx .sm{line-height:1.5}
+.lic-mr>.lic-btns{flex-direction:row;align-items:center;gap:8px;flex-wrap:nowrap;justify-content:flex-end}
+.lnk{display:inline;min-height:0;height:auto;line-height:inherit;border:0;background:none;padding:0;font:inherit;color:var(--brand);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.lic-tm{display:flex;flex-direction:column;gap:6px}.lic-tmo{display:flex;gap:10px;align-items:flex-start;margin:0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer}
+.lic-tmo>span{display:flex;flex-direction:column;gap:2px}.lic-tmo input{margin-top:3px}.lic-tmo.off{opacity:.6;cursor:default}
+.lic-tmo:has(input:checked){border-color:var(--brand);background:color-mix(in srgb,var(--brand) 8%,transparent)}
+@media (max-width:700px){.lic-bx{flex-wrap:wrap}.lic-bx>form,.lic-bx>a{margin-left:32px}.lic-btns{justify-content:flex-start}}
 @media (max-width:700px){.lic-mr{grid-template-columns:1fr auto}.lic-nobtn{display:none}.lic-mr>.muted{grid-column:1/-1}.pro-offer{padding:18px}.pro-of-r{max-height:300px;padding:10px}.pro-paper{zoom:.6;width:540px;max-width:none}}
 
 /* pestañas de Administración que no caben (Pro, revisión de Diseño UX) */

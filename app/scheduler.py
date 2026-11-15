@@ -247,6 +247,8 @@ def start():
     from . import licencia  # licencia de los módulos Pro: actualizarla y los avisos de vencimiento, una vez al día
     scheduler.add_job(licencia.daily, IntervalTrigger(hours=24), id="license-daily", replace_existing=True,
                       next_run_time=datetime.now() + timedelta(minutes=5))
+    from . import pruebas  # pedido de prueba en revisión: preguntar el estado cada 30 minutos (no hace nada sin pedido)
+    scheduler.add_job(pruebas.poll_job, IntervalTrigger(minutes=30), id="trial-poll", replace_existing=True)
     # estadística de uso (app/uso.py): una vez al día a la hora al azar de este servidor, y al arrancar si pasó un día
     import random as _rnd
 
