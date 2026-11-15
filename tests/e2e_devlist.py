@@ -79,5 +79,9 @@ with SessionLocal() as db:
         db.delete(d)
         db.commit()
 
+# «Respaldar todos» lleva su propio progreso: el giro genérico de los botones al enviar no se quitaba nunca
+page = adm.get(B + "/devices").text
+check("«Respaldar todos» sin el giro genérico de los botones", 'id="bk-all" data-no-busy' in page)
+
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)
