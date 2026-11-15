@@ -166,6 +166,9 @@ def _delayed_backup(device_id: int):
 
 class SyslogHandler(socketserver.BaseRequestHandler):
     def handle(self):
+        from . import prohooks
+        if prohooks.rol() != "activo":  # alta disponibilidad: solo el servidor activo responde a los avisos
+            return
         data = self.request[0].decode("utf-8", errors="replace")
         if not CHANGE_PATTERNS.search(data):
             return
@@ -226,7 +229,8 @@ def purge_old_versions():
 
 
 def start():
-    scheduler.start()
+    from . import prohooks
+    scheduler.start(paused=prohooks.rol() != "activo")  # en espera (alta disponibilidad): las tareas no corren
     reload_jobs()
     scheduler.add_job(purge_old_versions, CronTrigger(hour=3, minute=30), id="purge", replace_existing=True)
     from . import console

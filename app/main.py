@@ -143,6 +143,24 @@ CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 
 
 
 @app.middleware("http")
+async def standby_role(request: Request, call_next):
+    """Alta disponibilidad: un servidor que no es el activo solo atiende lo del módulo (latido, réplica) y una página que
+    dice cuál es el activo. Sin el módulo, el rol es siempre «activo» y esto no hace nada."""
+    from . import prohooks
+    if prohooks.rol() != "activo":
+        p = request.url.path
+        if not (p.startswith("/static/") or p == "/healthz" or any(p.startswith(x) for x in prohooks.standby_allow)):
+            if prohooks.standby_page is not None:
+                try:
+                    return prohooks.standby_page(request)
+                except Exception:  # noqa: BLE001
+                    log.exception("Página de espera del módulo de alta disponibilidad")
+            from fastapi.responses import PlainTextResponse
+            return PlainTextResponse(_("Este servidor está en espera: usa el servidor activo."), status_code=503)
+    return await call_next(request)
+
+
+@app.middleware("http")
 async def security_headers(request: Request, call_next):
     resp = await call_next(request)
     h = resp.headers

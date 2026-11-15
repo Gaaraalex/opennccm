@@ -15,7 +15,11 @@ Sin módulos, todo queda en None y OpenNCCM funciona como siempre.
   «attention» (health.summary, el Panel): {"chips": [(clase, n, texto, enlace)], "queue": [elementos de la bandeja],
   "titular": texto}. «titular» solo cuando hay algo urgente: reemplaza la frase de arriba del Panel («Tu red está
   bien»), nunca la puntuación:
-  lo que necesita atención por culpa del módulo (por ejemplo, sedes que no reportan)."""
+  lo que necesita atención por culpa del módulo (por ejemplo, sedes que no reportan).
+* rol() / set_rol(): «Alta disponibilidad». "activo" (siempre, sin el módulo), "espera" (otro servidor es el activo) o
+  "aislado" (era el activo y perdió al otro y al testigo). Si no es "activo", el núcleo pausa las tareas programadas,
+  ignora el syslog y la web solo atiende standby_allow (prefijos de ruta del módulo, como su API) y muestra
+  standby_page(request) en todo lo demás."""
 from __future__ import annotations
 
 from typing import Callable
@@ -24,6 +28,32 @@ remote_backup: Callable[[int, str, str | None], str | None] | None = None
 remote_site: Callable[[int], str | None] | None = None
 slots: dict[str, list[Callable[..., str]]] = {}
 providers: dict[str, list[Callable[..., dict]]] = {}
+ROLES = ("activo", "espera", "aislado")
+_rol = "activo"
+standby_allow: list[str] = []
+standby_page: Callable | None = None
+
+
+def rol() -> str:
+    return _rol
+
+
+def set_rol(nuevo: str) -> None:
+    """Lo llama el módulo de alta disponibilidad: pausa o reanuda lo que solo hace el servidor activo."""
+    global _rol
+    if nuevo not in ROLES:
+        raise ValueError(nuevo)
+    if nuevo == _rol:
+        return
+    _rol = nuevo
+    import logging
+    logging.getLogger("opennccm").warning("Alta disponibilidad: este servidor pasa a «%s»", nuevo)
+    try:
+        from .scheduler import scheduler
+        if scheduler.running:
+            scheduler.resume() if nuevo == "activo" else scheduler.pause()
+    except Exception:  # noqa: BLE001
+        logging.getLogger("opennccm").exception("Alta disponibilidad: no se pudieron pausar o reanudar las tareas")
 
 
 def collect(name: str, **ctx) -> list[dict]:
