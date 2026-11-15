@@ -881,6 +881,66 @@ def _step(name: str) -> None:
             pass
 
 
+# Configuración cortada sin marca de final (2.44.1): el SW-Core-02 del usuario (Junos 21.4, formato «set») entregó la
+# configuración a medias en un «Respaldar todos» y se guardó como versión con 70 líneas de menos. Junos no termina en
+# «end» como otros, así que la comprobación de END_MARK no lo veía. Dos defensas:
+#   * Junos: «show configuration | display set | count» dice cuántas líneas tiene; si llegaron menos, no se guarda.
+#   * Todas: si lo leído es justo el principio de la copia anterior (le faltan solo líneas del final), se vuelve a leer
+#     una vez en la misma conexión; si la segunda lectura sale igual, es un cambio real y se guarda.
+JUNOS_COUNT = "show configuration | display set | count"
+CUT_MIN_LINES = 3  # líneas que tienen que faltar al final para sospechar un corte
+
+
+def _lines(text: str) -> list[str]:
+    return [ln.rstrip() for ln in (text or "").splitlines() if ln.strip()]
+
+
+def looks_cut(new: str, old: str) -> bool:
+    """Lo nuevo es exactamente el principio de lo anterior y le faltan al menos CUT_MIN_LINES líneas al final."""
+    n, o = _lines(new), _lines(old)
+    return bool(n) and len(n) <= len(o) - CUT_MIN_LINES and o[:len(n)] == n
+
+
+def junos_missing(running: str, count_out: str) -> tuple[int, int] | None:
+    """(llegaron, tiene) si llegaron menos líneas de las que Junos dice tener («Count: N lines»); si no, None."""
+    m = re.search(r"Count:\s*(\d+)\s+lines?", count_out or "")
+    if not m:
+        return None
+    got, total = len(_lines(running)), int(m.group(1))
+    return (got, total) if got < total else None
+
+
+def _drain(conn) -> None:
+    """Descarta lo que quedó en la conexión de una lectura cortada (si no, se mezcla con el comando siguiente)."""
+    clear = getattr(conn, "clear_buffer", None)
+    if clear:
+        try:
+            clear(backoff=False)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _read_running(conn, dev: Device, prof, prev_text: str | None) -> str:
+    cmd = dev.custom_backup_cmd or prof.backup
+    running = conn.send_command(cmd, read_timeout=prof.backup_timeout)
+    if prev_text and looks_cut(clean_config(running, prof), prev_text):
+        log.warning("Respaldo de %s: la configuración parece cortada al final; se vuelve a leer", dev.name)
+        _drain(conn)
+        again = conn.send_command(cmd, read_timeout=prof.backup_timeout)
+        if len(_lines(again)) > len(_lines(running)):
+            running = again
+    if prof.key == "juniper_junos" and not dev.custom_backup_cmd and "display set" in cmd:
+        try:
+            _drain(conn)
+            miss = junos_missing(running, conn.send_command(JUNOS_COUNT, read_timeout=120))
+        except Exception:  # noqa: BLE001  (un Junos que no acepte «count» no deja de respaldarse)
+            miss = None
+        if miss:
+            raise RuntimeError(f"La configuración llegó incompleta ({miss[0]} de {miss[1]} líneas); "
+                               "no se guardó esta versión")
+    return running
+
+
 def _backup_device(device_id: int, trigger: str, username: str | None, report: bool = True) -> str:
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
@@ -898,9 +958,11 @@ def _backup_device(device_id: int, trigger: str, username: str | None, report: b
                 startup = neighbors_raw = ports_raw = license_raw = tables_raw = None
             else:
                 _step("connect")
+                prev_v = latest_version(db, dev.id)
+                prev_text = try_decrypt(prev_v.content_enc, "") if prev_v else None
                 with connect(dev) as conn:
                     _step("read")
-                    running = conn.send_command(dev.custom_backup_cmd or prof.backup, read_timeout=prof.backup_timeout)
+                    running = _read_running(conn, dev, prof, prev_text)
                     startup = conn.send_command(prof.startup, read_timeout=prof.backup_timeout) if prof.startup else None
                     inventory = "\n\n".join(conn.send_command(c, read_timeout=60) for c in prof.inventory.split("\n")
                                             if c.strip()) if prof.inventory else None
