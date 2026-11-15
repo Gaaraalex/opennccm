@@ -24,6 +24,7 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 | `app/security.py` | 142 | Verificación en dos pasos (TOTP), certificado propio del sitio y páginas públicas de privacidad y licencias. |
 | `app/systime.py` | 93 | Fecha, hora y zona horaria del servidor (timedatectl). |
 | `app/updates.py` | 145 | Aviso de versiones nuevas y actualización desde la web. |
+| `app/uso.py` | 115 | Estadística de uso: una vez al día avisa a comunidad.opennccm.com que la instalación está en uso (número al azar, versión y si tiene Pro). |
 | `app/sysbackup.py` | 215 | Recuperación ante desastres: |
 | `app/__init__.py` | 2 | OpenNCCM: |
 

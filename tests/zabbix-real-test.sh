@@ -35,6 +35,7 @@ if [[ $ok != 1 ]]; then
 fi
 
 export NCM_DATA_DIR=$WORK/data NCM_KEY_FILE=$WORK/data/secret.key NCM_SYSLOG_PORT=5514 PYTHONUNBUFFERED=1
+export NCM_USO_URL=http://127.0.0.1:9/api/uso/aviso  # las pruebas no envían la estadística de uso
 mkdir -p "$NCM_DATA_DIR"
 cd "$ROOT"
 "$PY" -c "import sys; sys.path.insert(0,'.'); from app.cli import main; sys.argv=['x','create-admin','admin','Admin12345']; main()"

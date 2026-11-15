@@ -23,9 +23,16 @@
     <tr><td>Registro de auditoría: usuario, acción, dirección IP y fecha</td><td>Seguridad y trazabilidad de los cambios</td><td>Solo lo ven los administradores</td></tr>
     <tr><td>Eventos y mensajes syslog de los equipos</td><td>Detectar cambios y alarmas</td><td>En el servidor</td></tr>
   </table></div>
-  <p>Todo se guarda en este servidor. <b>No se venden ni se comparten datos, no hay publicidad, no hay analíticas ni
-  seguimiento</b>, y las páginas no cargan nada de servidores de terceros (ni fuentes, ni scripts, ni widgets).</p>
-  <h3>Conexiones a servicios externos (solo las que el administrador activa)</h3>
+  <p>Todo se guarda en este servidor. <b>No se venden ni se comparten datos, no hay publicidad ni seguimiento de
+  personas</b>, y las páginas no cargan nada de servidores de terceros (ni fuentes, ni scripts, ni widgets). La única
+  estadística es el aviso diario de uso, que se explica abajo y no lleva datos de tu red.</p>
+  <h3 id="estadistica">Estadística de uso (siempre activa)</h3>
+  <p>Una vez al día, este servidor avisa a <b>comunidad.opennccm.com</b> que está en uso. Envía solo un número de
+  instalación al azar (no está ligado a la organización ni a la licencia), la versión de OpenNCCM y si tiene un módulo Pro
+  activo. <b>Nunca</b> envía configuraciones, equipos, direcciones IP de la red, usuarios, contraseñas ni nombres, y la web
+  no guarda la dirección IP del servidor. Así sabemos cuánta gente usa OpenNCCM y en qué versión: esa información nos
+  ayuda a seguir mejorando el sistema. El contenido exacto se ve en Administración › Sistema › «Estadística de uso».</p>
+  <h3>Conexiones a servicios externos que el administrador activa</h3>
   <ul>
     <li><b>NVD (nist.gov):</b> al buscar vulnerabilidades se envía el fabricante y la versión de firmware (sin datos personales).</li>
     <li><b>Cisco EoX:</b> si se configura, se envían modelos de equipos Cisco para obtener sus fechas de fin de vida.</li>

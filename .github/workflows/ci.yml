@@ -143,7 +143,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Instalación desatendida (curl | bash)
-        run: cat install.sh | sudo bash -s -- --unattended --source "$GITHUB_WORKSPACE" --host 127.0.0.1 --admin-pass 'Admin12345' --no-upgrade
+        run: cat install.sh | sudo NCM_USO_URL=http://127.0.0.1:9/api/uso/aviso bash -s -- --unattended --source "$GITHUB_WORKSPACE" --host 127.0.0.1 --admin-pass 'Admin12345' --no-upgrade
       - name: Verificar la instalación
         run: |
           curl -fsk https://127.0.0.1/healthz
@@ -177,7 +177,7 @@ jobs:
           mkdir -p /tmp/pkg
           git archive --format=tar.gz --prefix=opennccm/ -o /tmp/pkg/opennccm.tar.gz HEAD
           cd /tmp/pkg && tar xzf opennccm.tar.gz && cd opennccm
-          sudo bash install.sh --unattended --source "$(pwd)" --host 127.0.0.1 --admin-pass 'Admin12345' --no-upgrade
+          sudo NCM_USO_URL=http://127.0.0.1:9/api/uso/aviso bash install.sh --unattended --source "$(pwd)" --host 127.0.0.1 --admin-pass 'Admin12345' --no-upgrade
       - name: Verificar
         run: |
           curl -fsk https://127.0.0.1/healthz

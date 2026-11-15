@@ -223,6 +223,24 @@ guardan en <code>/root/opennccm-credenciales.txt</code> (bórrelo después de ca
 <figure><img src="img/tui-15-completada.png" style="max-width:70%"><figcaption>Instalación completada.</figcaption></figure>
 <div class="warn"><b>Si algo falla</b>El asistente muestra en qué paso se detuvo y las últimas líneas del registro. Corrija la
 causa y vuelva a ejecutar el mismo comando.</div>
+<h2 id="estadistica-uso">Estadística de uso</h2>
+<p>Una vez al día, cada servidor OpenNCCM avisa a <b>comunidad.opennccm.com</b> que está en uso. Así sabemos cuánta gente
+usa OpenNCCM y en qué versión: esa información nos ayuda a seguir mejorando el sistema. Viene activado y no tiene opción
+para apagarlo, por eso se informa aquí, al terminar la instalación, en Administración › Sistema y en «Privacidad y
+licencias».</p>
+<p>Se envía esto, y nada más:</p>
+<pre>{ "instalacion": "u_4c1e9a7b20d34f…", "version": "2.45.0", "pro": false }</pre>
+<ul>
+  <li><b>instalacion</b>: un número al azar creado el primer día y guardado en la base. Es propio de la estadística:
+  no es el número de la licencia Pro ni identifica a la organización.</li>
+  <li><b>version</b>: la versión de OpenNCCM instalada.</li>
+  <li><b>pro</b>: si hay algún módulo Pro activo.</li>
+</ul>
+<p><b>Nunca</b> se envían configuraciones, equipos, direcciones IP de la red, usuarios, contraseñas ni nombres, y la web no
+guarda la dirección IP del servidor. El aviso sale a una hora al azar propia de cada servidor (y al arrancar, si pasó más de
+un día). Si el servidor no tiene salida a internet o el cortafuegos lo bloquea, no pasa nada: no se muestra ningún error,
+nada deja de funcionar y se vuelve a intentar al día siguiente. En <b>Administración › Sistema › Estadística de uso</b> se
+ve la fecha del último aviso y, en «Ver exactamente qué se envía», el contenido real de este servidor.</p>
 <h2>Comprobar que el servicio está activo</h2>
 <div class="term" data-title="Servidor Ubuntu"><span class="p">$</span> opennccm status
 <span class="o">OpenNCCM 1.2.0

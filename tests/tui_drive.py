@@ -64,7 +64,7 @@ def exit_code():
 
 
 # --- 1) "curl | sudo bash" (como lo ejecuta un usuario): sudo no pasa el teclado -> debe explicarlo y salir
-start(f"cat {REPO}/install.sh | sudo bash -s -- --source {REPO}")
+start(f"cat {REPO}/install.sh | sudo NCM_USO_URL=http://127.0.0.1:9/api/uso/aviso bash -s -- --source {REPO}")  # la estadística de uso no sale de la prueba
 wait_for("sudo no se lo pasa al instalador")
 snap("00-tuberia-sudo")
 code = exit_code()
