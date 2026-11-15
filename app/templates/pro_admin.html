@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% block title %}{{ _(offer.title) }}{% endblock %}
+{% block crumbs %}<b>Administración</b>{% endblock %}
+{% block content %}
+{% include "_admin_tabs.html" %}
+{% from "_pro.html" import offer as pro_offer, expired %}
+{% if m.state in ('activo', 'gracia', 'vencido') %}
+  {% if m.state != 'activo' %}{{ expired(m, offer, buy_url) }}{% endif %}
+  <section class="card"><div class="empty" style="padding:28px">{{ empty_art('check') }}<h2>{{ _(offer.title) }}</h2>
+    <p>{{ _('El módulo está incluido en tu licencia. Se instala solo desde comunidad.opennccm.com en cuanto esté disponible para esta versión.') }}</p></div></section>
+{% else %}
+  {{ pro_offer(offer, buy_url) }}
+{% endif %}
+{% endblock %}

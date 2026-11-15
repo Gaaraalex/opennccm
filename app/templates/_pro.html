@@ -1,0 +1,35 @@
+{# Piezas comunes de los módulos Pro (app/pro.py): la etiqueta PRO, la oferta sin licencia (Pro 5 a 8) y el aviso de un
+   módulo vencido. Diseño aprobado de «Diseño UX». #}
+{% macro tag() %}<span class="protag">PRO</span>{% endmacro %}
+
+{% macro offer(o, buy_url, sample='') %}
+<section class="card pro-offer">
+  <div class="pro-of-l">
+    <div class="row" style="gap:8px">{{ tag() }}<span class="muted sm">{{ _('Módulo de pago') }} · {{ _(o.title) }}</span></div>
+    <h2>{{ _(o.title) }}</h2>
+    <p>{{ _(o.lead) }}</p>
+    <ul class="pro-inc">{% for it in o['items'] %}<li><span class="pro-tk" aria-hidden="true">✓</span>{{ _(it) }}</li>{% endfor %}</ul>
+    <div class="pro-price"><b>{{ _(o.price) }}</b><span class="muted sm">{{ _(o.price_note) }}</span></div>
+    <div class="row" style="margin-top:14px"><a class="btn pri" href="/license#clave">{{ _('Tengo una clave') }}</a>
+      <a class="btn" href="{{ buy_url }}" target="_blank" rel="noopener">{{ _('Ver planes y precios') }} ↗</a></div>
+    <p class="muted sm" style="margin-top:12px">{{ _('Lo que ya usas sigue igual y gratis. Esto solo agrega funciones nuevas.') }}</p>
+  </div>
+  {% if sample %}<div class="pro-of-r" aria-label="{{ _('Ejemplo del informe') }}">{{ sample }}</div>{% endif %}
+</section>
+{% endmacro %}
+
+{% macro expired(m, o, buy_url) %}
+<div class="banner warn" role="status">{{ icon('clock') }}<span class="grow">{% if m.state == 'gracia' %}{{ _f('{0} venció el {1}: sigue funcionando hasta el {2}.', _(o.title), m.until.strftime('%d-%m-%Y'), m.grace_until.strftime('%d-%m-%Y')) }}{% else %}{{ _f('{0} venció. No se borró nada; se pausaron los envíos y la creación de nuevos.', _(o.title)) }}{% endif %}</span>
+  <a class="btn s" href="{{ buy_url }}" target="_blank" rel="noopener">{{ _('Renovar') }} ↗</a></div>
+{% endmacro %}
+
+{# el informe de ejemplo, siempre en papel blanco, con la marca «EJEMPLO» (no borroso) #}
+{% macro sample_report() %}
+<div class="pro-paper"><span class="pro-wm" aria-hidden="true">{{ _('EJEMPLO') }}</span>
+  <div class="pp-h"><span class="pp-logo">{{ _('TU LOGO') }}</span><div><b>{{ _('Informe ejecutivo de la red') }}</b><span>{{ _('Octubre 2026 · comparado con septiembre') }}</span></div><span class="grow"></span><span class="pp-org">{{ _('Tu organización S.A.') }}<i>{{ _('Preparado por OpenNCCM') }}</i></span></div>
+  <div class="pp-k">{% for l, v, d, c in [(_('Salud de la red'), '92', _('▲ 3 puntos'), 'up'), (_('Respaldos al día'), '98,7 %', '▲ 1,2 %', 'up'), (_('Cambios'), '214', '▼ 12 %', 'up'), (_('Cumplimiento'), '87 %', '▲ 4 %', 'up'), (_('CVE críticos'), '3', '▲ 1', 'dn'), (_('Sin soporte'), '7', _('= igual'), 'up')] %}<div class="pk"><span>{{ l }}</span><b>{{ v }}</b><i class="{{ c }}">{{ d }}</i></div>{% endfor %}</div>
+  <h5>{{ _('Lo que requiere atención') }}</h5>
+  <div class="pp-t"><div><b>3</b> {{ _('CVE críticos en Fortinet FortiOS 7.2 (4 equipos)') }}</div><div><b>7</b> {{ _('equipos sin soporte del fabricante desde 2025') }}</div><div><b>2</b> {{ _('sedes con respaldos fallidos más de 3 días') }}</div></div>
+  <div class="pp-f"><span>{{ _('Página 1 de 6') }}</span><span>{{ _('Confidencial · generado el 1 nov 2026, 07:00') }}</span></div>
+</div>
+{% endmacro %}

@@ -4,7 +4,9 @@
 <div class="ph"><div class="grow"><h1>Administración</h1><div class="sub">{{ _('Según los permisos de cada usuario.') }}</div></div></div>
 <nav class="tabs" aria-label="Administración">
   {% for href, label, n in [('/users', _('Usuarios'), ac.users), ('/credentials', _('Credenciales'), ac.creds), ('/groups', _('Grupos'), ac.groups), ('/nodes', _('Nodos'), ac.nodes),
-                           ('/vendors', _('Plataformas'), ac.platforms), ('/audit', _('Auditoría'), none), ('/system', _('Sistema'), none), ('/capacity', _('Capacidad'), none), ('/settings', _('Ajustes'), none)] %}
-  {% if can(user, ADMIN_TAB_PERM[href]) %}<a href="{{ href }}"{% if navp.startswith(href) %} aria-current="page" class="on"{% endif %}>{{ label }}{% if n is not none %} <span class="cnt2">{{ n }}</span>{% endif %}</a>{% endif %}{% endfor %}
+                           ('/vendors', _('Plataformas'), ac.platforms), ('/audit', _('Auditoría'), none), ('/system', _('Sistema'), none), ('/capacity', _('Capacidad'), none), ('/recolectores', _('Recolectores'), 'pro:recolectores'),
+                           ('/alta-disponibilidad', _('Alta disponibilidad'), 'pro:alta_disponibilidad'), ('/license', _('Licencia y módulos'), none), ('/settings', _('Ajustes'), none)] %}
+  {% set is_pro = n is string and n.startswith('pro:') %}
+  {% if can(user, ADMIN_TAB_PERM[href]) and (not is_pro or pro_visible(n[4:])) %}<a href="{{ href }}"{% if navp.startswith(href) %} aria-current="page" class="on"{% endif %}>{{ label }}{% if is_pro %} <span class="protag">PRO</span>{% elif n is not none %} <span class="cnt2">{{ n }}</span>{% endif %}</a>{% endif %}{% endfor %}
 </nav>
 {% endif %}

@@ -244,6 +244,9 @@ def start():
     metrics.sample()
     scheduler.add_job(metrics.sample, IntervalTrigger(seconds=metrics.SAMPLE_SECONDS), id="metrics",
                       replace_existing=True)
+    from . import licencia  # licencia de los módulos Pro: actualizarla y los avisos de vencimiento, una vez al día
+    scheduler.add_job(licencia.daily, IntervalTrigger(hours=24), id="license-daily", replace_existing=True,
+                      next_run_time=datetime.now() + timedelta(minutes=5))
     scheduler.add_job(updates.check_latest, IntervalTrigger(hours=24), id="update-check", replace_existing=True,
                       next_run_time=datetime.now() + timedelta(minutes=2))
     # solicitudes de cambio aprobadas para una hora (ventana de mantenimiento)

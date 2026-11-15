@@ -3951,6 +3951,9 @@ app.include_router(zbxcorr.router)
 from . import capacity  # noqa: E402  (Administración › Capacidad)
 
 app.include_router(capacity.router)
+from . import pro  # noqa: E402  (puertas de los módulos Pro: Licencia y módulos y sus páginas)
+
+app.include_router(pro.router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)

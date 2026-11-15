@@ -19,7 +19,8 @@ templates.env.globals["can"] = perms.has          # {% if can(user, 'push') %}: 
 templates.env.globals["can_admin"] = perms.admin_any
 templates.env.globals["ADMIN_TAB_PERM"] = {"/users": "users", "/credentials": "credentials", "/groups": "devices", "/nodes": "settings",
                                            "/vendors": "settings", "/audit": "users", "/system": "settings", "/capacity": "settings",
-                                           "/settings": "settings"}
+                                           "/recolectores": "settings", "/alta-disponibilidad": "settings",
+                                           "/license": "settings", "/settings": "settings"}
 # huella del CSS: fuerza a los navegadores a recargarlo tras cada actualización
 templates.env.globals["CSS_HASH"] = __import__("hashlib").md5(
     (BASE_DIR / "static" / "style.css").read_bytes()).hexdigest()[:8]
@@ -157,6 +158,8 @@ def _ai_logo(provider: str, size: int = 44):
 templates.env.globals["ai_logo"] = _ai_logo
 # parámetros de una consulta («sev=x&unack=1») como pares, para repetirlos en formularios GET (paginador de _pager.html)
 templates.env.globals["qs_items"] = lambda qs: __import__("urllib.parse").parse.parse_qsl(qs or "", keep_blank_values=True)
+# módulos Pro: si la entrada de un módulo (pestaña o página) se muestra (app/pro.py)
+templates.env.globals["pro_visible"] = lambda mid: __import__("app.pro", fromlist=["visible"]).visible(mid)
 
 
 def logo(size: int = 30):

@@ -1,0 +1,7 @@
+{# Informes: la pestaña de siempre (gratis) y «Profesionales» (módulo Pro; se oculta si así se elige en Licencia y módulos) #}
+{% if pro_visible('informes_pro') %}{% set navp = request.url.path %}
+<nav class="tabs" aria-label="{{ _('Informes') }}">
+  <a href="/reports"{% if navp == '/reports' %} aria-current="page" class="on"{% endif %}>{{ _('Informes') }}</a>
+  <a href="/reports/pro"{% if navp == '/reports/pro' %} aria-current="page" class="on"{% endif %}>{{ _('Profesionales') }} <span class="protag">PRO</span></a>
+</nav>
+{% endif %}
