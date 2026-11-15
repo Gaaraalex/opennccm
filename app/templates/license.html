@@ -10,7 +10,7 @@
 {% if ped and ped.estado == 'en_revision' %}
 <div class="banner warn lic-bx" role="status">{{ icon('clock') }}<div><b>{{ _('Pedido de prueba en revisión') }}</b>
   <div class="sm">{{ _f('{0} · enviado {1} a {2}. Revisamos cada pedido a mano, normalmente en menos de un día hábil.', ped.names, ped.sent|ago, ped.correo) }}</div></div>
-  <form method="post" action="/license/trial/cancel" data-confirm="{{ _('¿Cancelar el pedido de prueba?') }}"><button class="btn s ghost">{{ _('Cancelar pedido') }}</button></form></div>
+  <form method="post" action="/license/trial/cancel"><button class="btn s ghost" onclick="return confirm('{{ _('¿Cancelar el pedido de prueba?')|jsq }}')">{{ _('Cancelar pedido') }}</button></form></div>
 {% elif ped and ped.estado == 'aprobado' %}
 <div class="banner ok lic-bx" role="status">{{ icon('check') }}<div><b>{{ _('Tu prueba fue aprobada') }}</b>
   <div class="sm">{% if ped.dias %}{{ _f('{0} por {1} días, desde que la actives.', ped.names, ped.dias) }}{% else %}{{ _f('{0}, desde que la actives.', ped.names) }}{% endif %}
