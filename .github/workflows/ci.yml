@@ -218,15 +218,44 @@ jobs:
         if: failure()
         run: sudo tail -n 120 /var/log/opennccm-install.log || true
 
+  recolector-windows:
+    name: Recolector para Windows (.exe)
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Armar opennccm-recolector-<versión>.exe (PyInstaller, sin firma Authenticode)
+        run: |
+          python -m pip install --quiet -r requirements.txt pyinstaller
+          python scripts/windows/armar.py --salida dist
+      - name: Probar el .exe (sin instalar nada)
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem dist -Filter *.exe | Select-Object -First 1
+          & $exe.FullName | Out-String | Select-String "desinstalar"
+          if ($LASTEXITCODE -ne 2) { throw "El .exe sin opciones debe mostrar la ayuda y salir con 2 (salió $LASTEXITCODE)" }
+          & $exe.FullName "/central=https://127.0.0.1:9" "/clave=ra_prueba" "/carpeta=$env:RUNNER_TEMP\rc" /sin-tarea
+          if ($LASTEXITCODE -ne 1) { throw "Sin central, el alta debe fallar con 1 (salió $LASTEXITCODE)" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: recolector-windows
+          path: dist/*
+
   release:
     name: Publicar versión
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [lint, app, directories, linux, zabbix, mikrotik, install, package, tui]
+    needs: [lint, app, directories, linux, zabbix, mikrotik, install, package, tui, recolector-windows]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: recolector-windows
+          path: recolector
       - name: Crear la versión en GitHub
         env:
           GH_TOKEN: ${{ github.token }}
@@ -237,4 +266,4 @@ jobs:
           printf '\n### Instalar\n```bash\ncurl -fsSL https://raw.githubusercontent.com/%s/main/install.sh -o install.sh && sudo bash install.sh\n```\n### Actualizar una instalación existente\n```bash\nsudo opennccm update\n```\n' "$GITHUB_REPOSITORY" >> notas.md
           git archive --format=tar.gz --prefix=opennccm/ -o "opennccm-$VER.tar.gz" "$TAG"
           gh release create "$TAG" --title "OpenNCCM $VER" --notes-file notas.md \
-            "opennccm-$VER.tar.gz" docs/*.pdf
+            "opennccm-$VER.tar.gz" docs/*.pdf recolector/*
