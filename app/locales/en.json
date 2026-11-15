@@ -6030,5 +6030,16 @@
 "Todavía no hay una versión de este módulo para esta versión de OpenNCCM.": "There is no version of this module for this OpenNCCM version yet.",
 "Documento de la red en PDF y Word: inventario, mapa, VLAN e IP, enlaces y cumplimiento": "Network document in PDF and Word: inventory, map, VLANs and IPs, links and compliance",
 "Ejecutivo, auditoría, documento de la red, comparar periodos, envíos y marca": "Executive, audit, network document, period comparison, delivery and branding",
-"Ver en Profesionales": "See in Professional"
+"Ver en Profesionales": "See in Professional",
+"Desde la versión {0} el Documento de la red es parte de Informes profesionales. Los que generaste antes siguen aquí para verlos y descargarlos.": "Since version {0} the Network document is part of Professional reports. The ones you generated before are still here to view and download.",
+"Desde la versión {0} es parte de Informes profesionales.": "Since version {0} it is part of Professional reports.",
+"Documento": "Document",
+"Documento de la red, ejecutivo, auditoría, comparar periodos, envíos y marca": "Network document, executive, audit, period comparison, delivery and branding",
+"Documentos de la red anteriores": "Previous network documents",
+"Generado": "Generated",
+"Mis documentos ({0})": "My documents ({0})",
+"No hay documentos anteriores": "There are no previous documents",
+"OpenNCCM es gratis. Los módulos Pro agregan funciones para empresas.": "OpenNCCM is free. Pro modules add features for businesses.",
+"Todo lo demás de OpenNCCM sigue gratis.": "Everything else in OpenNCCM stays free.",
+"Tus documentos anteriores siguen disponibles.": "Your previous documents are still available."
 }

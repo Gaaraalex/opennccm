@@ -11,6 +11,7 @@ from fastapi import APIRouter, Request
 
 from . import licencia
 from .auth import require
+from .config import DATA_DIR
 from .db import get_setting, set_setting
 from .i18n import N_, _, _f
 from .web import flash, go, log_action, render
@@ -23,11 +24,11 @@ OFFERS = {
     "informes_pro": {
         "title": N_("Informes profesionales"),
         "lead": N_("Informes listos para gerencia y auditores, con tu marca, que se envían solos por correo."),
-        "items": [N_("Informe ejecutivo mensual con tendencia contra el mes anterior"),
+        "items": [N_("Documento de la red en PDF y Word: inventario, mapa, VLAN e IP, enlaces y cumplimiento"),
+                  N_("Informe ejecutivo mensual con tendencia contra el mes anterior"),
                   N_("Auditoría de cumplimiento por norma (PCI DSS, ISO 27001, CIS) con evidencias y firma"),
                   N_("Envío programado por correo: diario, semanal o mensual"),
-                  N_("Comparar periodos y plantilla con tu logo y colores"),
-                  N_("Documento de la red en PDF y Word: inventario, mapa, VLAN e IP, enlaces y cumplimiento")],
+                  N_("Comparar periodos y plantilla con tu logo y colores")],
     },
     "recolectores": {
         "title": N_("Recolectores por sede"),
@@ -42,6 +43,9 @@ OFFERS = {
                   N_("Conmutación automática o manual"), N_("Historial de cada conmutación")],
     },
 }
+# el Documento de la red era gratis hasta esta versión: lo ya generado se sigue viendo y descargando sin licencia
+NETDOC_PRO_SINCE = "2.45.0"
+NETDOC_DIR = DATA_DIR / "netdocs"
 STATE_LABEL = {"activo": N_("Activo"), "gracia": N_("En gracia"), "vencido": N_("Vencido"), "no_incluido": N_("No incluido")}
 
 
@@ -64,6 +68,46 @@ def _module_page(request: Request, mid: str, tab_template: str):
         return page(request, user, m)
     return render(request, tab_template, user, mid=mid, m=m, offer=OFFERS[mid], buy_url=licencia.BUY_URL,
                   state_label=STATE_LABEL, soon=licencia.soon(mid))
+
+
+def old_netdocs(user) -> list[dict]:
+    """Documentos de la red generados antes (cuando era gratis) que este usuario puede ver: los suyos, o todos si es
+    administrador. Solo leer y descargar: generar uno nuevo es del módulo Informes profesionales."""
+    import json
+    out = []
+    for p in NETDOC_DIR.glob("*.json") if NETDOC_DIR.is_dir() else []:
+        try:
+            m = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if user.role == "admin" or m.get("user") == user.username:
+            out.append(m)
+    return sorted(out, key=lambda m: m.get("created", ""), reverse=True)
+
+
+@router.get("/reports/netdoc-anteriores")
+def old_netdocs_page(request: Request):
+    user = require(request)
+    return render(request, "netdoc_old.html", user, docs=old_netdocs(user), since=NETDOC_PRO_SINCE)
+
+
+@router.get("/reports/netdoc-anteriores/{doc_id}/file")
+def old_netdoc_file(request: Request, doc_id: str):
+    import re
+
+    from fastapi.responses import Response
+
+    from .auth import Forbidden
+    user = require(request)
+    m = next((d for d in old_netdocs(user) if d.get("id") == doc_id), None)
+    if m is None or not re.fullmatch(r"[0-9]{14}-[0-9a-f]{6}", doc_id) or m.get("fmt") not in ("pdf", "docx"):
+        raise Forbidden()
+    path = NETDOC_DIR / f"{doc_id}.{m['fmt']}"
+    if not path.is_file():
+        raise Forbidden()
+    log_action(request, user, "netdoc_download", m.get("file", doc_id))
+    mt = "application/pdf" if m["fmt"] == "pdf" else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    return Response(path.read_bytes(), media_type=mt, headers={"Content-Disposition": f'attachment; filename="{m.get("file", doc_id)}"'})
 
 
 @router.get("/reports/pro")

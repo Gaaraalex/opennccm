@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block title %}{{ _('Documentos de la red anteriores') }}{% endblock %}
+{% block crumbs %}<b>Informes</b>{% endblock %}
+{% block content %}
+<div class="ph"><div class="grow"><h1>{{ _('Documentos de la red anteriores') }}</h1>
+  <div class="sub">{{ _f('Desde la versión {0} el Documento de la red es parte de Informes profesionales. Los que generaste antes siguen aquí para verlos y descargarlos.', since) }}</div></div>
+  <a class="btn" href="/reports/pro">{{ _('Ver en Profesionales') }}</a></div>
+<section class="card flush">
+  {% if docs %}<div class="tw"><table class="t"><thead><tr><th>{{ _('Documento') }}</th><th>{{ _('Alcance') }}</th><th>{{ _('Generado') }}</th><th><span class="vh">{{ _('Descargar') }}</span></th></tr></thead><tbody>
+  {% for d in docs %}<tr><td><b>{{ d.file }}</b></td><td>{{ d.label }}</td><td class="nowrap">{{ d.created[:16]|replace('T', ' ') }}{% if d.user %} · {{ d.user }}{% endif %}</td>
+    <td><a class="btn s" href="/reports/netdoc-anteriores/{{ d.id }}/file">{{ icon('dl', 's') }}{{ 'PDF' if d.fmt == 'pdf' else 'Word' }}</a></td></tr>{% endfor %}
+  </tbody></table></div>
+  {% else %}<div class="empty">{{ empty_art('book') }}<h2>{{ _('No hay documentos anteriores') }}</h2></div>{% endif %}
+</section>
+{% endblock %}

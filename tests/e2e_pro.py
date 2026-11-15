@@ -2,6 +2,7 @@
 Recolectores y › Alta disponibilidad con la etiqueta PRO, Licencia y módulos (activar con una clave mal escrita, archivo
 que no es una licencia, preferencias que ocultan lo Pro) y permisos. Lo gratis sigue igual. Sin internet: la clave
 mal escrita se rechaza antes de llamar a la web. Requiere e2e.py (admin)."""
+import json
 import os
 import sys
 
@@ -30,7 +31,7 @@ try:
     page = adm.get(B + "/reports/pro").text
     check("Profesionales sin licencia: qué incluye, precio, ejemplo y botones", "Informes profesionales" in page
           and "EJEMPLO" in page and 'href="/license#clave"' in page and "comunidad.opennccm.com/pro" in page
-          and "sigue igual y gratis" in page)
+          and "Todo lo demás de OpenNCCM sigue gratis" in page and page.index("Documento de la red") < page.index("Informe ejecutivo mensual"))
     for url, title in (("/recolectores", "Recolectores por sede"), ("/alta-disponibilidad", "Alta disponibilidad")):
         page = adm.get(B + url).text
         check(f"{title} sin licencia: oferta y pestaña PRO en Administración", title in page and "Tengo una clave" in page
@@ -52,6 +53,24 @@ try:
     adm.post(B + "/license/prefs", data={"show_pro": "on", "notify30": "on"})
     check("volver a mostrarlo", 'href="/reports/pro"' in adm.get(B + "/reports").text)
 
+    # documentos de la red hechos cuando era gratis: sin licencia se ven y se descargan; no se generan nuevos
+    from app.config import DATA_DIR
+    nd = DATA_DIR / "netdocs"
+    nd.mkdir(parents=True, exist_ok=True)
+    (nd / "20261101120000-abcdef.json").write_text(json.dumps({"id": "20261101120000-abcdef", "file": "Documento-red_Viejo.pdf",
+                                                               "fmt": "pdf", "label": "Toda la red", "user": "admin",
+                                                               "created": "2026-11-01T12:00:00"}), encoding="utf-8")
+    (nd / "20261101120000-abcdef.pdf").write_bytes(b"%PDF-1.4 viejo")
+    page = adm.get(B + "/reports").text
+    check("tarjeta del Documento de la red: es Pro y avisa que los anteriores siguen", "es parte de Informes profesionales" in page
+          and "Tus documentos anteriores siguen disponibles" in page and 'href="/reports/netdoc-anteriores"' in page)
+    page = adm.get(B + "/reports/netdoc-anteriores").text
+    check("lista de documentos anteriores sin licencia", "Documento-red_Viejo.pdf" in page)
+    r = adm.get(B + "/reports/netdoc-anteriores/20261101120000-abcdef/file")
+    check("…y se descargan", r.status_code == 200 and r.content == b"%PDF-1.4 viejo")
+    check("un id inventado no descarga nada", adm.get(B + "/reports/netdoc-anteriores/..%2F..%2Fsecret/file").status_code in (403, 404))
+    check("sin el módulo no se generan nuevos", adm.post(B + "/reports/netdoc", data={"fmt": "pdf"}).status_code in (404, 405))
+
     with SessionLocal() as db:
         if not db.scalar(select(User).where(User.username == "pro-lector")):
             db.add(User(username="pro-lector", password_hash=hash_password("Lector-Pro-2026"), role="viewer"))
@@ -59,6 +78,8 @@ try:
     vw = requests.Session()
     vw.post(B + "/login", data={"username": "pro-lector", "password": "Lector-Pro-2026"})
     check("un lector ve la pestaña Profesionales", vw.get(B + "/reports/pro").status_code == 200)
+    check("un lector no ve los documentos anteriores de otro", "Documento-red_Viejo.pdf" not in vw.get(B + "/reports/netdoc-anteriores").text
+          and vw.get(B + "/reports/netdoc-anteriores/20261101120000-abcdef/file").status_code == 403)
     for url in ("/license", "/recolectores", "/alta-disponibilidad"):
         r = vw.get(B + url, allow_redirects=False)
         check(f"un lector no entra a {url}", r.status_code in (302, 303, 403))

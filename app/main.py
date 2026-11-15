@@ -3735,7 +3735,10 @@ def settings_test(request: Request):
 # --------------------------------------------------------------------------- informes
 @app.get("/reports")
 def reports_page(request: Request):
-    return render(request, "reports.html", require(request), titles=reports.TITLES)
+    from . import pro
+    user = require(request)
+    return render(request, "reports.html", user, titles=reports.TITLES, old_netdocs=len(pro.old_netdocs(user)),
+                  netdoc_since=pro.NETDOC_PRO_SINCE)
 
 
 @app.get("/reports/view/{kind}")
