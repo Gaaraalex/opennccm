@@ -36,7 +36,7 @@
     <p style="margin:0;line-height:1.6">{{ _h('Una vez al día, este servidor avisa a <b>comunidad.opennccm.com</b> que está en uso. Envía solo un número de instalación al azar, la versión de OpenNCCM y si tiene Pro. <b>Nunca</b> envía configuraciones, equipos, direcciones IP de tu red, usuarios ni contraseñas. Así sabemos cuánta gente usa OpenNCCM y en qué versión: esa información nos ayuda a seguir mejorando el sistema.') }}</p>
     <details class="uso-d" style="margin-top:12px"><summary class="row" style="gap:8px;cursor:pointer;list-style:none">
       <span class="uso-dot{{ ' on' if uso_recent }}" aria-hidden="true"></span>
-      <span class="sm">{% if uso_last %}{{ _('Último aviso:') }} <span title="{{ uso_last|dt }}">{{ uso_last|ago }}</span>{% else %}{{ _('Todavía no se envió ningún aviso.') }}{% endif %}</span>
+      <span class="sm">{% if uso_last %}{{ _('Último aviso:') }} <span title="{{ uso_last|dt }}">{{ uso_last|ago }}</span>{% if uso_offline %} · {{ _('sin conexión desde entonces') }}{% endif %}{% elif uso_offline %}{{ _('Todavía no se envió ningún aviso · sin conexión') }}{% else %}{{ _('Todavía no se envió ningún aviso.') }}{% endif %}</span>
       <span class="grow"></span><span class="lnk sm" style="color:var(--brand);font-weight:600">{{ _('Ver exactamente qué se envía') }}</span></summary>
       <pre class="uso-js">{{ uso_json }}</pre>
       <p class="muted sm" style="margin:6px 0 0">{{ _f('A {0}, una vez al día. Si el servidor no tiene salida a internet, no pasa nada: no se muestra ningún error y se vuelve a intentar al día siguiente.', uso_url) }}</p></details>

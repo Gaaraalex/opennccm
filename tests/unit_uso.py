@@ -53,6 +53,7 @@ check("«pro» es true con un módulo activo", uso.payload()["pro"] is True)
 check("sin red: no falla y devuelve False", uso.send() is False)
 check("…no anota un aviso que no llegó", not get_setting("uso_ultimo") and uso.last_sent() is None)
 check("…y no reintenta en bucle: no toca hasta mañana", not uso.due() and not uso.due(uso.MIN_GAP))
+check("…Sistema lo muestra como «sin conexión» (información, no error)", uso.offline())
 
 # web simulada
 GOT = []
@@ -76,7 +77,7 @@ set_setting("uso_intento", "")
 uso.at_startup()
 check("al arrancar sin aviso previo: avisa", len(GOT) == 1 and GOT[0][0] == "/api/uso/aviso" and GOT[0][1] == "application/json")
 check("…con el cuerpo exacto", len(GOT) == 1 and json.loads(GOT[0][2]) == uso.payload(), GOT[:1])
-check("…y anota el último aviso", uso.last_sent() is not None)
+check("…y anota el último aviso, ya no «sin conexión»", uso.last_sent() is not None and not uso.offline())
 uso.daily()
 uso.at_startup()
 check("una vez al día: la tarea diaria y un reinicio no repiten", len(GOT) == 1)
@@ -85,7 +86,10 @@ uso.at_startup()
 check("al arrancar si pasó más de un día: avisa", len(GOT) == 2)
 CODE[0] = 400
 set_setting("uso_intento", "")
+ok_before = uso.last_sent()
 check("si la web responde un error: no falla y no lo anota como aviso", uso.send() is False)
+check("…Sistema sigue mostrando el último aviso que salió bien, con «sin conexión»", uso.last_sent() == ok_before
+      and uso.offline())
 srv.shutdown()
 
 h1 = uso.hour()

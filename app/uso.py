@@ -66,9 +66,16 @@ def last_sent() -> datetime | None:
     return d.astimezone().replace(tzinfo=None) if d else None
 
 
+def offline() -> bool:
+    """El último intento no llegó (sin internet o bloqueado) después del último aviso que salió bien. Es información
+    para Sistema, no un error."""
+    tried, ok = _when("uso_intento"), _when("uso_ultimo")
+    return tried is not None and (ok is None or tried > ok)
+
+
 def send() -> bool:
     """Un aviso. Nunca lanza una excepción ni deja un error a la vista: si falla, se intenta mañana."""
-    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    now = datetime.now(timezone.utc).isoformat(timespec="microseconds")  # sin empates entre un intento y el aviso anterior
     try:
         set_setting("uso_intento", now)
         import requests

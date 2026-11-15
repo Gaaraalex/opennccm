@@ -40,6 +40,8 @@ page = adm.get(B + "/acerca").text
 check("Privacidad y licencias: explica la estadística (siempre activa) y que no lleva datos de la red",
       "Estadística de uso (siempre activa)" in page and "no guarda la dirección IP" in page
       and "no hay analíticas" not in page)
+check("…y la licencia Pro (solo si se activa): qué se envía y qué guarda la web", "Licencia de OpenNCCM Pro (solo si la activas)" in page
+      and "la IP de la última comprobación" in page)
 r = requests.get(B + "/system", allow_redirects=False)
 check("Sistema sigue siendo solo para administradores", r.status_code in (302, 303, 401, 403))
 

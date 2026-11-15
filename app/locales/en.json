@@ -6054,5 +6054,9 @@
 "comunidad.opennccm.com": "comunidad.opennccm.com",
 "envía configuraciones, equipos, direcciones IP de la red, usuarios, contraseñas ni nombres, y la web no guarda la dirección IP del servidor. Así sabemos cuánta gente usa OpenNCCM y en qué versión: esa información nos ayuda a seguir mejorando el sistema. El contenido exacto se ve en Administración › Sistema › «Estadística de uso».": "sends configurations, devices, network IP addresses, users, passwords or names, and the website does not store the server's IP address. This way we know how many people use OpenNCCM and on which version: that information helps us keep improving the system. The exact content is shown in Administration › System › “Usage statistics”.",
 "que está en uso. Envía solo un número de instalación al azar (no está ligado a la organización ni a la licencia), la versión de OpenNCCM y si tiene un módulo Pro activo.": "that it is in use. It sends only a random installation number (not tied to the organization or the license), the OpenNCCM version and whether it has an active Pro module.",
-"Último aviso:": "Last notice:"
+"Último aviso:": "Last notice:",
+"Licencia de OpenNCCM Pro (solo si la activas):": "OpenNCCM Pro license (only if you activate it):",
+"Todavía no se envió ningún aviso · sin conexión": "No notice has been sent yet · no connection",
+"al activar y una vez al día se envían a comunidad.opennccm.com la clave, el id de esta instalación y la versión, nunca configuraciones. La web guarda la fecha y la IP de la última comprobación para avisarte si la misma licencia se usa en dos servidores.": "on activation and once a day, the key, this installation's ID and the version are sent to comunidad.opennccm.com, never configurations. The website stores the date and IP address of the last check so it can warn you if the same license is used on two servers.",
+"sin conexión desde entonces": "no connection since then"
 }

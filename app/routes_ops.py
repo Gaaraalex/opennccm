@@ -466,7 +466,7 @@ def system_page(request: Request):
     uso_last = uso.last_sent()
     return render(request, "system.html", user, backups=backups, db_url=DATABASE_URL.split("@")[-1],
                   uso_json=_json.dumps(uso.payload(), ensure_ascii=False, indent=2), uso_last=uso_last, uso_url=uso.URL,
-                  uso_recent=bool(uso_last and (now() - uso_last).days < 2),
+                  uso_offline=uso.offline(), uso_recent=bool(uso_last and (now() - uso_last).days < 2 and not uso.offline()),
                   server=_server_panel(),
                   key_file=str(KEY_FILE), profiles_count=len(PROFILES),
                   vendors_count=len({p.vendor for p in PROFILES}), unknown=unknown_profiles(),
