@@ -13,8 +13,8 @@ Sin módulos, todo queda en None y OpenNCCM funciona como siempre.
   y «dashboard_kpis» (los indicadores del Panel).
 * providers: datos que los módulos suman a cálculos del núcleo. Cada uno es una lista de funciones (**contexto) -> dict.
   «attention» (health.summary, el Panel): {"chips": [(clase, n, texto, enlace)], "queue": [elementos de la bandeja],
-  "titular": texto}. «titular» solo cuando hay algo urgente: reemplaza la frase de arriba del Panel («Tu red está
-  bien»), nunca la puntuación:
+  "titular": texto, "prioridad": n}. «titular» solo cuando hay algo urgente: reemplaza la frase de arriba del Panel («Tu
+  red está bien»), nunca la puntuación. Con varios, gana el de «prioridad» mayor (más grave):
   lo que necesita atención por culpa del módulo (por ejemplo, sedes que no reportan).
 * rol() / set_rol(): «Alta disponibilidad». "activo" (siempre, sin el módulo), "espera" (otro servidor es el activo) o
   "aislado" (era el activo y perdió al otro y al testigo). Si no es "activo", el núcleo pausa las tareas programadas,

@@ -129,7 +129,7 @@ def summary(scope: set[int] | None, is_admin: bool = False, server: dict | None 
         if snap["mem_pct"] >= 90:
             queue.append({"sev": "warn", "icon": "chip", "title": _f("La memoria del servidor está al {0}%", round(snap["mem_pct"])),
                           "sub": _("OpenNCCM o el sistema usan casi toda la RAM"), "action": _("Revisar"), "href": "/system#servidor"})
-    urgent_phrase = False
+    urgent_phrase = -1  # prioridad del titular urgente elegido (-1: ninguno)
     from . import prohooks  # lo que suman los módulos Pro (por ejemplo, sedes cuyo recolector no reporta)
     for extra in prohooks.collect("attention", scope=scope, is_admin=is_admin):
         for c in extra.get("chips", []):  # los urgentes («hot») van con los urgentes; los demás, al final
@@ -137,8 +137,9 @@ def summary(scope: set[int] | None, is_admin: bool = False, server: dict | None 
                 at = sum(1 for x in chips if x[0] == "hot") if c[0] == "hot" else len(chips)
                 chips.insert(at, c)
         queue += [q for q in extra.get("queue", []) if isinstance(q, dict) and q.get("sev") in SEV_ORDER]
-        if isinstance(extra.get("titular"), str) and extra["titular"] and phrase is not None and not urgent_phrase:
-            phrase, urgent_phrase = extra["titular"], True  # un aviso urgente de un módulo cambia el titular, no la puntuación
+        prio = int(extra.get("prioridad") or 0)
+        if isinstance(extra.get("titular"), str) and extra["titular"] and phrase is not None and prio > urgent_phrase:
+            phrase, urgent_phrase = extra["titular"], prio  # el aviso urgente más grave cambia el titular, nunca la puntuación
     queue.sort(key=lambda q: SEV_ORDER[q["sev"]])
     return {"score": score, "phrase": phrase, "total": total, "backed": backed, "chips": chips[:3],
             "queue": queue[:6], "queue_total": len(queue), "perfect": score == 100}
