@@ -66,7 +66,9 @@ def _module_page(request: Request, mid: str, tab_template: str):
     from . import promod
     page = promod.page(mid)
     if page is not None and m["state"] != "no_incluido":  # el módulo instalado dibuja su página
-        return page(request, user, m)
+        out = page(request, user, m)
+        if out is not None:
+            return out
     return render(request, tab_template, user, mid=mid, m=m, offer=OFFERS[mid], buy_url=licencia.BUY_URL,
                   state_label=STATE_LABEL, soon=licencia.soon(mid))
 
