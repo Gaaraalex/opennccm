@@ -53,12 +53,15 @@ def _kid() -> str:
     return parts[1]
 
 
-def verify_package(data: bytes, signature: str) -> None:
-    """Firma Ed25519 del .tar.gz con la clave de la licencia («kid.firma» o solo la firma)."""
+def verify_package(data: bytes, signature: str, kid: str | None = None) -> None:
+    """Firma Ed25519 del .tar.gz: la de la cabecera X-OPNC-Firma (con X-OPNC-Kid, o el kid de la licencia) o la del
+    archivo .firma de Mi cuenta, de una línea «OPNC1.<kid>.<firma>»."""
     sig = (signature or "").strip()
-    kid = _kid()
-    if "." in sig:
+    if sig.startswith("OPNC1."):
+        _p, kid, sig = sig.split(".", 2)
+    elif "." in sig:
         kid, sig = sig.split(".", 1)
+    kid = kid or _kid()
     pub = licencia.public_keys().get(kid)
     if not pub:
         raise ModuleError(_f("El módulo está firmado con una clave que esta versión no conoce ({0}).", kid))
@@ -94,17 +97,31 @@ def _extract(mid: str, data: bytes) -> dict:
     return man
 
 
-def install(mid: str, data: bytes, signature: str) -> dict:
+def compatible(nucleo: str | None, core: str | None = None) -> bool:
+    """La web entrega el paquete de la misma versión mayor.menor que no pase la del núcleo (2.45.0 para 2.45.3)."""
+    def parts(v):
+        try:
+            return tuple(int(x) for x in (v or "").split(".")[:3])
+        except ValueError:
+            return ()
+    n, c = parts(nucleo), parts(core or _core())
+    return len(n) == 3 and len(c) == 3 and n[:2] == c[:2] and n <= c
+
+
+def install(mid: str, data: bytes, signature: str, kid: str | None = None) -> dict:
     """Verifica la firma, guarda el paquete tal cual llegó y lo descomprime. Devuelve el manifest."""
     if mid not in licencia.MODULES:
         raise ModuleError(_f("Módulo desconocido: {0}", mid))
     if len(data) > MAX_SIZE:
         raise ModuleError(_("El paquete es demasiado grande."))
-    verify_package(data, signature)
+    verify_package(data, signature, kid)
     DIR.mkdir(parents=True, exist_ok=True)
     man = _extract(mid, data)
     (DIR / f"{mid}.tar.gz").write_bytes(data)
-    (DIR / f"{mid}.tar.gz.firma").write_text(signature.strip(), encoding="utf-8")
+    sig = signature.strip()
+    if kid and not sig.startswith("OPNC1."):
+        sig = f"OPNC1.{kid}.{sig}"  # se guarda con su kid, para volver a comprobarla al arrancar
+    (DIR / f"{mid}.tar.gz.firma").write_text(sig, encoding="utf-8")
     PROBLEMS.pop(mid, None)
     log.info("Módulo Pro %s %s instalado (para OpenNCCM %s)", mid, man.get("version"), man.get("nucleo"))
     return man
@@ -123,12 +140,13 @@ def download(mid: str) -> dict:
         raise ModuleError(_f("No se pudo conectar con {0}: {1}", licencia.LICENSE_URL, str(e).splitlines()[0][:160])) from e
     msgs = {403: _("La licencia no incluye este módulo o ya venció."),
             404: _("Todavía no hay una versión de este módulo para esta versión de OpenNCCM."),
+            409: _("Esta clave se liberó desde Mi cuenta; vuelve a activarla."),
             410: _("La licencia fue revocada."), 429: _("Demasiadas descargas. Pruebe en una hora.")}
     if r.status_code in msgs:
         raise ModuleError(msgs[r.status_code])
     if r.status_code != 200:
         raise ModuleError(_f("comunidad.opennccm.com respondió {0}. Pruebe más tarde.", r.status_code))
-    return install(mid, r.content, r.headers.get("X-OPNC-Firma", ""))
+    return install(mid, r.content, r.headers.get("X-OPNC-Firma", ""), r.headers.get("X-OPNC-Kid") or None)
 
 
 def installed(mid: str) -> dict | None:
@@ -142,7 +160,7 @@ def info(mid: str) -> dict:
     """Para Licencia y módulos: versión instalada, si está cargado y el problema, si lo hay."""
     man = installed(mid) or {}
     return {"version": man.get("version"), "nucleo": man.get("nucleo"), "loaded": mid in LOADED,
-            "problem": PROBLEMS.get(mid, ""), "outdated": bool(man) and man.get("nucleo") != _core()}
+            "problem": PROBLEMS.get(mid, ""), "outdated": bool(man) and not compatible(man.get("nucleo"))}
 
 
 def _check_stored(mid: str) -> None:
@@ -162,7 +180,7 @@ def load(app, mid: str) -> bool:
     if licencia.module(mid)["state"] == "no_incluido":
         return False
     try:
-        if man.get("nucleo") != _core():
+        if not compatible(man.get("nucleo")):
             raise ModuleError(_f("El módulo instalado es para OpenNCCM {0}; se baja el de esta versión.", man.get("nucleo")))
         _check_stored(mid)
         name = f"opennccm_pro_{mid}"
@@ -209,7 +227,7 @@ def sync(app=None) -> list[str]:
         if licencia.module(mid)["state"] not in ("activo", "gracia"):
             continue
         man = installed(mid)
-        if man and man.get("nucleo") == _core():
+        if man and compatible(man.get("nucleo")):
             continue
         try:
             download(mid)

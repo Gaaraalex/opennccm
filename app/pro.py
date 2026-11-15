@@ -81,6 +81,11 @@ def old_netdocs(user) -> list[dict]:
         except (OSError, ValueError):
             continue
         if user.role == "admin" or m.get("user") == user.username:
+            from datetime import datetime
+            try:
+                m["when"] = datetime.fromisoformat(m.get("created", ""))
+            except ValueError:
+                m["when"] = None
             out.append(m)
     return sorted(out, key=lambda m: m.get("created", ""), reverse=True)
 
