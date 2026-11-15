@@ -1279,7 +1279,8 @@ def device_backup(request: Request, dev_id: int):
     msgs = {"changed": _("Respaldo realizado: se detectaron cambios"), "unchanged": _("Respaldo realizado: sin cambios"),
             "first": _("Primer respaldo guardado"), "error": _("El respaldo falló (ver detalle)"),
             "busy": _("El equipo está ocupado con otra tarea"),
-            "disabled": _("El equipo está desactivado: OpenNCCM no se conecta con él. Actívalo para respaldarlo.")}
+            "disabled": _("El equipo está desactivado: OpenNCCM no se conecta con él. Actívalo para respaldarlo."),
+            "queued": _("Pedido al recolector de su sede: la copia llega en cuanto la haga.")}
     flash(request, msgs.get(res, res), "error" if res in ("error", "busy", "disabled") else "ok")
     return go(f"/devices/{dev_id}")
 
