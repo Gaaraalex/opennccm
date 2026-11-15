@@ -4,10 +4,10 @@ Decisión del usuario (15 nov 2026, contrato «CONTRATO-USO.md» de Diseño UX):
 desactivarlo, pero informado con claridad: al terminar la instalación, en Administración › Sistema, en la
 documentación y en «Privacidad y licencias». Nunca se oculta.
 
-Qué se envía, y nada más: {"instalacion": "u_<uuid>", "version": "2.45.0", "pro": true}
+Qué se envía, y nada más: {"instalacion": "u_<uuid>", "version": "2.45.0"}  (contrato v2: sin «pro», la web cuenta
+lo Pro desde las licencias; un servidor podría mandar «pro»: true sin tenerla)
   * instalacion: un número al azar propio de la estadística (u_), distinto del inst_ de la licencia Pro; se crea una
     vez y se guarda en la base (ajuste «uso_id»).
-  * pro: true si hay al menos un módulo Pro activo o en gracia.
 Nunca configuraciones, equipos, direcciones IP de la red, usuarios, contraseñas ni nombres.
 
 Cuándo: una vez al día, a una hora al azar propia de cada servidor (ajuste «uso_hora», para que no lleguen todos
@@ -39,18 +39,10 @@ def usage_id() -> str:
     return uid
 
 
-def has_pro() -> bool:
-    try:
-        from . import licencia
-        return any(m["state"] in ("activo", "gracia") for m in licencia.state()["modules"].values())
-    except Exception:  # noqa: BLE001  (la estadística nunca rompe nada)
-        return False
-
-
 def payload() -> dict:
     """Exactamente lo que se envía (lo mismo que muestra «Ver exactamente qué se envía» en Sistema)."""
     from . import __version__
-    return {"instalacion": usage_id(), "version": __version__, "pro": has_pro()}
+    return {"instalacion": usage_id(), "version": __version__}
 
 
 def _when(key: str) -> datetime | None:

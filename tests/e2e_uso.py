@@ -30,8 +30,8 @@ check("…«Ver exactamente qué se envía» y el último aviso", "Ver exactamen
       and ("Último aviso:" in page or "Todavía no se envió ningún aviso." in page))
 m = re.search(r'<pre class="uso-js">(.*?)</pre>', page, re.S)
 sent = json.loads(m.group(1).replace("&#34;", '"').replace("&quot;", '"')) if m else {}
-check("…el JSON real: exactamente {instalacion, version, pro} con el número u_ de esta instalación",
-      set(sent) == {"instalacion", "version", "pro"} and sent.get("instalacion") == get_setting("uso_id"), sent)
+check("…el JSON real: exactamente {instalacion, version} con el número u_ de esta instalación",
+      set(sent) == {"instalacion", "version"} and sent.get("instalacion") == get_setting("uso_id"), sent)
 card = page.split('id="estadistica"', 1)[-1].split("</section>", 1)[0]
 check("…sin interruptor para apagarlo", 'type="checkbox"' not in card and "<form" not in card)
 check("sin internet: ningún error a la vista y el panel funciona", adm.get(B + "/").status_code == 200

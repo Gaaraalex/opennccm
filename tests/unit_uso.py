@@ -1,5 +1,5 @@
 """Estadística de uso (app/uso.py, contrato «CONTRATO-USO.md»): número propio u_ que no cambia y no es el inst_ de la
-licencia, el contenido exacto {instalacion, version, pro}, «pro» con un módulo activo, el aviso contra una web simulada
+licencia, el contenido exacto {instalacion, version} (sin «pro», contrato v2), el aviso contra una web simulada
 y, sobre todo, que sin red o con la web caída nada falla, no se muestra ningún error y no se reintenta en bucle.
 Nunca llama a comunidad.opennccm.com."""
 import base64
@@ -38,8 +38,8 @@ uid = uso.usage_id()
 check("número propio «u_» + UUID, siempre el mismo", uid.startswith("u_") and len(uid) == 34 and uso.usage_id() == uid)
 check("…distinto del número de la licencia (inst_)", uid[2:] != licencia.install_id()[5:] and not uid.startswith("inst_"))
 p = uso.payload()
-check("se envía exactamente {instalacion, version, pro}", set(p) == {"instalacion", "version", "pro"}
-      and p["instalacion"] == uid and p["version"] == __version__ and p["pro"] is False, p)
+check("se envía exactamente {instalacion, version}", set(p) == {"instalacion", "version"}
+      and p["instalacion"] == uid and p["version"] == __version__, p)
 
 now = datetime.now(timezone.utc)
 iso = lambda d: d.strftime("%Y-%m-%dT%H:%M:%SZ")  # noqa: E731
@@ -47,7 +47,7 @@ raw = json.dumps({"v": 1, "id": "l", "emitida": iso(now), "cliente": {"nombre": 
                   "gracia_dias": 15, "modulos": [{"id": "informes_pro", "hasta": iso(now + timedelta(days=30))}]},
                  separators=(",", ":")).encode()
 set_setting("licencia", f"OPNC1.k0.{b64(raw)}.{b64(PRIV.sign(raw))}")
-check("«pro» es true con un módulo activo", uso.payload()["pro"] is True)
+check("con un módulo Pro activo tampoco se envía «pro»", set(uso.payload()) == {"instalacion", "version"})
 
 # sin red: ni excepción ni error, y no insiste
 check("sin red: no falla y devuelve False", uso.send() is False)
