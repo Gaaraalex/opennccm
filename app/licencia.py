@@ -40,7 +40,7 @@ TIMEOUT = 20
 
 # módulos de pago (contrato, sección 1). DISA STIG y NIST 800-53 es gratis: no está aquí.
 MODULES = {
-    "informes_pro": {"name": N_("Informes profesionales"), "desc": N_("Ejecutivo, auditoría, comparar periodos, envíos y marca"),
+    "informes_pro": {"name": N_("Informes profesionales"), "desc": N_("Ejecutivo, auditoría, documento de la red, comparar periodos, envíos y marca"),
                      "limit": "equipos"},
     "recolectores": {"name": N_("Recolectores por sede"), "desc": N_("Agente por sede con cola y avisos"), "limit": "sedes",
                      "soon": True},

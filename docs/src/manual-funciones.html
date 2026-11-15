@@ -1366,7 +1366,7 @@ el mapa en cada respaldo: no agrega consultas a los equipos.</p>
   <tr><td>Solicitudes de cambio</td><td>Quién pidió, quién aprobó y el resultado</td></tr>
   <tr><td>Auditoría de usuarios</td><td>Inicios de sesión y acciones (solo administradores)</td></tr>
   <tr><td>Puertos sin uso</td><td>Puertos de acceso de los switches sin enlace hace más de 30, 60 o 90 días (ver abajo)</td></tr>
-  <tr><td>Documento de la red</td><td>PDF o Word con lo que OpenNCCM sabe de la red (ver abajo)</td></tr>
+  <tr><td>Documento de la red (Pro)</td><td>PDF o Word con lo que OpenNCCM sabe de la red, en el módulo Informes profesionales (ver abajo)</td></tr>
   <tr><td>Equipos del mapa</td><td>Los equipos que se ven en el mapa (vecinos LLDP/CDP/MNDP y RoMON) cruzados con Dispositivos: cuáles ya están agregados y respaldados y cuáles no (ver abajo)</td></tr>
 </table>
 <h2 id="equipos-del-mapa">Equipos del mapa</h2>
@@ -1390,8 +1390,9 @@ Se filtra por sitio (la «Ubicación» de cada equipo) y VLAN, y se exporta en C
   Extreme EXOS y MikroTik.</li>
 </ul>
 <p>Apagar los puertos sin uso también es una mejora de seguridad: nadie puede conectar un equipo en un puerto olvidado.</p>
-<h2 id="documento-red">Documento de la red</h2>
-<p><b>Informes → Documento de la red</b> genera un <b>PDF</b> o un <b>Word (.docx)</b> de un sitio, un grupo o toda la red, con las
+<h2 id="documento-red">Documento de la red (módulo Pro)</h2>
+<p>Es parte del módulo de pago <b>Informes profesionales</b> (Administración › Licencia y módulos). Con el módulo,
+<b>Informes → Profesionales → Documento de la red</b> genera un <b>PDF</b> o un <b>Word (.docx)</b> de un sitio, un grupo o toda la red, con las
 secciones que se elijan: inventario (modelo, serie y firmware), mapa de la red, VLAN y direcciones IP, enlaces entre equipos,
 cumplimiento y vulnerabilidades y el último respaldo de cada equipo. Opcionalmente lleva una <b>portada</b> con el logo (PNG o JPEG)
 y el nombre del cliente, y puede <b>ocultar las IP públicas</b>. Las contraseñas, comunidades SNMP y claves nunca salen: el

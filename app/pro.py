@@ -26,7 +26,8 @@ OFFERS = {
         "items": [N_("Informe ejecutivo mensual con tendencia contra el mes anterior"),
                   N_("Auditoría de cumplimiento por norma (PCI DSS, ISO 27001, CIS) con evidencias y firma"),
                   N_("Envío programado por correo: diario, semanal o mensual"),
-                  N_("Comparar periodos y plantilla con tu logo y colores")],
+                  N_("Comparar periodos y plantilla con tu logo y colores"),
+                  N_("Documento de la red en PDF y Word: inventario, mapa, VLAN e IP, enlaces y cumplimiento")],
     },
     "recolectores": {
         "title": N_("Recolectores por sede"),

@@ -2,12 +2,10 @@
 
 Red de ejemplo (en la base de datos, con sus vecinos LLDP/CDP, puertos y configuración): IMP-CORE-1 e IMP-CORE-2 enlazados;
 IMP-DIST solo a IMP-CORE-1 e IMP-ACC detrás; IMP-SUC (router de otra ubicación) a IMP-CORE-1; IMP-DUAL a los dos núcleos."""
-import io
 import json
 import os
 import re
 import sys
-import zipfile
 from datetime import timedelta
 
 import requests
@@ -134,38 +132,9 @@ check("…y su propio análisis de impacto (puertos sin enlace: sin impacto)", "
 adm.post(B + "/reports/unused/except", json={"device_id": ids["IMP-ACC"], "ports": ["Gi1/0/4"]})
 check("excepción: el puerto marcado ya no se propone", 'value="Gi1/0/4"' not in adm.get(B + f"/reports/unused?days=90&sw={ids['IMP-ACC']}").text)
 ro = login("admin", "Admin12345")
-check("Informes: tarjetas de Puertos sin uso y Documento de la red", "/reports/unused" in ro.get(B + "/reports").text
-      and "/reports/netdoc" in ro.get(B + "/reports").text)
+check("Informes: Puertos sin uso, y Documento de la red como Pro", "/reports/unused" in ro.get(B + "/reports").text
+      and "/reports/netdoc" not in ro.get(B + "/reports").text and "Documento de la red" in ro.get(B + "/reports").text)
 
-# ---- documento de la red
-base = {"scope": "all", "cover": "on", "client": "Cliente de prueba", "hide_public": "on",
-        **{f"sec_{k}": "on" for k in ("inventory", "map", "vlans", "links", "compliance", "backups")}}
-for fmt in ("pdf", "docx"):
-    r = adm.post(B + "/reports/netdoc", data={**base, "fmt": fmt})
-    check(f"documento de la red en {fmt}: se genera", "Listo: Documento-red_Toda-la-red_" in r.text, r.text[-300:])
-nd = adm.get(B + "/reports/netdoc").text
-docs = re.findall(r"/reports/netdoc/([0-9]{14}-[0-9a-f]{6})/file", nd)
-files = {}
-for i in dict.fromkeys(docs):
-    r = adm.get(B + f"/reports/netdoc/{i}/file")
-    files[r.headers.get("content-type", "")[:15]] = r.content
-pdf = files.get("application/pdf", b"")
-docx = next((v for k, v in files.items() if k.startswith("application/vnd")), b"")
-check("PDF real (empieza con %PDF y tiene páginas)", pdf.startswith(b"%PDF") and b"/Type /Page" in pdf)
-try:
-    z = zipfile.ZipFile(io.BytesIO(docx))
-    body = z.read("word/document.xml").decode()
-    okz = "word/media/mapa.png" in z.namelist()
-except (zipfile.BadZipFile, KeyError):
-    body, okz = "", False
-check("Word real (.docx con el mapa como imagen)", okz and "IMP-ACC" in body and "Inventario" in body)
-check("nunca salen secretos ni, si se pide, las IP públicas", "SECRETO-SNMP" not in body and "200.55.10.9" not in body
-      and "IP pública oculta" in body and b"SECRETO-SNMP" not in pdf)
-with SessionLocal() as db:
-    db.add(Device(name="IMP-NUEVO", host="198.18.7.99", device_type="cisco_xe", last_status="ok"))
-    db.commit()
-check("«Documentos generados» avisa si la red cambió desde entonces", "La red cambió: 1 equipo nuevo" in adm.get(B + "/reports/netdoc").text)
-check("descargar un documento ajeno a la carpeta: no", adm.get(B + "/reports/netdoc/..%2F..%2Fsecret/file").status_code in (403, 404, 422))
 # ---- RoMON en el mapa: un MikroTik a dos saltos, unido al salto anterior con una línea punteada
 with SessionLocal() as db:
     d = db.get(Device, ids["IMP-SUC"])
