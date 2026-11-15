@@ -319,6 +319,16 @@ cmd_fxi_firewall() {
   chown $SVC_USER: "$state" 2>/dev/null || true
 }
 
+cmd_ha_activo() {  # alta disponibilidad: el comando opcional del cliente al pasar a activo (systemd, como root)
+  need_root ha-al-pasar-a-activo
+  local f=$ETC_DIR/al-pasar-a-activo.sh
+  [[ -f $f ]] || return 0
+  # solo si es de root y nadie más puede cambiarlo (lo que se escribe desde la web nunca corre como root)
+  [[ $(stat -c %u "$f") == 0 && $(( 0$(stat -c %a "$f") & 022 )) -eq 0 ]] || { logger -t opennccm "No se corre $f: tiene que ser de root y sin escritura para otros"; return 1; }
+  logger -t opennccm "Alta disponibilidad: corriendo $f (este servidor pasó a activo)"
+  timeout 100 /bin/sh "$f"
+}
+
 usage() {
 cat <<EOF
 ${c_b}opennccm${c_0} - administración de OpenNCCM $(current_version)
@@ -364,6 +374,7 @@ case $cmd in
   users|list-users) need_root users; pycli list-users ;;
   backup-all|seed) need_root "$cmd"; pycli "$cmd" "$@" ;;
   fxi-firewall) need_root "$cmd"; cmd_fxi_firewall "$@" ;;
+  ha-al-pasar-a-activo) cmd_ha_activo ;;
   logs) journalctl -u $SVC --no-pager -n 200 "$@" ;;
   recolector)
     need_root "$cmd"; sub=${1:-estado}; shift || true

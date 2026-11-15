@@ -695,6 +695,30 @@ Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ExecStart=/usr/local/bin/opennccm fxi-firewall
 TimeoutStartSec=60
 EOF
+  # Alta disponibilidad: al pasar a activo, la aplicación crea ha-activo.request y systemd corre como root
+  # «opennccm ha-al-pasar-a-activo», que ejecuta /etc/opennccm/al-pasar-a-activo.sh solo si es de root (opcional).
+  cat > /etc/systemd/system/opennccm-ha-activo.path <<EOF
+[Unit]
+Description=OpenNCCM - vigila el paso a activo de alta disponibilidad
+
+[Path]
+PathExists=$DATA_DIR/ha-activo.request
+Unit=opennccm-ha-activo.service
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  cat > /etc/systemd/system/opennccm-ha-activo.service <<EOF
+[Unit]
+Description=OpenNCCM - comando opcional al pasar a activo (alta disponibilidad)
+
+[Service]
+Type=oneshot
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStartPre=/bin/rm -f $DATA_DIR/ha-activo.request
+ExecStart=/usr/local/bin/opennccm ha-al-pasar-a-activo
+TimeoutStartSec=120
+EOF
   ln -sf $APP_DIR/scripts/opennccm.sh /usr/local/bin/opennccm
   ln -sf $APP_DIR/scripts/opennccm.sh /usr/local/bin/opennccm-cli   # compatibilidad con 1.x
   chmod 755 $APP_DIR/scripts/opennccm.sh
@@ -702,6 +726,7 @@ EOF
   run systemctl enable opennccm
   run systemctl enable --now opennccm-webupdate.path
   run systemctl enable --now opennccm-fxi-firewall.path
+  run systemctl enable --now opennccm-ha-activo.path
 }
 
 setup_polkit() {
@@ -841,7 +866,7 @@ start_and_check() {
   if [[ $MODO == espera && -n $RC_CLAVE ]]; then
     progress 82 "Sumando este servidor como espera de $RC_CENTRAL (copia de los datos)…"
     run systemctl stop opennccm || true
-    run cli espera alta "$RC_CENTRAL" "$RC_CLAVE"
+    run cli espera alta "$RC_CENTRAL" "$RC_CLAVE" "${URL%/}"
   fi
   if [[ $MODO == recolector ]]; then
     if [[ -n $RC_CLAVE ]]; then
