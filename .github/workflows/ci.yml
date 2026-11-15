@@ -238,6 +238,7 @@ jobs:
           if ($LASTEXITCODE -ne 2) { throw "El .exe sin opciones debe mostrar la ayuda y salir con 2 (salió $LASTEXITCODE)" }
           & $exe.FullName "/central=https://127.0.0.1:9" "/clave=ra_prueba" "/carpeta=$env:RUNNER_TEMP\rc" /sin-tarea
           if ($LASTEXITCODE -ne 1) { throw "Sin central, el alta debe fallar con 1 (salió $LASTEXITCODE)" }
+          exit 0  # el 1 esperado del alta no es el resultado del paso
       - name: Tarea programada de verdad (SYSTEM, latido, reinicio, revocar, desinstalar) contra un central falso
         shell: pwsh
         run: |
