@@ -5,6 +5,7 @@ import difflib
 import hashlib
 import json
 import logging
+import mimetypes
 import re
 import smtplib
 import threading
@@ -275,8 +276,10 @@ def send_mail(to: list[str], subject: str, body: str, attachments: list[tuple[st
         msg["From"] = get_setting("smtp_from", "opennccm@localhost")
         msg["To"] = ", ".join(to)
         msg.set_content(body)
-        for name, data in attachments or []:
-            msg.add_attachment(data, maintype="text", subtype="csv", filename=name)
+        for name, data in attachments or []:  # el tipo sale del nombre (.csv de las alarmas, .pdf/.docx de los informes Pro)
+            ctype = "text/csv" if name.lower().endswith(".csv") else mimetypes.guess_type(name)[0] or "application/octet-stream"
+            maintype, subtype = ctype.split("/", 1)
+            msg.add_attachment(data, maintype=maintype, subtype=subtype, filename=name)
         port = int(get_setting("smtp_port", "587") or 587)
         security = get_setting("smtp_security", "starttls")
         cls = smtplib.SMTP_SSL if security == "ssl" else smtplib.SMTP
