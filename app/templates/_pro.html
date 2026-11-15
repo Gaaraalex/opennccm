@@ -2,15 +2,16 @@
    módulo vencido. Diseño aprobado de «Diseño UX». #}
 {% macro tag() %}<span class="protag">PRO</span>{% endmacro %}
 
-{% macro offer(o, buy_url, sample='') %}
+{% macro offer(o, buy_url, sample='', soon=False) %}
 <section class="card pro-offer">
   <div class="pro-of-l">
-    <div class="row" style="gap:8px">{{ tag() }}<span class="muted sm">{{ _('Módulo de pago') }} · {{ _(o.title) }}</span></div>
+    <div class="row" style="gap:8px">{{ tag() }}<span class="muted sm">{{ _('Módulo de pago') }} · {{ _(o.title) }}</span>{% if soon %}<span class="pill">{{ _('Próximamente') }}</span>{% endif %}</div>
     <h2>{{ _(o.title) }}</h2>
     <p>{{ _(o.lead) }}</p>
     <ul class="pro-inc">{% for it in o['items'] %}<li><span class="pro-tk" aria-hidden="true">✓</span>{{ _(it) }}</li>{% endfor %}</ul>
-    <div class="row" style="margin-top:14px"><a class="btn pri" href="/license#clave">{{ _('Tengo una clave') }}</a>
-      <a class="btn" href="{{ buy_url }}" target="_blank" rel="noopener">{{ _('Ver planes y precios') }} ↗</a></div>
+    <div class="row" style="margin-top:14px">{% if soon %}<a class="btn pri" href="{{ buy_url }}" target="_blank" rel="noopener">{{ _('Avísame cuando esté') }} ↗</a>
+      {% else %}<a class="btn pri" href="/license#clave">{{ _('Tengo una clave') }}</a>
+      <a class="btn" href="{{ buy_url }}" target="_blank" rel="noopener">{{ _('Ver planes y precios') }} ↗</a>{% endif %}</div>
     <p class="muted sm" style="margin-top:12px">{{ _('Lo que ya usas sigue igual y gratis. Esto solo agrega funciones nuevas.') }}</p>
   </div>
   {% if sample %}<div class="pro-of-r" aria-label="{{ _('Ejemplo del informe') }}">{{ sample }}</div>{% endif %}

@@ -7,7 +7,7 @@ hay ventanas que aparezcan solas y lo gratis no cambia. Lo que hace cada módulo
 opennccm-pro y se instala aparte (no viaja en este código)."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Request, UploadFile
+from fastapi import APIRouter, Request
 
 from . import licencia
 from .auth import require
@@ -57,8 +57,12 @@ def visible(mid: str) -> bool:
 def _module_page(request: Request, mid: str, tab_template: str):
     user = require(request, "admin" if mid != "informes_pro" else "viewer")
     m = licencia.module(mid)
+    from . import promod
+    page = promod.page(mid)
+    if page is not None and m["state"] != "no_incluido":  # el módulo instalado dibuja su página
+        return page(request, user, m)
     return render(request, tab_template, user, mid=mid, m=m, offer=OFFERS[mid], buy_url=licencia.BUY_URL,
-                  state_label=STATE_LABEL)
+                  state_label=STATE_LABEL, soon=licencia.soon(mid))
 
 
 @router.get("/reports/pro")
@@ -80,7 +84,10 @@ def high_availability(request: Request):
 def license_page(request: Request):
     user = require(request, "admin")
     st = licencia.state()
+    from . import promod
     return render(request, "license.html", user, st=st, modules=licencia.MODULES, offers=OFFERS, state_label=STATE_LABEL,
+                  mods={mid: promod.info(mid) for mid in licencia.MODULES},
+                  soon={mid: licencia.soon(mid) for mid in licencia.MODULES},
                   masked=licencia.mask_key(st["key"]) if st["key"] else "", buy_url=licencia.BUY_URL,
                   show_pro=show_locked(), notify30=get_setting("licencia_aviso30", "1") == "1",
                   install=licencia.install_id())
@@ -104,6 +111,12 @@ async def license_activate(request: Request):
 def license_refresh(request: Request):
     user = require(request, "admin")
     res = licencia.refresh()
+    if res == "ok":
+        from . import promod
+        from .main import app
+        got = promod.sync(app)
+        if got:
+            flash(request, _f("Módulos instalados: {0}", ", ".join(_(licencia.MODULES[m]["name"]) for m in got)))
     log_action(request, user, "license_refresh", res)
     if res == "ok":
         flash(request, _("Licencia actualizada."))
@@ -119,10 +132,32 @@ def license_refresh(request: Request):
 
 
 @router.post("/license/upload")
-async def license_upload(request: Request, file: UploadFile):
-    """Servidor sin internet: el archivo de licencia que se baja de Mi cuenta."""
+async def license_upload(request: Request):
+    """Servidor sin internet: el archivo de licencia que se baja de Mi cuenta, o un módulo (.tar.gz con su .firma)."""
     user = require(request, "admin")
-    raw = (await file.read(65536)).decode("utf-8", "replace")
+    form = await request.form(max_files=5)
+    files = [f for f in form.getlist("file") if getattr(f, "filename", "")]
+    pkg = next((f for f in files if f.filename.endswith(".tar.gz")), None)
+    if pkg is not None:
+        from . import promod
+        sig = next((f for f in files if f.filename.endswith(".firma")), None)
+        mid = pkg.filename.split("-")[0].removesuffix(".tar.gz")
+        try:
+            if sig is None:
+                raise promod.ModuleError(_("Suba el .tar.gz del módulo junto con su archivo .firma."))
+            man = promod.install(mid, await pkg.read(promod.MAX_SIZE + 1), (await sig.read(4096)).decode("ascii", "replace"))
+            from .main import app
+            promod.load(app, mid)
+        except promod.ModuleError as e:
+            flash(request, str(e), "error")
+            return go("/license")
+        log_action(request, user, "module_upload", f"{mid} {man.get('version')}")
+        flash(request, _f("Módulo instalado: {0}", _(licencia.MODULES[mid]["name"])))
+        return go("/license")
+    if not files:
+        flash(request, _("Elija el archivo de licencia."), "error")
+        return go("/license")
+    raw = (await files[0].read(65536)).decode("utf-8", "replace")
     try:
         data = licencia.upload(raw)
     except licencia.LicenseError as e:

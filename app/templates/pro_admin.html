@@ -6,7 +6,7 @@
 {% if m.state in ('activo', 'gracia', 'vencido') %}
   {% if m.state != 'activo' %}{{ expired(m, offer, buy_url) }}{% endif %}
   <section class="card"><div class="empty" style="padding:28px">{{ empty_art('check') }}<h2>{{ _(offer.title) }}</h2>
-    <p>{{ _('El módulo está incluido en tu licencia. Se instala solo desde comunidad.opennccm.com en cuanto esté disponible para esta versión.') }}</p></div></section>
+    <p>{{ _('Incluido en tu licencia · se instala cuando esté disponible') if soon else _('El módulo está incluido en tu licencia. Se instala solo desde comunidad.opennccm.com en cuanto esté disponible para esta versión.') }}</p></div></section>
 {% else %}
   {% if mid == 'recolectores' %}{% set art %}
 <svg viewBox="0 0 420 300" class="pro-art" role="img" aria-label="{{ _('Tres sedes envían sus copias al servidor central por HTTPS con un token') }}">
@@ -20,8 +20,8 @@
   <rect x="285" y="70" width="125" height="120" rx="14" class="a-box"/><text x="347" y="118" text-anchor="middle" class="a-t">{{ _('Servidor B') }}</text><text x="347" y="140" text-anchor="middle" class="a-s">{{ _('espera listo') }}</text>
   <path d="M135 105 H285" class="a-ln"/><text x="210" y="96" text-anchor="middle" class="a-s">{{ _('latido') }}</text>
   <path d="M135 155 H277" class="a-ln"/><path d="M271 149 L281 155 L271 161" class="a-ln"/><text x="210" y="176" text-anchor="middle" class="a-s">{{ _('réplica PostgreSQL') }}</text>
-  <rect x="135" y="230" width="150" height="30" rx="15" class="a-tag"/><text x="210" y="250" text-anchor="middle" class="a-tt">{{ _('conmutación automática') }}</text>
+  <rect x="127" y="230" width="166" height="30" rx="15" class="a-tag"/><text x="210" y="250" text-anchor="middle" class="a-tt">{{ _('conmutación automática') }}</text>
 </svg>{% endset %}{% endif %}
-  {{ pro_offer(offer, buy_url, art) }}
+  {{ pro_offer(offer, buy_url, art, soon) }}
 {% endif %}
 {% endblock %}

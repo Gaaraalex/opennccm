@@ -59,6 +59,11 @@ def _note_version():
 async def lifespan(_app):
     init_db()
     try:
+        from . import promod
+        promod.load_all(_app)  # módulos Pro instalados (firmados) que la licencia incluye
+    except Exception:  # noqa: BLE001 — un módulo nunca impide que arranque
+        log.exception("No se pudieron cargar los módulos Pro")
+    try:
         from .console import close_orphans
         close_orphans()  # sesiones de consola que quedaron abiertas al reiniciarse el servidor
     except Exception:  # noqa: BLE001

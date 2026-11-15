@@ -42,10 +42,17 @@ TIMEOUT = 20
 MODULES = {
     "informes_pro": {"name": N_("Informes profesionales"), "desc": N_("Ejecutivo, auditoría, comparar periodos, envíos y marca"),
                      "limit": "equipos"},
-    "recolectores": {"name": N_("Recolectores por sede"), "desc": N_("Agente por sede con cola y avisos"), "limit": "sedes"},
+    "recolectores": {"name": N_("Recolectores por sede"), "desc": N_("Agente por sede con cola y avisos"), "limit": "sedes",
+                     "soon": True},
     "alta_disponibilidad": {"name": N_("Alta disponibilidad"), "desc": N_("Dos servidores con conmutación automática"),
-                            "limit": "pares"},
+                            "limit": "pares", "soon": True},
 }
+
+
+def soon(mid: str) -> bool:
+    """«Próximamente» en lugar de «Comprar» para los módulos aún no terminados. Detrás de una bandera, apagada de fábrica:
+    Pro se lanza con los 3 módulos terminados (decisión del usuario, 14 nov 2026); NCM_PRO_PROXIMAMENTE=1 la enciende."""
+    return os.environ.get("NCM_PRO_PROXIMAMENTE", "0") == "1" and MODULES.get(mid, {}).get("soon", False)
 
 
 class LicenseError(Exception):
@@ -256,6 +263,12 @@ def daily() -> None:
     res = refresh()
     if res not in ("ok", "sin_clave", "revocada", "liberada"):
         log.info("Licencia: %s", res)
+    try:
+        from . import promod
+        from .main import app
+        promod.sync(app)  # baja los módulos de la licencia que falten o sean de otra versión de OpenNCCM
+    except Exception:  # noqa: BLE001
+        log.exception("No se pudieron bajar los módulos Pro")
     from .services import add_event
     st = state()
     for mid, m in st["modules"].items():
