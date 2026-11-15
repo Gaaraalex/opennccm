@@ -10,7 +10,10 @@ Sin módulos, todo queda en None y OpenNCCM funciona como siempre.
 * slots: ranuras de las pantallas del núcleo donde un módulo dibuja lo suyo ({{ pro_slot('nombre', …) }} en la
   plantilla). Cada una es una lista de funciones (**contexto) -> HTML. Ranuras: «device_info» (la ficha del equipo,
   dentro de su lista de datos), «devices_bulk» y «devices_end» (la barra de selección de Dispositivos y después de ella)
-  y «dashboard_kpis» (los indicadores del Panel)."""
+  y «dashboard_kpis» (los indicadores del Panel).
+* providers: datos que los módulos suman a cálculos del núcleo. Cada uno es una lista de funciones (**contexto) -> dict.
+  «attention» (health.summary, el Panel): {"chips": [(clase, n, texto, enlace)], "queue": [elementos de la bandeja]}:
+  lo que necesita atención por culpa del módulo (por ejemplo, sedes que no reportan)."""
 from __future__ import annotations
 
 from typing import Callable
@@ -18,6 +21,21 @@ from typing import Callable
 remote_backup: Callable[[int, str, str | None], str | None] | None = None
 remote_site: Callable[[int], str | None] | None = None
 slots: dict[str, list[Callable[..., str]]] = {}
+providers: dict[str, list[Callable[..., dict]]] = {}
+
+
+def collect(name: str, **ctx) -> list[dict]:
+    """Lo que los módulos suman en ese punto (vacío si no hay módulos o si uno falla)."""
+    out = []
+    for fn in providers.get(name, []):
+        try:
+            v = fn(**ctx)
+            if isinstance(v, dict):
+                out.append(v)
+        except Exception:  # noqa: BLE001
+            import logging
+            logging.getLogger("opennccm").exception("Datos %s de un módulo Pro", name)
+    return out
 
 
 def render_slot(name: str, **ctx):
