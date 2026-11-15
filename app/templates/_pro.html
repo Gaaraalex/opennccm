@@ -25,7 +25,7 @@
 {# el informe de ejemplo, siempre en papel blanco, con la marca «EJEMPLO» (no borroso) #}
 {% macro sample_report() %}
 <div class="pro-paper"><span class="pro-wm" aria-hidden="true">{{ _('EJEMPLO') }}</span>
-  <div class="pp-h"><span class="pp-logo">{{ _('TU LOGO') }}</span><div><b>{{ _('Informe ejecutivo de la red') }}</b><span>{{ _('Octubre 2026 · comparado con septiembre') }}</span></div><span class="grow"></span><span class="pp-org">{{ _('Tu organización S.A.') }}<i>{{ _('Preparado por OpenNCCM') }}</i></span></div>
+  <div class="pp-h"><span class="pp-logo">{{ _('TU') }}<br>{{ _('LOGO') }}</span><div><b>{{ _('Informe ejecutivo de la red') }}</b><span>{{ _('Octubre 2026 · comparado con septiembre') }}</span></div><span class="grow"></span><span class="pp-org">{{ _('Tu organización S.A.') }}<i>{{ _('Preparado por OpenNCCM') }}</i></span></div>
   <div class="pp-k">{% for l, v, d, c in [(_('Salud de la red'), '92', _('▲ 3 puntos'), 'up'), (_('Respaldos al día'), '98,7 %', '▲ 1,2 %', 'up'), (_('Cambios'), '214', '▼ 12 %', 'up'), (_('Cumplimiento'), '87 %', '▲ 4 %', 'up'), (_('CVE críticos'), '3', '▲ 1', 'dn'), (_('Sin soporte'), '7', _('= igual'), 'up')] %}<div class="pk"><span>{{ l }}</span><b>{{ v }}</b><i class="{{ c }}">{{ d }}</i></div>{% endfor %}</div>
   <h5>{{ _('Lo que requiere atención') }}</h5>
   <div class="pp-t"><div><b>3</b> {{ _('CVE críticos en Fortinet FortiOS 7.2 (4 equipos)') }}</div><div><b>7</b> {{ _('equipos sin soporte del fabricante desde 2025') }}</div><div><b>2</b> {{ _('sedes con respaldos fallidos más de 3 días') }}</div></div>

@@ -2,6 +2,7 @@
 {% if user and can_admin(user) %}
 {% set navp = request.url.path %}{% set ac = admin_counts() %}
 <div class="ph"><div class="grow"><h1>Administración</h1><div class="sub">{{ _('Según los permisos de cada usuario.') }}</div></div></div>
+<div class="tabsx" data-tabsx><button type="button" class="tabsx-b l" data-tabsx-go="-1" aria-label="{{ _('Pestañas anteriores') }}" hidden>‹</button>
 <nav class="tabs" aria-label="Administración">
   {% for href, label, n in [('/users', _('Usuarios'), ac.users), ('/credentials', _('Credenciales'), ac.creds), ('/groups', _('Grupos'), ac.groups), ('/nodes', _('Nodos'), ac.nodes),
                            ('/vendors', _('Plataformas'), ac.platforms), ('/audit', _('Auditoría'), none), ('/system', _('Sistema'), none), ('/capacity', _('Capacidad'), none), ('/recolectores', _('Recolectores'), 'pro:recolectores'),
@@ -9,4 +10,25 @@
   {% set is_pro = n is string and n.startswith('pro:') %}
   {% if can(user, ADMIN_TAB_PERM[href]) and (not is_pro or pro_visible(n[4:])) %}<a href="{{ href }}"{% if navp.startswith(href) %} aria-current="page" class="on"{% endif %}>{{ label }}{% if is_pro %} <span class="protag">PRO</span>{% elif n is not none %} <span class="cnt2">{{ n }}</span>{% endif %}</a>{% endif %}{% endfor %}
 </nav>
+<button type="button" class="tabsx-b r" data-tabsx-go="1" aria-label="{{ _('Más pestañas') }}" hidden>›</button></div>
+<script>
+// pestañas que no caben: se desplazan de lado, la abierta queda a la vista, degradado en el borde cortado y ‹ › en escritorio
+(function () {
+  var w = document.currentScript.previousElementSibling, nav = w.querySelector('.tabs');
+  var bl = w.querySelector('.l'), br = w.querySelector('.r');
+  function upd() {
+    var l = nav.scrollLeft > 2, r = nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 2;
+    w.classList.toggle('fl', l); w.classList.toggle('fr', r); bl.hidden = !l; br.hidden = !r;
+  }
+  var on = nav.querySelector('.on');
+  if (on) nav.scrollLeft = Math.max(0, on.offsetLeft - nav.offsetLeft - (nav.clientWidth - on.offsetWidth) / 2);
+  nav.addEventListener('scroll', upd, {passive: true});
+  window.addEventListener('resize', upd);
+  w.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-tabsx-go]'); if (!b) return;
+    nav.scrollBy({left: +b.dataset.tabsxGo * nav.clientWidth * 0.7, behavior: 'smooth'});
+  });
+  upd();
+})();
+</script>
 {% endif %}

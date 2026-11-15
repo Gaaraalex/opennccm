@@ -5987,5 +5987,22 @@
 "▲ 3 puntos": "▲ 3 points",
 "sedes": "sites",
 "pares": "pairs",
-"Esta clave se liberó desde Mi cuenta; vuelve a activarla.": "This key was released from My account; activate it again."
+"Esta clave se liberó desde Mi cuenta; vuelve a activarla.": "This key was released from My account; activate it again.",
+"HTTPS · token": "HTTPS · token",
+"LOGO": "LOGO",
+"Más pestañas": "More tabs",
+"Pestañas anteriores": "Previous tabs",
+"Sede {0}": "Site {0}",
+"Servidor A": "Server A",
+"Servidor B": "Server B",
+"Servidor A trabaja y servidor B espera, unidos por el latido y la réplica de la base de datos": "Server A works and server B stands by, linked by the heartbeat and the database replication",
+"TU": "YOUR",
+"Tres sedes envían sus copias al servidor central por HTTPS con un token": "Three sites send their copies to the central server over HTTPS with a token",
+"central": "central",
+"conmutación automática": "automatic failover",
+"espera listo": "stands by",
+"latido": "heartbeat",
+"recolector": "collector",
+"réplica PostgreSQL": "PostgreSQL replica",
+"trabaja": "works"
 }
