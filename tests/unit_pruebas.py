@@ -93,10 +93,19 @@ import importlib  # noqa: E402
 
 importlib.reload(licencia)
 pruebas.licencia = licencia
+try:
+    pruebas.ask("a@b.com", "B", [m for m, v in licencia.MODULES.items() if v.get("soon")], "")
+    ok = False
+except pruebas.TrialError as e:
+    ok = "al menos un módulo" in str(e)
+check("un módulo sin paquete para esta versión no se puede pedir de prueba", ok)
+for v in licencia.MODULES.values():  # de aquí en adelante, como si los tres ya tuvieran paquete
+    v.pop("soon", None)
 
 # ------------------------------------------------------------------ web simulada
 WEB = {"calls": [], "pedir": (201, {"pedido": "pp_1", "secreto": "s3cr3t", "estado": "en_revision"}), "estado": {"estado": "en_revision"},
-       "activar": None, "usadas": {"pruebas_usadas": [{"modulo": "recolectores", "fecha": "2026-03-02"}]}, "lic_mods": []}
+       "activar": None, "usadas": {"pruebas_usadas": [{"modulo": "recolectores", "fecha": "2026-03-02"}]}, "lic_mods": [],
+       "esperando": []}
 
 
 class Web(BaseHTTPRequestHandler):
@@ -130,10 +139,13 @@ class Web(BaseHTTPRequestHandler):
         if self.path == "/api/licencias/activar":
             if WEB["activar"]:
                 return self._send(*WEB["activar"])
-            return self._send(200, {"licencia": lic(WEB["lic_mods"]), "sello": "sello-1", "pruebas_usadas": ["informes_pro"]})
+            return self._send(200, {"licencia": lic(WEB["lic_mods"]), "sello": "sello-1", "pruebas_esperando": WEB["esperando"],
+                                    "pruebas_usadas": [{"modulo": "informes_pro", "fecha": "2026-11-15"}]})
         if self.path == "/api/licencias/actualizar":
             return self._send(200, {"licencia": lic(WEB["lic_mods"]), "sello": "sello-2",
-                                    "pruebas_usadas": {"informes_pro": "2026-11-15", "alta_disponibilidad": "2026-11-15"}})
+                                    "pruebas_esperando": WEB["esperando"],
+                                    "pruebas_usadas": [{"modulo": "informes_pro", "fecha": "2026-11-15"},
+                                                       {"modulo": "alta_disponibilidad", "fecha": "2026-11-15"}]})
         self._send(404, {})
 
 
@@ -237,6 +249,47 @@ pruebas.activate()
 check("«Activar prueba» con clave: es un actualizar inmediato que trae el módulo nuevo", WEB["calls"][-1][0] == "/api/licencias/actualizar"
       and licencia.state()["modules"]["informes_pro"]["state"] == "activo" and pruebas.current() is None)
 check("…actualizar guarda pruebas_usadas", licencia.used_trials().get("alta_disponibilidad") == "2026-11-15")
+
+# licencia mixta: «licencia de prueba» solo si todo lo activo es prueba
+WEB["lic_mods"] = [{"id": "informes_pro", "hasta": iso(now + timedelta(days=300)), "tipo": "compra", "gracia_dias": 15},
+                   {"id": "alta_disponibilidad", "hasta": iso(now + timedelta(days=15)), "tipo": "prueba", "gracia_dias": 0}]
+licencia.refresh()
+check("mezcla (compra + prueba): no es «licencia de prueba»; cada fila dice lo suyo", not licencia.state()["prueba"])
+
+# pruebas_esperando: aprobada de un módulo sin paquete todavía
+set_setting("licencia_pedido", json.dumps({"pedido": "pp_5", "secreto": "s3cr3t", "estado": "aprobado", "modulos": ["recolectores"],
+                                           "correo": "a@b.com", "enviado": iso(now)}))
+WEB["esperando"] = [{"modulo": "recolectores", "dias": 15}]
+pruebas.activate()
+check("«Activar prueba» con solo módulos que esperan: el pedido queda «esperando» (recuadro verde)",
+      (pruebas.current() or {}).get("estado") == "esperando" and licencia.waiting_trials() == {"recolectores": 15})
+WEB["esperando"] = []
+WEB["lic_mods"] += [{"id": "recolectores", "hasta": iso(now + timedelta(days=15)), "tipo": "prueba", "gracia_dias": 0}]
+licencia.refresh()
+pruebas.poll()
+with SessionLocal() as db:
+    ev = [e.message for e in db.scalars(select(Event).where(Event.category == "Licencia"))]
+check("cuando el módulo sale y llega en el archivo: aviso «Ya puedes usar tu prueba de …: vence el …» y el recuadro se va",
+      any(m.startswith("Ya puedes usar tu prueba de Recolectores por sede: vence el") for m in ev) and pruebas.current() is None, ev[-3:])
+
+# una prueba que no llegó porque este servidor ya la había usado: la fila muestra el texto del 409
+set_setting("licencia_pedido", json.dumps({"pedido": "pp_6", "secreto": "s3cr3t", "estado": "aprobado", "modulos": ["alta_disponibilidad"],
+                                           "correo": "a@b.com", "enviado": iso(now)}))
+WEB["lic_mods"] = [m for m in WEB["lic_mods"] if m["id"] != "alta_disponibilidad"]
+pruebas.activate()
+check("prueba que no llegó y está en pruebas_usadas: se anota para mostrar el texto del 409 en su fila",
+      "alta_disponibilidad" in pruebas.blocked() and pruebas.current() is None)
+
+# correo sin confirmar y cancelado
+WEB["pedir"] = (201, {"pedido": "pp_7", "secreto": "s3cr3t", "estado": "en_revision", "confirmar_correo": True})
+pruebas.ask("a@b.com", "B", ["informes_pro"], "")
+check("201 con confirmar_correo: se recuerda para el recuadro ámbar", pruebas.current()["confirmar"] is True)
+WEB["estado"] = {"estado": "en_revision", "correo_sin_confirmar": False}
+pruebas.poll()
+check("…y se quita cuando el correo se confirma", pruebas.current()["confirmar"] is False)
+WEB["estado"] = {"estado": "cancelado"}
+pruebas.poll()
+check("estado «cancelado» (desde la cuenta o a los 7 días sin confirmar): se olvida el pedido", pruebas.current() is None)
 
 # 409 prueba_usada al pegar una clave de prueba
 licencia.clear()

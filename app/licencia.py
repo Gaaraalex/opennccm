@@ -52,7 +52,7 @@ log = logging.getLogger("opennccm")
 PUBLIC_KEYS: dict[str, str] = {}
 LICENSE_URL = os.environ.get("NCM_LICENSE_URL", "https://comunidad.opennccm.com").rstrip("/")
 BUY_URL = "https://comunidad.opennccm.com/pro"
-CONTACT_URL = "https://comunidad.opennccm.com/contacto"
+CONTACT_URL = "mailto:soporte@opennccm.com"
 KEY_RE = re.compile(r"^OPNC-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$")
 TIMEOUT = 20
 CHECK_DAYS = 7  # si la licencia no trae «comprobar_antes»: emitida (o la última comprobación) + 7 días
@@ -202,19 +202,40 @@ def used_trials() -> dict[str, str]:
 
 
 def _store_used(raw) -> None:
-    """Acepta la lista de módulos, una lista de {modulo, fecha} o un {modulo: fecha}."""
-    out: dict[str, str] = {}
-    if isinstance(raw, dict):
-        out = {str(k): str(v or "") for k, v in raw.items()}
-    elif isinstance(raw, list):
-        for x in raw:
-            if isinstance(x, str):
-                out[x] = ""
-            elif isinstance(x, dict) and x.get("modulo"):
-                out[str(x["modulo"])] = str(x.get("fecha") or "")
-    else:
+    """pruebas_usadas de la web: [{"modulo": "informes_pro", "fecha": "2026-03-02"}]."""
+    if not isinstance(raw, list):
         return
+    out = {str(x["modulo"]): str(x.get("fecha") or "") for x in raw if isinstance(x, dict) and x.get("modulo")}
     set_setting("licencia_pruebas_usadas", json.dumps(out))
+
+
+def waiting_trials() -> dict[str, int]:
+    """Pruebas aprobadas de módulos que todavía no tienen paquete para esta versión: {módulo: días}. La web las manda
+    en «pruebas_esperando» (fuera del archivo firmado); los días empiezan a contar cuando el módulo sale."""
+    try:
+        v = json.loads(get_setting("licencia_pruebas_esperando", "") or "{}")
+    except ValueError:
+        return {}
+    return v if isinstance(v, dict) else {}
+
+
+def _store_waiting(raw) -> None:
+    """Guarda «pruebas_esperando» y avisa en la campana por cada prueba que dejó de esperar y ya llegó en el archivo."""
+    if not isinstance(raw, list):
+        return
+    new = {str(x["modulo"]): int(x.get("dias") or 0) for x in raw if isinstance(x, dict) and x.get("modulo")}
+    old = waiting_trials()
+    set_setting("licencia_pruebas_esperando", json.dumps(new))
+    gone = [m for m in old if m not in new]
+    if not gone:
+        return
+    st = state()
+    from .services import add_event
+    for mid in gone:
+        m = st["modules"].get(mid)
+        if m and m["tipo"] == "prueba" and m["state"] == "activo" and m["until_local"]:
+            add_event("warning", "Licencia", _f("Ya puedes usar tu prueba de {0}: vence el {1}.", _(MODULES[mid]["name"]),
+                                             short_date(m["until_local"])), notify=False)
 
 
 def fetch_used() -> None:
@@ -356,8 +377,8 @@ def state(now: datetime | None = None) -> dict:
                                # «quedan 15 días» y «hasta el 30 nov 2026»: en días del calendario de este servidor
                                "days_cal": (until.astimezone().date() - now.astimezone().date()).days if until else None,
                                "until_local": until.astimezone().replace(tzinfo=None) if until else None}
-    inc = [x for x in out["modules"].values() if x["tipo"]]
-    out["prueba"] = bool(inc) and all(x["tipo"] == "prueba" for x in inc)
+    act = [x for x in out["modules"].values() if x["state"] in ("activo", "gracia")]  # «licencia de prueba»: solo si todo lo activo es prueba
+    out["prueba"] = bool(act) and all(x["tipo"] == "prueba" for x in act)
     return out
 
 
@@ -431,6 +452,8 @@ def activate(key: str) -> dict:
     set_setting("licencia_prueba_usada", "")
     if "pruebas_usadas" in body:
         _store_used(body["pruebas_usadas"])
+    if "pruebas_esperando" in body:
+        _store_waiting(body["pruebas_esperando"])
     return data
 
 
@@ -469,6 +492,8 @@ def refresh() -> str:
         _save(out["licencia"], out.get("sello"))
         if "pruebas_usadas" in out:
             _store_used(out["pruebas_usadas"])
+        if "pruebas_esperando" in out:
+            _store_waiting(out["pruebas_esperando"])
         return "ok"
     except (LicenseError, ValueError, KeyError, TypeError) as e:
         return str(e)
@@ -476,7 +501,8 @@ def refresh() -> str:
 
 def clear() -> None:
     """«Cambiar clave»: quita la clave y la licencia (los módulos quedan como no incluidos; no se borra nada más)."""
-    for k in ("licencia", "licencia_clave", "licencia_validada", "licencia_sello", "licencia_prueba_usada"):
+    for k in ("licencia", "licencia_clave", "licencia_validada", "licencia_sello", "licencia_prueba_usada", "licencia_pruebas_esperando",
+              "licencia_prueba_no_llego"):
         set_setting(k, "")
     set_setting("licencia_revocada", "0")
 

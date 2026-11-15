@@ -62,7 +62,7 @@ def ask(correo: str, organizacion: str, modulos: list[str], motivo: str) -> dict
     """Envía el pedido. TrialError con el motivo en palabras si no se puede."""
     from . import __version__
     correo, organizacion, motivo = (correo or "").strip(), " ".join((organizacion or "").split()), (motivo or "").strip()
-    mods = [m for m in dict.fromkeys(modulos) if m in licencia.MODULES and not licencia.soon(m)]
+    mods = [m for m in dict.fromkeys(modulos) if m in licencia.MODULES and not licencia.MODULES[m].get("soon")]  # sin paquete todavía: no se prueba
     if not mods:
         raise TrialError(_("Elige al menos un módulo."))
     if "@" not in correo or " " in correo or len(correo) > 200:
@@ -104,7 +104,7 @@ def ask(correo: str, organizacion: str, modulos: list[str], motivo: str) -> dict
         set_setting("licencia_pruebas_usadas", json.dumps(used))
     p = {"pedido": e["pedido"], "secreto": e["secreto"], "estado": e.get("estado") or "en_revision",
          "modulos": [m for m in mods if m not in dropped], "correo": correo, "enviado": _now().isoformat(timespec="seconds"),
-         "descartados": dropped}
+         "descartados": dropped, "confirmar": bool(e.get("confirmar_correo"))}
     _put(p)
     return p
 
@@ -112,6 +112,9 @@ def ask(correo: str, organizacion: str, modulos: list[str], motivo: str) -> dict
 def poll(force: bool = False) -> dict | None:
     """Pregunta el estado del pedido en revisión (cada 30 minutos y al abrir la pantalla). Sin red no pasa nada."""
     p = current()
+    if p and p.get("estado") == "esperando":
+        _check_waiting(p)
+        return current()
     if not p or p.get("estado") != "en_revision":
         return p
     sent = licencia._when(p.get("enviado")) or _now()
@@ -129,6 +132,13 @@ def poll(force: bool = False) -> dict | None:
         return p
     b = licencia._err(r)
     st = b.get("estado")
+    if st == "en_revision":
+        if bool(b.get("correo_sin_confirmar")) != bool(p.get("confirmar")):
+            p["confirmar"] = bool(b.get("correo_sin_confirmar"))
+            _put(p)
+    elif st == "cancelado":  # desde la cuenta, o solo a los 7 días sin confirmar el correo
+        _put(None)
+        return None
     if st == "aprobado":
         p.update({"estado": "aprobado", "clave": b.get("clave") or "", "dias": b.get("dias"), "vence": b.get("vence") or ""})
         _put(p)
@@ -143,7 +153,7 @@ def poll(force: bool = False) -> dict | None:
 def _notify(msg: str) -> None:
     try:
         from .services import add_event
-        add_event("info", "Licencia", msg, notify=False)
+        add_event("warning", "Licencia", msg, notify=False)  # «warning»: la campana no muestra los «info»
     except Exception:  # noqa: BLE001
         log.info("%s", msg)
 
@@ -177,6 +187,9 @@ def dismiss() -> None:
 def activate() -> dict:
     """«Activar prueba»: con clave aquí, actualizar ahora; sin clave, activar la de la prueba."""
     p = current()
+    if p and p.get("estado") == "esperando":
+        _check_waiting(p)
+        return {}
     if not p or p.get("estado") != "aprobado":
         raise TrialError(_("No hay una prueba aprobada para activar."))
     if get_setting("licencia_clave", ""):
@@ -193,5 +206,41 @@ def activate() -> dict:
         except licencia.TrialUsed:
             _put(None)
             raise
-    _put(None)
+    _after_activate(p)
     return data
+
+
+def _after_activate(p: dict) -> None:
+    """Después de «Activar prueba»: lo que llegó en el archivo ya está; lo que espera paquete deja el recuadro verde
+    «el módulo todavía no salió»; y lo que no llegó porque este servidor ya lo probó muestra el texto del 409 en su fila."""
+    st = licencia.state()
+    waiting = licencia.waiting_trials()
+    used = licencia.used_trials()
+    arrived = [m for m in p["modulos"] if st["modules"].get(m, {}).get("tipo") == "prueba" and st["modules"][m]["state"] != "no_incluido"]
+    wait = [m for m in p["modulos"] if m in waiting and m not in arrived]
+    blocked = [m for m in p["modulos"] if m not in arrived and m not in wait and m in used]
+    if blocked:
+        set_setting("licencia_prueba_no_llego", json.dumps({m: used.get(m, "") for m in blocked}))
+    if wait:
+        _put({**p, "estado": "esperando", "modulos": wait})
+    else:
+        _put(None)
+
+
+def _check_waiting(p: dict) -> None:
+    """El recuadro «esperando» se va solo cuando sus módulos llegan en el archivo (o la web deja de mandarlos)."""
+    waiting = licencia.waiting_trials()
+    left = [m for m in p.get("modulos") or [] if m in waiting]
+    if not left:
+        _put(None)
+    elif left != p.get("modulos"):
+        _put({**p, "modulos": left})
+
+
+def blocked() -> dict[str, str]:
+    """Módulos de una prueba activada que no llegaron porque este servidor ya los había probado: {módulo: fecha}."""
+    try:
+        v = json.loads(get_setting("licencia_prueba_no_llego", "") or "{}")
+    except ValueError:
+        return {}
+    return v if isinstance(v, dict) else {}

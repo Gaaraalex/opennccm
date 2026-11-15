@@ -132,10 +132,20 @@ def high_availability(request: Request):
 
 
 def _rows(st: dict, ped: dict | None, used: dict) -> dict:
-    """Qué muestra cada módulo (Pruebas 5 a 9): prueba activa o terminada, pedida, aprobada, ya probada o «Probar gratis»."""
+    """Qué muestra cada módulo (Pruebas 5 a 9): prueba activa o terminada, pedida, aprobada, esperando paquete, ya probada
+    o «Probar gratis». Los módulos sin paquete para esta versión (marcados «soon» en licencia.MODULES) no ofrecen prueba."""
+    from . import pruebas
     out = {}
+    waiting = licencia.waiting_trials()
+    blocked = pruebas.blocked()
     for mid, m in st["modules"].items():
         in_ped = ped and mid in (ped.get("modulos") or [])
+        if mid in waiting and m["state"] == "no_incluido":
+            out[mid] = {"kind": "waiting", "days": waiting[mid], "used_on": ""}
+            continue
+        if mid in blocked and m["state"] == "no_incluido":
+            out[mid] = {"kind": "blocked", "text": licencia.trial_used_text([mid], blocked[mid]), "used_on": ""}
+            continue
         if m["tipo"] == "prueba" and m["state"] == "activo":
             kind = "trial"
         elif m["tipo"] == "prueba" and m["state"] in ("vencido", "pausado"):
@@ -150,6 +160,8 @@ def _rows(st: dict, ped: dict | None, used: dict) -> dict:
             kind = "soon"
         elif mid in used:
             kind = "used"
+        elif licencia.MODULES[mid].get("soon"):
+            kind = "nopkg"  # sin paquete para esta versión todavía: se puede comprar, no probar
         else:
             kind = "free"
         out[mid] = {"kind": kind, "used_on": licencia.short_date(used.get(mid)) if used.get(mid) else ""}
@@ -298,7 +310,9 @@ def trial_activate(request: Request):
     from .main import app
     got = promod.sync(app)
     log_action(request, user, "license_trial_activate", ", ".join(got))
-    flash(request, _("Prueba activada."))
+    from . import pruebas as _p
+    flash(request, _("Prueba aprobada · el módulo todavía no salió; te avisamos aquí cuando empiece.")
+          if (_p.current() or {}).get("estado") == "esperando" else _("Prueba activada."))
     return go("/license")
 
 
