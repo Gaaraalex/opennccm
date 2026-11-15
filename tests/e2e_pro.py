@@ -1,6 +1,6 @@
 """Puertas de los módulos Pro sin licencia (app/pro.py): Informes › Profesionales con su ejemplo, Administración ›
-Recolectores y › Alta disponibilidad con la etiqueta PRO, Licencia y módulos (activar con una clave mal escrita, archivo
-que no es una licencia, preferencias que ocultan lo Pro) y permisos. Lo gratis sigue igual. Sin internet: la clave
+Recolectores y › Alta disponibilidad con la etiqueta PRO, Licencia y módulos (activar con una clave mal escrita, sin
+activación sin internet, preferencias que ocultan lo Pro) y permisos. Lo gratis sigue igual. Sin internet: la clave
 mal escrita se rechaza antes de llamar a la web. Requiere e2e.py (admin)."""
 import json
 import os
@@ -37,13 +37,13 @@ try:
         check(f"{title} sin licencia: oferta y pestaña PRO en Administración", title in page and "Tengo una clave" in page
               and 'href="/recolectores"' in page and 'href="/license"' in page)
     page = adm.get(B + "/license").text
-    check("Licencia y módulos: pegar la clave, archivo sin internet y los 3 módulos «No incluido»",
-          'name="key"' in page and 'action="/license/upload"' in page and page.count("No incluido") >= 3
-          and "inst_" in page and "DISA" not in page)
+    check("Licencia y módulos: pegar la clave, aviso de que necesita internet y los 3 módulos «No incluido»",
+          'name="key"' in page and "necesita conexión a internet" in page and page.count("No incluido") >= 3
+          and "inst_" in page and "DISA" not in page and "/license/upload" not in page and "sin internet" not in page)
     r = adm.post(B + "/license/activate", data={"key": "hola"})
     check("clave mal escrita: se explica la forma, sin llamar a la web", "OPNC-XXXX-XXXX-XXXX-XXXX" in r.text)
-    r = adm.post(B + "/license/upload", files={"file": ("lic.txt", b"esto no es una licencia")})
-    check("archivo que no es una licencia: se rechaza", "No es un archivo de licencia" in r.text)
+    r = adm.post(B + "/license/upload", files={"file": ("lic.txt", b"OPNC1.k0.x.y")}, allow_redirects=False)
+    check("no hay subida de licencia ni de paquetes sin internet", r.status_code in (404, 405))
     adm.post(B + "/license/prefs", data={"notify30": "on"})
     page = adm.get(B + "/reports").text
     check("ocultar lo Pro que no se tiene: sin pestaña Profesionales", 'href="/reports/pro"' not in page)

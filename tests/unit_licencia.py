@@ -1,7 +1,7 @@
 """Licencia de los módulos Pro (app/licencia.py) según el contrato v1 con comunidad.opennccm.com: firma Ed25519 con
-un par de claves de prueba hecho aquí, id de instalación, estados (activo, gracia, vencido, no incluido), otra
-instalación, archivo para servidores sin internet, y activar/actualizar contra un servidor de licencias simulado
-(404, 409, 410, 429). Sin internet: nunca llama a comunidad.opennccm.com."""
+un par de claves de prueba hecho aquí, id de instalación, estados (activo, gracia, vencido, pausado, no incluido),
+otra instalación o sin instalación, comprobación obligatoria cada 7 días, sello contra copias (409 en_uso) y
+activar/actualizar contra un servidor de licencias simulado (404, 409, 410, 429). Nunca llama a comunidad.opennccm.com."""
 import base64
 import json
 import os
@@ -35,10 +35,11 @@ def check(name, cond, extra=""):
         fails.append(name)
 
 
-def lic(modules, inst="mine", key=PRIV, kid="k0", prueba=False):
-    data = {"v": 1, "id": "lic_1", "emitida": "2026-11-14T19:00:00Z", "cliente": {"equipo_id": "eq_1", "nombre": "Valnet S.A."},
+def lic(modules, inst="mine", key=PRIV, kid="k0", prueba=False, emitida=None, comprobar=None):
+    emitida = emitida or datetime.now(timezone.utc)
+    data = {"v": 1, "id": "lic_1", "emitida": iso(emitida), "cliente": {"equipo_id": "eq_1", "nombre": "Valnet S.A."},
             "instalacion": licencia.install_id() if inst == "mine" else inst, "prueba": prueba, "gracia_dias": 15,
-            "modulos": modules}
+            "comprobar_antes": iso(comprobar or emitida + timedelta(days=7)), "modulos": modules}
     raw = json.dumps(data, separators=(",", ":")).encode()
     return f"OPNC1.{kid}.{b64(raw)}.{b64(key.sign(raw))}"
 
@@ -61,9 +62,9 @@ check("sin licencia: todo «no incluido», sin problema", all(m["state"] == "no_
 tok = lic([{"id": "informes_pro", "hasta": iso(now + timedelta(days=100)), "limites": {"equipos": 500}},
            {"id": "recolectores", "hasta": iso(now - timedelta(days=5)), "limites": {"sedes": 5}},
            {"id": "alta_disponibilidad", "hasta": iso(now - timedelta(days=20)), "limites": {"pares": 1}}])
-data = licencia.upload(tok)
+data = licencia._save(tok)
 st = licencia.state()
-check("archivo sin internet: se carga y da el cliente", data["cliente"]["nombre"] == "Valnet S.A." and st["cliente"] == "Valnet S.A.")
+check("licencia guardada: da el cliente", data["cliente"]["nombre"] == "Valnet S.A." and st["cliente"] == "Valnet S.A.")
 check("activo dentro de la fecha", st["modules"]["informes_pro"]["state"] == "activo" and licencia.usable("informes_pro"))
 check("en gracia los 15 días siguientes", st["modules"]["recolectores"]["state"] == "gracia" and licencia.usable("recolectores"))
 check("vencido después de la gracia (no se usa, no se borra)", st["modules"]["alta_disponibilidad"]["state"] == "vencido"
@@ -75,18 +76,36 @@ bad = tok[:-3] + ("AAA" if not tok.endswith("AAA") else "BBB")
 for name, t, word in (("firma alterada", bad, "firma"), ("firmada con otra clave privada", lic([], key=Ed25519PrivateKey.generate()), "firma"),
                       ("kid que esta versión no conoce", lic([], kid="k7"), "k7"), ("no es una licencia", "hola", "licencia")):
     try:
-        licencia.upload(t)
+        licencia._save(t)
         check(f"rechaza: {name}", False)
     except licencia.LicenseError as e:
         check(f"rechaza: {name}", word in str(e), str(e))
 try:
-    licencia.upload(lic([{"id": "informes_pro", "hasta": iso(now + timedelta(days=9))}], inst="inst_otra"))
+    licencia._save(lic([{"id": "informes_pro", "hasta": iso(now + timedelta(days=9))}], inst="inst_otra"))
     check("rechaza una licencia de otra instalación", False)
 except licencia.LicenseError as e:
     check("rechaza una licencia de otra instalación", "otra instalación" in str(e))
 check("la licencia buena sigue guardada tras los rechazos", licencia.state()["modules"]["informes_pro"]["state"] == "activo")
-licencia.upload(lic([{"id": "informes_pro", "hasta": iso(now + timedelta(days=9))}], inst=None))
-check("archivo sin instalación (null) sirve en cualquiera", licencia.state()["modules"]["informes_pro"]["state"] == "activo")
+try:
+    licencia._save(lic([{"id": "informes_pro", "hasta": iso(now + timedelta(days=9))}], inst=None))
+    check("rechaza una licencia sin instalación (null)", False)
+except licencia.LicenseError as e:
+    check("rechaza una licencia sin instalación (null)", "otra instalación" in str(e))
+licencia._save(lic([{"id": "informes_pro", "hasta": iso(now + timedelta(days=9))}]))
+
+# comprobación obligatoria: pasado «comprobar_antes» se pausa (no se borra nada)
+from app.db import set_setting  # noqa: E402
+set_setting("licencia", lic([{"id": "informes_pro", "hasta": iso(now + timedelta(days=90))}],
+                            emitida=now - timedelta(days=9), comprobar=now - timedelta(days=2)))
+set_setting("licencia_validada", (now - timedelta(days=9)).isoformat(timespec="seconds"))
+st = licencia.state()
+check("sin comprobar 7 días: el módulo queda «pausado» y no se usa", st["modules"]["informes_pro"]["state"] == "pausado"
+      and not licencia.usable("informes_pro") and st["paused"] == "sin_comprobar")
+check("…y dice desde cuándo y qué revisar", "No se pudo comprobar la licencia desde el " + (now - timedelta(days=9)).astimezone().strftime("%d-%m-%Y") in st["problem"]
+      and "comunidad.opennccm.com" in st["problem"], st["problem"])
+set_setting("licencia", lic([{"id": "informes_pro", "hasta": iso(now + timedelta(days=90))}], emitida=now - timedelta(days=6)))
+check("dentro de los 7 días sigue activo", licencia.state()["modules"]["informes_pro"]["state"] == "activo")
+set_setting("licencia", lic([{"id": "informes_pro", "hasta": iso(now + timedelta(days=9))}]))
 
 # avisos en la campana: 30 días antes, una sola vez
 licencia.daily()
@@ -112,13 +131,15 @@ class H(BaseHTTPRequestHandler):
             code = {"OPNC-AAAA-AAAA-AAAA-AAAA": 200, "OPNC-BBBB-BBBB-BBBB-BBBB": 409, "OPNC-CCCC-CCCC-CCCC-CCCC": 410,
                     "OPNC-DDDD-DDDD-DDDD-DDDD": 429}.get(key, 404)
             if code == 200:
-                out = {"licencia": lic([{"id": "informes_pro", "hasta": iso(now + timedelta(days=300))}]), "cliente": "Valnet S.A."}
+                out = {"licencia": lic([{"id": "informes_pro", "hasta": iso(now + timedelta(days=300))}]), "cliente": "Valnet S.A.",
+                       "sello": "sello-1"}
         elif self.path == "/api/licencias/actualizar":
-            code = {"revocada": 410, "liberada": 409}.get(REVOKE, 200)
+            code = {"revocada": 410, "liberada": 409, "en_uso": 409}.get(REVOKE, 200)
             mods = [{"id": "informes_pro", "hasta": iso(now + timedelta(days=400))}]
             if REVOKE != "sin_recolectores":
                 mods.append({"id": "recolectores", "hasta": iso(now + timedelta(days=400)), "limites": {"sedes": 3}})
-            out = {"error": "no_activa"} if code == 409 else {} if code != 200 else {"licencia": lic(mods)}
+            out = ({"error": "en_uso" if REVOKE == "en_uso" else "no_activa"} if code == 409 else {} if code != 200
+                   else {"licencia": lic(mods), "sello": f"sello-{len(CALLS)}"})
         data = json.dumps(out).encode()
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
@@ -148,7 +169,28 @@ check("activar: solo envía clave, instalación y versión", set(sent) == {"clav
 check("actualizar: trae la licencia más nueva (renovación, más sedes)", licencia.refresh() == "ok"
       and licencia.state()["modules"]["recolectores"]["state"] == "activo" and licencia.limit("recolectores", "sedes") == 3)
 sent = [c for c in CALLS if c[0] == "/api/licencias/actualizar"][-1][1]
-check("actualizar: solo envía clave e instalación", set(sent) == {"clave", "instalacion"})
+check("actualizar: solo envía clave, instalación, versión y el sello que dio activar", set(sent) == {"clave", "instalacion", "version", "sello"}
+      and sent["sello"] == "sello-1")
+seal_before = get_setting("licencia_sello")
+licencia.refresh()
+sent2 = [c for c in CALLS if c[0] == "/api/licencias/actualizar"][-1][1]
+check("cada actualizar guarda el sello nuevo y lo manda en el siguiente", seal_before != "sello-1"
+      and sent2["sello"] == seal_before and get_setting("licencia_sello") not in (seal_before, ""))
+REVOKE = "en_uso"
+old_iid = licencia.install_id()
+check("409 en_uso (instalación copiada en otro servidor): pausa los módulos y lo explica", licencia.refresh() == "en_uso"
+      and licencia.state()["modules"]["informes_pro"]["state"] == "pausado"
+      and "libera la instalación anterior en Mi cuenta" in licencia.state()["problem"])
+check("…crea un id de instalación nuevo, guarda el viejo y olvida el sello", licencia.install_id() not in ("", old_iid)
+      and old_iid in get_setting("licencia_inst_anteriores") and not get_setting("licencia_sello"))
+REVOKE = None
+n = len(CALLS)
+check("…y no vuelve a llamar a actualizar hasta volver a activar", licencia.refresh() == "en_uso" and len(CALLS) == n)
+licencia.activate(get_setting("licencia_clave"))
+sent = CALLS[-1][1]
+check("volver a activar la clave aquí: con el id nuevo, y sigue solo", sent["instalacion"] == licencia.install_id()
+      and licencia.state()["modules"]["informes_pro"]["state"] == "activo" and not licencia.state()["problem"]
+      and licencia.refresh() == "ok")
 REVOKE = "sin_recolectores"
 check("un módulo revocado (200 sin él): pasa a «No incluido» y los demás siguen", licencia.refresh() == "ok"
       and licencia.state()["modules"]["recolectores"]["state"] == "no_incluido"
@@ -167,7 +209,7 @@ srv.shutdown()
 check("sin red: se sigue con la licencia guardada", "No se pudo conectar" in licencia.refresh()
       and licencia.state()["modules"]["informes_pro"]["state"] == "activo")
 licencia.clear()
-check("cambiar clave: quita clave y licencia", not get_setting("licencia_clave") and licencia.state()["modules"]["informes_pro"]["state"] == "no_incluido")
+check("cambiar clave: quita clave, licencia y sello", not get_setting("licencia_clave") and not get_setting("licencia_sello") and licencia.state()["modules"]["informes_pro"]["state"] == "no_incluido")
 
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))
 sys.exit(1 if fails else 0)

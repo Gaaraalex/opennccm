@@ -46,7 +46,8 @@ OFFERS = {
 # el Documento de la red era gratis hasta esta versión: lo ya generado se sigue viendo y descargando sin licencia
 NETDOC_PRO_SINCE = "2.45.0"
 NETDOC_DIR = DATA_DIR / "netdocs"
-STATE_LABEL = {"activo": N_("Activo"), "gracia": N_("En gracia"), "vencido": N_("Vencido"), "no_incluido": N_("No incluido")}
+STATE_LABEL = {"activo": N_("Activo"), "gracia": N_("En gracia"), "vencido": N_("Vencido"), "pausado": N_("Pausado"),
+               "no_incluido": N_("No incluido")}
 
 
 def show_locked() -> bool:
@@ -148,11 +149,12 @@ async def license_activate(request: Request):
     user = require(request, "admin")
     form = await request.form()
     try:
-        data = licencia.activate(form.get("key") or "")
+        key = form.get("key") or (get_setting("licencia_clave", "") if form.get("again") else "")
+        data = licencia.activate(key)
     except licencia.LicenseError as e:
         flash(request, str(e), "error")
         return go("/license")
-    log_action(request, user, "license_activate", licencia.mask_key(licencia.normalize_key(form.get("key") or "")))
+    log_action(request, user, "license_activate", licencia.mask_key(licencia.normalize_key(key)))
     flash(request, _f("Licencia activada: {0}", (data.get("cliente") or {}).get("nombre") or _("lista")))
     return go("/license")
 
@@ -174,47 +176,12 @@ def license_refresh(request: Request):
         flash(request, _("La licencia fue revocada. Revise su cuenta en comunidad.opennccm.com."), "error")
     elif res == "liberada":
         flash(request, _("Esta clave se liberó desde Mi cuenta; vuelve a activarla."), "error")
+    elif res == "en_uso":
+        flash(request, _(licencia.EN_USO_MSG), "error")
     elif res == "sin_clave":
         flash(request, _("No hay una clave para actualizar."), "error")
     else:
         flash(request, res, "error")
-    return go("/license")
-
-
-@router.post("/license/upload")
-async def license_upload(request: Request):
-    """Servidor sin internet: el archivo de licencia que se baja de Mi cuenta, o un módulo (.tar.gz con su .firma)."""
-    user = require(request, "admin")
-    form = await request.form(max_files=5)
-    files = [f for f in form.getlist("file") if getattr(f, "filename", "")]
-    pkg = next((f for f in files if f.filename.endswith(".tar.gz")), None)
-    if pkg is not None:
-        from . import promod
-        sig = next((f for f in files if f.filename.endswith(".firma")), None)
-        mid = pkg.filename.split("-")[0].removesuffix(".tar.gz")
-        try:
-            if sig is None:
-                raise promod.ModuleError(_("Suba el .tar.gz del módulo junto con su archivo .firma."))
-            man = promod.install(mid, await pkg.read(promod.MAX_SIZE + 1), (await sig.read(4096)).decode("ascii", "replace"))
-            from .main import app
-            promod.load(app, mid)
-        except promod.ModuleError as e:
-            flash(request, str(e), "error")
-            return go("/license")
-        log_action(request, user, "module_upload", f"{mid} {man.get('version')}")
-        flash(request, _f("Módulo instalado: {0}", _(licencia.MODULES[mid]["name"])))
-        return go("/license")
-    if not files:
-        flash(request, _("Elija el archivo de licencia."), "error")
-        return go("/license")
-    raw = (await files[0].read(65536)).decode("utf-8", "replace")
-    try:
-        data = licencia.upload(raw)
-    except licencia.LicenseError as e:
-        flash(request, str(e), "error")
-        return go("/license")
-    log_action(request, user, "license_upload", (data.get("cliente") or {}).get("nombre", ""))
-    flash(request, _("Archivo de licencia cargado."))
     return go("/license")
 
 

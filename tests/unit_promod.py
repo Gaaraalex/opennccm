@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 from fastapi import FastAPI  # noqa: E402
 
 from app import __version__, licencia, promod  # noqa: E402
-from app.db import init_db, set_setting  # noqa: E402
+from app.db import get_setting, init_db, set_setting  # noqa: E402
 
 init_db()
 fails = []
@@ -151,6 +151,13 @@ class H(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
             return
+        if body["modulo"] == "alta_disponibilidad":
+            out = b'{"error":"en_uso","mensaje":"x"}'
+            self.send_response(409)
+            self.send_header("Content-Length", str(len(out)))
+            self.end_headers()
+            self.wfile.write(out)
+            return
         self.send_response(200)
         self.send_header("Content-Type", "application/octet-stream")
         self.send_header("X-OPNC-Firma", sign(pkg))
@@ -168,7 +175,7 @@ promod.LOADED.clear()
 app = FastAPI()
 got = promod.sync(app)
 check("sync: baja el módulo de otra versión y lo carga", got == ["informes_pro"] and "informes_pro" in promod.LOADED)
-check("la descarga solo envía clave, instalación, módulo y versión", set(SEEN[-1]) == {"clave", "instalacion", "modulo", "version"}
+check("la descarga solo envía clave, instalación, módulo, versión y el último sello", set(SEEN[-1]) == {"clave", "instalacion", "modulo", "version", "sello"}
       and SEEN[-1]["version"] == __version__)
 check("sync: no vuelve a bajar lo que ya está al día", promod.sync(app) == [])
 try:
@@ -176,6 +183,13 @@ try:
     check("404: lo dice", False)
 except promod.ModuleError as e:
     check("404: lo dice", "Todavía no hay" in str(e))
+old = licencia.install_id()
+try:
+    promod.download("alta_disponibilidad")
+    check("409 en_uso al descargar: pausa y cambia el id de instalación", False)
+except promod.ModuleError as e:
+    check("409 en_uso al descargar: pausa y cambia el id de instalación", "otro servidor" in str(e)
+          and licencia.install_id() != old and get_setting("licencia_revocada") == "en_uso")
 srv.shutdown()
 
 print("\n" + ("TODO OK" if not fails else f"{len(fails)} FALLOS: {fails}"))

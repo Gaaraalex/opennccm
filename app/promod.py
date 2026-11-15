@@ -2,8 +2,8 @@
 
 El código de cada módulo vive en el repositorio privado opennccm-pro y no viaja en este paquete. Lo entrega
 comunidad.opennccm.com (POST /api/modulos/descargar, contrato v1) como un .tar.gz firmado: la cabecera X-OPNC-Firma es
-la firma Ed25519 de los bytes exactos del archivo, con la misma clave (kid) que firma la licencia. Sin internet, el
-cliente sube el .tar.gz y su .firma en Licencia y módulos.
+la firma Ed25519 de los bytes exactos del archivo, con la misma clave (kid) que firma la licencia. No hay instalación
+manual: solo llegan por esa API, a una instalación activa (decisión del usuario, 14 nov 2026).
 
 Se guarda en DATA_DIR/pro/: <módulo>.tar.gz y <módulo>.tar.gz.firma (lo que llegó, tal cual) y la carpeta <módulo>/ ya
 descomprimida. Al arrancar se vuelve a comprobar la firma del .tar.gz: si alguien cambió el archivo, no se carga.
@@ -54,8 +54,8 @@ def _kid() -> str:
 
 
 def verify_package(data: bytes, signature: str, kid: str | None = None) -> None:
-    """Firma Ed25519 del .tar.gz: la de la cabecera X-OPNC-Firma (con X-OPNC-Kid, o el kid de la licencia) o la del
-    archivo .firma de Mi cuenta, de una línea «OPNC1.<kid>.<firma>»."""
+    """Firma Ed25519 del .tar.gz: la de la cabecera X-OPNC-Firma (con X-OPNC-Kid, o el kid de la licencia) o la que se
+    guardó junto al paquete, de una línea «OPNC1.<kid>.<firma>»."""
     sig = (signature or "").strip()
     if sig.startswith("OPNC1."):
         _p, kid, sig = sig.split(".", 2)
@@ -135,13 +135,22 @@ def download(mid: str) -> dict:
         raise ModuleError(_("No hay una clave de licencia."))
     try:
         r = requests.post(licencia.LICENSE_URL + "/api/modulos/descargar", timeout=60,
-                          json={"clave": key, "instalacion": licencia.install_id(), "modulo": mid, "version": _core()})
+                          json={"clave": key, "instalacion": licencia.install_id(), "modulo": mid, "version": _core(),
+                                "sello": get_setting("licencia_sello", "")})  # el último sello; descargar no lo cambia
     except requests.RequestException as e:
         raise ModuleError(_f("No se pudo conectar con {0}: {1}", licencia.LICENSE_URL, str(e).splitlines()[0][:160])) from e
     msgs = {403: _("La licencia no incluye este módulo o ya venció."),
             404: _("Todavía no hay una versión de este módulo para esta versión de OpenNCCM."),
             409: _("Esta clave se liberó desde Mi cuenta; vuelve a activarla."),
             410: _("La licencia fue revocada."), 429: _("Demasiadas descargas. Pruebe en una hora.")}
+    if r.status_code == 409:
+        try:
+            en_uso = r.json().get("error") == "en_uso"
+        except ValueError:
+            en_uso = False
+        if en_uso:  # sello viejo: esta instalación está copiada en otro servidor
+            licencia.in_use()
+            raise ModuleError(_(licencia.EN_USO_MSG))
     if r.status_code in msgs:
         raise ModuleError(msgs[r.status_code])
     if r.status_code != 200:

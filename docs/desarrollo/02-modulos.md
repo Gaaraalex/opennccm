@@ -141,7 +141,7 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 
 | Archivo | Líneas | Qué hace |
 |---|---:|---|
-| `app/licencia.py` | 292 | Licencia de los módulos Pro, que se verifica en el servidor sin internet y se renueva sola una vez al día. |
+| `app/licencia.py` | 357 | Licencia de los módulos Pro: se activa y se comprueba siempre contra comunidad.opennccm.com, una vez al día. |
 | `app/pro.py` | 189 | Puertas de los módulos Pro en OpenNCCM gratis: |
 | `app/promod.py` | 221 | Cargador de los módulos Pro: |
 

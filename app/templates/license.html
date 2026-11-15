@@ -11,23 +11,22 @@
     {% if st.key %}
     <div class="row" style="gap:12px;flex-wrap:wrap"><span class="input mono lic-key">{{ masked }}</span>
       <form method="post" action="/license/change" class="inline" data-confirm="{{ _('¿Quitar esta clave? Los módulos quedarán como no incluidos hasta activar otra. No se borra nada.') }}"><button class="btn">{{ _('Cambiar clave') }}</button></form>
-      <form method="post" action="/license/refresh" class="inline"><button class="btn">{{ icon('refresh', 's') }}{{ _('Actualizar') }}</button></form>
-      <span class="muted sm">{% if st.checked %}{{ _f('Validada el {0}', st.checked[:10]) }}{% endif %}{% if st.cliente %} · {{ st.cliente }}{% endif %}</span></div>
+      {% if st.paused == 'en_uso' %}<form method="post" action="/license/activate" class="inline"><input type="hidden" name="again" value="1"><button class="btn pri">{{ _('Volver a activar aquí') }}</button></form>
+      {% else %}<form method="post" action="/license/refresh" class="inline"><button class="btn">{{ icon('refresh', 's') }}{{ _('Actualizar') }}</button></form>{% endif %}
+      <span class="muted sm">{% if st.checked %}{{ _('Última comprobación:') }} <span title="{{ st.checked|dt }}">{{ st.checked|ago }}</span>{% endif %}{% if st.cliente %} · {{ st.cliente }}{% endif %}</span></div>
     {% else %}
     <form method="post" action="/license/activate" class="row" style="gap:10px;flex-wrap:wrap">
       <label class="input mono" style="width:min(360px,100%)" for="lic-in"><input id="lic-in" name="key" placeholder="OPNC-XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false" aria-label="{{ _('Clave de licencia') }}" required></label>
       <button class="btn pri">{{ _('Activar') }}</button>
       <a class="btn ghost" href="{{ buy_url }}" target="_blank" rel="noopener">{{ _('Ver planes y precios') }} ↗</a></form>
     {% endif %}
-    <form method="post" action="/license/upload" enctype="multipart/form-data" class="muted sm" style="margin-top:12px" id="lic-up">
-      {{ _('¿Servidor sin internet?') }} <label class="lnk" for="lic-file" style="cursor:pointer;display:inline;margin:0;font:inherit;color:var(--brand)">{{ _('Sube el archivo de licencia') }}</label><input id="lic-file" name="file" type="file" multiple hidden onchange="this.form.submit()">.
-      {{ _('La clave no envía tus configuraciones a ningún lado.') }}</form>
+    <p class="muted sm" style="margin-top:12px">{{ _('OpenNCCM Pro necesita conexión a internet para activar y comprobar la licencia. Solo se envían la clave y el id de esta instalación.') }}</p>
     <p class="muted sm" style="margin-top:6px">{{ _f('Id de esta instalación: {0}', install) }}</p></section>
 
   <section class="card c12" aria-labelledby="lic-m"><div class="card-h"><h2 id="lic-m">{{ _('Módulos') }}</h2></div>
     <div class="lic-mods">{% for mid, meta in modules.items() %}{% set m = st.modules[mid] %}
       <div class="lic-mr"><div><b>{{ _(meta.name) }}</b><span class="muted sm">{{ _(meta.desc) }}</span></div>
-        {% if soon[mid] and m.state == 'no_incluido' %}<span class="pill">{{ _('Próximamente') }}</span>{% else %}<span class="pill {{ 'ok' if m.state == 'activo' else 'warn' if m.state == 'gracia' else 'crit' if m.state == 'vencido' else '' }}">{% if m.state == 'activo' %}{{ _f('Activo hasta el {0}', m.until.strftime('%d-%m-%Y')) }}{% elif m.state == 'gracia' %}{{ _f('En gracia hasta el {0}', m.grace_until.strftime('%d-%m-%Y')) }}{% elif m.state == 'vencido' %}{{ _f('Venció el {0}', m.until.strftime('%d-%m-%Y')) }}{% else %}{{ _('No incluido') }}{% endif %}</span>{% endif %}
+        {% if soon[mid] and m.state == 'no_incluido' %}<span class="pill">{{ _('Próximamente') }}</span>{% else %}<span class="pill {{ 'ok' if m.state == 'activo' else 'warn' if m.state == 'gracia' else 'crit' if m.state in ('vencido', 'pausado') else '' }}">{% if m.state == 'pausado' %}{{ _('Pausado') }}{% elif m.state == 'activo' %}{{ _f('Activo hasta el {0}', m.until.strftime('%d-%m-%Y')) }}{% elif m.state == 'gracia' %}{{ _f('En gracia hasta el {0}', m.grace_until.strftime('%d-%m-%Y')) }}{% elif m.state == 'vencido' %}{{ _f('Venció el {0}', m.until.strftime('%d-%m-%Y')) }}{% else %}{{ _('No incluido') }}{% endif %}</span>{% endif %}
         <span class="muted sm">{% set mi = mods[mid] %}{% if mi.problem %}<span style="color:var(--crit)">{{ mi.problem }}</span> {% elif m.state != 'no_incluido' and soon[mid] %}{{ _('Incluido en tu licencia · se instala cuando esté disponible') }} {% elif mi.version %}{{ _f('Módulo {0} instalado', mi.version) }} {% endif %}{% if m.state != 'no_incluido' and m.limits %}{% for k, v in m.limits.items() %}{{ _f('{0}: {1}', _(k), v if v else _('sin límite')) }} {% endfor %}{% endif %}</span>
         {% if soon[mid] and m.state == 'no_incluido' %}<a class="btn s" href="{{ buy_url }}" target="_blank" rel="noopener">{{ _('Avísame cuando esté') }} ↗</a>{% else %}<a class="btn s {{ 'pri' if m.state == 'no_incluido' }}" href="{{ buy_url }}" target="_blank" rel="noopener">{{ _('Comprar') if m.state == 'no_incluido' else _('Renovar') }}</a>{% endif %}</div>
     {% endfor %}</div></section>

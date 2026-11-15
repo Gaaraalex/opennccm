@@ -1,4 +1,4 @@
-"""Licencia de los módulos Pro, que se verifica en el servidor sin internet y se renueva sola una vez al día.
+"""Licencia de los módulos Pro: se activa y se comprueba siempre contra comunidad.opennccm.com, una vez al día.
 
 OpenNCCM es gratis y lo gratis nunca se quita: esto solo dice qué módulos de pago tiene la instalación. Sigue el contrato
 compartido con comunidad.opennccm.com (Diseño UX, «CONTRATO-LICENCIAS.md», v1):
@@ -6,10 +6,19 @@ compartido con comunidad.opennccm.com (Diseño UX, «CONTRATO-LICENCIAS.md», v1
   * Clave del cliente: OPNC-XXXX-XXXX-XXXX-XXXX (base32 Crockford, sin I, L, O, U). Se guarda cifrada.
   * Licencia: «OPNC1.<kid>.<payload>.<firma>»: payload JSON en base64url sin relleno, firma Ed25519 de los bytes exactos
     del JSON. Se verifica con las claves PÚBLICAS de PUBLIC_KEYS {kid: clave} (más las de NCM_LICENSE_KEYS para pruebas).
-  * Estado de cada módulo: activo (ahora ≤ hasta) · gracia (hasta + gracia_dias) · vencido · no incluido (firma
-    inválida, otra instalación, revocada o sin el módulo). Vencido no borra nada: lo decide cada módulo.
-  * Red: POST /api/licencias/activar y /actualizar. Solo se envían la clave, el id de instalación y la versión; nunca
-    configuraciones ni datos de equipos. Si la red falla, se sigue con la licencia guardada.
+  * Estado de cada módulo: activo (ahora ≤ hasta) · gracia (hasta + gracia_dias) · vencido · pausado (sin comprobar
+    pasado «comprobar_antes», o la web dijo 409 «en_uso») · no incluido (firma inválida, otra instalación, revocada o
+    sin el módulo). Vencido y pausado no borran nada: lo decide cada módulo.
+  * Solo con internet (decisión del usuario, 14 nov 2026): no hay archivo de licencia ni activación sin conexión. La
+    licencia siempre trae su «instalacion»; si no logra comprobarse antes de «comprobar_antes» (emitida + 7 días), los
+    módulos se pausan hasta que vuelva la conexión.
+  * Sello contra copias: activar y actualizar devuelven un «sello» que se manda en el siguiente actualizar. Si otro
+    servidor con la misma instalación copiada ya lo usó, la web responde 409 «en_uso»: aquí se pausan los módulos y se
+    crea un id de instalación nuevo (el viejo queda en licencia_inst_anteriores). Si este es el servidor correcto, el
+    cliente libera la instalación anterior en Mi cuenta y vuelve a activar la clave; si es la copia, queda sin licencia.
+    El sello se guarda en la base (ajuste cifrado), así un respaldo y restauración del mismo servidor no lo pierde.
+  * Red: POST /api/licencias/activar y /actualizar. Solo se envían la clave, el id de instalación, el sello y la
+    versión; nunca configuraciones ni datos de equipos.
 """
 from __future__ import annotations
 
@@ -37,6 +46,7 @@ LICENSE_URL = os.environ.get("NCM_LICENSE_URL", "https://comunidad.opennccm.com"
 BUY_URL = "https://comunidad.opennccm.com/pro"
 KEY_RE = re.compile(r"^OPNC-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$")
 TIMEOUT = 20
+CHECK_DAYS = 7  # si la licencia no trae «comprobar_antes»: emitida (o la última comprobación) + 7 días
 
 # módulos de pago (contrato, sección 1). DISA STIG y NIST 800-53 es gratis: no está aquí.
 MODULES = {
@@ -72,6 +82,9 @@ def public_keys() -> dict[str, str]:
     return keys
 
 
+EN_USO_MSG = N_("Esta licencia se está usando en otro servidor. Si este es el servidor correcto, libera la instalación anterior en Mi cuenta › Licencias y vuelve a activar la clave aquí.")  # noqa: E501
+
+
 def install_id() -> str:
     """Id de esta instalación: se crea la primera vez y no cambia (va en la licencia a la que queda atada)."""
     iid = get_setting("install_id", "")
@@ -79,6 +92,18 @@ def install_id() -> str:
         iid = "inst_" + uuid.uuid4().hex
         set_setting("install_id", iid)
     return iid
+
+
+def in_use() -> None:
+    """409 «en_uso»: pausa los módulos y da a este servidor un id de instalación nuevo (guarda el viejo)."""
+    old = get_setting("install_id", "")
+    if old:
+        prev = [x for x in get_setting("licencia_inst_anteriores", "").split(",") if x]
+        set_setting("licencia_inst_anteriores", ",".join((prev + [old])[-10:]))
+    set_setting("install_id", "inst_" + uuid.uuid4().hex)
+    set_setting("licencia_sello", "")
+    set_setting("licencia_revocada", "en_uso")
+    log.warning("Licencia en uso en otro servidor: instalación %s reemplazada por %s", old, install_id())
 
 
 def normalize_key(key: str) -> str:
@@ -123,12 +148,27 @@ def _when(s: str | None) -> datetime | None:
         return None
 
 
+def checked_at() -> datetime | None:
+    """Última comprobación con la web que salió bien (UTC)."""
+    return _when(get_setting("licencia_validada", ""))
+
+
+def check_before(data: dict) -> datetime | None:
+    """Fecha límite para la próxima comprobación: «comprobar_antes» de la licencia, o emitida + 7 días."""
+    d = _when(data.get("comprobar_antes"))
+    if d is None:
+        base = _when(data.get("emitida")) or checked_at()
+        d = base + timedelta(days=CHECK_DAYS) if base else None
+    return d
+
+
 def state(now: datetime | None = None) -> dict:
     """Estado de la licencia guardada: cliente, problema (si lo hay) y cada módulo con su estado y límites."""
     now = now or datetime.now(timezone.utc)
     token = get_setting("licencia", "")
+    checked = checked_at()
     out = {"key": get_setting("licencia_clave", ""), "token": bool(token), "cliente": "", "problem": "", "prueba": False,
-           "checked": get_setting("licencia_validada", ""), "modules": {}}
+           "checked": checked.astimezone().replace(tzinfo=None) if checked else None, "paused": "", "modules": {}}
     data = None
     if token:
         try:
@@ -141,12 +181,22 @@ def state(now: datetime | None = None) -> dict:
     elif get_setting("licencia_revocada", "") == "liberada":
         out["problem"] = _("Esta clave se liberó desde Mi cuenta; vuelve a activarla.")
         data = None
-    if data and data.get("instalacion") not in (None, install_id()):
+    en_uso = get_setting("licencia_revocada", "") == "en_uso"
+    if data and data.get("instalacion") != install_id() and not en_uso:  # en_uso: ya se cambió el id de esta instalación
         out["problem"] = _("La licencia es de otra instalación de OpenNCCM.")
         data = None
     if data:
         out["cliente"] = (data.get("cliente") or {}).get("nombre", "")
         out["prueba"] = bool(data.get("prueba"))
+        deadline = check_before(data)
+        if en_uso:
+            out["paused"] = "en_uso"
+            out["problem"] = _(EN_USO_MSG)
+        elif deadline and now > deadline:
+            out["paused"] = "sin_comprobar"
+            since = (checked or deadline - timedelta(days=CHECK_DAYS)).astimezone()
+            out["problem"] = _f("No se pudo comprobar la licencia desde el {0}. Revisa que el servidor llegue a comunidad.opennccm.com.",
+                                since.strftime("%d-%m-%Y"))
     grace = timedelta(days=int((data or {}).get("gracia_dias") or 15))
     lic = {m.get("id"): m for m in (data or {}).get("modulos", []) if isinstance(m, dict)}
     for mid in MODULES:
@@ -160,6 +210,8 @@ def state(now: datetime | None = None) -> dict:
             st = "gracia"
         else:
             st = "vencido"
+        if out["paused"] and st in ("activo", "gracia"):
+            st = "pausado"  # igual que vencido: no se borra nada y sigue solo al volver a comprobar
         out["modules"][mid] = {"id": mid, "state": st, "until": until, "grace_until": until + grace if until else None,
                                "limits": (m or {}).get("limites") or {}, "days_left": (until - now).days if until else None}
     return out
@@ -188,11 +240,13 @@ def _post(path: str, body: dict) -> requests.Response:
         raise LicenseError(_f("No se pudo conectar con {0}: {1}", LICENSE_URL, str(e).splitlines()[0][:160])) from e
 
 
-def _save(token: str) -> dict:
+def _save(token: str, seal: str | None = None) -> dict:
     data = verify(token)
-    if data.get("instalacion") not in (None, install_id()):
+    if data.get("instalacion") != install_id():  # siempre viene atada a una instalación; nunca null
         raise LicenseError(_("La licencia es de otra instalación de OpenNCCM."))
     set_setting("licencia", token)
+    if seal:
+        set_setting("licencia_sello", seal)
     set_setting("licencia_revocada", "0")
     set_setting("licencia_validada", datetime.now(timezone.utc).isoformat(timespec="seconds"))
     return data
@@ -213,43 +267,54 @@ def activate(key: str) -> dict:
     if r.status_code != 200:
         raise LicenseError(_f("comunidad.opennccm.com respondió {0}. Pruebe más tarde.", r.status_code))
     try:
-        token = r.json()["licencia"]
+        body = r.json()
+        token = body["licencia"]
     except (ValueError, KeyError, TypeError) as e:
         raise LicenseError(_("La respuesta de comunidad.opennccm.com no es válida.")) from e
-    data = _save(token)
+    data = _save(token, body.get("sello"))
     set_setting("licencia_clave", key)
     return data
 
 
 def refresh() -> str:
-    """«Actualizar» (y una vez al día): trae la licencia más nueva. Devuelve "ok", "revocada", "sin_clave" o el error."""
+    """«Actualizar» (y una vez al día): trae la licencia más nueva. Devuelve "ok", "revocada", "liberada", "en_uso",
+    "sin_clave" o el error (sin red se sigue con la guardada hasta «comprobar_antes»)."""
     key = get_setting("licencia_clave", "")
     if not key:
         return "sin_clave"
+    if get_setting("licencia_revocada", "") == "en_uso":
+        return "en_uso"  # hasta volver a activar la clave en este servidor (con su id nuevo)
     try:
-        r = _post("/api/licencias/actualizar", {"clave": key, "instalacion": install_id()})
+        from . import __version__
+        body = {"clave": key, "instalacion": install_id(), "version": __version__}
+        if get_setting("licencia_sello", ""):
+            body["sello"] = get_setting("licencia_sello", "")
+        r = _post("/api/licencias/actualizar", body)
         if r.status_code == 410:
             set_setting("licencia_revocada", "1")
             return "revocada"
-        if r.status_code == 409:  # «no_activa»: la instalación se liberó desde Mi cuenta (contrato, detalles comunes)
-            set_setting("licencia_revocada", "liberada")
+        if r.status_code == 409:
+            try:
+                err = r.json().get("error")
+            except ValueError:
+                err = None
+            if err == "en_uso":  # otro servidor usó el sello: copia de esta instalación (contrato, sección 5)
+                in_use()
+                return "en_uso"
+            set_setting("licencia_revocada", "liberada")  # «no_activa»: se liberó desde Mi cuenta
             return "liberada"
         if r.status_code != 200:
             return _f("comunidad.opennccm.com respondió {0}. Se sigue con la licencia guardada.", r.status_code)
-        _save(r.json()["licencia"])
+        out = r.json()
+        _save(out["licencia"], out.get("sello"))
         return "ok"
     except (LicenseError, ValueError, KeyError, TypeError) as e:
         return str(e)
 
 
-def upload(text: str) -> dict:
-    """Servidor sin internet: el archivo de licencia que se baja de Mi cuenta («instalacion» null o esta)."""
-    return _save((text or "").strip())
-
-
 def clear() -> None:
     """«Cambiar clave»: quita la clave y la licencia (los módulos quedan como no incluidos; no se borra nada más)."""
-    for k in ("licencia", "licencia_clave", "licencia_validada"):
+    for k in ("licencia", "licencia_clave", "licencia_validada", "licencia_sello"):
         set_setting(k, "")
     set_setting("licencia_revocada", "0")
 
@@ -261,7 +326,7 @@ def daily() -> None:
     if not get_setting("licencia_clave", "") and not get_setting("licencia", ""):
         return
     res = refresh()
-    if res not in ("ok", "sin_clave", "revocada", "liberada"):
+    if res not in ("ok", "sin_clave", "revocada", "liberada", "en_uso"):
         log.info("Licencia: %s", res)
     try:
         from . import promod
