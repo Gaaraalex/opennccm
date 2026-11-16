@@ -976,7 +976,7 @@ finish() {
   if [[ $INTERACTIVE -eq 1 ]]; then
     # el cuadro final se ajusta a la terminal (las de 24 líneas también) y se desplaza si el texto no entra
     local rows h=31; rows=$(stty size </dev/tty 2>/dev/null | cut -d' ' -f1); rows=${rows:-24}
-    (( h > rows - 1 )) && h=$((rows - 1))
+    (( h > rows - 3 )) && h=$((rows - 3))  # deja libres la línea de arriba (título del cuadro) y la sombra
     ui --title "Instalación completada" --scrolltext --msgbox "OpenNCCM $ver está funcionando.\n\n  Abra en su navegador:\n\n      $URL\n$creds\nComandos útiles:\n  opennccm status     estado del servicio\n  opennccm update     actualizar a la última versión\n  opennccm help       todos los comandos\n\nIMPORTANTE: respalde $ETC_DIR/secret.key en un lugar seguro.\n\nEstadística de uso\nUna vez al día, OpenNCCM avisa a comunidad.opennccm.com que está en uso: un número al azar y la versión. Nunca configuraciones ni datos de tu red. Esa información nos ayuda a seguir mejorando el sistema. Más detalles en Administración › Sistema." "$h" 74 || true
   fi
 }
