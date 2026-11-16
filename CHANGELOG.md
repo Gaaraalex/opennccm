@@ -1,6 +1,6 @@
 # Historial de versiones
 
-## 2.45.1
+## 2.45.2
 - [nuevo] **OpenNCCM Pro: módulos opcionales de pago.** OpenNCCM sigue siendo gratis y de código abierto, y todo lo demás que
   ya usabas sigue igual, sin límites de equipos ni de tiempo (salvo el Documento de la red, ver abajo). Pro suma tres módulos para quien los necesite:
   - **Informes profesionales:** el Documento de la red, un informe ejecutivo y uno de auditoría, el inventario para
@@ -30,7 +30,7 @@
 - [arreglo] **«Respaldar todos»:** El icono ya no se queda girando al terminar.
 - [arreglo] **Correo con informes adjuntos:** Los PDF y Word adjuntos llegan con su tipo correcto y se abren bien en todos
   los programas de correo.
-- [arreglo] El cuadro final del instalador ya no tapa su título en terminales de 24 líneas.
+- [arreglo] El cuadro final del instalador deja ver su título en terminales de 24 líneas y se cierra con Enter.
 
 ## 2.44.0
 - [nuevo] **Problemas de Zabbix junto a los cambios:** En la pestaña Versiones de cada equipo, una franja de 24 h, 7 o 30
