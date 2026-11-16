@@ -6136,5 +6136,11 @@
 "Términos de OpenNCCM Pro": "OpenNCCM Pro Terms",
 "OpenNCCM es gratis. Los módulos Pro son opcionales y se compran en comunidad.opennccm.com. Los pagos, las renovaciones y las cancelaciones se rigen por los": "OpenNCCM is free. Pro modules are optional and are purchased at comunidad.opennccm.com. Payments, renewals and cancellations are governed by the",
 "Este servidor está en espera: usa el servidor activo.": "This server is on standby: use the active server.",
-"Esta clave ya no existe: activa la clave nueva que recibiste por correo.": "This key no longer exists: activate the new key you received by email."
+"Esta clave ya no existe: activa la clave nueva que recibiste por correo.": "This key no longer exists: activate the new key you received by email.",
+"Hay versiones nuevas de los módulos Pro": "New versions of the Pro modules are available",
+"Se aplican al reiniciar el servicio: solo o con la próxima actualización de OpenNCCM.": "They apply when the service restarts: on its own or with the next OpenNCCM update.",
+"¿Reiniciar OpenNCCM ahora? Tarda unos segundos; los respaldos en curso se cortan y se reintentan.": "Restart OpenNCCM now? It takes a few seconds; backups in progress are cut off and retried.",
+"Reiniciar ahora": "Restart now",
+"· versión {0} lista, se aplica al reiniciar": "· version {0} ready, applies on restart",
+"OpenNCCM se está reiniciando para aplicar los módulos nuevos. Vuelva a cargar la página en unos segundos.": "OpenNCCM is restarting to apply the new modules. Reload the page in a few seconds."
 }

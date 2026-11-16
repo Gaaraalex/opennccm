@@ -217,7 +217,17 @@ async def license_activate(request: Request):
         return go("/license")
     log_action(request, user, "license_activate", licencia.mask_key(licencia.normalize_key(key)))
     flash(request, _f("Licencia activada: {0}", (data.get("cliente") or {}).get("nombre") or _("lista")))
+    from starlette.concurrency import run_in_threadpool
+    await run_in_threadpool(_sync_modules, request)  # con la licencia válida, los módulos quedan instalados y funcionando
     return go("/license")
+
+
+def _sync_modules(request: Request, updates: bool = False) -> None:
+    from . import promod
+    from .main import app
+    got = promod.sync(app, updates=updates)
+    if got:
+        flash(request, _f("Módulos instalados: {0}", ", ".join(_(licencia.MODULES[m]["name"]) for m in got)))
 
 
 @router.post("/license/refresh")
@@ -225,11 +235,7 @@ def license_refresh(request: Request):
     user = require(request, "admin")
     res = licencia.refresh()
     if res == "ok":
-        from . import promod
-        from .main import app
-        got = promod.sync(app)
-        if got:
-            flash(request, _f("Módulos instalados: {0}", ", ".join(_(licencia.MODULES[m]["name"]) for m in got)))
+        _sync_modules(request, updates=True)
     log_action(request, user, "license_refresh", res)
     if res == "ok":
         flash(request, _("Licencia actualizada."))
@@ -245,6 +251,17 @@ def license_refresh(request: Request):
         flash(request, _("No hay una clave para actualizar."), "error")
     else:
         flash(request, res, "error")
+    return go("/license")
+
+
+@router.post("/license/restart")
+def license_restart(request: Request):
+    """«Reiniciar ahora»: aplica las versiones nuevas de los módulos Pro que ya se bajaron (promod.apply_pending al arrancar)."""
+    from . import promod
+    user = require(request, "admin")
+    log_action(request, user, "license_restart", ", ".join(m for m in licencia.MODULES if promod.pending(m)))
+    flash(request, _("OpenNCCM se está reiniciando para aplicar los módulos nuevos. Vuelva a cargar la página en unos segundos."))
+    promod.restart_soon()
     return go("/license")
 
 
@@ -316,6 +333,8 @@ def trial_activate(request: Request):
     from . import promod
     from .main import app
     got = promod.sync(app)
+    if got:
+        flash(request, _f("Módulos instalados: {0}", ", ".join(_(licencia.MODULES[m]["name"]) for m in got)))
     log_action(request, user, "license_trial_activate", ", ".join(got))
     from . import pruebas as _p
     flash(request, _("Prueba aprobada · el módulo todavía no salió; te avisamos aquí cuando empiece.")

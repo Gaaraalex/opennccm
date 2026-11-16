@@ -534,7 +534,7 @@ def daily() -> None:
     try:
         from . import promod
         from .main import app
-        promod.sync(app)  # baja los módulos de la licencia que falten o sean de otra versión de OpenNCCM
+        promod.sync(app, updates=True)  # baja los módulos que falten, los carga y busca versiones nuevas
     except Exception:  # noqa: BLE001
         log.exception("No se pudieron bajar los módulos Pro")
     from .services import add_event

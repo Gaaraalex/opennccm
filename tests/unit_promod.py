@@ -62,10 +62,10 @@ def page(request, user, m):
 '''
 
 
-def package(mid="informes_pro", nucleo=__version__, extra=None, manifest_id=None):
+def package(mid="informes_pro", nucleo=__version__, extra=None, manifest_id=None, version="1.0.0"):
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w:gz") as tar:
-        files = {f"{mid}/manifest.json": json.dumps({"id": manifest_id or mid, "version": "1.0.0", "nucleo": nucleo}),
+        files = {f"{mid}/manifest.json": json.dumps({"id": manifest_id or mid, "version": version, "nucleo": nucleo}),
                  f"{mid}/modulo/__init__.py": CODE}
         files.update(extra or {})
         for name, text in files.items():
@@ -158,12 +158,16 @@ class H(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(out)
             return
+        data, firma = SERVE.get("pkg") or pkg, SERVE.get("firma")
         self.send_response(200)
         self.send_header("Content-Type", "application/octet-stream")
-        self.send_header("X-OPNC-Firma", sign(pkg))
-        self.send_header("Content-Length", str(len(pkg)))
+        self.send_header("X-OPNC-Firma", firma or sign(data))
+        self.send_header("Content-Length", str(len(data)))
         self.end_headers()
-        self.wfile.write(pkg)
+        self.wfile.write(data)
+
+
+SERVE = {}
 
 
 srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
@@ -178,6 +182,41 @@ check("sync: baja el módulo de otra versión y lo carga", got == ["informes_pro
 check("la descarga solo envía clave, instalación, módulo, versión y el último sello", set(SEEN[-1]) == {"clave", "instalacion", "modulo", "version", "sello"}
       and SEEN[-1]["version"] == __version__)
 check("sync: no vuelve a bajar lo que ya está al día", promod.sync(app) == [])
+
+# con una licencia válida todo lo Pro queda funcionando sin reiniciar
+promod.LOADED.clear()  # instalado de antes, pero la licencia llegó después (sin reiniciar)
+n = len(SEEN)
+app = FastAPI()
+check("sync: carga el módulo ya instalado que no estaba cargado, sin volver a bajarlo",
+      promod.sync(app) == ["informes_pro"] and "informes_pro" in promod.LOADED and len(SEEN) == n)
+check("sync sin updates no busca versiones nuevas", promod.sync(app) == [] and len(SEEN) == n)
+SERVE["pkg"] = package(version="1.0.0")  # otra vez el mismo (bytes distintos por la hora del tar)
+check("updates: la misma versión no se vuelve a instalar", promod.sync(app, updates=True) == [] and len(SEEN) == n + 1
+      and promod.pending("informes_pro") is None)
+SERVE["pkg"] = package(version="1.0.1")
+check("updates: versión nueva con el módulo en uso → queda esperando al próximo arranque, sin tocar la cargada",
+      promod.sync(app, updates=True) == [] and promod.installed("informes_pro")["version"] == "1.0.0"
+      and promod.info("informes_pro")["pending"] == "1.0.1")
+promod.LOADED.clear()
+promod.load_all(FastAPI())
+check("al arrancar se aplica la versión que esperaba (firma comprobada otra vez) y se carga",
+      promod.installed("informes_pro")["version"] == "1.0.1" and promod.pending("informes_pro") is None
+      and "informes_pro" in promod.LOADED, promod.PROBLEMS)
+SERVE["pkg"] = package(version="1.0.2")
+SERVE["firma"] = sign(package(version="9.9.9"))
+check("updates: versión nueva con firma que no corresponde → no queda esperando y el módulo sigue funcionando",
+      promod.sync(app, updates=True) == [] and promod.pending("informes_pro") is None and not promod.info("informes_pro")["problem"]
+      and promod.installed("informes_pro")["version"] == "1.0.1")
+SERVE.pop("firma")
+promod.LOADED.clear()
+app = FastAPI()
+promod.sync(app)  # se carga la 1.0.1 instalada
+promod.LOADED.pop("informes_pro")  # p. ej. un CLI sin web: el módulo no está en uso
+check("updates: versión nueva con el módulo sin usar → se instala al momento",
+      promod.sync(None, updates=True) == [] and promod.installed("informes_pro")["version"] == "1.0.2"
+      and promod.pending("informes_pro") is None)
+SERVE.pop("pkg")
+promod.install("informes_pro", pkg, sign(pkg))
 try:
     promod.download("recolectores")
     check("404: lo dice", False)
