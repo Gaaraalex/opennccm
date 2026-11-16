@@ -165,12 +165,12 @@ st = licencia.state()
 sent = [c for c in CALLS if c[0] == "/api/licencias/activar"][-1][1]
 check("activar: guarda la licencia y la clave (cifrada) y da el cliente", st["modules"]["informes_pro"]["state"] == "activo"
       and get_setting("licencia_clave") == "OPNC-AAAA-AAAA-AAAA-AAAA" and data["cliente"]["nombre"] == "Valnet S.A.")
-check("activar: solo envía clave, instalación, huella y versión", set(sent) == {"clave", "instalacion", "huella", "version"}
-      and sent["instalacion"] == iid and sent["huella"] == licencia.fingerprint())
+check("activar: solo envía clave, instalación, huella, versión y el nombre del servidor", set(sent) == {"clave", "instalacion", "huella", "version", "nombre"}
+      and sent["instalacion"] == iid and sent["huella"] == licencia.fingerprint() and sent["nombre"] == licencia.nombre_servidor())
 check("actualizar: trae la licencia más nueva (renovación, más sedes)", licencia.refresh() == "ok"
       and licencia.state()["modules"]["recolectores"]["state"] == "activo" and licencia.limit("recolectores", "sedes") == 3)
 sent = [c for c in CALLS if c[0] == "/api/licencias/actualizar"][-1][1]
-check("actualizar: solo envía clave, instalación, huella, versión y el sello que dio activar", set(sent) == {"clave", "instalacion", "huella", "version", "sello"}
+check("actualizar: solo envía clave, instalación, huella, versión, el nombre y el sello que dio activar", set(sent) == {"clave", "instalacion", "huella", "version", "sello", "nombre"}
       and sent["sello"] == "sello-1")
 seal_before = get_setting("licencia_sello")
 licencia.refresh()

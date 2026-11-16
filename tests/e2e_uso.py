@@ -27,7 +27,7 @@ page = adm.get(B + "/system").text
 check("Sistema: «Estadística de uso» con el texto y la frase obligatoria", "Estadística de uso" in page
       and "esa información nos ayuda a seguir mejorando el sistema" in page and "comunidad.opennccm.com" in page)
 check("…«Ver exactamente qué se envía» y el último aviso", "Ver exactamente qué se envía" in page
-      and ("Último aviso:" in page or "Todavía no se envió ningún aviso." in page))
+      and ("Último aviso:" in page or "Todavía no se envió ningún aviso" in page))  # con o sin «· sin conexión»
 m = re.search(r'<pre class="uso-js">(.*?)</pre>', page, re.S)
 sent = json.loads(m.group(1).replace("&#34;", '"').replace("&quot;", '"')) if m else {}
 check("…el JSON real: exactamente {instalacion, version} con el número u_ de esta instalación",
