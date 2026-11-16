@@ -149,7 +149,7 @@ other one took over, stays on standby and copies what's new. To make it the acti
 suits you.</p>
 <p><b>The standby server</b> doesn't serve the normal web: whoever goes to it sees “This server is on standby” with a link to the
 active one. Administrators can sign in to High availability to check the pair or force the switch.</p>
-<figure><img src="img/en-43-ha-standby.png" style="max-height:80mm"><figcaption>The page of a standby server.</figcaption></figure>
+<figure><img src="img/en-43-ha-standby.png" style="width:95mm"><figcaption>The page of a standby server.</figcaption></figure>
 <p><b>When becoming active (optional):</b> to move a virtual IP or another action, create on each server, as root, the file
 <code>/etc/opennccm/al-pasar-a-activo.sh</code>. It must be owned by root and no one else can modify it. It runs as root when that
 server becomes active. For security it isn't written from the web.</p>
