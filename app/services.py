@@ -251,7 +251,7 @@ EVENT_CATEGORIES = [
     N_("Desviación de línea base"), N_("Infracción de cumplimiento"), N_("Informe programado no enviado"),
     N_("Respaldo fallido"), N_("Respaldo programado"), N_("Reversión automática"), N_("Reversión automática fallida"),
     N_("Solicitud de cambio ejecutada"), N_("Solicitud de cambio pendiente"), N_("Syslog de cambio"),
-    N_("Vulnerabilidad de firmware"), N_("Imagen .fxi sin crear"),
+    N_("Vulnerabilidad de firmware"), N_("Imagen .fxi sin crear"), N_("Respaldo al volver a responder"),
 ]
 
 
@@ -595,7 +595,8 @@ def _check_and_retry(device_id: int, trigger: str, username: str | None) -> str:
     steps = [f"1.er intento: {first}"]
     result = "error"
     if kind == "red" and get_profile(dtype).key not in HTTP_ONLY and not _port_open(host, port):
-        steps.append(f"Comprobación: el equipo no responde en {host}:{port}; no se reintenta.")
+        steps.append(f"Comprobación: el equipo no responde en {host}:{port}; no se reintenta ahora. Cada hora se "
+                     "mira si vuelve a responder y entonces se respalda solo.")
         kind = None
     if kind:
         steps.append("Comprobación: la falla fue de OpenNCCM (base de datos ocupada); se reintenta." if kind == "interno"
@@ -623,6 +624,60 @@ def _check_and_retry(device_id: int, trigger: str, username: str | None) -> str:
             add_event("info", "Respaldo reintentado", f"{name}: falló al primer intento y se reintentó solo." + "\n"
                       + "\n".join(steps), device_id)
     return result
+
+
+# Equipos fuera de línea: un respaldo que falló porque el equipo no respondía (apagado, sin enlace, cortado) se reintenta
+# solo. Cada hora se mira si esos equipos responden (ping o su puerto SSH: hay redes que filtran el ping) y, a medida que
+# van volviendo, se respaldan. Los errores que necesitan a una persona (contraseña rechazada, clave SSH cambiada, …) no
+# entran; tampoco los equipos de una sede con recolector, que no se ven desde aquí (los respalda su recolector).
+OFFLINE = re.compile(r"(?i)timed? ?out|timeout|TCP connection to device failed|Connection refused|No route to host|"
+                     r"Network is unreachable|Host is unreachable|Unable to connect|Errno 1(10|11|13)|Errno 10060|"
+                     r"Errno 10061|No existing session|Error reading SSH protocol banner|no responde en")
+
+
+def _ping(host: str) -> bool:
+    import subprocess
+
+    from . import nettools
+    args, _limit = nettools.ping_args({"target": host, "count": 2, "timeout": 2, "ipv": ""})
+    try:
+        r = subprocess.run(args, capture_output=True, timeout=15)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    # Windows devuelve 0 también con «Host de destino inaccesible»: ahí solo cuenta una respuesta con TTL
+    return r.returncode == 0 and (not nettools.win() or b"TTL=" in r.stdout.upper())
+
+
+def responds(host: str, port: int) -> bool:
+    return _ping(host) or _port_open(host, port, 4)
+
+
+def offline_devices() -> list[tuple[int, str, str, int]]:
+    """Equipos con el último respaldo fallido porque no respondían: (id, nombre, host, puerto)."""
+    with SessionLocal() as db:
+        return [(d.id, d.name, d.host, d.port or 22) for d in db.scalars(select(Device).where(
+            Device.retired_at.is_(None), Device.enabled.is_(True), Device.last_status == "error",
+            Device.recolector_id.is_(None)))
+            if OFFLINE.search(d.last_error or "") and not (d.maintenance_until and d.maintenance_until > now())]
+
+
+def retry_offline() -> dict:
+    """Tarea de cada hora: respalda los equipos fuera de línea que ya responden. Devuelve {"offline", "back", "ok"}."""
+    rows = offline_devices()
+    if not rows:
+        return {"offline": 0, "back": 0, "ok": 0}
+    with ThreadPoolExecutor(min(16, len(rows))) as ex:
+        back = [r for r, alive in zip(rows, ex.map(lambda r: responds(r[2], r[3]), rows)) if alive]
+    log.info("Equipos fuera de línea: %d, ya responden %d", len(rows), len(back))
+    results = list(pool.map(lambda r: backup_device(r[0], "scheduled", "scheduler"), back))
+    ok = 0
+    for (dev_id, name, host, _port), res in zip(back, results):
+        if res not in ("error", "busy", "missing", "disabled"):
+            ok += 1
+            add_event("info", "Respaldo al volver a responder",
+                      f"{name} ({host}) no respondía en el respaldo anterior; volvió a responder y se respaldó.", dev_id,
+                      notify=False)
+    return {"offline": len(rows), "back": len(back), "ok": ok}
 
 
 def mikrotik_backup_file(device_id: int, password: str = "") -> tuple[str, bytes]:

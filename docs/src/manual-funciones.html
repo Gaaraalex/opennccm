@@ -167,8 +167,10 @@ grupo.</p>
     sola al terminar. El respaldo corre en el servidor: se puede salir de la página (la píldora con el porcentaje queda junto a
     «Dispositivos» en el menú) y al terminar avisa. <b>Cancelar</b> no lanza los que faltan; al terminar, los que dieron error
     salen con su motivo y <b>Reintentar</b> respalda solo esos. Un respaldo que falla por algo pasajero (el equipo cortó la sesión
-    con el puerto respondiendo, la base de OpenNCCM ocupada) se comprueba y se reintenta solo; si el equipo no responde o rechaza
-    la contraseña, se avisa sin reintentar.</li>
+    con el puerto respondiendo, la base de OpenNCCM ocupada) se comprueba y se reintenta solo; si el equipo rechaza la
+    contraseña, se avisa sin reintentar. Si el equipo no responde (apagado, sin enlace), se avisa y, cada hora, OpenNCCM mira
+    si ya responde (ping o su puerto SSH); a medida que los equipos van volviendo, los respalda solo y lo deja en Eventos
+    («Respaldo al volver a responder»). No entran los equipos de una sede con recolector, que no se ven desde este servidor.</li>
   <li><b>Acciones de la fila:</b> al pasar el ratón aparecen respaldar, consola e interfaz web del equipo.</li>
   <li><b>Redes grandes:</b> con más de 400 equipos, la lista llega por páginas desde el servidor (15, 25, 50 o 100 por página),
   para que abra al instante aunque haya miles. El buscador busca entonces en todos los equipos al pulsar <b>Intro</b>.</li>

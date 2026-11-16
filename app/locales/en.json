@@ -2356,6 +2356,7 @@
 "Respaldo en marcha en {0} equipos.": "Backup running on {0} devices.",
 "Respaldo fallido": "Backup failed",
 "Respaldo nocturno": "Nightly backup",
+"Respaldo al volver a responder": "Backup after coming back online",
 "Respaldo programado": "Scheduled backup",
 "Respaldo realizado: se detectaron cambios": "Backup done: changes detected",
 "Respaldo realizado: sin cambios": "Backup done: no changes",
