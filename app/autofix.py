@@ -295,7 +295,7 @@ def run_one(dev_id: int, policy_id: int, rule_ids: list[int]) -> str | None:
 
     # 1) respaldo de antes: la versión a la que se vuelve
     res = services.backup_device(dev_id, "manual", WHO)
-    if res in ("busy", "disabled", "missing"):
+    if res in ("busy", "disabled", "missing", "queued"):  # «queued»: lo respalda un recolector; la corrección no llega desde aquí
         with SessionLocal() as db:  # nada que registrar: se intentará en la próxima vuelta
             db.delete(db.get(AutoFixRun, run_id))
             db.commit()

@@ -42,6 +42,7 @@ sleep 5
 export ROMON2_PORT=$PORT2
 
 export NCM_DATA_DIR=$WORK/data NCM_KEY_FILE=$WORK/data/secret.key PYTHONUNBUFFERED=1
+export NCM_USO_URL=http://127.0.0.1:9/api/uso/aviso  # las pruebas no envían la estadística de uso
 mkdir -p "$NCM_DATA_DIR"
 cd "$ROOT"
 "$PY" tests/mikrotik_real.py $PORT "Clave-CHR-2026" "$VER" || { tail -n 40 "$WORK/console.log" || true; exit 1; }

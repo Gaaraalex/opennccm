@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block title %}{{ _('Informes profesionales') }}{% endblock %}
+{% block crumbs %}<b>Informes</b>{% endblock %}
+{% block content %}
+{% from "_pro.html" import offer as pro_offer, expired, sample_report %}
+<div class="ph"><div class="grow"><h1>Informes</h1><div class="sub">{{ _('Informes de tu red para compartir.') }}</div></div></div>
+{% include "_reports_tabs.html" %}
+{% if m.state in ('activo', 'gracia', 'vencido') %}
+  {% if m.state != 'activo' %}{{ expired(m, offer, buy_url) }}{% endif %}
+  <section class="card"><div class="empty" style="padding:28px">{{ empty_art('check') }}<h2>{{ _(offer.title) }}</h2>
+    <p>{{ _('El módulo está incluido en tu licencia. Se instala solo desde comunidad.opennccm.com en cuanto esté disponible para esta versión.') }}</p></div></section>
+{% else %}
+  {{ pro_offer(offer, buy_url, sample_report()) }}
+{% endif %}
+{% endblock %}

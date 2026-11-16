@@ -139,4 +139,5 @@ def about(request: Request):
     from .auth import current_user
     from .db import get_setting
     org = {"name": get_setting("org_name"), "contact": get_setting("org_contact"), "address": get_setting("org_address")}
-    return render(request, "acerca.html", current_user(request), org=org)
+    from .licencia import TERMS_URL
+    return render(request, "acerca.html", current_user(request), org=org, terms_url=TERMS_URL)

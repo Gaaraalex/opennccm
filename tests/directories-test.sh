@@ -40,6 +40,7 @@ for _ in $(seq 1 120); do curl -fs http://127.0.0.1:8080/realms/master >/dev/nul
 echo "== OpenNCCM"
 WORK=$(mktemp -d)
 export NCM_DATA_DIR=$WORK/data NCM_KEY_FILE=$WORK/data/secret.key NCM_SYSLOG_PORT=5515
+export NCM_USO_URL=http://127.0.0.1:9/api/uso/aviso  # las pruebas no envían la estadística de uso
 mkdir -p "$NCM_DATA_DIR"
 "$PY" -c "import sys; sys.path.insert(0,'.'); from app.cli import main; sys.argv=['x','create-admin','admin','Admin12345']; main()"
 "$PY" -m uvicorn app.main:app --host 127.0.0.1 --port 8000 > "$WORK/app.log" 2>&1 & APP=$!

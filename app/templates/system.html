@@ -32,6 +32,17 @@
 
   {% if donate_links() %}{% from "_donate.html" import donate_card %}{{ donate_card(donate_links(), 'c12') }}{% endif %}
 
+  <section class="card c12" id="estadistica" aria-labelledby="uso-t"><div class="card-h"><h2 id="uso-t">{{ _('Estadística de uso') }}</h2></div>
+    <p style="margin:0;line-height:1.6">{{ _h('Una vez al día, este servidor avisa a <b>comunidad.opennccm.com</b> que está en uso. Envía solo un número de instalación al azar y la versión de OpenNCCM. <b>Nunca</b> envía configuraciones, equipos, direcciones IP de tu red, usuarios ni contraseñas. Así sabemos cuánta gente usa OpenNCCM y en qué versión: esa información nos ayuda a seguir mejorando el sistema.') }}</p>
+    <details class="uso-d" style="margin-top:12px"><summary class="row" style="gap:8px;cursor:pointer;list-style:none">
+      <span class="uso-dot{{ ' on' if uso_recent }}" aria-hidden="true"></span>
+      <span class="sm">{% if uso_last %}{{ _('Último aviso:') }} <span title="{{ uso_last|dt }}">{{ uso_last|ago }}</span>{% if uso_offline %} · {{ _('sin conexión desde entonces') }}{% endif %}{% elif uso_offline %}{{ _('Todavía no se envió ningún aviso · sin conexión') }}{% else %}{{ _('Todavía no se envió ningún aviso.') }}{% endif %}</span>
+      <span class="grow"></span><span class="lnk sm" style="color:var(--brand);font-weight:600">{{ _('Ver exactamente qué se envía') }}</span></summary>
+      <pre class="uso-js">{{ uso_json }}</pre>
+      <p class="muted sm" style="margin:6px 0 0">{{ _f('A {0}, una vez al día. Si el servidor no tiene salida a internet, no pasa nada: no se muestra ningún error y se vuelve a intentar al día siguiente.', uso_url) }}</p></details>
+    <style>.uso-dot{width:8px;height:8px;border-radius:99px;background:var(--muted);flex:none}.uso-dot.on{background:var(--ok)}
+      .uso-d summary::-webkit-details-marker{display:none}.uso-js{margin:10px 0 0;padding:12px 14px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line);font:500 12.5px var(--mono,ui-monospace),monospace;white-space:pre-wrap;word-break:break-all}</style></section>
+
   <section class="card c7"><div class="card-h"><h2>Copias de recuperación</h2><button type="button" class="btn s pri" data-dialog="bk-dlg">{{ icon('db', 's') }}Crear copia ahora</button></div>
     <p class="muted sm" style="margin:-6px 0 12px">Guardan la base de datos (configuraciones, historial, usuarios, políticas). Las configuraciones y contraseñas van cifradas: para restaurar en otro servidor necesitas también <code>secret.key</code>, o incluirla en la copia protegida con contraseña. Programa copias diarias en <a href="/schedules">Tareas</a> y la copia remota en <a href="/settings#recuperacion">Ajustes</a>.</p>
     <style>

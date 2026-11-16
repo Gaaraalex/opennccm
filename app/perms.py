@@ -71,7 +71,7 @@ ROUTES = [
     (r"^/users|^/audit$", "users"),
     (r"^/devices/(new|import)|^/devices/\d+/(edit|delete|retire|reinstate)$|^/groups|^/api/devices$|^/api/mobile/newdevice$"
      r"|^/topology/plan$|^/api/topology/(sites|plan-pos)$", "devices"),
-    (r"^/settings|^/system|^/capacity|^/nodes|^/eol|^/firmware/updates/settings$|^/reports/email$|^/console/access$"
+    (r"^/settings|^/system|^/capacity|^/license|^/recolectores$|^/alta-disponibilidad$|^/nodes|^/eol|^/firmware/updates/settings$|^/reports/email$|^/console/access$"
      r"|^/api/mobile/admin$", "settings"),
 ]
 _ROUTES = [(re.compile(p), k) for p, k in ROUTES]

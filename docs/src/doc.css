@@ -1,5 +1,5 @@
 @page { size: A4; margin: 18mm 16mm 20mm 16mm;
-  @bottom-left { content: "OpenNCCM 2.10.0"; font: 8pt "Segoe UI", sans-serif; color: #8a94a3; }
+  @bottom-left { content: "OpenNCCM 2.45.0"; font: 8pt "Segoe UI", sans-serif; color: #8a94a3; }
   @bottom-right { content: "Página " counter(page) " de " counter(pages); font: 8pt "Segoe UI", sans-serif; color: #8a94a3; } }
 @page :first { margin: 0; @bottom-left { content: none } @bottom-right { content: none } }
 :root { --ink:#1d2733; --muted:#5b6675; --line:#dfe4ea; --accent:#1f6feb; --accent-d:#174fb0; --soft:#eef4fd;
@@ -53,3 +53,6 @@ tr { break-inside: avoid; }
 .kbd { font: 8.5pt Consolas, monospace; border: 1px solid #c9d1db; border-bottom-width: 2px; border-radius: 1mm; padding: 0 1.2mm; }
 .small { font-size: 8.8pt; color: var(--muted); }
 .keep { break-inside: avoid; }
+/* capítulos de OpenNCCM Pro: un párrafo que presenta una lista, un comando o una figura no queda solo al pie */
+.pro p:has(+ ul, + ol, + pre, + figure, + .two) { break-after: avoid; }
+.pro p + ul > li:first-child { break-before: avoid; }

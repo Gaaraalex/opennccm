@@ -8,15 +8,15 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 
 | Archivo | Líneas | Qué hace |
 |---|---:|---|
-| `app/main.py` | 3962 | Aplicación web OpenNCCM (FastAPI). |
-| `app/web.py` | 487 | Utilidades compartidas por las rutas web. |
+| `app/main.py` | 3980 | Aplicación web OpenNCCM (FastAPI). |
+| `app/web.py` | 490 | Utilidades compartidas por las rutas web. |
 | `app/auth.py` | 173 | Sesión, roles y alcance: |
 | `app/perms.py` | 169 | Permisos por usuario: |
 | `app/config.py` | 30 | Configuración del proceso por variables de entorno (NCM_*): |
 | `app/db.py` | 751 | Base de datos: |
 | `app/crypto.py` | 118 | Cifrado AES-256-GCM de credenciales y configuraciones almacenadas. |
 | `app/i18n.py` | 300 | Idiomas de la interfaz. |
-| `app/scheduler.py` | 263 | Tareas programadas (cron) y receptor syslog para detección de cambios en tiempo real. |
+| `app/scheduler.py` | 266 | Tareas programadas (cron) y receptor syslog para detección de cambios en tiempo real. |
 | `app/cli.py` | 226 | Utilidades de línea de comandos. |
 | `app/errors.py` | 36 | Motivo corto y traducido de un error de conexión o de respaldo (Panel «Necesita tu atención», chat del asistente). |
 | `app/metrics.py` | 73 | Rendimiento del servidor para el panel: |
@@ -24,6 +24,7 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 | `app/security.py` | 142 | Verificación en dos pasos (TOTP), certificado propio del sitio y páginas públicas de privacidad y licencias. |
 | `app/systime.py` | 93 | Fecha, hora y zona horaria del servidor (timedatectl). |
 | `app/updates.py` | 145 | Aviso de versiones nuevas y actualización desde la web. |
+| `app/uso.py` | 115 | Estadística de uso: una vez al día avisa a comunidad.opennccm.com que la instalación está en uso (número al azar y versión). |
 | `app/sysbackup.py` | 215 | Recuperación ante desastres: |
 | `app/__init__.py` | 2 | OpenNCCM: |
 
@@ -31,7 +32,7 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 
 | Archivo | Líneas | Qué hace |
 |---|---:|---|
-| `app/services.py` | 2012 | Lógica de negocio: |
+| `app/services.py` | 2074 | Lógica de negocio: |
 | `app/drivers.py` | 733 | Perfiles de fabricantes. |
 | `app/shell_drivers.py` | 136 | Drivers de Netmiko propios para sistemas basados en un shell Unix que Netmiko no trae. |
 | `app/legacy_ssh.py` | 83 | Compatibilidad SSH con equipos de red antiguos. |
@@ -91,11 +92,10 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 | `app/macfind.py` | 451 | Buscar una MAC o una IP: |
 | `app/ipam.py` | 157 | Inventario de IP y VLAN sacado de las configuraciones guardadas (no se ejecuta nada en los equipos). |
 | `app/mapreport.py` | 163 | Informes › Equipos del mapa: |
-| `app/netreports.py` | 383 | Informes › Puertos sin uso y Informes › Documento de la red. |
-| `app/netdoc.py` | 624 | Documento de la red (Informes › Documento de la red): |
+| `app/netreports.py` | 292 | Informes › Puertos sin uso. |
 | `app/reports.py` | 218 | Informes tabulares (CSV en pantalla, descarga y envío programado por correo) y analítica. |
 | `app/charts.py` | 248 | Gráficas SVG generadas en el servidor (sin librerías externas). |
-| `app/health.py` | 132 | Panel: |
+| `app/health.py` | 134 | Panel: |
 
 ## Firmware, CVE y ciclo de vida
 
@@ -104,7 +104,7 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 | `app/firmware.py` | 692 | Actualización remota de firmware: |
 | `app/fwupdates.py` | 748 | Actualizaciones de firmware de los equipos: |
 | `app/fwverify.py` | 170 | Versión instalada leída del propio equipo, sin respaldar, y comprobación después de actualizar el firmware. |
-| `app/eol.py` | 155 | Fin de venta / fin de soporte (EOL/EOS): |
+| `app/eol.py` | 175 | Fin de venta / fin de soporte (EOL/EOS): |
 
 ## Integraciones
 
@@ -130,13 +130,21 @@ Otras carpetas: `app/templates/` (páginas Jinja2), `app/static/` (CSS, JS, icon
 |---|---:|---|
 | `app/routes_ops.py` | 609 | Rutas: |
 | `app/mobile.py` | 347 | API para apps móviles (/api/mobile/…): |
-| `app/mobile_app.py` | 714 | La app móvil con servidor: |
+| `app/mobile_app.py` | 715 | La app móvil con servidor: |
 
 ## Utilidades
 
 | Archivo | Líneas | Qué hace |
 |---|---:|---|
 | `app/cronutil.py` | 164 | Programación de tareas: |
+
+## Otros
+
+| Archivo | Líneas | Qué hace |
+|---|---:|---|
+| `app/licencia.py` | 357 | Licencia de los módulos Pro: se activa y se comprueba siempre contra comunidad.opennccm.com, una vez al día. |
+| `app/pro.py` | 189 | Puertas de los módulos Pro en OpenNCCM gratis: |
+| `app/promod.py` | 221 | Cargador de los módulos Pro: |
 
 ## Dónde buscar
 

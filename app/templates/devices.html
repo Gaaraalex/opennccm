@@ -18,7 +18,7 @@
       <a href="/devices/import/zabbix">{{ icon('dl', 's') }}<span><b>{{ _('Importar desde Zabbix') }}</b><span class="desc">{{ _('Nombre, IP y descripción de sus hosts') }}</span></span></a>
     </div></span>{% endif %}
   {% if can_run %}<form class="inline" method="post" action="/backup/all" id="bk-form" data-confirm="{{ (_('¿Respaldar ahora todos los equipos del grupo?') if group else _('¿Respaldar ahora todos los equipos?')) }}"><input type="hidden" name="group" value="{{ group }}">
-    <button class="btn pri" id="bk-all">{{ icon('backup', 's') }}<span>{{ _('Respaldar todos') }}</span></button></form>{% endif %}
+    <button class="btn pri" id="bk-all" data-no-busy>{{ icon('backup', 's') }}<span>{{ _('Respaldar todos') }}</span></button></form>{% endif %}
 </div>
 <div id="bk-panel" hidden aria-live="polite"></div>
 {% if retired_hits %}<div class="banner info" role="status" style="margin-bottom:12px">{{ icon('info') }}<span class="grow">{{ _('1 equipo retirado coincide con la búsqueda.') if retired_hits == 1 else pl(retired_hits, '{0} equipo retirado coincide con la búsqueda.', '{0} equipos retirados coinciden con la búsqueda.') }}</span><a class="btn s" href="/retired?q={{ q|urlencode }}">{{ _('Ver en Retirados') }}</a></div>{% endif %}
@@ -102,9 +102,11 @@
   <button class="btn s" name="action" value="enable" title="{{ _('Vuelven a respaldarse y a aceptar consola, comandos y cambios') }}">{{ _('Activar') }}</button>
   <button class="btn s" name="action" value="disable" title="{{ _('Quedan aislados: OpenNCCM no se conecta con ellos (ni respaldos, ni consola, ni comandos, ni cambios)') }}">{{ _('Desactivar') }}</button>{% endif %}
   <button class="btn s sig" name="action" value="backup">Respaldar</button>
+  {{ pro_slot('devices_bulk', user=user) }}
   {% if can(user, 'devices') %}<button type="button" class="btn s dz" data-dialog="bulk-del-dlg">{{ icon('trash', 's') }}{{ _('Eliminar…') }}</button>{% endif %}
   <button type="button" class="btn s icon" id="bulk-clear" aria-label="Quitar selección">{{ icon('x', 's') }}</button>
 </form>
+{{ pro_slot('devices_end', user=user) }}
 {% if can(user, 'devices') %}
 {# eliminar los equipos elegidos (uno o varios): se escribe ELIMINAR para confirmar, como al eliminar uno desde su ficha #}
 <dialog class="dlg" id="bulk-del-dlg" aria-labelledby="bulk-del-t"><form method="post" action="/devices/bulk">

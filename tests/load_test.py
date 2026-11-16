@@ -48,7 +48,7 @@ BK_STEPS = {int(x) for x in A.backup_steps.split(",") if x.strip()} or set(STEPS
 
 WORK = tempfile.mkdtemp(prefix="ncm-carga-")
 os.environ.update({"NCM_DATA_DIR": os.path.join(WORK, "data"), "NCM_KEY_FILE": os.path.join(WORK, "data", "secret.key"),
-                   "NCM_SYSLOG_PORT": "5597", "NCM_FW_CHECK_NEW": "0", "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8"})
+                   "NCM_SYSLOG_PORT": "5597", "NCM_FW_CHECK_NEW": "0", "NCM_USO_URL": "http://127.0.0.1:9/api/uso/aviso", "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8"})
 os.makedirs(os.environ["NCM_DATA_DIR"])
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)

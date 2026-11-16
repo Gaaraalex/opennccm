@@ -166,6 +166,9 @@ def _delayed_backup(device_id: int):
 
 class SyslogHandler(socketserver.BaseRequestHandler):
     def handle(self):
+        from . import prohooks
+        if prohooks.rol() != "activo":  # alta disponibilidad: solo el servidor activo responde a los avisos
+            return
         data = self.request[0].decode("utf-8", errors="replace")
         if not CHANGE_PATTERNS.search(data):
             return
@@ -226,7 +229,8 @@ def purge_old_versions():
 
 
 def start():
-    scheduler.start()
+    from . import prohooks
+    scheduler.start(paused=prohooks.rol() != "activo")  # en espera (alta disponibilidad): las tareas no corren
     reload_jobs()
     scheduler.add_job(purge_old_versions, CronTrigger(hour=3, minute=30), id="purge", replace_existing=True)
     from . import console
@@ -244,6 +248,19 @@ def start():
     metrics.sample()
     scheduler.add_job(metrics.sample, IntervalTrigger(seconds=metrics.SAMPLE_SECONDS), id="metrics",
                       replace_existing=True)
+    from . import licencia  # licencia de los módulos Pro: actualizarla y los avisos de vencimiento, una vez al día
+    scheduler.add_job(licencia.daily, IntervalTrigger(hours=24), id="license-daily", replace_existing=True,
+                      next_run_time=datetime.now() + timedelta(minutes=5))
+    from . import pruebas  # pedido de prueba en revisión: preguntar el estado cada 30 minutos (no hace nada sin pedido)
+    scheduler.add_job(pruebas.poll_job, IntervalTrigger(minutes=30), id="trial-poll", replace_existing=True)
+    # estadística de uso (app/uso.py): una vez al día a la hora al azar de este servidor, y al arrancar si pasó un día
+    import random as _rnd
+
+    from . import uso
+    _h, _m = uso.hour()
+    scheduler.add_job(uso.daily, CronTrigger(hour=_h, minute=_m), id="usage-daily", replace_existing=True)
+    scheduler.add_job(uso.at_startup, id="usage-startup", replace_existing=True,
+                      next_run_time=datetime.now() + timedelta(seconds=_rnd.randint(60, 600)))
     scheduler.add_job(updates.check_latest, IntervalTrigger(hours=24), id="update-check", replace_existing=True,
                       next_run_time=datetime.now() + timedelta(minutes=2))
     # solicitudes de cambio aprobadas para una hora (ventana de mantenimiento)

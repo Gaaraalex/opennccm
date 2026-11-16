@@ -15,7 +15,7 @@
     <p class="sub">Paso a paso para instalar, configurar, asegurar, respaldar y actualizar OpenNCCM, el sistema de gestión
     de configuración, cambios y cumplimiento de red.</p>
   </div>
-  <div class="meta">Versión del software: 2.37.0<br>Sistemas soportados: Ubuntu Server 22.04 LTS y 24.04 LTS (64 bits)<br>
+  <div class="meta">Versión del software: 2.45.0<br>Sistemas soportados: Ubuntu Server 22.04 LTS y 24.04 LTS (64 bits)<br>
   Octubre de 2026</div>
 </div>
 
@@ -39,6 +39,7 @@
   <li>PostgreSQL para instalaciones grandes</li>
   <li>Verificación y solución de problemas</li>
   <li>Desinstalar</li>
+  <li>OpenNCCM Pro: recolector de sede y servidor en espera</li>
   <li>Referencia de rutas, servicios y comandos</li>
 </ol></div>
 
@@ -223,6 +224,23 @@ guardan en <code>/root/opennccm-credenciales.txt</code> (bórrelo después de ca
 <figure><img src="img/tui-15-completada.png" style="max-width:70%"><figcaption>Instalación completada.</figcaption></figure>
 <div class="warn"><b>Si algo falla</b>El asistente muestra en qué paso se detuvo y las últimas líneas del registro. Corrija la
 causa y vuelva a ejecutar el mismo comando.</div>
+<h2 id="estadistica-uso">Estadística de uso</h2>
+<p>Una vez al día, cada servidor OpenNCCM avisa a <b>comunidad.opennccm.com</b> que está en uso. Así sabemos cuánta gente
+usa OpenNCCM y en qué versión: esa información nos ayuda a seguir mejorando el sistema. Viene activado y no tiene opción
+para apagarlo, por eso se informa aquí, al terminar la instalación, en Administración › Sistema y en «Privacidad y
+licencias».</p>
+<p>Se envía esto, y nada más:</p>
+<pre>{ "instalacion": "u_4c1e9a7b20d34f…", "version": "2.45.0" }</pre>
+<ul>
+  <li><b>instalacion</b>: un número al azar creado el primer día y guardado en la base. Es propio de la estadística:
+  no es el número de la licencia Pro ni identifica a la organización.</li>
+  <li><b>version</b>: la versión de OpenNCCM instalada.</li>
+</ul>
+<p><b>Nunca</b> se envían configuraciones, equipos, direcciones IP de la red, usuarios, contraseñas ni nombres, y la web no
+guarda la dirección IP del servidor. El aviso sale a una hora al azar propia de cada servidor (y al arrancar, si pasó más de
+un día). Si el servidor no tiene salida a internet o el cortafuegos lo bloquea, no pasa nada: no se muestra ningún error,
+nada deja de funcionar y se vuelve a intentar al día siguiente. En <b>Administración › Sistema › Estadística de uso</b> se
+ve la fecha del último aviso y, en «Ver exactamente qué se envía», el contenido real de este servidor.</p>
 <h2>Comprobar que el servicio está activo</h2>
 <div class="term" data-title="Servidor Ubuntu"><span class="p">$</span> opennccm status
 <span class="o">OpenNCCM 1.2.0
@@ -580,8 +598,77 @@ registrados después de actualizar (la base descartada se conserva con el sufijo
 <p>Pide escribir DESINSTALAR para confirmar.</p>
 </section>
 
+<section class="chapter pro">
+<h1>18. OpenNCCM Pro: recolector de sede y servidor en espera</h1>
+<p>Solo con los módulos de pago <b>Recolectores por sede</b> y <b>Alta disponibilidad</b> (Administración › Licencia y módulos;
+planes y precios: comunidad.opennccm.com/pro). En los dos casos, el comando completo, con la dirección y la clave de alta, lo da
+el servidor principal: no hay que escribir nada a mano.</p>
+
+<h2>Recolector de una sede en Linux</h2>
+<p>En el servidor principal, <b>Administración › Recolectores › Agregar sede</b>. La ventana muestra la clave de alta (vale 7 días
+y un solo uso) y el comando. En la máquina de la sede (Ubuntu 22.04 o 24.04, con sudo) péguelo:</p>
+<pre>curl -fsSL https://raw.githubusercontent.com/Gaaraalex/opennccm/main/install.sh | sudo bash -s -- \
+  --recolector https://SERVIDOR-PRINCIPAL --clave ra_…</pre>
+<p>Instala OpenNCCM en <b>modo recolector</b>: sin interfaz web, sin nginx y sin abrir puertos, solo el servicio. Antes de
+arrancar, baja del servidor principal el módulo firmado, comprueba la firma, guarda la huella del certificado de esa dirección
+(solo vuelve a conectarse a ella) y se da de alta. La ventana del servidor principal cambia sola a «Conectado».</p>
+<ul>
+  <li><code>sudo opennccm recolector estado</code>: su sede, el servidor principal y la cola de lo que falta mandar.</li>
+  <li><code>opennccm status</code> dice que es un recolector; <code>sudo opennccm update</code> lo actualiza como a cualquier
+  OpenNCCM.</li>
+  <li>Si se revoca desde el servidor principal, el servicio se detiene y no vuelve a arrancar.</li>
+  <li>Para volver a darlo de alta (por ejemplo, con una clave nueva): <code>sudo opennccm recolector alta URL CLAVE</code>, o
+  vuelva a correr el comando de instalación (se conservan los datos).</li>
+</ul>
+
+<h2>Recolector de una sede en Windows</h2>
+<p>En la misma ventana, la pestaña <b>Windows</b> muestra el comando de PowerShell. Córralo <b>como administrador</b> en la máquina
+de la sede (probado en Windows 11 y Windows Server 2022):</p>
+<pre>$f="$env:TEMP\opennccm-recolector.exe"; Invoke-WebRequest -UseBasicParsing "https://SERVIDOR-PRINCIPAL/recolector/instalador.exe" -OutFile $f;
+if ((Get-FileHash $f -Algorithm SHA256).Hash -ne "SHA-256 QUE MUESTRA LA VENTANA") { throw "El instalador no coincide: no lo ejecutes." };
+&amp; $f /central=https://SERVIDOR-PRINCIPAL /clave=ra_…</pre>
+<figure><img src="img/44-recolector-windows.png" style="max-height:120mm"><figcaption>La pestaña Windows de la ventana de alta, con el comando y su SHA-256.</figcaption></figure>
+<p>El comando baja el instalador del servidor principal y <b>comprueba su SHA-256</b> antes de ejecutarlo: si no coincide con el que
+muestra la ventana, se detiene. El instalador (<code>opennccm-recolector.exe</code>) se publica con cada versión de OpenNCCM y lo
+baja el servidor principal solo.</p>
+<p><b>Aviso de Windows:</b> el instalador no tiene firma de un certificado comercial, así que Windows puede avisar que el editor es
+desconocido o que «Windows protegió su PC». Compruebe que el SHA-256 coincide con el de la ventana, elija <b>Más información ›
+Ejecutar de todas formas</b> y después <b>Sí</b>.</p>
+<p>Queda instalado en <code>C:\Program Files\OpenNCCM Recolector</code>, con sus datos en
+<code>C:\ProgramData\OpenNCCM Recolector</code> (solo SYSTEM y Administradores). Corre como la tarea programada <b>OpenNCCM
+Recolector</b>, como SYSTEM: arranca con Windows y, si el proceso se detiene, vuelve a arrancar en menos de un minuto.</p>
+<ul>
+  <li><code>"C:\Program Files\OpenNCCM Recolector\opennccm-recolector.exe" estado</code>: su sede y la cola.</li>
+  <li>Si se revoca, se detiene y la tarea queda deshabilitada.</li>
+  <li><code>opennccm-recolector.exe desinstalar</code> quita la tarea y el programa; con <code>/todo</code> borra también los
+  datos.</li>
+</ul>
+
+<h2>Servidor en espera (Alta disponibilidad)</h2>
+<p>En el servidor principal, <b>Administración › Alta disponibilidad › Agregar servidor en espera</b>. En
+<b>Dirección de este servidor desde el otro</b> ponga la dirección con la que el segundo servidor llega al principal. La ventana
+muestra la clave de alta y el comando. En un Ubuntu 22.04 o 24.04 <b>recién instalado</b>:</p>
+<pre>curl -fsSL https://raw.githubusercontent.com/Gaaraalex/opennccm/main/install.sh | sudo bash -s -- \
+  --espera https://SERVIDOR-PRINCIPAL --clave ha_…</pre>
+<figure><img src="img/45-ha-alta.png" style="max-height:120mm"><figcaption>La ventana de alta del servidor en espera, en el servidor principal.</figcaption></figure>
+<p>Instala OpenNCCM completo, con su web y HTTPS, pero no crea un administrador: antes de arrancar copia todo del principal
+(usuarios, equipos, configuraciones y la clave de cifrado), activa su propia licencia con la misma clave y queda <b>en espera</b>.
+Si el principal usa PostgreSQL, instálelo también con <code>--db postgresql</code>. Use las mismas contraseñas del principal para
+entrar.</p>
+<ul>
+  <li>Al conectarse, la ventana del principal muestra la IP del servidor en espera: agréguela a las listas de acceso de sus
+  equipos.</li>
+  <li>Abra en el cortafuegos el HTTPS (443) entre los dos servidores en las dos direcciones: cada uno le habla al otro cada 30
+  segundos.</li>
+  <li>Opcional: <code>/etc/opennccm/al-pasar-a-activo.sh</code> (de root, sin escritura para otros) se ejecuta como root cuando
+  ese servidor pasa a activo, por ejemplo para mover una IP virtual. Créelo en los dos servidores.</li>
+  <li><code>sudo opennccm update</code> actualiza cada servidor como siempre. La pantalla avisa si los dos quedan con versiones
+  distintas.</li>
+</ul>
+</section>
+
 <section class="chapter">
-<h1>18. Referencia</h1>
+<h1>19. Referencia</h1>
 <h2>Rutas</h2>
 <table>
   <tr><th>Ruta</th><th>Contenido</th></tr>

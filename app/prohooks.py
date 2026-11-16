@@ -1,0 +1,90 @@
+"""Puntos donde un módulo Pro se engancha en el núcleo sin cambiar su código (los deja register() del módulo).
+
+Sin módulos, todo queda en None y OpenNCCM funciona como siempre.
+
+* remote_backup(device_id, trigger, username) -> str | None: «Recolectores por sede». Si el equipo se respalda desde
+  el recolector de una sede, el módulo le pasa el pedido y devuelve "queued"; si no, None y el núcleo se conecta
+  como siempre. Lo que lee el recolector vuelve por services.store_remote() y se guarda igual que un respaldo de aquí.
+* remote_site(device_id) -> str | None: el nombre de la sede si el equipo se respalda desde un recolector (para no
+  intentar desde aquí lo que solo se puede hacer con el equipo al alcance, como la reversión automática).
+* slots: ranuras de las pantallas del núcleo donde un módulo dibuja lo suyo ({{ pro_slot('nombre', …) }} en la
+  plantilla). Cada una es una lista de funciones (**contexto) -> HTML. Ranuras: «device_info» (la ficha del equipo,
+  dentro de su lista de datos), «devices_bulk» y «devices_end» (la barra de selección de Dispositivos y después de ella)
+  y «dashboard_kpis» (los indicadores del Panel).
+* providers: datos que los módulos suman a cálculos del núcleo. Cada uno es una lista de funciones (**contexto) -> dict.
+  «attention» (health.summary, el Panel): {"chips": [(clase, n, texto, enlace)], "queue": [elementos de la bandeja],
+  "titular": texto, "prioridad": n}. «titular» solo cuando hay algo urgente: reemplaza la frase de arriba del Panel («Tu
+  red está bien»), nunca la puntuación. Con varios, gana el de «prioridad» mayor (más grave):
+  lo que necesita atención por culpa del módulo (por ejemplo, sedes que no reportan).
+* rol() / set_rol(): «Alta disponibilidad». "activo" (siempre, sin el módulo), "espera" (otro servidor es el activo) o
+  "aislado" (era el activo y perdió al otro y al testigo). Si no es "activo", el núcleo pausa las tareas programadas,
+  ignora el syslog y la web solo atiende standby_allow (prefijos de ruta del módulo, como su API) y muestra
+  standby_page(request) en todo lo demás."""
+from __future__ import annotations
+
+from typing import Callable
+
+remote_backup: Callable[[int, str, str | None], str | None] | None = None
+remote_site: Callable[[int], str | None] | None = None
+slots: dict[str, list[Callable[..., str]]] = {}
+providers: dict[str, list[Callable[..., dict]]] = {}
+ROLES = ("activo", "espera", "aislado")
+_rol = "activo"
+standby_allow: list[str] = []
+standby_page: Callable | None = None
+
+
+def rol() -> str:
+    return _rol
+
+
+def set_rol(nuevo: str) -> None:
+    """Lo llama el módulo de alta disponibilidad: pausa o reanuda lo que solo hace el servidor activo."""
+    global _rol
+    if nuevo not in ROLES:
+        raise ValueError(nuevo)
+    if nuevo == _rol:
+        return
+    _rol = nuevo
+    import logging
+    logging.getLogger("opennccm").warning("Alta disponibilidad: este servidor pasa a «%s»", nuevo)
+    try:
+        from .scheduler import scheduler
+        if scheduler.running:
+            scheduler.resume() if nuevo == "activo" else scheduler.pause()
+    except Exception:  # noqa: BLE001
+        logging.getLogger("opennccm").exception("Alta disponibilidad: no se pudieron pausar o reanudar las tareas")
+
+
+def collect(name: str, **ctx) -> list[dict]:
+    """Lo que los módulos suman en ese punto (vacío si no hay módulos o si uno falla)."""
+    out = []
+    for fn in providers.get(name, []):
+        try:
+            v = fn(**ctx)
+            if isinstance(v, dict):
+                out.append(v)
+        except Exception:  # noqa: BLE001
+            import logging
+            logging.getLogger("opennccm").exception("Datos %s de un módulo Pro", name)
+    return out
+
+
+def render_slot(name: str, **ctx):
+    """Lo que los módulos dibujan en esa ranura (nada si no hay módulos o si uno falla)."""
+    from markupsafe import Markup
+    out = []
+    for fn in slots.get(name, []):
+        try:
+            out.append(str(fn(**ctx) or ""))
+        except Exception:  # noqa: BLE001  (un módulo que falla nunca rompe la pantalla)
+            import logging
+            logging.getLogger("opennccm").exception("Ranura %s de un módulo Pro", name)
+    return Markup("".join(out))
+
+
+def site_of(device_id: int) -> str | None:
+    try:
+        return remote_site(device_id) if remote_site is not None else None
+    except Exception:  # noqa: BLE001  (un módulo que falla nunca tumba el respaldo)
+        return None

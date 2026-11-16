@@ -684,3 +684,42 @@ svg.viz{font-family:var(--font-sans)}svg.viz text.value,svg.viz .axis text{font-
 .zbx-t tr.zbx-hit td:first-child{box-shadow:inset 3px 0 0 var(--crit)}
 .tl .zbx-tag{cursor:help}.tl .zbx-tag.major{background:var(--major-soft);color:var(--major)}.tl .zbx-tag.warn{background:var(--warn-soft);color:var(--warn)}
 .cap-ref tr.cap-near td{background:var(--brand-soft)}.cap-adv .qs{white-space:normal}
+
+/* módulos Pro (app/pro.py, templates/_pro.html): etiqueta, oferta sin licencia y Licencia y módulos */
+.protag{display:inline-flex;align-items:center;height:17px;padding:0 6px;border-radius:5px;background:var(--brand-soft);color:var(--brand);font:800 9.5px var(--f-sans);letter-spacing:.07em;vertical-align:middle}
+.pro-offer{display:flex;gap:28px;padding:24px 26px;flex-wrap:wrap}.pro-of-l{flex:1;min-width:260px}.pro-of-l h2{margin:8px 0 0;font-size:24px}.pro-of-l p{margin:8px 0}
+.pro-of-r{flex:0 1 560px;min-width:0;display:flex;justify-content:center;border-radius:12px;background:var(--surface-2);padding:16px;overflow:hidden;max-height:460px}
+.pro-inc{list-style:none;padding:0;margin:12px 0;display:flex;flex-direction:column;gap:8px;font-size:13.5px}.pro-inc li{display:flex;gap:9px}.pro-tk{color:var(--ok);font-weight:800}
+.pro-price{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-top:10px}.pro-price b{font-size:24px}
+.pro-paper{position:relative;width:100%;max-width:540px;background:#fff;color:#1d2433;border-radius:4px;box-shadow:0 8px 30px rgba(0,0,0,.25);padding:22px 24px;box-sizing:border-box;overflow:hidden;font-size:11px}
+.pro-paper .pp-h{display:flex;align-items:center;gap:12px;padding-bottom:10px;border-bottom:3px solid #5b62e8}.pro-paper .pp-h b{display:block;font-size:15px;color:#0b1220}.pro-paper .pp-h span{color:#6b7385}
+.pro-paper .pp-logo{width:40px;height:40px;border-radius:8px;border:1.5px dashed #9aa3b5;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:800;font-size:8.5px;color:#7b8396;flex:none}
+.pro-paper .pp-org{text-align:right;font-weight:700;color:#1d2433!important}.pro-paper .pp-org i{display:block;font-style:normal;font-weight:500;color:#6b7385}
+.pro-paper .pp-k{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}.pro-paper .pk{padding:8px 10px;border-radius:8px;background:#f3f5f9;display:flex;flex-direction:column}.pro-paper .pk span{font-size:9.5px;color:#5b6475;font-weight:600}.pro-paper .pk b{font-size:18px;color:#0b1220}.pro-paper .pk i{font-style:normal;font-size:9.5px;font-weight:700}.pro-paper .up{color:#15803d}.pro-paper .dn{color:#c8102e}
+.pro-paper h5{margin:8px 0 4px;font-size:11px;color:#0b1220}.pro-paper .pp-t{display:flex;flex-direction:column;gap:4px}.pro-paper .pp-t div{padding:5px 8px;border-left:3px solid #c8102e;background:#fdf1f2}.pro-paper .pp-t b{color:#c8102e}
+.pro-paper .pp-f{display:flex;justify-content:space-between;margin-top:12px;padding-top:6px;border-top:1px solid #e5e8ef;font-size:9px;color:#6b7385}
+.pro-wm{position:absolute;top:44%;left:50%;transform:translate(-50%,-50%) rotate(-24deg);font-weight:800;font-size:68px;color:rgba(91,98,232,.14);letter-spacing:.1em;pointer-events:none}
+.lic-key{min-height:38px;padding:0 14px;letter-spacing:.04em}
+.lic-mr{display:grid;grid-template-columns:1.7fr auto 1.2fr auto;gap:14px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}.lic-mr:first-child{border-top:0}.lic-mr>div{display:flex;flex-direction:column;gap:2px}.lic-nobtn{min-width:75px}
+.banner.ok{background:var(--ok-soft);border-color:color-mix(in srgb,var(--ok) 30%,transparent)}.banner.ok>.ico{color:var(--ok)}
+.banner.mute{background:var(--surface-2)}.banner.mute>.ico{color:var(--muted)}
+.lic-bx{align-items:flex-start}.lic-bx>.ico{margin-top:2px}.lic-bx b{display:block;margin-bottom:2px}.lic-bx .sm{line-height:1.5}
+.lic-mr>.lic-btns{flex-direction:row;align-items:center;gap:8px;flex-wrap:nowrap;justify-content:flex-end}
+.lnk{display:inline;min-height:0;height:auto;line-height:inherit;border:0;background:none;padding:0;font:inherit;color:var(--brand);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.lic-tm{display:flex;flex-direction:column;gap:6px}.lic-tmo{display:flex;gap:10px;align-items:flex-start;margin:0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer}
+.lic-tmo>span{display:flex;flex-direction:column;gap:2px}.lic-tmo input{margin-top:3px}.lic-tmo.off{opacity:.6;cursor:default}
+.lic-tmo:has(input:checked){border-color:var(--brand);background:color-mix(in srgb,var(--brand) 8%,transparent)}
+@media (max-width:700px){.lic-bx{flex-wrap:wrap}.lic-bx>form,.lic-bx>a{margin-left:32px}.lic-btns{justify-content:flex-start}}
+@media (max-width:700px){.lic-mr{grid-template-columns:1fr auto}.lic-nobtn{display:none}.lic-mr>.muted{grid-column:1/-1}.pro-offer{padding:18px}.pro-of-r{max-height:300px;padding:10px}.pro-paper{zoom:.6;width:540px;max-width:none}}
+
+/* pestañas de Administración que no caben (Pro, revisión de Diseño UX) */
+.tabsx{position:relative;display:flex;align-items:stretch}.tabsx>.tabs{flex:1;min-width:0;overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap}.tabsx>.tabs::-webkit-scrollbar{display:none}
+.tabsx.fl>.tabs{-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 40px);mask-image:linear-gradient(90deg,transparent 0,#000 40px)}
+.tabsx.fr>.tabs{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent 100%);mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent 100%)}
+.tabsx.fl.fr>.tabs{-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 40px,#000 calc(100% - 40px),transparent 100%);mask-image:linear-gradient(90deg,transparent 0,#000 40px,#000 calc(100% - 40px),transparent 100%)}
+.tabsx-b{flex:none;width:30px;border:0;background:none;color:var(--muted);font:700 20px var(--f-sans);cursor:pointer;border-bottom:1px solid var(--line);padding:0}.tabsx-b:hover{color:var(--ink)}
+@media (max-width:700px){.tabsx-b{display:none}}
+.pro-art{width:100%;max-width:420px;height:auto}.pro-art .a-main{fill:var(--brand-soft);stroke:var(--brand);stroke-width:2}.pro-art .a-box{fill:var(--surface);stroke:var(--line-strong);stroke-width:1.5}
+.pro-art .a-ln{fill:none;stroke:var(--brand);stroke-width:2;stroke-dasharray:6 5}.pro-art .a-tag{fill:var(--surface);stroke:var(--brand);stroke-width:1.5}
+.pro-art .a-t{fill:var(--ink);font:700 15px var(--f-sans)}.pro-art .a-s{fill:var(--muted);font:500 12px var(--f-sans)}.pro-art .a-tt{fill:var(--brand);font:700 12px var(--f-sans)}
+.pro-paper .pp-logo{line-height:1.1;font-size:8px}

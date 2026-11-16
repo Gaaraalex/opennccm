@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light">
+<title>OpenNCCM Pro — Manual</title>
+<link rel="stylesheet" href="doc.css">
+</head>
+<body>
+
+<div class="cover">
+  <div class="brand">Open<span>NCCM</span></div>
+  <div>
+    <h1>OpenNCCM Pro — Manual</h1>
+    <p class="sub">License and modules, free trial, Site collectors and High availability: what they do, how to install them
+    and how to use them.</p>
+  </div>
+  <div class="meta">Software version: 2.45.0<br>For network administrators<br>November 2026</div>
+</div>
+
+<section class="chapter">
+<h1>Contents</h1>
+<div class="toc"><ol>
+  <li>OpenNCCM Pro</li>
+  <li>License and modules</li>
+  <li>Free trial</li>
+  <li>Site collectors</li>
+  <li>High availability</li>
+  <li>Installing a site collector and a standby server</li>
+</ol></div>
+</section>
+
+<section class="chapter pro">
+<h1>1. OpenNCCM Pro</h1>
+<p>OpenNCCM is free and open source. <b>OpenNCCM Pro</b> is three optional paid modules for those who need them:
+<b>Professional reports</b>, <b>Site collectors</b> and <b>High availability</b>. Everything else stays the same, with no limits
+on devices or time, except the <b>Network document</b>, which moves to Professional reports (documents you already generated can
+still be viewed and downloaded in <b>Reports › My documents</b>). Plans and prices: <b>comunidad.opennccm.com/pro</b>.</p>
+<p>This manual covers the Pro modules. The rest of OpenNCCM is described in the Spanish <i>Manual de funciones</i> and
+<i>Guía de instalación</i>; the application itself is fully available in English (My account › Language).</p>
+</section>
+
+<section class="chapter pro">
+<h1>2. License and modules</h1>
+<p>Everything is managed in <b>Administration › License and modules</b> (administrators only). The page shows the three modules
+with their state and, if the license includes them, until when they're active and their limits (devices, sites or pairs).</p>
+<figure><img src="img/en-38-license.png" style="max-height:150mm"><figcaption>Administration › License and modules.</figcaption></figure>
+<p><b>Activate:</b> enter the key you got from comunidad.opennccm.com (format <code>OPNC-XXXX-XXXX-XXXX-XXXX</code>) and click
+<b>Activate</b>. OpenNCCM requests the license signed for this server, stores it and downloads the modules it includes. The key is
+stored encrypted.</p>
+<p><b>Internet is required.</b> On activation and once a day, the server checks the license with comunidad.opennccm.com. Only the
+key, this installation's ID, the fingerprint and the server name are sent (the fingerprint is a code that doesn't identify your
+network); never configurations or device data. If the server can't check it for more than 7 days, the modules are <b>paused</b>
+until the connection is back. Nothing is deleted.</p>
+<p><b>When a module expires:</b></p>
+<ul>
+  <li>With a purchased license, the module keeps working for <b>15 days of grace</b> and the page says so. With <b>Notify me 30 days
+  before a module expires</b>, a bell notification also arrives a month before.</li>
+  <li>After the grace period, the module is <b>paused</b>. Nothing is deleted: what was generated can still be viewed, and it comes
+  back as it was when you renew. For example, reports already generated can still be downloaded; only scheduled deliveries and
+  creating new ones are paused.</li>
+  <li>A free trial has no grace period: the module is paused the day it expires.</li>
+</ul>
+<p><b>Moving to another server or releasing an installation:</b> each license is tied to one installation (a High availability pair
+counts as two, see below). To use it on another server, release the previous installation in <b>My account</b> at
+comunidad.opennccm.com and activate the key on the new server. If the license is used on a copy of the same server, the website
+detects it and pauses the modules on the copy. The page explains what to do.</p>
+<p><b>Change key</b> replaces this server's key with another one (for example, when moving from a trial to a purchase).
+<b>Refresh</b> fetches the newest license right away, without waiting for the daily check.</p>
+</section>
+
+<section class="chapter pro">
+<h1>3. Free trial</h1>
+<p>In <b>License and modules</b>, <b>Try for free</b> requests a trial of one or more modules. You enter your email, your
+organization and what you want it for. Each server can try each module <b>only once</b>. The request is reviewed by hand at
+comunidad.opennccm.com: meanwhile the page says “Trial request under review”, and the result arrives by email and on the same page.
+When it's approved, <b>Activate trial</b> activates it with one click. If the server already has a key, the trial is added to that
+license.</p>
+<figure><img src="img/en-39-trial.png" style="max-height:120mm"><figcaption>Requesting a free trial.</figcaption></figure>
+</section>
+
+<section class="chapter pro">
+<h1>4. Site collectors</h1>
+<p>For sites whose devices the server can't reach (another network, a branch behind its own internet connection). A
+<b>collector</b> installed at the site backs up the devices on its network with the same code as the server and sends the copies
+to the central server, which stores them just like its own backups: versions, comparison, compliance, alerts. The connection is
+always opened by the site, over HTTPS: no port needs to be opened at the site.</p>
+<p><b>Adding a site:</b> <b>Administration › Collectors › Add site</b>. Choose which devices it backs up:</p>
+<ul>
+  <li><b>By location:</b> all devices with that location, including those added later. A location is backed up by only one
+  site.</li>
+  <li><b>By hand:</b> the devices you choose. A device assigned by hand takes priority over its location. They can also be assigned
+  from <b>Devices</b>: select the devices and use <b>Assign to a site…</b>.</li>
+</ul>
+<p>Once it's created, the <b>enrollment key</b> is shown (only once; valid for 7 days and a single use) together with the command
+to install the collector on Linux or Windows (see chapter 6). In <b>This server's address from the site</b>, enter the address the
+site uses to reach the server: the command is built with it, and an amber warning says if it's http, localhost or a private IP
+that may not be reachable. The collector saves the certificate fingerprint of that address and only connects back to it. The
+window turns to “Connected” by itself when the collector enrolls.</p>
+<div class="two">
+<figure><img src="img/en-40-collector-enroll.png"><figcaption>The enrollment window with the key and the command.</figcaption></figure>
+<figure><img src="img/en-41-collectors.png"><figcaption>The list of sites with their state.</figcaption></figure>
+</div>
+<p><b>State of each site:</b> Online, Not reporting (amber; red at 4 times the limit), Never connected, Paused or Revoked. The alert
+limit is set in <b>Alerts</b> (5 to 60 minutes). Alerts go to the bell and by email: when a site stops reporting and when it's back,
+when its queue is almost full and when its collector runs another version. Sites not reporting also count in the Dashboard's
+“things that need your attention”.</p>
+<p><b>If the link to the site goes down</b>, nothing is lost: the collector keeps what it reads for up to 30 days or 2 GB and sends
+it when the connection is back.</p>
+<p><b>What isn't done from the central server</b> for a device at a site (because it can't reach it): console, sending commands and
+configlets, firmware and automatic rollback. The device page says so. It's backed up from the site.</p>
+<p><b>Pause, revoke and remove:</b> on the site's page. <b>Pause</b> stops requesting backups. <b>Revoke</b> invalidates the
+collector immediately: it stops and never connects again. <b>Remove site</b> (typing its name) gives its devices back to the
+central server. None of these actions deletes backups. <b>New enrollment key</b> is used to reinstall the collector.</p>
+<p><b>With High availability</b>, collectors receive both addresses of the pair and always talk to the active server.</p>
+</section>
+
+<section class="chapter pro">
+<h1>5. High availability</h1>
+<p>Two servers: an <b>active</b> one, which backs up, receives syslog, runs the scheduled tasks and serves the web, and a
+<b>standby</b> one, which copies the active server's data every minute and takes over if the active one goes down. It works with
+the default database (SQLite) and with PostgreSQL; both servers must use the same one.</p>
+<figure><img src="img/en-42-ha.png" style="max-height:150mm"><figcaption>Administration › High availability with the pair protected.</figcaption></figure>
+<p><b>Setting up the pair:</b> on the active server, <b>Administration › High availability › Add standby server</b>. The enrollment
+key (shown only once, 7 days) and the command to install the second server are shown (see chapter 6). The second server must be a
+fresh Ubuntu 22.04 or 24.04 install. When it installs, it copies everything from the active server (users, devices,
+configurations) and activates its own license with the same key: a pair counts as two installations of that license. The active
+server registers it at comunidad.opennccm.com as its pair; if that registration fails, the page says so and offers
+<b>Retry</b>.</p>
+<p>When it connects, the enrollment window shows the <b>standby server's IP</b> to copy: add it to your devices' access lists. If a
+device only accepts SSH from the active server's IP, the other one won't be able to back it up when its turn comes.</p>
+<p><b>The page</b> shows both servers with their role, version, last heartbeat, replication (“Up to date · 38 s behind”) and free
+disk, and a strip: <b>Protected</b>, <b>Unprotected</b> (the other one isn't responding), <b>Failed over</b> (until someone clicks
+<b>Reviewed</b> in the history) or <b>Isolated</b>. The same shows up on the Dashboard.</p>
+<p><b>Witness:</b> an address both servers can always reach, but that isn't on either of them (by default, the default gateway).
+The standby server only takes over if it can't reach the active one <b>but can</b> reach the witness: that way it doesn't fail over
+when it's the isolated one. If 127.0.0.1, localhost or one of the two servers' addresses is entered, the page warns that it can't
+be the witness.</p>
+<p><b>Automatic failover:</b> if the active server stops responding for 90 seconds and the witness responds, the standby server
+becomes active, notifies the bell and by email, and stays “Failed over” until it's reviewed. It requires a valid license: without
+it only automatic failover is turned off; replication and manual switchover keep working.</p>
+<p><b>Manual switchover:</b> <b>Switch over to …</b> (master administrator only, typing the other server's name). The active
+server stops backing up, the other one copies the latest data and takes over. Nothing is lost.</p>
+<p><b>Force:</b> if the active server isn't responding and the standby server didn't take over by itself (for example, because it
+can't reach the witness), a master administrator can sign in to the standby server and use <b>Force on …</b>, typing its name and
+ticking that they understand up to 60 seconds of changes may be lost.</p>
+<p><b>Coming back is manual:</b> the server that goes down never becomes active again by itself. When it comes back, it sees the
+other one took over, stays on standby and copies what's new. To make it the active one again, use <b>Switch over</b> whenever it
+suits you.</p>
+<p><b>The standby server</b> doesn't serve the normal web: whoever goes to it sees “This server is on standby” with a link to the
+active one. Administrators can sign in to High availability to check the pair or force the switch.</p>
+<figure><img src="img/en-43-ha-standby.png" style="width:95mm"><figcaption>The page of a standby server.</figcaption></figure>
+<p><b>When becoming active (optional):</b> to move a virtual IP or another action, create on each server, as root, the file
+<code>/etc/opennccm/al-pasar-a-activo.sh</code>. It must be owned by root and no one else can modify it. It runs as root when that
+server becomes active. For security it isn't written from the web.</p>
+<p><b>What isn't copied:</b> console recordings, the Git export repository and recovery backups. Each server also has its own
+license.</p>
+<p><b>Remove the pair</b> (typing the other server's name): this server stays alone and active and deregisters the pair at
+comunidad.opennccm.com, so the other server loses the modules at its next check. No data is deleted.</p>
+</section>
+
+<section class="chapter pro">
+<h1>6. Installing a site collector and a standby server</h1>
+<p>In both cases, the full command, with the address and the enrollment key, is given by the main server: nothing has to be typed
+by hand.</p>
+<h2>Site collector on Linux</h2>
+<p>On the main server, <b>Administration › Collectors › Add site</b>. The window shows the enrollment key (valid for 7 days and a
+single use) and the command. On the site's machine (Ubuntu 22.04 or 24.04, with sudo) paste it:</p>
+<pre>curl -fsSL https://raw.githubusercontent.com/Gaaraalex/opennccm/main/install.sh | sudo bash -s -- \
+  --recolector https://MAIN-SERVER --clave ra_…</pre>
+<p>It installs OpenNCCM in <b>collector mode</b>: no web interface, no nginx and no open ports, just the service. Before starting,
+it downloads the signed module from the main server, checks the signature, saves the certificate fingerprint of that address (it
+only connects back to it) and enrolls. The main server's window turns to “Connected” by itself.</p>
+<ul>
+  <li><code>sudo opennccm recolector estado</code>: its site, the main server and the queue of what's left to send.</li>
+  <li><code>opennccm status</code> says it's a collector; <code>sudo opennccm update</code> updates it like any OpenNCCM.</li>
+  <li>If it's revoked from the main server, the service stops and doesn't start again.</li>
+  <li>To enroll it again (for example, with a new key): <code>sudo opennccm recolector alta URL KEY</code>, or run the install
+  command again (data is kept).</li>
+</ul>
+<h2>Site collector on Windows</h2>
+<p>In the same window, the <b>Windows</b> tab shows the PowerShell command. Run it <b>as administrator</b> on the site's machine
+(tested on Windows 11 and Windows Server 2022):</p>
+<pre>$f="$env:TEMP\opennccm-recolector.exe"; Invoke-WebRequest -UseBasicParsing "https://MAIN-SERVER/recolector/instalador.exe" -OutFile $f;
+if ((Get-FileHash $f -Algorithm SHA256).Hash -ne "SHA-256 SHOWN IN THE WINDOW") { throw "The installer doesn't match: don't run it." };
+&amp; $f /central=https://MAIN-SERVER /clave=ra_…</pre>
+<figure><img src="img/en-44-collector-windows.png" style="max-height:120mm"><figcaption>The Windows tab of the enrollment window, with the command and its SHA-256.</figcaption></figure>
+<p>The command downloads the installer from the main server and <b>checks its SHA-256</b> before running it: if it doesn't match the
+one shown in the window, it stops. The installer (<code>opennccm-recolector.exe</code>) is published with each OpenNCCM version and
+the main server downloads it by itself.</p>
+<p><b>Windows warning:</b> the installer isn't signed with a commercial certificate, so Windows may warn that the publisher is
+unknown or that “Windows protected your PC”. Check that the SHA-256 matches the one in the window, choose <b>More info › Run
+anyway</b> and then <b>Yes</b>.</p>
+<p>It's installed in <code>C:\Program Files\OpenNCCM Recolector</code>, with its data in
+<code>C:\ProgramData\OpenNCCM Recolector</code> (SYSTEM and Administrators only). It runs as the scheduled task <b>OpenNCCM
+Recolector</b>, as SYSTEM: it starts with Windows and, if the process stops, it starts again within a minute.</p>
+<ul>
+  <li><code>"C:\Program Files\OpenNCCM Recolector\opennccm-recolector.exe" estado</code>: its site and the queue.</li>
+  <li>If it's revoked, it stops and the task is disabled.</li>
+  <li><code>opennccm-recolector.exe desinstalar</code> removes the task and the program; with <code>/todo</code> it also deletes the
+  data.</li>
+</ul>
+<h2>Standby server (High availability)</h2>
+<p>On the main server, <b>Administration › High availability › Add standby server</b>. In <b>This server's address from the other
+one</b>, enter the address the second server uses to reach the main one. The window shows the enrollment key and the command. On a
+<b>fresh</b> Ubuntu 22.04 or 24.04:</p>
+<pre>curl -fsSL https://raw.githubusercontent.com/Gaaraalex/opennccm/main/install.sh | sudo bash -s -- \
+  --espera https://MAIN-SERVER --clave ha_…</pre>
+<figure><img src="img/en-45-ha-enroll.png" style="max-height:120mm"><figcaption>The standby server's enrollment window, on the main server.</figcaption></figure>
+<p>It installs the full OpenNCCM, with its web and HTTPS, but doesn't create an administrator: before starting, it copies everything
+from the main server (users, devices, configurations and the encryption key), activates its own license with the same key and
+stays <b>on standby</b>. If the main server uses PostgreSQL, install it with <code>--db postgresql</code> too. Sign in with the main
+server's passwords.</p>
+<ul>
+  <li>When it connects, the main server's window shows the standby server's IP: add it to your devices' access lists.</li>
+  <li>Open HTTPS (443) between the two servers in both directions in the firewall: each one talks to the other every 30
+  seconds.</li>
+  <li>Optional: <code>/etc/opennccm/al-pasar-a-activo.sh</code> (owned by root, not writable by others) runs as root when that
+  server becomes active, for example to move a virtual IP. Create it on both servers.</li>
+  <li><code>sudo opennccm update</code> updates each server as usual. The page warns if the two end up on different
+  versions.</li>
+</ul>
+</section>
+
+</body>
+</html>

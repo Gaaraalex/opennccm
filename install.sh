@@ -45,6 +45,9 @@ SMTP_HOST=""; SMTP_PORT="587"; SMTP_SEC="starttls"; SMTP_USER=""; SMTP_PASS=""; 
 SYSLOG_PORT=514
 FORCE=0
 REINSTALL=0
+MODO=""               # recolector: respalda los equipos de una sede para otro OpenNCCM (sin interfaz web)
+                      # espera: servidor en espera de otro OpenNCCM (alta disponibilidad); RC_CENTRAL es el activo
+RC_CENTRAL=""; RC_CLAVE=""
 
 # Reinstalación: partir de las opciones guardadas (los argumentos las pueden cambiar)
 if [[ -r $CONF ]]; then
@@ -76,6 +79,10 @@ Sin opciones abre un asistente con menús. Opciones para instalación desatendid
   --source DIRECTORIO       Instalar desde una copia local del repositorio
   --force                   Continuar aunque la versión de Ubuntu no sea 22.04/24.04
   --reinstall               Volver a ejecutar la instalación sobre una existente (conserva los datos)
+  --recolector URL --clave CLAVE   Modo recolector: respalda los equipos de esta sede para el OpenNCCM de URL
+                            (sin interfaz web; el comando completo lo da el servidor central al agregar la sede)
+  --espera URL --clave CLAVE       Servidor en espera del OpenNCCM de URL (alta disponibilidad; el comando lo da
+                            el servidor activo en Administración › Alta disponibilidad)
 
 Si OpenNCCM ya está instalado, para actualizar use:  sudo opennccm update
 EOF
@@ -111,11 +118,29 @@ while [[ $# -gt 0 ]]; do
     --source) SOURCE_DIR="$2"; shift ;;
     --force) FORCE=1 ;;
     --reinstall) REINSTALL=1 ;;
+    --recolector) MODO="recolector"; RC_CENTRAL="${2%/}"; shift ;;
+    --espera) MODO="espera"; RC_CENTRAL="${2%/}"; shift ;;
+    --clave) RC_CLAVE="$2"; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Opción desconocida: $1"; usage; exit 2 ;;
   esac
   shift
 done
+
+# Modo recolector: sin web, sin nginx ni puertos abiertos (la sede siempre llama al central), sin preguntas
+if [[ $MODO == recolector ]]; then
+  [[ $RC_CENTRAL =~ ^https?:// ]] || { echo "--recolector necesita la dirección del servidor central (https://…)"; exit 2; }
+  [[ $APPLY_ONLY -eq 1 || $RC_CLAVE == ra_* || -r $CONF ]] || { echo "--recolector necesita --clave (la clave de alta de la sede)"; exit 2; }
+  UNATTENDED=1; TLS_MODE="none"; FIREWALL="no"
+  [[ -d $APP_DIR/.git ]] && REINSTALL=1   # otra clave de alta en un recolector ya instalado: se reinstala conservando los datos
+fi
+# Servidor en espera (alta disponibilidad): OpenNCCM completo, con su web; los usuarios y los datos llegan del activo
+if [[ $MODO == espera ]]; then
+  [[ $RC_CENTRAL =~ ^https?:// ]] || { echo "--espera necesita la dirección del servidor activo (https://…)"; exit 2; }
+  [[ $APPLY_ONLY -eq 1 || $RC_CLAVE == ha_* || -r $CONF ]] || { echo "--espera necesita --clave (la clave de alta del par)"; exit 2; }
+  UNATTENDED=1
+  [[ -d $APP_DIR/.git ]] && REINSTALL=1
+fi
 
 # ----------------------------------------------------------------- interfaz
 # Paleta del asistente (whiptail/newt)
@@ -557,6 +582,11 @@ EOF
     sed -i '/^NCM_DATABASE_URL=/d' $ETC_DIR/opennccm.env
     echo "NCM_DATABASE_URL=$PG_URL" >> $ETC_DIR/opennccm.env
   fi
+  # estadística de uso: solo para pruebas (CI) se puede apuntar a otro lado, para que no cuenten como uso real
+  if [[ -n ${NCM_USO_URL:-} ]]; then
+    sed -i '/^NCM_USO_URL=/d' $ETC_DIR/opennccm.env
+    echo "NCM_USO_URL=$NCM_USO_URL" >> $ETC_DIR/opennccm.env
+  fi
   # con HTTPS la cookie de sesión solo viaja cifrada (también al actualizar instalaciones anteriores)
   sed -i '/^NCM_SECURE_COOKIE=/d' $ETC_DIR/opennccm.env
   echo "NCM_SECURE_COOKIE=$([[ $TLS_MODE == none ]] && echo 0 || echo 1)" >> $ETC_DIR/opennccm.env
@@ -577,7 +607,11 @@ KEY_FILE_TLS='$KEY_FILE_TLS'
 DB_MODE='$DB_MODE'
 FIREWALL='$FIREWALL'
 SYSLOG_PORT='$SYSLOG_PORT'
+MODO='$MODO'
+RC_CENTRAL='$RC_CENTRAL'
 EOF
+  sed -i '/^NCM_MODO=/d' $ETC_DIR/opennccm.env
+  [[ $MODO == recolector ]] && echo "NCM_MODO=recolector" >> $ETC_DIR/opennccm.env
   chown -R $SVC_USER:$SVC_USER $DATA_DIR $ETC_DIR
   chmod 700 $ETC_DIR; chmod 600 $ETC_DIR/secret.key $ETC_DIR/opennccm.env $CONF
 }
@@ -596,7 +630,8 @@ User=$SVC_USER
 Group=$SVC_USER
 WorkingDirectory=$APP_DIR
 EnvironmentFile=$ETC_DIR/opennccm.env
-ExecStart=$APP_DIR/.venv/bin/uvicorn app.main:app --host $listen --port 8000 --workers 1 --proxy-headers
+ExecStart=$(if [[ $MODO == recolector ]]; then echo "$APP_DIR/.venv/bin/python -m app.cli recolector correr"
+            else echo "$APP_DIR/.venv/bin/uvicorn app.main:app --host $listen --port 8000 --workers 1 --proxy-headers"; fi)
 Restart=on-failure
 RestartSec=5
 # CAP_NET_RAW: ping y traceroute de Operar › Consola › Herramientas (sockets ICMP)
@@ -660,6 +695,30 @@ Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ExecStart=/usr/local/bin/opennccm fxi-firewall
 TimeoutStartSec=60
 EOF
+  # Alta disponibilidad: al pasar a activo, la aplicación crea ha-activo.request y systemd corre como root
+  # «opennccm ha-al-pasar-a-activo», que ejecuta /etc/opennccm/al-pasar-a-activo.sh solo si es de root (opcional).
+  cat > /etc/systemd/system/opennccm-ha-activo.path <<EOF
+[Unit]
+Description=OpenNCCM - vigila el paso a activo de alta disponibilidad
+
+[Path]
+PathExists=$DATA_DIR/ha-activo.request
+Unit=opennccm-ha-activo.service
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  cat > /etc/systemd/system/opennccm-ha-activo.service <<EOF
+[Unit]
+Description=OpenNCCM - comando opcional al pasar a activo (alta disponibilidad)
+
+[Service]
+Type=oneshot
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStartPre=/bin/rm -f $DATA_DIR/ha-activo.request
+ExecStart=/usr/local/bin/opennccm ha-al-pasar-a-activo
+TimeoutStartSec=120
+EOF
   ln -sf $APP_DIR/scripts/opennccm.sh /usr/local/bin/opennccm
   ln -sf $APP_DIR/scripts/opennccm.sh /usr/local/bin/opennccm-cli   # compatibilidad con 1.x
   chmod 755 $APP_DIR/scripts/opennccm.sh
@@ -667,6 +726,7 @@ EOF
   run systemctl enable opennccm
   run systemctl enable --now opennccm-webupdate.path
   run systemctl enable --now opennccm-fxi-firewall.path
+  run systemctl enable --now opennccm-ha-activo.path
 }
 
 setup_polkit() {
@@ -803,6 +863,25 @@ setup_firewall() {
 }
 
 start_and_check() {
+  if [[ $MODO == espera && -n $RC_CLAVE ]]; then
+    progress 82 "Sumando este servidor como espera de $RC_CENTRAL (copia de los datos)…"
+    run systemctl stop opennccm || true
+    run cli espera alta "$RC_CENTRAL" "$RC_CLAVE" "${URL%/}"
+  fi
+  if [[ $MODO == recolector ]]; then
+    if [[ -n $RC_CLAVE ]]; then
+      progress 85 "Dando de alta el recolector en $RC_CENTRAL…"
+      run systemctl stop opennccm || true
+      run cli recolector alta "$RC_CENTRAL" "$RC_CLAVE"
+    fi
+    progress 90 "Iniciando el recolector…"
+    run systemctl restart opennccm
+    sleep 8
+    systemctl is-active --quiet opennccm && return 0
+    journalctl -u opennccm -n 40 --no-pager >>"$LOG" 2>&1 || true
+    echo "El recolector no quedó funcionando" >>"$LOG"
+    return 1
+  fi
   progress 85 "Iniciando OpenNCCM…"
   run systemctl restart opennccm
   local i
@@ -823,7 +902,7 @@ as_app() {
 cli() { as_app "$APP_DIR/.venv/bin/python" -m app.cli "$@"; }
 
 initial_data() {
-  [[ -f $DATA_DIR/.admin_created ]] && return 0
+  [[ -f $DATA_DIR/.admin_created || $MODO == recolector || $MODO == espera ]] && return 0  # en espera: llegan del activo
   progress 92 "Creando el administrador y los datos de ejemplo…"
   [[ -n $ADMIN_PASS ]] || ADMIN_PASS=$(openssl rand -base64 18 | tr -d '/+=' | cut -c1-14)
   run cli create-admin "$ADMIN_USER" "$ADMIN_PASS"
@@ -856,6 +935,27 @@ EOF
 
 finish() {
   local ver; ver=$(grep -oP '__version__ = "\K[^"]+' $APP_DIR/app/__init__.py)
+  if [[ $MODO == recolector ]]; then
+    progress 100 "¡Listo! Recolector de OpenNCCM $ver instalado."
+    gauge_stop
+    echo
+    echo "${c_ok}${c_b}  El recolector de OpenNCCM $ver está funcionando${c_0}"
+    echo "  Servidor central: $RC_CENTRAL"
+    echo "  Comandos:    opennccm recolector estado | opennccm logs | opennccm update"
+    echo "  Registro:    $LOG"
+    echo "  Respalde $ETC_DIR/secret.key: cifra las credenciales de los equipos de esta sede."
+    return 0
+  fi
+  if [[ $MODO == espera ]]; then
+    progress 100 "¡Listo! OpenNCCM $ver instalado en espera."
+    gauge_stop
+    echo
+    echo "${c_ok}${c_b}  OpenNCCM $ver está en espera de $RC_CENTRAL${c_0}"
+    echo "  Replica los datos cada minuto y pasa a activo si el otro cae (Administración › Alta disponibilidad)."
+    echo "  Usuarios y contraseñas: los mismos del servidor activo."
+    echo "  Registro:    $LOG"
+    return 0
+  fi
   progress 100 "¡Listo! OpenNCCM $ver instalado."
   sleep 0.6; gauge_stop
   local creds=""
@@ -869,8 +969,15 @@ finish() {
   echo "  Comandos:    opennccm status | opennccm update | opennccm help"
   echo "  Registro:    $LOG"
   echo "  Respalde SIEMPRE $ETC_DIR/secret.key junto con $DATA_DIR"
+  echo
+  echo "  ${c_b}Estadística de uso${c_0}: una vez al día, OpenNCCM avisa a comunidad.opennccm.com que está en uso:"
+  echo "  un número al azar y la versión. Nunca configuraciones ni datos de tu red."
+  echo "  Esa información nos ayuda a seguir mejorando el sistema. Detalles: Administración › Sistema."
   if [[ $INTERACTIVE -eq 1 ]]; then
-    msg "OpenNCCM $ver está funcionando.\n\n  Abra en su navegador:\n\n      $URL\n$creds\nComandos útiles:\n  opennccm status     estado del servicio\n  opennccm update     actualizar a la última versión\n  opennccm help       todos los comandos\n\nIMPORTANTE: respalde $ETC_DIR/secret.key en un lugar seguro." "Instalación completada" 24
+    # el cuadro final se ajusta a la terminal (las de 24 líneas también) y se desplaza si el texto no entra
+    local rows h=31; rows=$(stty size </dev/tty 2>/dev/null | cut -d' ' -f1); rows=${rows:-24}
+    (( h > rows - 1 )) && h=$((rows - 1))
+    ui --title "Instalación completada" --scrolltext --msgbox "OpenNCCM $ver está funcionando.\n\n  Abra en su navegador:\n\n      $URL\n$creds\nComandos útiles:\n  opennccm status     estado del servicio\n  opennccm update     actualizar a la última versión\n  opennccm help       todos los comandos\n\nIMPORTANTE: respalde $ETC_DIR/secret.key en un lugar seguro.\n\nEstadística de uso\nUna vez al día, OpenNCCM avisa a comunidad.opennccm.com que está en uso: un número al azar y la versión. Nunca configuraciones ni datos de tu red. Esa información nos ayuda a seguir mejorando el sistema. Más detalles en Administración › Sistema." "$h" 74 || true
   fi
 }
 

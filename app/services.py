@@ -5,6 +5,7 @@ import difflib
 import hashlib
 import json
 import logging
+import mimetypes
 import re
 import smtplib
 import threading
@@ -275,8 +276,10 @@ def send_mail(to: list[str], subject: str, body: str, attachments: list[tuple[st
         msg["From"] = get_setting("smtp_from", "opennccm@localhost")
         msg["To"] = ", ".join(to)
         msg.set_content(body)
-        for name, data in attachments or []:
-            msg.add_attachment(data, maintype="text", subtype="csv", filename=name)
+        for name, data in attachments or []:  # el tipo sale del nombre (.csv de las alarmas, .pdf/.docx de los informes Pro)
+            ctype = "text/csv" if name.lower().endswith(".csv") else mimetypes.guess_type(name)[0] or "application/octet-stream"
+            maintype, subtype = ctype.split("/", 1)
+            msg.add_attachment(data, maintype=maintype, subtype=subtype, filename=name)
         port = int(get_setting("smtp_port", "587") or 587)
         security = get_setting("smtp_security", "starttls")
         cls = smtplib.SMTP_SSL if security == "ssl" else smtplib.SMTP
@@ -528,6 +531,17 @@ def backup_device(device_id: int, trigger="manual", username: str | None = None)
             if trigger == "push":
                 end_maintenance(device_id)
             return "disabled"
+    from . import prohooks  # equipo de una sede con recolector (módulo Pro): lo respalda el recolector
+    if prohooks.remote_backup is not None:
+        try:
+            queued = prohooks.remote_backup(device_id, trigger, username)
+        except Exception as e:  # noqa: BLE001  (si el módulo falla, se respalda desde aquí como siempre)
+            log.warning("Recolector: no se pudo pasar el respaldo de %s: %s", device_id, e)
+            queued = None
+        if queued:
+            if trigger == "push":
+                end_maintenance(device_id)
+            return queued
     lock = device_lock(device_id)
     if not lock.acquire(timeout=300):
         log.warning("Respaldo del equipo %s [%s]: ocupado, se omite", device_id, trigger)
@@ -881,6 +895,309 @@ def _step(name: str) -> None:
             pass
 
 
+# Configuración cortada sin marca de final (2.44.1): el SW-Core-02 del usuario (Junos 21.4, formato «set») entregó la
+# configuración a medias en un «Respaldar todos» y se guardó como versión con 70 líneas de menos. Junos no termina en
+# «end» como otros, así que la comprobación de END_MARK no lo veía. Dos defensas:
+#   * Junos: «show configuration | display set | count» dice cuántas líneas tiene; si llegaron menos, no se guarda.
+#   * Todas: si lo leído es justo el principio de la copia anterior (le faltan solo líneas del final), se vuelve a leer
+#     una vez en la misma conexión; si la segunda lectura sale igual, es un cambio real y se guarda.
+JUNOS_COUNT = "show configuration | display set | count"
+CUT_MIN_LINES = 3  # líneas que tienen que faltar al final para sospechar un corte
+
+
+def _lines(text: str) -> list[str]:
+    return [ln.rstrip() for ln in (text or "").splitlines() if ln.strip()]
+
+
+def looks_cut(new: str, old: str) -> bool:
+    """Lo nuevo es exactamente el principio de lo anterior y le faltan al menos CUT_MIN_LINES líneas al final."""
+    n, o = _lines(new), _lines(old)
+    return bool(n) and len(n) <= len(o) - CUT_MIN_LINES and o[:len(n)] == n
+
+
+def junos_missing(running: str, count_out: str) -> tuple[int, int] | None:
+    """(llegaron, tiene) si llegaron menos líneas de las que Junos dice tener («Count: N lines»); si no, None."""
+    m = re.search(r"Count:\s*(\d+)\s+lines?", count_out or "")
+    if not m:
+        return None
+    got, total = len(_lines(running)), int(m.group(1))
+    return (got, total) if got < total else None
+
+
+def _drain(conn) -> None:
+    """Descarta lo que quedó en la conexión de una lectura cortada (si no, se mezcla con el comando siguiente)."""
+    clear = getattr(conn, "clear_buffer", None)
+    if clear:
+        try:
+            clear(backoff=False)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _read_running(conn, dev: Device, prof, prev_text: str | None) -> str:
+    cmd = dev.custom_backup_cmd or prof.backup
+    running = conn.send_command(cmd, read_timeout=prof.backup_timeout)
+    if prev_text and looks_cut(clean_config(running, prof), prev_text):
+        log.warning("Respaldo de %s: la configuración parece cortada al final; se vuelve a leer", dev.name)
+        _drain(conn)
+        again = conn.send_command(cmd, read_timeout=prof.backup_timeout)
+        if len(_lines(again)) > len(_lines(running)):
+            running = again
+    if prof.key == "juniper_junos" and not dev.custom_backup_cmd and "display set" in cmd:
+        try:
+            _drain(conn)
+            miss = junos_missing(running, conn.send_command(JUNOS_COUNT, read_timeout=120))
+        except Exception:  # noqa: BLE001  (un Junos que no acepte «count» no deja de respaldarse)
+            miss = None
+        if miss:
+            raise RuntimeError(f"La configuración llegó incompleta ({miss[0]} de {miss[1]} líneas); "
+                               "no se guardó esta versión")
+    return running
+
+
+def _read_raw(db, dev, prof) -> dict:
+    """Conectarse al equipo y leer todo lo que guarda un respaldo, sin guardar nada (lo usa también el recolector de una
+    sede: lee allá y el servidor central guarda con _store_raw). Lanza la excepción si algo falla."""
+    license_warn = None
+    if prof.key in HTTP_ONLY:  # SwitchOS: por HTTP, sin SSH
+        from . import swos
+        if dev.credential is None:
+            raise RuntimeError("El dispositivo no tiene credencial asignada")
+        cred = (dev.credential.username, decrypt(dev.credential.password_enc) if dev.credential.password_enc else "")
+        running, inventory = swos.backup(dev, cred)
+        startup = neighbors_raw = ports_raw = license_raw = tables_raw = None
+    else:
+        _step("connect")
+        prev_v = latest_version(db, dev.id)
+        prev_text = try_decrypt(prev_v.content_enc, "") if prev_v else None
+        with connect(dev) as conn:
+            _step("read")
+            running = _read_running(conn, dev, prof, prev_text)
+            startup = conn.send_command(prof.startup, read_timeout=prof.backup_timeout) if prof.startup else None
+            inventory = "\n\n".join(conn.send_command(c, read_timeout=60) for c in prof.inventory.split("\n")
+                                    if c.strip()) if prof.inventory else None
+            more = inventory_followup(prof, inventory)
+            if more:
+                inventory += "\n\n" + conn.send_command(more, read_timeout=60)
+            neighbors_raw = _read_neighbors(conn, dev.device_type)
+            ports_raw = _read_ports(conn, dev.device_type, running or "")
+            from . import macfind
+            tables_raw = macfind.read(conn, dev.device_type)  # tablas MAC y ARP (buscar una MAC o una IP)
+            want_license = _license_missing(dev, prof)
+            license_raw = _read_license(conn, prof) if want_license else None
+        if want_license and prof.key == "watchguard_fireware":  # la firma, por la Web UI (ya sin SSH)
+            from . import fireware_web
+            saved = try_decrypt(dev.license_enc) if dev.license_enc else None
+            if license_raw and saved and re.search(prof.license_mark, saved) \
+                    and fireware_web.same_key(license_raw, saved):
+                license_raw = None  # sigue la misma, ya firmada: no hace falta entrar a la Web UI
+            else:
+                license_raw, license_warn = _fireware_license(dev, license_raw)
+    return {"running": running, "startup": startup, "inventory": inventory, "neighbors_raw": neighbors_raw,
+            "ports_raw": ports_raw, "tables_raw": tables_raw, "license_raw": license_raw, "license_warn": license_warn}
+
+
+def _store_raw(db, dev, prof, raw: dict, trigger: str, username: str | None, report: bool = True) -> str:
+    """Guardar lo que se leyó de un equipo: la versión nueva si cambió, inventario, vecinos, puertos, tablas, licencia y
+    los avisos. Devuelve "first", "changed", "unchanged" o "error" (salida inválida, incompleta o sin permisos)."""
+    running, startup, inventory = raw["running"], raw.get("startup"), raw.get("inventory")
+    neighbors_raw, ports_raw, tables_raw = raw.get("neighbors_raw"), raw.get("ports_raw"), raw.get("tables_raw")
+    license_raw, license_warn = raw.get("license_raw"), raw.get("license_warn")
+    _step("save")
+    running = clean_config(running, prof)
+    if len(running.strip()) < 10 or device_error(running):
+        dev.last_status, dev.last_error = "error", "Salida de configuración vacía o inválida"
+        db.commit()
+        if report:
+            add_event("major", "Respaldo fallido", f"{dev.name}: salida inválida:\n{running[:300]}", dev.id)
+        return "error"
+    denied = access_denied(running)
+    if denied:
+        dev.last_status, dev.last_error = "error", denied
+        db.commit()
+        report and add_event("major", "Respaldo fallido", f"{dev.name}: {denied}", dev.id)
+        return "error"
+    # salida cortada: paginación activa («--More--»), configuración estilo FastPath sin el «exit» final o
+    # plataformas que siempre terminan en «end» y esta vez no
+    last = running.rstrip().splitlines()[-1].strip()
+    incomplete = re.search(r"(?i)--\s*more\s*--|\(q\)uit|press any key", running) or (
+        re.search(r"(?m)^configure$", running) and fastpath_style(running) and last != "exit") or (
+        dev.device_type in END_MARK and not dev.custom_backup_cmd and last != END_MARK[dev.device_type])
+    if incomplete:
+        dev.last_status = "error"
+        dev.last_error = "La configuración llegó incompleta (cortada o paginada); no se guardó esta versión"
+        db.commit()
+        report and add_event("major", "Respaldo fallido", f"{dev.name}: configuración incompleta, no se guardó:\n"
+                  f"{running[-300:]}", dev.id)
+        return "error"
+
+    sha = hashlib.sha256(compare_text(running).encode()).hexdigest()
+    prev = latest_version(db, dev.id)
+    prev_text = try_decrypt(prev.content_enc) if prev else ""
+    if prev_text is None:  # la versión anterior se cifró con otra clave: no se puede comparar
+        prev_text = ""
+        add_event("warning", "Versión anterior ilegible",
+                  f"{dev.name}: la versión anterior se cifró con otra clave (secret.key); se guarda la actual completa.",
+                  dev.id)
+    changed = prev is None or (prev.sha256 != sha and not same_config(prev_text, running, prof))
+    # otro aparato con la misma dirección (RMA o cambio de equipo): el número de serie ya no es el guardado
+    old_serial = dev.serial
+    new_serial = (parse_inventory(inventory, prof)["serial"] if inventory else None) or config_serial(running)
+    replaced = replaced_serial(old_serial, new_serial)
+    # firmware con el que se hizo esta copia: del inventario de esta misma conexión o de la configuración (app/fwtag.py)
+    from . import fwtag
+    fw_now = (parse_inventory(inventory, prof)["os_version"] if inventory else None) or fwtag.config_fw(running)
+    result = "unchanged"
+    if changed:
+        added, removed = diff_stats(prev_text, running) if prev else (len(running.splitlines()), 0)
+        db.add(ConfigVersion(device_id=dev.id, kind="running", content_enc=encrypt(running), sha256=sha,
+                             size=len(running), added=added, removed=removed, trigger=trigger,
+                             username=username, label=f"equipo nuevo · serie {new_serial}"[:128] if replaced else None,
+                             fw_version=fw_now))
+        result = "changed" if prev else "first"
+    elif prev is not None and not prev.fw_version and fw_now:
+        # la configuración es la misma de la última copia y esa copia es de antes de registrar el firmware: se le
+        # apunta el que se acaba de leer en esta misma conexión (las copias más viejas siguen «sin registrar»)
+        prev.fw_version = fw_now
+
+    if startup is not None:
+        startup = clean_config(startup, prof)
+        ssha = hashlib.sha256(compare_text(startup).encode()).hexdigest()
+        sprev = latest_version(db, dev.id, "startup")
+        if sprev is None or sprev.sha256 != ssha:
+            db.add(ConfigVersion(device_id=dev.id, kind="startup", content_enc=encrypt(startup),
+                                 sha256=ssha, size=len(startup), trigger=trigger, username=username, fw_version=fw_now))
+        conflict = _normalize_for_compare(startup) != _normalize_for_compare(running)
+        new_conflict = conflict and not dev.startup_conflict
+        dev.startup_conflict = conflict
+    else:
+        new_conflict = False
+
+    name = dev.name
+    _take_write_lock(db, dev.id)
+    if tables_raw:
+        try:
+            from . import macfind
+            with db.begin_nested():
+                macfind.store(dev.id, tables_raw, db)
+        except Exception as e:  # noqa: BLE001 - las tablas nunca hacen fallar el respaldo
+            log.warning("tablas MAC/ARP de %s: %s", name, e)
+    if neighbors_raw is not None:
+        from . import topology
+        nbrs = topology.parse(neighbors_raw, dev.device_type)
+        # el propio equipo como vecino (un lazo: CDP/LLDP que vuelve por otro puerto, «S-1.lab.local» visto desde
+        # S-1) no es un vecino: no se dibuja ni da la alarma «Vecino perdido» cuando se deja de ver. Se reconoce por
+        # el nombre y una IP del propio equipo: la de gestión o una de su configuración (CDP anuncia la de otra
+        # interfaz, p. ej. la Vlan1). Dos MikroTik de fábrica se llaman igual y sí son vecinos.
+        me = (dev.name or "").split(".")[0].lower()
+
+        def _own_ip(ip):
+            return bool(ip) and (ip == dev.host or bool(re.search(rf"(?<![\d.]){re.escape(ip)}(?![\d.])", running or "")))
+        # (o el nombre con su dominio, «S-1.lab.local»: CDP lo anuncia así y la IP puede ser una que ya no tiene)
+        nbrs = [n for n in nbrs if not (me and (n.get("remote_name") or "").split(".")[0].lower() == me
+                                        and (_own_ip(n.get("remote_ip")) or "." in (n.get("remote_name") or "")))]
+        dev.neighbors = json.dumps(nbrs)
+        try:  # aviso de vecino nuevo o perdido (app/nbwatch.py)
+            from . import nbwatch
+            with db.begin_nested():
+                nbwatch.update(db, dev, nbrs, running)
+        except Exception as e:  # noqa: BLE001 - nunca hace fallar el respaldo
+            log.warning("vecinos nuevos o perdidos de %s: %s", name, e)
+
+    if prof.key not in HTTP_ONLY:  # puertos y su estado, para la ficha del equipo
+        from . import ports as ports_mod
+        mdl = (parse_inventory(inventory, prof)["model"] if inventory else None) or dev.model
+        from . import chassis
+        praw, _, craw = (ports_raw or "").partition(chassis.MARK)
+        plist, has_status = ports_mod.parse(praw, dev.device_type, running, mdl)
+        rear = chassis.parse(chassis.MARK + craw if craw else None, dev.device_type)
+        dev.ports = json.dumps({"at": now().isoformat(), "status": has_status, "ports": plist, "rear": rear,
+                                "raw": (ports_raw or "")[-12000:]}) if plist or any(rear.values()) else None
+        if plist and has_status:  # cuándo tuvo enlace cada puerto por última vez (informe «Puertos sin uso»)
+            from . import netreports
+            dev.port_seen, dev.port_seen_since = netreports.track(dev.port_seen, dev.port_seen_since, plist)
+
+    # solo se lee si falta (_license_missing); la misma que ya estaba guardada no se vuelve a guardar
+    new_license = bool(license_raw) and license_raw != (try_decrypt(dev.license_enc) if dev.license_enc else None)
+    if new_license:
+        dev.license_enc, dev.license_at = encrypt(license_raw), now()
+
+    if inventory:
+        inv = parse_inventory(inventory, prof)
+        dev.os_version = inv["os_version"] or dev.os_version
+        # sin modelo en el inventario (EdgeSwitch de chip Realtek): la cabecera de su configuración lo dice
+        sysdesc = re.search(r"(?m)^! System Description:\s*(?:RTK\s+)?(\S+)", running)
+        dev.model = inv["model"] or (sysdesc.group(1) if sysdesc else None) or dev.model
+        dev.serial = inv["serial"] or config_serial(running) or dev.serial
+        dev.inventory_raw_enc = encrypt(inventory)
+
+    new_drift = False
+    if dev.baseline_version_id:
+        base = db.get(ConfigVersion, dev.baseline_version_id)
+        base_text = try_decrypt(base.content_enc) if base is not None else None
+        drift = base is not None and base.sha256 != sha and (base_text is None or not same_config(base_text, running, prof))
+        new_drift = drift and not dev.baseline_drift
+        dev.baseline_drift = drift
+
+    dev.last_status, dev.last_error, dev.last_backup_at = "ok", None, now()
+    db.commit()
+    if replaced:
+        add_event("warning", "Equipo reemplazado",
+                  f"{dev.name} ({dev.host}): cambió el número de serie {old_serial} → {new_serial}. Es otro aparato "
+                  "con la misma dirección (RMA o cambio de equipo). "
+                  + ("Su configuración se guardó como una versión nueva, marcada «equipo nuevo»: la diferencia con "
+                     "la anterior es entre dos aparatos distintos. " if result == "changed" else "")
+                  + "Revise que tenga la configuración que corresponde.", dev.id)
+        audit(username or "sistema", "device_replaced", f"{dev.name}: serie {old_serial} → {new_serial}")
+    if new_license:
+        add_event("info", f"{prof.license_label} guardada",
+                  f"{dev.name}: se guardó su {prof.license_label.lower()} (una sola vez; se descarga desde la ficha).",
+                  dev.id)
+    if license_warn:
+        add_event("warning", f"{prof.license_label} sin firma", license_warn, dev.id)
+    if new_drift:
+        add_event("warning", "Desviación de línea base",
+                  f"{dev.name}: la configuración actual ya no coincide con la línea base.", dev.id)
+    # los eventos se registran después del commit para no competir por el lock de SQLite
+    if new_conflict:
+        add_event("warning", "Conflicto arranque/ejecución",
+                  f"{dev.name}: la configuración en ejecución no está guardada en startup.", dev.id)
+
+    if result == "changed":
+        diff = "\n".join(diff_lines(prev_text, running)[:200])
+        # releer las opciones: pueden haber cambiado mientras se conectaba al equipo
+        db.refresh(dev, ["auto_rollback", "maintenance_until"])
+        in_maintenance = dev.maintenance_until and dev.maintenance_until > now()
+        log.info("Cambio en %s [%s]: +%s/-%s; reversión automática=%s, mantenimiento=%s",
+                 dev.name, trigger, added, removed, dev.auto_rollback, bool(in_maintenance))
+        sev = "info" if trigger == "push" else "warning"
+        add_event(sev, "Cambio de configuración",
+                  f"{dev.name} ({dev.host}) cambió [{trigger}]. +{added}/-{removed} líneas"
+                  + (" (contra la configuración del equipo anterior: se reemplazó el aparato)" if replaced else "")
+                  + f"\n\n{diff}", dev.id)
+        # equipo reemplazado: no se le aplica sola la configuración del aparato anterior; lo decide el operador
+        from . import prohooks
+        site = prohooks.site_of(dev.id)
+        if site and dev.auto_rollback and trigger in ("syslog", "scheduled") and not in_maintenance and not replaced:
+            add_event("warning", "Reversión automática no disponible",
+                      f"{dev.name}: se respalda desde el recolector de {site}; la reversión automática necesita llegar al "
+                      "equipo desde este servidor. Revise el cambio a mano.", dev.id)
+        elif dev.auto_rollback and trigger in ("syslog", "scheduled") and not in_maintenance and not replaced:
+            # se ejecuta en otro hilo: este todavía tiene el lock del dispositivo
+            jobs.submit(_auto_rollback, dev.id, dev.name, dev.device_type, dev.host, running, prev_text)
+    if result in ("changed", "first"):  # copia en Git (si está activada en Ajustes)
+        from . import gitexport
+        who = f" por {username}" if username else ""
+        msg = (f"{dev.name}: +{added}/-{removed} líneas [{trigger}{who}]" if result == "changed"
+               else f"{dev.name}: primer respaldo [{trigger}{who}]")
+        jobs.submit(gitexport.on_new_version, dev.id, msg)
+    if result == "first" and dev.os_version:  # equipo nuevo: su firmware disponible, sin esperar al día siguiente
+        from . import fwupdates
+        jobs.submit(fwupdates.check_new, dev.id)
+
+    return result
+
+
 def _backup_device(device_id: int, trigger: str, username: str | None, report: bool = True) -> str:
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
@@ -888,232 +1205,16 @@ def _backup_device(device_id: int, trigger: str, username: str | None, report: b
             return "missing"
         prof = get_profile(dev.device_type)
         try:
-            license_warn = None
-            if prof.key in HTTP_ONLY:  # SwitchOS: por HTTP, sin SSH
-                from . import swos
-                if dev.credential is None:
-                    raise RuntimeError("El dispositivo no tiene credencial asignada")
-                cred = (dev.credential.username, decrypt(dev.credential.password_enc) if dev.credential.password_enc else "")
-                running, inventory = swos.backup(dev, cred)
-                startup = neighbors_raw = ports_raw = license_raw = tables_raw = None
-            else:
-                _step("connect")
-                with connect(dev) as conn:
-                    _step("read")
-                    running = conn.send_command(dev.custom_backup_cmd or prof.backup, read_timeout=prof.backup_timeout)
-                    startup = conn.send_command(prof.startup, read_timeout=prof.backup_timeout) if prof.startup else None
-                    inventory = "\n\n".join(conn.send_command(c, read_timeout=60) for c in prof.inventory.split("\n")
-                                            if c.strip()) if prof.inventory else None
-                    more = inventory_followup(prof, inventory)
-                    if more:
-                        inventory += "\n\n" + conn.send_command(more, read_timeout=60)
-                    neighbors_raw = _read_neighbors(conn, dev.device_type)
-                    ports_raw = _read_ports(conn, dev.device_type, running or "")
-                    from . import macfind
-                    tables_raw = macfind.read(conn, dev.device_type)  # tablas MAC y ARP (buscar una MAC o una IP)
-                    want_license = _license_missing(dev, prof)
-                    license_raw = _read_license(conn, prof) if want_license else None
-                if want_license and prof.key == "watchguard_fireware":  # la firma, por la Web UI (ya sin SSH)
-                    from . import fireware_web
-                    saved = try_decrypt(dev.license_enc) if dev.license_enc else None
-                    if license_raw and saved and re.search(prof.license_mark, saved) \
-                            and fireware_web.same_key(license_raw, saved):
-                        license_raw = None  # sigue la misma, ya firmada: no hace falta entrar a la Web UI
-                    else:
-                        license_raw, license_warn = _fireware_license(dev, license_raw)
+            raw = _read_raw(db, dev, prof)
         except Exception as e:  # noqa: BLE001
             dev.last_status, dev.last_error = "error", (str(e) or repr(e))[:2000]
             db.commit()
             if report:
                 add_event("major", "Respaldo fallido", f"{dev.name} ({dev.host}): {e}", dev.id)
             return "error"
-
-        _step("save")
-        running = clean_config(running, prof)
-        if len(running.strip()) < 10 or device_error(running):
-            dev.last_status, dev.last_error = "error", "Salida de configuración vacía o inválida"
-            db.commit()
-            if report:
-                add_event("major", "Respaldo fallido", f"{dev.name}: salida inválida:\n{running[:300]}", dev.id)
-            return "error"
-        denied = access_denied(running)
-        if denied:
-            dev.last_status, dev.last_error = "error", denied
-            db.commit()
-            report and add_event("major", "Respaldo fallido", f"{dev.name}: {denied}", dev.id)
-            return "error"
-        # salida cortada: paginación activa («--More--»), configuración estilo FastPath sin el «exit» final o
-        # plataformas que siempre terminan en «end» y esta vez no
-        last = running.rstrip().splitlines()[-1].strip()
-        incomplete = re.search(r"(?i)--\s*more\s*--|\(q\)uit|press any key", running) or (
-            re.search(r"(?m)^configure$", running) and fastpath_style(running) and last != "exit") or (
-            dev.device_type in END_MARK and not dev.custom_backup_cmd and last != END_MARK[dev.device_type])
-        if incomplete:
-            dev.last_status = "error"
-            dev.last_error = "La configuración llegó incompleta (cortada o paginada); no se guardó esta versión"
-            db.commit()
-            report and add_event("major", "Respaldo fallido", f"{dev.name}: configuración incompleta, no se guardó:\n"
-                      f"{running[-300:]}", dev.id)
-            return "error"
-
-        sha = hashlib.sha256(compare_text(running).encode()).hexdigest()
-        prev = latest_version(db, dev.id)
-        prev_text = try_decrypt(prev.content_enc) if prev else ""
-        if prev_text is None:  # la versión anterior se cifró con otra clave: no se puede comparar
-            prev_text = ""
-            add_event("warning", "Versión anterior ilegible",
-                      f"{dev.name}: la versión anterior se cifró con otra clave (secret.key); se guarda la actual completa.",
-                      dev.id)
-        changed = prev is None or (prev.sha256 != sha and not same_config(prev_text, running, prof))
-        # otro aparato con la misma dirección (RMA o cambio de equipo): el número de serie ya no es el guardado
-        old_serial = dev.serial
-        new_serial = (parse_inventory(inventory, prof)["serial"] if inventory else None) or config_serial(running)
-        replaced = replaced_serial(old_serial, new_serial)
-        # firmware con el que se hizo esta copia: del inventario de esta misma conexión o de la configuración (app/fwtag.py)
-        from . import fwtag
-        fw_now = (parse_inventory(inventory, prof)["os_version"] if inventory else None) or fwtag.config_fw(running)
-        result = "unchanged"
-        if changed:
-            added, removed = diff_stats(prev_text, running) if prev else (len(running.splitlines()), 0)
-            db.add(ConfigVersion(device_id=dev.id, kind="running", content_enc=encrypt(running), sha256=sha,
-                                 size=len(running), added=added, removed=removed, trigger=trigger,
-                                 username=username, label=f"equipo nuevo · serie {new_serial}"[:128] if replaced else None,
-                                 fw_version=fw_now))
-            result = "changed" if prev else "first"
-        elif prev is not None and not prev.fw_version and fw_now:
-            # la configuración es la misma de la última copia y esa copia es de antes de registrar el firmware: se le
-            # apunta el que se acaba de leer en esta misma conexión (las copias más viejas siguen «sin registrar»)
-            prev.fw_version = fw_now
-
-        if startup is not None:
-            startup = clean_config(startup, prof)
-            ssha = hashlib.sha256(compare_text(startup).encode()).hexdigest()
-            sprev = latest_version(db, dev.id, "startup")
-            if sprev is None or sprev.sha256 != ssha:
-                db.add(ConfigVersion(device_id=dev.id, kind="startup", content_enc=encrypt(startup),
-                                     sha256=ssha, size=len(startup), trigger=trigger, username=username, fw_version=fw_now))
-            conflict = _normalize_for_compare(startup) != _normalize_for_compare(running)
-            new_conflict = conflict and not dev.startup_conflict
-            dev.startup_conflict = conflict
-        else:
-            new_conflict = False
-
-        name = dev.name
-        _take_write_lock(db, dev.id)
-        if tables_raw:
-            try:
-                from . import macfind
-                with db.begin_nested():
-                    macfind.store(dev.id, tables_raw, db)
-            except Exception as e:  # noqa: BLE001 - las tablas nunca hacen fallar el respaldo
-                log.warning("tablas MAC/ARP de %s: %s", name, e)
-        if neighbors_raw is not None:
-            from . import topology
-            nbrs = topology.parse(neighbors_raw, dev.device_type)
-            # el propio equipo como vecino (un lazo: CDP/LLDP que vuelve por otro puerto, «S-1.lab.local» visto desde
-            # S-1) no es un vecino: no se dibuja ni da la alarma «Vecino perdido» cuando se deja de ver. Se reconoce por
-            # el nombre y una IP del propio equipo: la de gestión o una de su configuración (CDP anuncia la de otra
-            # interfaz, p. ej. la Vlan1). Dos MikroTik de fábrica se llaman igual y sí son vecinos.
-            me = (dev.name or "").split(".")[0].lower()
-
-            def _own_ip(ip):
-                return bool(ip) and (ip == dev.host or bool(re.search(rf"(?<![\d.]){re.escape(ip)}(?![\d.])", running or "")))
-            # (o el nombre con su dominio, «S-1.lab.local»: CDP lo anuncia así y la IP puede ser una que ya no tiene)
-            nbrs = [n for n in nbrs if not (me and (n.get("remote_name") or "").split(".")[0].lower() == me
-                                            and (_own_ip(n.get("remote_ip")) or "." in (n.get("remote_name") or "")))]
-            dev.neighbors = json.dumps(nbrs)
-            try:  # aviso de vecino nuevo o perdido (app/nbwatch.py)
-                from . import nbwatch
-                with db.begin_nested():
-                    nbwatch.update(db, dev, nbrs, running)
-            except Exception as e:  # noqa: BLE001 - nunca hace fallar el respaldo
-                log.warning("vecinos nuevos o perdidos de %s: %s", name, e)
-
-        if prof.key not in HTTP_ONLY:  # puertos y su estado, para la ficha del equipo
-            from . import ports as ports_mod
-            mdl = (parse_inventory(inventory, prof)["model"] if inventory else None) or dev.model
-            from . import chassis
-            praw, _, craw = (ports_raw or "").partition(chassis.MARK)
-            plist, has_status = ports_mod.parse(praw, dev.device_type, running, mdl)
-            rear = chassis.parse(chassis.MARK + craw if craw else None, dev.device_type)
-            dev.ports = json.dumps({"at": now().isoformat(), "status": has_status, "ports": plist, "rear": rear,
-                                    "raw": (ports_raw or "")[-12000:]}) if plist or any(rear.values()) else None
-            if plist and has_status:  # cuándo tuvo enlace cada puerto por última vez (informe «Puertos sin uso»)
-                from . import netreports
-                dev.port_seen, dev.port_seen_since = netreports.track(dev.port_seen, dev.port_seen_since, plist)
-
-        # solo se lee si falta (_license_missing); la misma que ya estaba guardada no se vuelve a guardar
-        new_license = bool(license_raw) and license_raw != (try_decrypt(dev.license_enc) if dev.license_enc else None)
-        if new_license:
-            dev.license_enc, dev.license_at = encrypt(license_raw), now()
-
-        if inventory:
-            inv = parse_inventory(inventory, prof)
-            dev.os_version = inv["os_version"] or dev.os_version
-            # sin modelo en el inventario (EdgeSwitch de chip Realtek): la cabecera de su configuración lo dice
-            sysdesc = re.search(r"(?m)^! System Description:\s*(?:RTK\s+)?(\S+)", running)
-            dev.model = inv["model"] or (sysdesc.group(1) if sysdesc else None) or dev.model
-            dev.serial = inv["serial"] or config_serial(running) or dev.serial
-            dev.inventory_raw_enc = encrypt(inventory)
-
-        new_drift = False
-        if dev.baseline_version_id:
-            base = db.get(ConfigVersion, dev.baseline_version_id)
-            base_text = try_decrypt(base.content_enc) if base is not None else None
-            drift = base is not None and base.sha256 != sha and (base_text is None or not same_config(base_text, running, prof))
-            new_drift = drift and not dev.baseline_drift
-            dev.baseline_drift = drift
-
-        dev.last_status, dev.last_error, dev.last_backup_at = "ok", None, now()
-        db.commit()
-        if replaced:
-            add_event("warning", "Equipo reemplazado",
-                      f"{dev.name} ({dev.host}): cambió el número de serie {old_serial} → {new_serial}. Es otro aparato "
-                      "con la misma dirección (RMA o cambio de equipo). "
-                      + ("Su configuración se guardó como una versión nueva, marcada «equipo nuevo»: la diferencia con "
-                         "la anterior es entre dos aparatos distintos. " if result == "changed" else "")
-                      + "Revise que tenga la configuración que corresponde.", dev.id)
-            audit(username or "sistema", "device_replaced", f"{dev.name}: serie {old_serial} → {new_serial}")
-        if new_license:
-            add_event("info", f"{prof.license_label} guardada",
-                      f"{dev.name}: se guardó su {prof.license_label.lower()} (una sola vez; se descarga desde la ficha).",
-                      dev.id)
-        if license_warn:
-            add_event("warning", f"{prof.license_label} sin firma", license_warn, dev.id)
-        if new_drift:
-            add_event("warning", "Desviación de línea base",
-                      f"{dev.name}: la configuración actual ya no coincide con la línea base.", dev.id)
-        # los eventos se registran después del commit para no competir por el lock de SQLite
-        if new_conflict:
-            add_event("warning", "Conflicto arranque/ejecución",
-                      f"{dev.name}: la configuración en ejecución no está guardada en startup.", dev.id)
-
-        if result == "changed":
-            diff = "\n".join(diff_lines(prev_text, running)[:200])
-            # releer las opciones: pueden haber cambiado mientras se conectaba al equipo
-            db.refresh(dev, ["auto_rollback", "maintenance_until"])
-            in_maintenance = dev.maintenance_until and dev.maintenance_until > now()
-            log.info("Cambio en %s [%s]: +%s/-%s; reversión automática=%s, mantenimiento=%s",
-                     dev.name, trigger, added, removed, dev.auto_rollback, bool(in_maintenance))
-            sev = "info" if trigger == "push" else "warning"
-            add_event(sev, "Cambio de configuración",
-                      f"{dev.name} ({dev.host}) cambió [{trigger}]. +{added}/-{removed} líneas"
-                      + (" (contra la configuración del equipo anterior: se reemplazó el aparato)" if replaced else "")
-                      + f"\n\n{diff}", dev.id)
-            # equipo reemplazado: no se le aplica sola la configuración del aparato anterior; lo decide el operador
-            if dev.auto_rollback and trigger in ("syslog", "scheduled") and not in_maintenance and not replaced:
-                # se ejecuta en otro hilo: este todavía tiene el lock del dispositivo
-                jobs.submit(_auto_rollback, dev.id, dev.name, dev.device_type, dev.host, running, prev_text)
-        if result in ("changed", "first"):  # copia en Git (si está activada en Ajustes)
-            from . import gitexport
-            who = f" por {username}" if username else ""
-            msg = (f"{dev.name}: +{added}/-{removed} líneas [{trigger}{who}]" if result == "changed"
-                   else f"{dev.name}: primer respaldo [{trigger}{who}]")
-            jobs.submit(gitexport.on_new_version, dev.id, msg)
-        if result == "first" and dev.os_version:  # equipo nuevo: su firmware disponible, sin esperar al día siguiente
-            from . import fwupdates
-            jobs.submit(fwupdates.check_new, dev.id)
-
+        result = _store_raw(db, dev, prof, raw, trigger, username, report)
+    if result == "error":
+        return result
     run_compliance(device_id)
     try:  # servicios de la licencia por vencer (app.licenses); un fallo aquí no estropea el respaldo
         from . import licenses
@@ -1121,6 +1222,38 @@ def _backup_device(device_id: int, trigger: str, username: str | None, report: b
     except Exception as e:  # noqa: BLE001
         log.warning("Vencimiento de licencia de %s: %s", device_id, e)
     return result
+
+
+def store_remote(device_id: int, raw: dict, trigger: str = "scheduled", username: str | None = None) -> str:
+    """Un respaldo que leyó el recolector de una sede (módulo Pro «Recolectores por sede»): se guarda igual que uno
+    hecho desde aquí. raw trae lo mismo que _read_raw, o {"error": "…"} si el recolector no pudo leer el equipo."""
+    lock = device_lock(device_id)
+    if not lock.acquire(timeout=300):
+        return "busy"
+    try:
+        with SessionLocal() as db:
+            dev = db.get(Device, device_id)
+            if dev is None:
+                return "missing"
+            if raw.get("error") or not isinstance(raw.get("running"), str):
+                err = str(raw.get("error") or "El recolector no mandó la configuración")[:2000]
+                dev.last_status, dev.last_error = "error", err
+                db.commit()
+                add_event("major", "Respaldo fallido", f"{dev.name} ({dev.host}): {err}", dev.id)
+                return "error"
+            clean = {k: (v if isinstance(v, str) else None) for k, v in raw.items() if k in (
+                "running", "startup", "inventory", "neighbors_raw", "ports_raw", "tables_raw", "license_raw", "license_warn")}
+            result = _store_raw(db, dev, get_profile(dev.device_type), clean, trigger, username, True)
+        if result != "error":
+            run_compliance(device_id)
+            try:
+                from . import licenses
+                licenses.check(device_id)
+            except Exception as e:  # noqa: BLE001
+                log.warning("Vencimiento de licencia de %s: %s", device_id, e)
+        return result
+    finally:
+        lock.release()
 
 
 def _auto_rollback(dev_id: int, dev_name: str, device_type: str, host: str, current: str, target: str):

@@ -1,4 +1,4 @@
-"""Informes › Puertos sin uso y Informes › Documento de la red.
+"""Informes › Puertos sin uso.
 
 Puertos sin uso
 * Cada respaldo anota, por puerto, la última vez que tuvo enlace (Device.port_seen) desde que OpenNCCM empezó a mirarlos
@@ -8,7 +8,7 @@ Puertos sin uso
 * «Preparar shutdown» arma la configuración de cada fabricante y crea una solicitud de cambio, que pasa por aprobación y
   por su análisis de impacto (app/impact.py). La descripción anterior queda guardada en la solicitud.
 
-Documento de la red: app/netdoc.py arma el PDF (reportlab) y el Word (.docx); aquí están la página y los generados.
+El Documento de la red pasó al módulo de pago Informes profesionales (repositorio privado opennccm-pro) el 14 nov 2026.
 """
 from __future__ import annotations
 
@@ -25,10 +25,10 @@ from sqlalchemy import select
 from . import topology
 from .auth import Forbidden, check_device, device_scope, require
 from .crypto import try_decrypt
-from .db import Device, DeviceGroup, SessionLocal, get_setting, now, set_setting
+from .db import Device, SessionLocal, get_setting, now, set_setting
 from .drivers import get_profile
 from .i18n import _, _f
-from .web import flash, go, log_action, render
+from .web import log_action, render
 
 router = APIRouter()
 DAYS = (30, 60, 90)
@@ -287,97 +287,6 @@ def unused_csv(request: Request, days: int = 30, site: str = "", vlan: str = "")
             w.writerow([s["name"], s["site"], r["n"], r["vlan"], r["d"], "nunca" if r["days"] is None else r["days"], r["since"]])
     return Response("﻿" + buf.getvalue(), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="puertos-sin-uso-{data["days"]}d.csv"'})
-
-
-# --------------------------------------------------------------------------- documento de la red
-def _groups():
-    with SessionLocal() as db:
-        return [(g.id, g.name) for g in db.scalars(select(DeviceGroup).order_by(DeviceGroup.name))]
-
-
-@router.get("/reports/netdoc")
-def netdoc_page(request: Request):
-    user = require(request)
-    from . import netdoc
-    scope = device_scope(user)
-    with SessionLocal() as db:
-        devs = [d for d in db.scalars(select(Device).where(Device.retired_at.is_(None))) if scope is None or d.id in scope]
-    sites = {}
-    for d in devs:
-        if d.location:
-            sites[d.location] = sites.get(d.location, 0) + 1
-    groups = [(gid, name, sum(1 for d in devs if d.group_id == gid)) for gid, name in _groups()]
-    preview, psvg = None, ""
-    try:  # las primeras páginas con datos reales de toda la red visible
-        preview = netdoc.collect(user, {"scope": "all", "site": "", "group": 0, "hide_public": False})
-        psvg = netdoc.mini_svg(preview)
-    except netdoc.DocError:
-        pass
-    return render(request, "netdoc.html", user, sites=sorted(sites.items()), groups=groups, total=len(devs),
-                  docs=netdoc.listing(user), sections=netdoc.SECTIONS, client=get_setting("org_name", ""),
-                  has_logo=netdoc.logo_path() is not None, preview=preview, preview_svg=psvg,
-                  logo_v=int(netdoc.logo_path().stat().st_mtime) if netdoc.logo_path() else 0,
-                  now_s=now().strftime("%d-%m-%Y"))
-
-
-@router.post("/reports/netdoc")
-async def netdoc_make(request: Request):
-    user = require(request, "operator")
-    from . import netdoc
-    form = await request.form()
-    if form.get("logo_remove") == "1":  # «Quitar» el logo guardado
-        netdoc.remove_logo()
-    up = form.get("logo")
-    if up is not None and getattr(up, "filename", ""):
-        raw = await up.read()
-        if raw:
-            err = netdoc.save_logo(raw)
-            if err:
-                flash(request, err, "error")
-                return go("/reports/netdoc")
-    opts = netdoc.options_from(form)
-    try:
-        meta = netdoc.generate(user, opts)
-    except netdoc.DocError as e:
-        flash(request, str(e), "error")
-        return go("/reports/netdoc")
-    log_action(request, user, "netdoc", f"{meta['file']} · {meta['label']} · {meta['pages'] or '?'} págs.")
-    flash(request, _f("Listo: {0}.", meta["file"]))
-    return go(f"/reports/netdoc?made={meta['id']}")
-
-
-@router.get("/reports/netdoc/logo")
-def netdoc_logo(request: Request):
-    """El logo guardado, para la miniatura y la portada de la vista previa."""
-    require(request)
-    from . import netdoc
-    p = netdoc.logo_path()
-    if p is None:
-        return Response(status_code=404)
-    return Response(p.read_bytes(), media_type="image/png" if p.suffix == ".png" else "image/jpeg",
-                    headers={"Cache-Control": "private, max-age=3600"})
-
-
-@router.post("/reports/netdoc/{doc_id}/again")
-def netdoc_again(request: Request, doc_id: str):
-    user = require(request, "operator")
-    from . import netdoc
-    meta = netdoc.regenerate(user, doc_id)
-    log_action(request, user, "netdoc", f"{meta['file']} · {meta['label']} (de nuevo)")
-    flash(request, _f("Listo: {0}.", meta["file"]))
-    return go(f"/reports/netdoc?made={meta['id']}")
-
-
-@router.get("/reports/netdoc/{doc_id}/file")
-def netdoc_file(request: Request, doc_id: str, view: int = 0):
-    user = require(request)
-    from . import netdoc
-    path, meta = netdoc.file_for(user, doc_id)
-    log_action(request, user, "netdoc_download", meta["file"])
-    mt = "application/pdf" if meta["fmt"] == "pdf" else \
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    how = "inline" if view and meta["fmt"] == "pdf" else "attachment"  # «Ver»: el PDF en el navegador
-    return Response(path.read_bytes(), media_type=mt, headers={"Content-Disposition": f'{how}; filename="{meta["file"]}"'})
 
 
 __all__ = ["router", "track", "unused", "shutdown_commands", "iface_blocks"]

@@ -17,7 +17,7 @@ AREAS = [
                                             "recipes_rest", "recipes_ubnt_zte", "configlets_seed", "configlets_ui",
                                             "compliance_packs", "verified", "autofix", "refconfig"]),
     ("Red: mapa, vecinos, MAC/IP e informes", ["topology", "topolayout", "nodes", "nbwatch", "macfind", "ipam",
-                                              "mapreport", "netreports", "netdoc", "reports", "charts", "health"]),
+                                              "mapreport", "netreports", "reports", "charts", "health"]),
     ("Firmware, CVE y ciclo de vida", ["firmware", "fwupdates", "fwverify", "eol"]),
     ("Integraciones", ["extauth", "zabbix", "zbxcorr", "gitexport", "vendorlogos"]),
     ("Asistente IA y base de conocimiento", ["assistant", "aichat", "kb"]),

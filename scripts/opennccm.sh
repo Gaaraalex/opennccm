@@ -43,8 +43,14 @@ as_app() {  # ejecutar como el usuario del servicio, con su configuración
 }
 pycli() { as_app "$APP_DIR/.venv/bin/python" -m app.cli "$@"; }
 
+recolector() { grep -q '^NCM_MODO=recolector' "$ETC_DIR/opennccm.env" 2>/dev/null; }
 health() {  # health [versión esperada] -> 0 si responde (y coincide la versión)
   local want=${1:-} out
+  if recolector; then  # sin web: el servicio tiene que seguir activo y con el código de esa versión
+    sleep 8
+    systemctl is-active --quiet $SVC && [[ -z $want || $(current_version) == "$want" ]]
+    return
+  fi
   for _ in $(seq 1 90); do
     if out=$(curl -fsS --max-time 3 "$HEALTH_URL" 2>/dev/null); then
       [[ -z $want || $out == *"\"version\":\"$want\""* ]] && return 0
@@ -242,8 +248,12 @@ cmd_status() {
   fi
   echo "${c_b}OpenNCCM $ver${c_0}"
   [[ $active == active ]] && ok "Servicio: activo" || warn "Servicio: $active"
-  if curl -fsS --max-time 3 $HEALTH_URL >/dev/null 2>&1; then ok "Aplicación: responde"; else warn "Aplicación: no responde"; fi
-  [[ -n $url ]] && echo "  Acceso:     $url"
+  if recolector; then
+    echo "  Modo:       recolector de ${RC_CENTRAL:-?} (sin interfaz web; detalle: opennccm recolector estado)"
+  else
+    if curl -fsS --max-time 3 $HEALTH_URL >/dev/null 2>&1; then ok "Aplicación: responde"; else warn "Aplicación: no responde"; fi
+    [[ -n $url ]] && echo "  Acceso:     $url"
+  fi
   rev=$(git -C $APP_DIR describe --tags --always 2>/dev/null)   # vacío en una instalación desde el paquete .tar.gz
   echo "  Código:     $APP_DIR${rev:+ ($rev)}"
   echo "  Datos:      $DATA_DIR ($(du -sh $DATA_DIR 2>/dev/null | cut -f1))"
@@ -309,6 +319,16 @@ cmd_fxi_firewall() {
   chown $SVC_USER: "$state" 2>/dev/null || true
 }
 
+cmd_ha_activo() {  # alta disponibilidad: el comando opcional del cliente al pasar a activo (systemd, como root)
+  need_root ha-al-pasar-a-activo
+  local f=$ETC_DIR/al-pasar-a-activo.sh
+  [[ -f $f ]] || return 0
+  # solo si es de root y nadie más puede cambiarlo (lo que se escribe desde la web nunca corre como root)
+  [[ $(stat -c %u "$f") == 0 && $(( 0$(stat -c %a "$f") & 022 )) -eq 0 ]] || { logger -t opennccm "No se corre $f: tiene que ser de root y sin escritura para otros"; return 1; }
+  logger -t opennccm "Alta disponibilidad: corriendo $f (este servidor pasó a activo)"
+  timeout 100 /bin/sh "$f"
+}
+
 usage() {
 cat <<EOF
 ${c_b}opennccm${c_0} - administración de OpenNCCM $(current_version)
@@ -327,6 +347,7 @@ ${c_b}opennccm${c_0} - administración de OpenNCCM $(current_version)
   ${c_b}backup-all${c_0}                  Respaldar ahora la configuración de todos los equipos
   ${c_b}seed${c_0}                        Cargar políticas y configlets de ejemplo
   ${c_b}logs${c_0} [-f]                   Ver el registro del servicio
+  ${c_b}recolector estado${c_0}           En modo recolector: su sede, el servidor central y la cola
   ${c_b}start | stop | restart${c_0}      Controlar el servicio
   ${c_b}version${c_0}                     Versión instalada
   ${c_b}uninstall${c_0} [--purge]         Desinstalar (--purge borra también los datos)
@@ -353,7 +374,16 @@ case $cmd in
   users|list-users) need_root users; pycli list-users ;;
   backup-all|seed) need_root "$cmd"; pycli "$cmd" "$@" ;;
   fxi-firewall) need_root "$cmd"; cmd_fxi_firewall "$@" ;;
+  ha-al-pasar-a-activo) cmd_ha_activo ;;
   logs) journalctl -u $SVC --no-pager -n 200 "$@" ;;
+  recolector)
+    need_root "$cmd"; sub=${1:-estado}; shift || true
+    case $sub in
+      estado) pycli recolector estado ;;
+      alta) [[ $# -ge 2 ]] || die "Uso: sudo opennccm recolector alta URL_DEL_CENTRAL CLAVE"
+            systemctl stop $SVC; pycli recolector alta "$@"; systemctl start $SVC ;;
+      *) die "Uso: sudo opennccm recolector estado | alta URL_DEL_CENTRAL CLAVE" ;;
+    esac ;;
   start|stop|restart) need_root "$cmd"; systemctl "$cmd" $SVC; [[ $cmd == stop ]] || { health && ok "OpenNCCM responde."; } ;;
   uninstall) cmd_uninstall "$@" ;;
   help|-h|--help) usage ;;

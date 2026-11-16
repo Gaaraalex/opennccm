@@ -59,6 +59,11 @@ def _note_version():
 async def lifespan(_app):
     init_db()
     try:
+        from . import promod
+        promod.load_all(_app)  # módulos Pro instalados (firmados) que la licencia incluye
+    except Exception:  # noqa: BLE001 — un módulo nunca impide que arranque
+        log.exception("No se pudieron cargar los módulos Pro")
+    try:
         from .console import close_orphans
         close_orphans()  # sesiones de consola que quedaron abiertas al reiniciarse el servidor
     except Exception:  # noqa: BLE001
@@ -135,6 +140,32 @@ app.add_middleware(_Gzip)
 CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
        "img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; "
        "form-action 'self'; frame-ancestors 'none'")
+
+
+@app.middleware("http")
+async def standby_role(request: Request, call_next):
+    """Alta disponibilidad: un servidor que no es el activo solo atiende lo del módulo (latido, réplica) y una página que
+    dice cuál es el activo. Sin el módulo, el rol es siempre «activo» y esto no hace nada."""
+    from . import prohooks
+    if prohooks.rol() != "activo":
+        p = request.url.path
+        if not (p.startswith("/static/") or p == "/healthz" or any(p.startswith(x) for x in prohooks.standby_allow)):
+            # va antes de LangMiddleware: el idioma sale del navegador o del de fábrica (sin sesión)
+            from .auth import cached_setting
+            from .i18n import pick_lang, set_lang
+            try:
+                default = cached_setting("default_lang", "es") or "es"
+            except Exception:  # noqa: BLE001
+                default = "es"
+            set_lang(pick_lang(None, request.headers.get("accept-language"), default))
+            if prohooks.standby_page is not None:
+                try:
+                    return prohooks.standby_page(request)
+                except Exception:  # noqa: BLE001
+                    log.exception("Página de espera del módulo de alta disponibilidad")
+            from fastapi.responses import PlainTextResponse
+            return PlainTextResponse(_("Este servidor está en espera: usa el servidor activo."), status_code=503)
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -1274,7 +1305,8 @@ def device_backup(request: Request, dev_id: int):
     msgs = {"changed": _("Respaldo realizado: se detectaron cambios"), "unchanged": _("Respaldo realizado: sin cambios"),
             "first": _("Primer respaldo guardado"), "error": _("El respaldo falló (ver detalle)"),
             "busy": _("El equipo está ocupado con otra tarea"),
-            "disabled": _("El equipo está desactivado: OpenNCCM no se conecta con él. Actívalo para respaldarlo.")}
+            "disabled": _("El equipo está desactivado: OpenNCCM no se conecta con él. Actívalo para respaldarlo."),
+            "queued": _("Pedido al recolector de su sede: la copia llega en cuanto la haga.")}
     flash(request, msgs.get(res, res), "error" if res in ("error", "busy", "disabled") else "ok")
     return go(f"/devices/{dev_id}")
 
@@ -3730,7 +3762,10 @@ def settings_test(request: Request):
 # --------------------------------------------------------------------------- informes
 @app.get("/reports")
 def reports_page(request: Request):
-    return render(request, "reports.html", require(request), titles=reports.TITLES)
+    from . import pro
+    user = require(request)
+    return render(request, "reports.html", user, titles=reports.TITLES, old_netdocs=len(pro.old_netdocs(user)),
+                  netdoc_since=pro.NETDOC_PRO_SINCE)
 
 
 @app.get("/reports/view/{kind}")
@@ -3951,6 +3986,9 @@ app.include_router(zbxcorr.router)
 from . import capacity  # noqa: E402  (Administración › Capacidad)
 
 app.include_router(capacity.router)
+from . import pro  # noqa: E402  (puertas de los módulos Pro: Licencia y módulos y sus páginas)
+
+app.include_router(pro.router)
 
 
 @app.get("/favicon.ico", include_in_schema=False)

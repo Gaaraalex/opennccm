@@ -1,0 +1,119 @@
+{% extends "base.html" %}{% block title %}{{ _('Licencia y módulos') }}{% endblock %}
+{% block crumbs %}<b>Administración</b>{% endblock %}
+{% block content %}
+{% include "_admin_tabs.html" %}
+{% from "_pro.html" import tag %}
+<div class="ph"><div class="grow"><h1 style="font-size:24px">{{ _('Licencia y módulos') }}</h1>
+  <div class="sub">{{ _('OpenNCCM es gratis. Los módulos Pro agregan funciones; lo gratis nunca se quita.') }}</div></div></div>
+{% if st.problem %}<div class="banner crit" role="alert">{{ icon('alert') }}<span class="grow">{{ st.problem }}</span></div>{% endif %}
+{# pedido de prueba y prueba en uso (Pruebas 6, 7 y 8; contrato de pruebas, sección 6) #}
+{% if ped and ped.estado == 'en_revision' %}
+<div class="banner warn lic-bx" role="status">{{ icon('clock') }}<div><b>{{ _('Pedido de prueba en revisión') }}</b>
+  <div class="sm">{{ _f('{0} · enviado {1} a {2}. Revisamos cada pedido a mano, normalmente en menos de un día hábil.', ped.names, ped.sent|ago, ped.correo) }}</div>
+  {% if ped.confirmar %}<div class="sm" style="margin-top:4px"><b>{{ _('Revisa tu correo y confirma la dirección para que tu pedido llegue a revisión.') }}</b></div>{% endif %}</div>
+  <form method="post" action="/license/trial/cancel"><button class="btn s ghost" onclick="return confirm('{{ _('¿Cancelar el pedido de prueba?')|jsq }}')">{{ _('Cancelar pedido') }}</button></form></div>
+{% elif ped and ped.estado == 'aprobado' %}
+<div class="banner ok lic-bx" role="status">{{ icon('check') }}<div><b>{{ _('Tu prueba fue aprobada') }}</b>
+  <div class="sm">{% if ped.dias %}{{ _f('{0} por {1} días, desde que la actives.', ped.names, ped.dias) }}{% else %}{{ _f('{0}, desde que la actives.', ped.names) }}{% endif %}
+    {{ _('Se agrega a la clave de este servidor.') if ped.has_key else _('También te llegó la clave por correo.') }}</div></div>
+  <form method="post" action="/license/trial/activate"><button class="btn pri">{{ _('Activar prueba') }}</button></form></div>
+{% elif ped and ped.estado == 'esperando' %}
+<div class="banner ok lic-bx" role="status">{{ icon('check') }}<div><b>{{ _('Prueba aprobada · el módulo todavía no salió; te avisamos aquí cuando empiece.') }}</b>
+  <div class="sm">{{ ped.names }}</div></div></div>
+{% elif ped and ped.estado == 'rechazado' %}
+<div class="banner mute lic-bx" role="status">{{ icon('info') }}<div><b>{{ _('Tu pedido de prueba no fue aprobado') }}</b>
+  <div class="sm">{{ ped.names }}{% if ped.motivo %} · {{ ped.motivo }}{% endif %}</div></div>
+  <form method="post" action="/license/trial/dismiss"><button class="btn s ghost" aria-label="{{ _('Cerrar') }}">✕</button></form></div>
+{% endif %}
+{% if trial_end %}
+<div class="banner info lic-bx" role="status">{{ icon('info') }}<div><b>{{ _('Estás usando una prueba') }}</b>
+  <div class="sm">{{ _f('Vence el {0}. Ese día los módulos se pausan; los informes que generes se conservan y lo gratis sigue igual. Te avisamos 3 días antes.', short(trial_end)) }}</div></div>
+  <a class="btn s" href="{{ buy_url }}" target="_blank" rel="noopener">{{ _('Ver precios') }} ↗</a></div>
+{% endif %}
+{% set can_try = rows.values()|selectattr('kind', 'equalto', 'free')|list %}
+<div class="bento">
+  <section class="card c12" id="clave" aria-labelledby="lic-k"><div class="card-h"><h2 id="lic-k">{{ _('Clave de licencia') }}</h2>{% if st.prueba %}<span class="pill warn">{{ _('licencia de prueba') }}</span>{% endif %}</div>
+    {% if st.key %}
+    <div class="row" style="gap:12px;flex-wrap:wrap"><span class="input mono lic-key">{{ masked }}</span>
+      <form method="post" action="/license/change" class="inline"><button class="btn" onclick="return confirm('{{ _('¿Quitar esta clave? Los módulos quedarán como no incluidos hasta activar otra. No se borra nada.')|jsq }}')">{{ _('Cambiar clave') }}</button></form>
+      {% if st.paused == 'en_uso' %}<form method="post" action="/license/activate" class="inline"><input type="hidden" name="again" value="1"><button class="btn pri">{{ _('Volver a activar aquí') }}</button></form>
+      {% else %}<form method="post" action="/license/refresh" class="inline"><button class="btn">{{ icon('refresh', 's') }}{{ _('Actualizar') }}</button></form>{% endif %}
+      <span class="muted sm">{% if st.checked %}{{ _('Última comprobación:') }} <span title="{{ st.checked|dt }}">{{ st.checked|ago }}</span>{% endif %}{% if st.cliente %} · {{ st.cliente }}{% endif %}</span></div>
+    {% else %}
+    <form method="post" action="/license/activate" class="row" style="gap:10px;flex-wrap:wrap">
+      <label class="input mono" style="width:min(360px,100%)" for="lic-in"><input id="lic-in" name="key" placeholder="OPNC-XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false" aria-label="{{ _('Clave de licencia') }}" required value="{{ trial_used.clave if trial_used else '' }}"></label>
+      <button class="btn pri">{{ _('Activar') }}</button>
+      <a class="btn ghost" href="{{ buy_url }}" target="_blank" rel="noopener">{{ _('Ver planes y precios') }} ↗</a></form>
+    {% if trial_used %}{# 409 «prueba_usada» al pegar una clave de prueba (Pruebas 9) #}
+    <div class="banner crit lic-bx" role="alert" style="margin:12px 0 0">{{ icon('alert') }}<div><b>{{ _('Esta clave de prueba no se puede usar en este servidor') }}</b>
+      <div class="sm">{{ trial_used_text }}</div>
+      <div class="row" style="gap:12px;margin-top:8px;flex-wrap:wrap"><a class="btn s pri" href="{{ buy_url }}" target="_blank" rel="noopener">{{ _('Ver precios') }} ↗</a><a class="sm" href="{{ contact_url }}">{{ _('¿Es un error? Escríbenos') }}</a></div></div>
+      <form method="post" action="/license/trial-used/dismiss"><button class="btn s ghost" aria-label="{{ _('Cerrar') }}">✕</button></form></div>
+    {% elif can_try and (not ped or ped.estado == 'rechazado') %}<p class="sm" style="margin:12px 0 0">{{ _('¿Todavía no tienes clave?') }} <button type="button" class="lnk" data-dialog="lic-try">{{ _('Pide una prueba gratis') }}</button> {{ _('o compra en comunidad.opennccm.com') }}</p>{% endif %}
+    {% endif %}
+    <p class="muted sm" style="margin-top:12px">{{ _('OpenNCCM Pro necesita conexión a internet para activar y comprobar la licencia. Solo se envían la clave, el id de esta instalación, la huella y el nombre del servidor que configuraste.') }}</p>
+    <p class="muted sm" style="margin-top:6px">{{ _f('Id de esta instalación: {0}', install) }}</p></section>
+
+  <section class="card c12" aria-labelledby="lic-m"><div class="card-h"><h2 id="lic-m">{{ _('Módulos') }}</h2></div>
+    <div class="lic-mods">{% for mid, meta in modules.items() %}{% set m = st.modules[mid] %}{% set r = rows[mid] %}{% set mi = mods[mid] %}
+      <div class="lic-mr"><div><b>{{ _(meta.name) }}</b><span class="muted sm">{{ _(meta.desc) }}</span></div>
+        {% if r.kind == 'waiting' %}<span class="pill">{{ _('Prueba aprobada') }}</span>
+        {% elif r.kind == 'blocked' %}<span class="pill">{{ _('No incluido') }}</span>
+        {% elif r.kind in ('trial', 'trial_nopkg') %}<span class="pill info">{% if m.days_cal <= 0 %}{{ _('Prueba · vence hoy') }}{% elif m.days_cal == 1 %}{{ _('Prueba · queda 1 día') }}{% else %}{{ _f('Prueba · quedan {0} días', m.days_cal) }}{% endif %}</span>
+        {% elif r.kind == 'trial_over' %}<span class="pill crit">{{ _f('La prueba terminó el {0}', short(m.until_local)) }}</span>
+        {% elif r.kind == 'pending' %}<span class="pill warn">{{ _('Prueba pedida') }}</span>
+        {% elif r.kind == 'approved' %}<span class="pill ok">{{ _('Prueba aprobada') }}</span>
+        {% elif r.kind == 'soon' %}<span class="pill">{{ _('Próximamente') }}</span>
+        {% else %}<span class="pill {{ 'ok' if m.state == 'activo' else 'warn' if m.state == 'gracia' else 'crit' if m.state in ('vencido', 'pausado') else '' }}">{% if m.state == 'pausado' %}{{ _('Pausado') }}{% elif m.state == 'activo' %}{{ _f('Activo hasta el {0}', m.until.strftime('%d-%m-%Y')) }}{% elif m.state == 'gracia' %}{{ _f('En gracia hasta el {0}', m.grace_until.strftime('%d-%m-%Y')) }}{% elif m.state == 'vencido' %}{{ _f('Venció el {0}', m.until.strftime('%d-%m-%Y')) }}{% else %}{{ _('No incluido') }}{% endif %}</span>{% endif %}
+        <span class="muted sm">{% if mi.problem and r.kind in ('owned', 'paused') %}<span style="color:var(--crit)">{{ mi.problem }}</span> {% endif %}
+          {%- if r.kind == 'waiting' %}{{ _f('Disponible pronto · tu prueba de {0} días empieza cuando salga', r.days) if r.days else _('Disponible pronto · tu prueba empieza cuando salga') }}
+          {%- elif r.kind == 'blocked' %}{{ r.text }}
+          {%- elif r.kind == 'trial_nopkg' %}{{ _('Disponible pronto · tu prueba empieza cuando salga') }}
+          {%- elif r.kind == 'trial' %}{{ _f('hasta el {0}', short(m.until_local)) }}{% for k, v in m.limits.items() %} · {{ _f('{0}: {1}', _(k), v if v else _('sin límite')) }}{% endfor %}
+          {%- elif r.kind == 'trial_over' %}{{ _('Pausado · no se borró nada') }}
+          {%- elif r.kind == 'pending' %}{{ _('en revisión') }}
+          {%- elif r.kind == 'approved' %}{{ _('lista para activar') }}
+          {%- elif r.kind == 'used' %}{{ _('Ya probado en este servidor') }}
+          {%- else %}{% if m.state != 'no_incluido' and soon[mid] %}{{ _('Incluido en tu licencia · se instala cuando esté disponible') }} {% elif mi.version and not mi.problem %}{{ _f('Módulo {0} instalado', mi.version) }} {% endif %}{% if m.tipo == 'manual' %}{{ _('Pro manual · no se renueva sola') }} {% endif %}{% if m.state != 'no_incluido' and m.limits %}{% for k, v in m.limits.items() %}{{ _f('{0}: {1}', _(k), v if v else _('sin límite')) }} {% endfor %}{% endif %}{% endif %}</span>
+        {% if r.kind == 'paused' %}<span class="lic-nobtn"></span>{# la salida está arriba: Actualizar o Volver a activar aquí #}
+        {% elif r.kind == 'soon' %}<a class="btn s" href="{{ buy_url }}" target="_blank" rel="noopener">{{ _('Avísame cuando esté') }} ↗</a>
+        {% elif r.kind == 'free' %}<div class="row lic-btns">{% if not ped or ped.estado == 'rechazado' %}<button type="button" class="btn s" data-dialog="lic-try" data-mod="{{ mid }}">{{ _('Probar gratis') }}</button>{% endif %}<a class="btn s pri" href="{{ buy_url }}" target="_blank" rel="noopener">{{ _('Comprar') }}</a></div>
+        {% elif r.kind in ('trial', 'trial_nopkg', 'trial_over', 'pending', 'approved', 'used', 'waiting', 'blocked', 'nopkg') %}<a class="btn s {{ 'pri' if r.kind in ('trial_over', 'used', 'blocked', 'nopkg') }}" href="{{ buy_url }}" target="_blank" rel="noopener">{{ _('Comprar') }}</a>
+        {% else %}<a class="btn s {{ 'pri' if m.state == 'no_incluido' }}" href="{{ buy_url }}" target="_blank" rel="noopener">{{ _('Comprar') if m.state == 'no_incluido' else _('Renovar') }}</a>{% endif %}</div>
+    {% endfor %}</div></section>
+
+  <section class="card c12" aria-labelledby="lic-p"><div class="card-h"><h2 id="lic-p">{{ _('Preferencias') }}</h2></div>
+    <form method="post" action="/license/prefs" class="stack" style="gap:6px">
+      <label class="swrow"><span>{{ _('Mostrar las funciones Pro que no tengo, con su etiqueta PRO') }}</span><input type="checkbox" class="sw" name="show_pro" {{ 'checked' if show_pro }}></label>
+      <label class="swrow"><span>{{ _('Avisarme 30 días antes de que venza un módulo') }}</span><input type="checkbox" class="sw" name="notify30" {{ 'checked' if notify30 }}></label>
+      <div class="row"><button class="btn s">{{ icon('save', 's') }}{{ _('Guardar') }}</button></div></form>
+    <p class="muted sm" style="margin-top:10px">{{ _('Si un módulo vence: los informes ya generados se conservan y puedes descargarlos; solo se pausan los envíos programados y la creación de nuevos.') }}</p></section>
+</div>
+{% if can_try and (not ped or ped.estado == 'rechazado') %}
+<dialog class="dlg" id="lic-try" aria-labelledby="lic-try-h" style="width:min(560px,100%)">
+  <form method="post" action="/license/trial" class="stack" style="gap:12px">
+    <div class="row"><h2 id="lic-try-h" style="margin:0;font-size:18px">{{ _('Pedir una prueba gratis') }}</h2><span class="grow"></span><button type="button" class="btn s ghost" data-close aria-label="{{ _('Cerrar') }}">✕</button></div>
+    <p class="muted sm" style="margin:0">{{ _('Sin tarjeta. La revisamos a mano y te avisamos por correo y aquí mismo. Cuando se apruebe, la activas con un clic.') }}</p>
+    <fieldset class="lic-tm" style="border:0;margin:0;padding:0"><legend class="vh">{{ _('Módulos') }}</legend>
+    {% for mid, meta in modules.items() %}{% set r = rows[mid] %}{% if r.kind not in ('soon', 'nopkg') %}
+      <label class="lic-tmo{% if r.kind != 'free' %} off{% endif %}"><input type="checkbox" name="modulos" value="{{ mid }}"{% if r.kind != 'free' %} disabled{% endif %}>
+        <span><b>{{ _(meta.name) }}</b><span class="muted sm">{% if r.kind == 'used' %}{{ _f('Ya probado en este servidor el {0}', r.used_on) if r.used_on else _('Ya probado en este servidor') }}{% elif r.kind != 'free' %}{{ _('Ya está en tu licencia') }}{% else %}{{ _(meta.desc) }}{% endif %}</span></span></label>
+    {% endif %}{% endfor %}</fieldset>
+    <label class="stack" style="gap:4px;margin:0"><span class="sm" style="font-weight:600">{{ _('Correo') }}</span><span class="input"><input type="email" name="correo" value="{{ trial_email }}" required maxlength="200" autocomplete="email"></span>
+      <span class="muted sm">{{ _('El de tu cuenta en comunidad.opennccm.com. Si no tienes, se crea al confirmar el correo.') }}</span></label>
+    <label class="stack" style="gap:4px;margin:0"><span class="sm" style="font-weight:600">{{ _('Organización') }}</span><span class="input"><input name="organizacion" value="{{ trial_org }}" required maxlength="200" autocomplete="organization"></span></label>
+    <label class="stack" style="gap:4px;margin:0"><span class="sm" style="font-weight:600">{{ _('Para qué') }}</span><span class="input"><textarea name="motivo" rows="2" maxlength="1000" placeholder="{{ _('Por ejemplo: evaluar los informes para la gerencia') }}"></textarea></span></label>
+    <p class="muted sm" style="margin:0">{{ _('Cada servidor puede probar cada módulo una sola vez. Se envía el correo, la organización, los módulos y la huella de este servidor (un código que no identifica tu red).') }}</p>
+    <div class="row" style="justify-content:flex-end;gap:8px"><button type="button" class="btn" data-close>{{ _('Cancelar') }}</button><button class="btn pri" id="lic-try-go">{{ _('Enviar pedido') }}</button></div>
+  </form>
+</dialog>
+<script>
+(() => { const d = document.getElementById('lic-try'); if (!d) return;
+  const boxes = [...d.querySelectorAll('input[name=modulos]:not([disabled])')], go = document.getElementById('lic-try-go');
+  const sync = () => { go.disabled = !boxes.some(b => b.checked); };
+  document.addEventListener('click', e => { const b = e.target.closest('[data-dialog="lic-try"]'); if (!b) return;
+    boxes.forEach(x => { x.checked = b.dataset.mod ? x.value === b.dataset.mod : boxes.length === 1; }); sync(); });
+  d.addEventListener('change', sync); sync(); })();
+</script>
+{% endif %}
+{% endblock %}
