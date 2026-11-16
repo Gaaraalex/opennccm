@@ -134,7 +134,7 @@ class H(BaseHTTPRequestHandler):
                 out = {"licencia": lic([{"id": "informes_pro", "hasta": iso(now + timedelta(days=300))}]), "cliente": "Valnet S.A.",
                        "sello": "sello-1"}
         elif self.path == "/api/licencias/actualizar":
-            code = {"revocada": 410, "liberada": 409, "en_uso": 409}.get(REVOKE, 200)
+            code = {"revocada": 410, "no_existe": 404, "liberada": 409, "en_uso": 409}.get(REVOKE, 200)
             mods = [{"id": "informes_pro", "hasta": iso(now + timedelta(days=400))}]
             if REVOKE != "sin_recolectores":
                 mods.append({"id": "recolectores", "hasta": iso(now + timedelta(days=400)), "limites": {"sedes": 3}})
@@ -203,6 +203,12 @@ check("instalación liberada (409 no_activa): lo dice y pide volver a activar", 
 REVOKE = "revocada"
 check("actualizar con 410: revocada, módulos no incluidos y el motivo", licencia.refresh() == "revocada"
       and licencia.state()["modules"]["informes_pro"]["state"] == "no_incluido" and "revocada" in licencia.state()["problem"])
+REVOKE = None
+licencia.refresh()
+REVOKE = "no_existe"
+check("actualizar con 404 (la licencia recibió una clave nueva): igual que 410, módulos no incluidos y pide la clave nueva",
+      licencia.refresh() == "no_existe" and licencia.state()["modules"]["informes_pro"]["state"] == "no_incluido"
+      and "Esta clave ya no existe" in licencia.state()["problem"] and get_setting("licencia", ""))
 REVOKE = None
 licencia.refresh()
 check("si vuelve a validar, deja de estar revocada", licencia.state()["modules"]["informes_pro"]["state"] == "activo")

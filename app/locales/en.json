@@ -6135,5 +6135,6 @@
 "excepción de módulos": "module exception",
 "Términos de OpenNCCM Pro": "OpenNCCM Pro Terms",
 "OpenNCCM es gratis. Los módulos Pro son opcionales y se compran en comunidad.opennccm.com. Los pagos, las renovaciones y las cancelaciones se rigen por los": "OpenNCCM is free. Pro modules are optional and are purchased at comunidad.opennccm.com. Payments, renewals and cancellations are governed by the",
-"Este servidor está en espera: usa el servidor activo.": "This server is on standby: use the active server."
+"Este servidor está en espera: usa el servidor activo.": "This server is on standby: use the active server.",
+"Esta clave ya no existe: activa la clave nueva que recibiste por correo.": "This key no longer exists: activate the new key you received by email."
 }

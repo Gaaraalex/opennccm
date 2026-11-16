@@ -50,6 +50,7 @@ log = logging.getLogger("opennccm")
 # claves públicas de firma de comunidad.opennccm.com: {kid: clave pública Ed25519 en base64url (32 bytes)}. «k1» es la
 # de producción (la privada solo está en la web); para pruebas se agregan otras con NCM_LICENSE_KEYS="k0=…,k9=…".
 PUBLIC_KEYS: dict[str, str] = {"k1": "4CRggzpVI-SVyDWIept_nhnQjgklVa3xgHNNvjLa6Kg"}
+NO_EXISTE_MSG = N_("Esta clave ya no existe: activa la clave nueva que recibiste por correo.")
 LICENSE_URL = os.environ.get("NCM_LICENSE_URL", "https://comunidad.opennccm.com").rstrip("/")
 BUY_URL = "https://comunidad.opennccm.com/pro"
 CONTACT_URL = "mailto:soporte@opennccm.com"
@@ -341,6 +342,9 @@ def state(now: datetime | None = None) -> dict:
     if get_setting("licencia_revocada", "") == "1":
         out["problem"] = _("La licencia fue revocada. Revise su cuenta en comunidad.opennccm.com.")
         data = None
+    elif get_setting("licencia_revocada", "") == "no_existe":
+        out["problem"] = _(NO_EXISTE_MSG)
+        data = None
     elif get_setting("licencia_revocada", "") == "liberada":
         out["problem"] = _("Esta clave se liberó desde Mi cuenta; vuelve a activarla.")
         data = None
@@ -466,7 +470,7 @@ def activate(key: str) -> dict:
 
 
 def refresh() -> str:
-    """«Actualizar» (y una vez al día): trae la licencia más nueva. Devuelve "ok", "revocada", "liberada", "en_uso",
+    """«Actualizar» (y una vez al día): trae la licencia más nueva. Devuelve "ok", "revocada", "no_existe", "liberada", "en_uso",
     "sin_clave" o el error (sin red se sigue con la guardada hasta «comprobar_antes»)."""
     key = get_setting("licencia_clave", "")
     if not key:
@@ -482,6 +486,9 @@ def refresh() -> str:
         if r.status_code == 410:
             set_setting("licencia_revocada", "1")
             return "revocada"
+        if r.status_code == 404:  # la web le dio una clave nueva a esa licencia (misma fila): la vieja ya no existe
+            set_setting("licencia_revocada", "no_existe")
+            return "no_existe"
         if r.status_code == 409:
             try:
                 err = r.json().get("error")
@@ -522,7 +529,7 @@ def daily() -> None:
     if not get_setting("licencia_clave", "") and not get_setting("licencia", ""):
         return
     res = refresh()
-    if res not in ("ok", "sin_clave", "revocada", "liberada", "en_uso"):
+    if res not in ("ok", "sin_clave", "revocada", "no_existe", "liberada", "en_uso"):
         log.info("Licencia: %s", res)
     try:
         from . import promod

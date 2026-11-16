@@ -235,6 +235,8 @@ def license_refresh(request: Request):
         flash(request, _("Licencia actualizada."))
     elif res == "revocada":
         flash(request, _("La licencia fue revocada. Revise su cuenta en comunidad.opennccm.com."), "error")
+    elif res == "no_existe":
+        flash(request, _(licencia.NO_EXISTE_MSG), "error")
     elif res == "liberada":
         flash(request, _("Esta clave se liberó desde Mi cuenta; vuelve a activarla."), "error")
     elif res == "en_uso":
