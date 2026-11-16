@@ -100,15 +100,32 @@ def start():
     raise SystemExit("OpenNCCM no arrancó (ver app.log)")
 
 
+from requests.adapters import HTTPAdapter  # noqa: E402
+from urllib3.exceptions import ProtocolError, TimeoutError as U3Timeout  # noqa: E402
+from urllib3.util.retry import Retry  # noqa: E402
+
+
+class _Reintento(Retry):
+    """Reintenta solo una conexión cortada o cerrada por el servidor (ProtocolError) y cuenta cuántas veces pasó."""
+    veces = 0
+
+    def increment(self, method=None, url=None, response=None, error=None, _pool=None, _stacktrace=None):
+        if error is None:  # una respuesta (5xx incluido): status=0, así que no se reintenta
+            return super().increment(method, url, response, error, _pool, _stacktrace)
+        if isinstance(error, U3Timeout) or not isinstance(error, ProtocolError) or (method or "").upper() not in self.allowed_methods:
+            raise error  # tiempo agotado, otro error o un POST: falla como siempre
+        _Reintento.veces += 1
+        log(f"  (reintento {_Reintento.veces}: {method} {url} · {str(error)[:80]})")
+        return super().increment(method, url, response, error, _pool, _stacktrace)
+
+
 def session() -> requests.Session:
     s = requests.Session()
     # uvicorn cierra la conexión inactiva a los 5 s y el progreso se consulta cada 5 s: con la máquina cargada, el GET a veces
     # sale por una conexión que el servidor acaba de cerrar («Connection reset by peer»). Un navegador reintenta; aquí también
-    # (solo los GET, que no cambian nada)
-    from requests.adapters import HTTPAdapter
-    from urllib3.util.retry import Retry
-    s.mount("http://", HTTPAdapter(max_retries=Retry(total=3, connect=3, read=3, backoff_factor=0.2, allowed_methods=frozenset({"GET"}),
-                                                     raise_on_status=False)))
+    # (solo los GET, que no cambian nada, y solo por conexión cortada o cerrada: un 5xx o un tiempo agotado siguen fallando)
+    s.mount("http://", HTTPAdapter(max_retries=_Reintento(total=3, connect=0, read=3, status=0, other=0, backoff_factor=0.2,
+                                                          allowed_methods=frozenset({"GET"}))))
     s.post(B + "/login", data={"username": "admin", "password": "Carga-Admin-2026"})
     return s
 
@@ -321,6 +338,7 @@ def main():
         grow(n, creds, groups)
         b = backup_all(s) if not A.no_backup and n in BK_STEPS else {"secs": 0, "ok": 0, "err": 0, "changed": 0, "per_min": 0, "cpu_avg": 0, "cpu_max": 0, "rss_max_mb": rss_mb(), "errors": [], "cpus": psutil.cpu_count() or 1}
         log(f"  Respaldar todos: {b['secs']:.0f} s, {b['per_min']} equipos/min, {b['ok']} bien, {b['err']} con error")
+        log(f"  Reintentos de GET por conexión cerrada (acumulado): {_Reintento.veces}")
         pg = time_pages(s)
         for p in pg:
             flag = " ← LENTA" if p["median"] > A.limit else ""
