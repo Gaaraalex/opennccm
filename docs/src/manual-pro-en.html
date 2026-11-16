@@ -30,16 +30,17 @@
 </ol></div>
 </section>
 
-<section class="chapter">
+<section class="chapter pro">
 <h1>1. OpenNCCM Pro</h1>
 <p>OpenNCCM is free and open source. <b>OpenNCCM Pro</b> is three optional paid modules for those who need them:
 <b>Professional reports</b>, <b>Site collectors</b> and <b>High availability</b>. Everything else stays the same, with no limits
-on devices or time. Plans and prices: <b>comunidad.opennccm.com/pro</b>.</p>
+on devices or time, except the <b>Network document</b>, which moves to Professional reports (documents you already generated can
+still be viewed and downloaded in <b>Reports › My documents</b>). Plans and prices: <b>comunidad.opennccm.com/pro</b>.</p>
 <p>This manual covers the Pro modules. The rest of OpenNCCM is described in the Spanish <i>Manual de funciones</i> and
 <i>Guía de instalación</i>; the application itself is fully available in English (My account › Language).</p>
 </section>
 
-<section class="chapter">
+<section class="chapter pro">
 <h1>2. License and modules</h1>
 <p>Everything is managed in <b>Administration › License and modules</b> (administrators only). The page shows the three modules
 with their state and, if the license includes them, until when they're active and their limits (devices, sites or pairs).</p>
@@ -68,7 +69,7 @@ detects it and pauses the modules on the copy. The page explains what to do.</p>
 <b>Refresh</b> fetches the newest license right away, without waiting for the daily check.</p>
 </section>
 
-<section class="chapter">
+<section class="chapter pro">
 <h1>3. Free trial</h1>
 <p>In <b>License and modules</b>, <b>Try for free</b> requests a trial of one or more modules. You enter your email, your
 organization and what you want it for. Each server can try each module <b>only once</b>. The request is reviewed by hand at
@@ -78,7 +79,7 @@ license.</p>
 <figure><img src="img/en-39-trial.png" style="max-height:120mm"><figcaption>Requesting a free trial.</figcaption></figure>
 </section>
 
-<section class="chapter">
+<section class="chapter pro">
 <h1>4. Site collectors</h1>
 <p>For sites whose devices the server can't reach (another network, a branch behind its own internet connection). A
 <b>collector</b> installed at the site backs up the devices on its network with the same code as the server and sends the copies
@@ -114,7 +115,7 @@ central server. None of these actions deletes backups. <b>New enrollment key</b>
 <p><b>With High availability</b>, collectors receive both addresses of the pair and always talk to the active server.</p>
 </section>
 
-<section class="chapter">
+<section class="chapter pro">
 <h1>5. High availability</h1>
 <p>Two servers: an <b>active</b> one, which backs up, receives syslog, runs the scheduled tasks and serves the web, and a
 <b>standby</b> one, which copies the active server's data every minute and takes over if the active one goes down. It works with
@@ -158,7 +159,7 @@ license.</p>
 comunidad.opennccm.com, so the other server loses the modules at its next check. No data is deleted.</p>
 </section>
 
-<section class="chapter">
+<section class="chapter pro">
 <h1>6. Installing a site collector and a standby server</h1>
 <p>In both cases, the full command, with the address and the enrollment key, is given by the main server: nothing has to be typed
 by hand.</p>

@@ -53,3 +53,6 @@ tr { break-inside: avoid; }
 .kbd { font: 8.5pt Consolas, monospace; border: 1px solid #c9d1db; border-bottom-width: 2px; border-radius: 1mm; padding: 0 1.2mm; }
 .small { font-size: 8.8pt; color: var(--muted); }
 .keep { break-inside: avoid; }
+/* capítulos de OpenNCCM Pro: un párrafo que presenta una lista, un comando o una figura no queda solo al pie */
+.pro p:has(+ ul, + ol, + pre, + figure, + .two) { break-after: avoid; }
+.pro p + ul > li:first-child { break-before: avoid; }
