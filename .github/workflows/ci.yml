@@ -198,9 +198,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Cuadro final en una terminal de 80x24 (título, «IMPORTANTE…», Enter en los dos cuadros)
+        run: |
+          sudo apt-get install -y -qq tmux whiptail
+          python3 tests/cuadro_final_80x24.py "$GITHUB_WORKSPACE"
       - name: Instalar como una persona (tmux + whiptail, usuario normal con sudo)
         run: |
-          sudo apt-get install -y -qq tmux
           python3 tests/tui_drive.py "$GITHUB_WORKSPACE" "$RUNNER_TEMP/capturas"
       - name: Verificar
         run: |
