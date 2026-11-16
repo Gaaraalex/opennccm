@@ -102,6 +102,13 @@ def start():
 
 def session() -> requests.Session:
     s = requests.Session()
+    # uvicorn cierra la conexión inactiva a los 5 s y el progreso se consulta cada 5 s: con la máquina cargada, el GET a veces
+    # sale por una conexión que el servidor acaba de cerrar («Connection reset by peer»). Un navegador reintenta; aquí también
+    # (solo los GET, que no cambian nada)
+    from requests.adapters import HTTPAdapter
+    from urllib3.util.retry import Retry
+    s.mount("http://", HTTPAdapter(max_retries=Retry(total=3, connect=3, read=3, backoff_factor=0.2, allowed_methods=frozenset({"GET"}),
+                                                     raise_on_status=False)))
     s.post(B + "/login", data={"username": "admin", "password": "Carga-Admin-2026"})
     return s
 
