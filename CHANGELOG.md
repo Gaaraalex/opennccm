@@ -1,5 +1,36 @@
 # Historial de versiones
 
+## 2.45.0
+- [nuevo] **OpenNCCM Pro: módulos opcionales de pago.** OpenNCCM sigue siendo gratis y de código abierto, y todo lo demás que
+  ya usabas sigue igual, sin límites de equipos ni de tiempo (salvo el Documento de la red, ver abajo). Pro suma tres módulos para quien los necesite:
+  - **Informes profesionales:** el Documento de la red, un informe ejecutivo y uno de auditoría, el inventario para
+    gerencia con el costo de renovación, comparar periodos, envíos programados por correo y tu marca en los informes.
+  - **Recolectores por sede:** un recolector en cada sede respalda los equipos de su red y manda las copias a este
+    servidor, aunque la sede no tenga acceso directo. Se instala con un comando en Linux o en Windows.
+  - **Alta disponibilidad:** un segundo servidor en espera copia los datos cada minuto y toma el control solo si el
+    principal cae.
+
+  Se activan en Administración › Licencia y módulos con una clave de comunidad.opennccm.com. Necesitan conexión a internet
+  para activar y comprobar la licencia, y solo se envían la clave, el id de esta instalación, la huella y el nombre del
+  servidor (la huella es un código que no identifica tu red). Planes y precios: comunidad.opennccm.com/pro
+- [nuevo] **Prueba gratis:** Desde Licencia y módulos puedes pedir una prueba de cada módulo, una vez por servidor. Se
+  aprueba en comunidad.opennccm.com y, cuando está lista, la activas con un clic.
+- [cambio] **El Documento de la red pasa a Informes profesionales.** Los documentos que ya generaste se siguen viendo y
+  descargando sin licencia, en Informes › «Mis documentos».
+- [nuevo] **Estadística de uso:** Una vez al día, OpenNCCM avisa a comunidad.opennccm.com que está en uso. Envía solo un
+  número de instalación al azar y la versión: nunca configuraciones, equipos, direcciones de tu red ni usuarios. Viene activada
+  y no se puede desactivar. Esa información nos ayuda a seguir mejorando el sistema. Lo que se envía se ve en
+  Administración › Sistema › «Estadística de uso».
+- [nuevo] **Excepción de módulos:** OpenNCCM sigue bajo la GPL-3.0. Una excepción (archivo LICENSE-EXCEPTION, según la
+  sección 7 de la GPL) permite usar módulos que no son libres a través de la Interfaz de Módulos, sin cambiar la licencia
+  del resto del código.
+- [arreglo] **Respaldos cortados al final:** Si un equipo entrega la configuración incompleta (visto en un switch Juniper
+  con Junos 21.4), ya no se guarda como versión nueva: en Junos se cuentan las líneas y, si faltan, el respaldo se repite
+  solo.
+- [arreglo] **«Respaldar todos»:** El icono ya no se queda girando al terminar.
+- [arreglo] **Correo con informes adjuntos:** Los PDF y Word adjuntos llegan con su tipo correcto y se abren bien en todos
+  los programas de correo.
+
 ## 2.44.0
 - [nuevo] **Problemas de Zabbix junto a los cambios:** En la pestaña Versiones de cada equipo, una franja de 24 h, 7 o 30
   días muestra juntos los cambios de configuración (v1, v2…), los problemas de Zabbix por gravedad y una métrica (latencia,

@@ -62,10 +62,9 @@ CHECK_DAYS = 7  # si la licencia no trae «comprobar_antes»: emitida (o la últ
 MODULES = {
     "informes_pro": {"name": N_("Informes profesionales"), "desc": N_("Documento de la red, ejecutivo, auditoría, comparar periodos, envíos y marca"),
                      "limit": "equipos"},
-    "recolectores": {"name": N_("Recolectores por sede"), "desc": N_("Agente por sede con cola y avisos"), "limit": "sedes",
-                     "soon": True},
+    "recolectores": {"name": N_("Recolectores por sede"), "desc": N_("Agente por sede con cola y avisos"), "limit": "sedes"},
     "alta_disponibilidad": {"name": N_("Alta disponibilidad"), "desc": N_("Dos servidores con conmutación automática"),
-                            "limit": "pares", "soon": True},
+                            "limit": "pares"},
 }
 
 
