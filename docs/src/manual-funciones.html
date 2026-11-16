@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.37.0<br>Para administradores y operadores de red<br>Noviembre de 2026</div>
+  <div class="meta">Versión del software: 2.45.0<br>Para administradores y operadores de red<br>Noviembre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -49,6 +49,7 @@
   <li>Ajustes</li>
   <li>Plataformas soportadas</li>
   <li>Uso desde el teléfono y API</li>
+  <li>OpenNCCM Pro: licencia, prueba gratis, recolectores por sede y alta disponibilidad</li>
   <li>Glosario</li>
 </ol></div>
 </section>
@@ -1794,7 +1795,123 @@ en Auditoría.</p>
 </section>
 
 <section class="chapter">
-<h1>29. Glosario</h1>
+<h1>29. OpenNCCM Pro</h1>
+<p>OpenNCCM es gratis y de código abierto. <b>OpenNCCM Pro</b> son tres módulos opcionales de pago para quien los necesite:
+<b>Informes profesionales</b>, <b>Recolectores por sede</b> y <b>Alta disponibilidad</b>. Todo lo demás sigue igual, sin
+límites de equipos ni de tiempo. Planes y precios: <b>comunidad.opennccm.com/pro</b>.</p>
+
+<h2 id="licencia">Licencia y módulos</h2>
+<p>Todo se maneja en <b>Administración › Licencia y módulos</b> (solo administradores). La pantalla muestra los tres módulos con
+su estado y, si la licencia los incluye, hasta cuándo están activos y sus límites (equipos, sedes o pares).</p>
+<figure><img src="img/38-licencia.png" style="max-height:150mm"><figcaption>Administración › Licencia y módulos.</figcaption></figure>
+<p><b>Activar:</b> escriba la clave que recibió de comunidad.opennccm.com (forma <code>OPNC-XXXX-XXXX-XXXX-XXXX</code>) y pulse
+<b>Activar</b>. OpenNCCM pide la licencia firmada para este servidor, la guarda y baja los módulos que incluye. La clave se guarda
+cifrada.</p>
+<p><b>Necesita internet.</b> Al activar y una vez al día, el servidor comprueba la licencia con comunidad.opennccm.com. Solo se
+envían la clave, el id de esta instalación, la huella y el nombre del servidor (la huella es un código que no identifica su red);
+nunca configuraciones ni datos de los equipos. Si el servidor pasa más de 7 días sin poder comprobarla, los módulos se
+<b>pausan</b> hasta que vuelva la conexión. No se borra nada.</p>
+<p><b>Cuando un módulo vence:</b></p>
+<ul>
+  <li>Con una licencia comprada, el módulo sigue funcionando <b>15 días de gracia</b> y la pantalla lo avisa. Con
+  <b>Avisarme 30 días antes de que venza un módulo</b> también llega un aviso a la campana un mes antes.</li>
+  <li>Pasada la gracia, el módulo se <b>pausa</b>. No se borra nada: lo que se generó se sigue viendo y al renovar vuelve tal cual.
+  Por ejemplo, los informes ya generados se pueden seguir descargando; solo se pausan los envíos programados y la creación de
+  nuevos.</li>
+  <li>Una prueba gratis no tiene gracia: el módulo se pausa el día que vence.</li>
+</ul>
+<p><b>Cambiar de servidor o liberar una instalación:</b> cada licencia queda atada a una instalación (un par de Alta
+disponibilidad cuenta como dos, ver abajo). Para usarla en otro servidor, libere la instalación anterior en <b>Mi cuenta</b> de
+comunidad.opennccm.com y active la clave en el servidor nuevo. Si la licencia se usa en una copia del mismo servidor, la web lo
+detecta y pausa los módulos en la copia. La pantalla explica qué hacer.</p>
+<p><b>Cambiar clave</b> reemplaza la clave de este servidor por otra (por ejemplo, al pasar de una prueba a una compra).
+<b>Actualizar</b> trae la licencia más nueva al momento, sin esperar a la comprobación diaria.</p>
+
+<h2 id="prueba-gratis">Prueba gratis</h2>
+<p>En <b>Licencia y módulos</b>, <b>Probar gratis</b> pide una prueba de uno o varios módulos. Se escriben el correo, la
+organización y para qué se quiere. Cada servidor puede probar cada módulo <b>una sola vez</b>. El pedido se revisa a mano en
+comunidad.opennccm.com: mientras tanto la pantalla dice «Pedido de prueba en revisión», y el resultado llega por correo y a la
+misma pantalla. Cuando se aprueba, <b>Activar prueba</b> la activa con un clic. Si el servidor ya tiene una clave, la prueba se
+agrega a esa licencia.</p>
+<figure><img src="img/39-prueba.png" style="max-height:120mm"><figcaption>Pedir una prueba gratis.</figcaption></figure>
+
+<h2 id="recolectores">Recolectores por sede</h2>
+<p>Para sedes cuyos equipos el servidor no alcanza (otra red, una sucursal detrás de su propio internet). Un <b>recolector</b>
+instalado en la sede respalda los equipos de su red con el mismo código que el servidor y manda las copias al servidor central,
+que las guarda igual que un respaldo propio: versiones, comparación, cumplimiento, avisos. La conexión la abre siempre la sede,
+por HTTPS: en la sede no hay que abrir ningún puerto.</p>
+<p><b>Agregar una sede:</b> <b>Administración › Recolectores › Agregar sede</b>. Elija qué equipos respalda:</p>
+<ul>
+  <li><b>Por ubicación:</b> todos los equipos con esa ubicación, también los que se agreguen después. Una ubicación la respalda una
+  sola sede.</li>
+  <li><b>A mano:</b> los equipos que elija. Un equipo asignado a mano gana sobre su ubicación. También se asignan desde
+  <b>Dispositivos</b>: marque los equipos y use <b>Asignar a una sede…</b>.</li>
+</ul>
+<p>Al crearla se muestra la <b>clave de alta</b> (una sola vez; vale 7 días y un solo uso) y el comando para instalar el recolector
+en Linux o en Windows (ver la Guía de instalación). En <b>Dirección de este servidor desde la sede</b> ponga la dirección con la
+que la sede llega al servidor: el comando se arma con ella, y un aviso en ámbar indica si es http, localhost o una IP privada que
+quizá no se alcanza. El recolector guarda la huella del certificado de esa dirección y solo vuelve a conectarse a ella. La
+ventana cambia sola a «Conectado» cuando el recolector se da de alta.</p>
+<div class="two">
+<figure><img src="img/40-recolector-alta.png"><figcaption>La ventana de alta con la clave y el comando.</figcaption></figure>
+<figure><img src="img/41-recolectores.png"><figcaption>La lista de sedes con su estado.</figcaption></figure>
+</div>
+<p><b>Estado de cada sede:</b> En línea, Sin reportar (ámbar; en rojo a las 4 veces del límite), Nunca conectó, En pausa o
+Revocado. El límite para avisar se elige en <b>Avisos</b> (5 a 60 minutos). Los avisos llegan a la campana y por correo:
+cuando una sede deja de reportar y cuando vuelve, cuando su cola está casi llena y cuando su recolector tiene otra versión. Las
+sedes sin reportar suman también a «cosas que necesitan tu atención» del Panel.</p>
+<p><b>Si se corta el enlace</b> con la sede, no se pierde nada: el recolector guarda lo que lee hasta 30 días o 2 GB y lo manda
+cuando vuelve la conexión.</p>
+<p><b>Lo que no se hace desde el servidor central</b> con un equipo de una sede (porque no llega a él): consola, envío de
+comandos y configlets, firmware y reversión automática. La ficha del equipo lo dice. Se respalda desde la sede.</p>
+<p><b>Pausar, revocar y quitar:</b> en la página de la sede. <b>Pausar</b> deja de pedirle respaldos. <b>Revocar</b> invalida el
+recolector al instante: se detiene y no vuelve a conectarse. <b>Quitar sede</b> (escribiendo su nombre) devuelve sus equipos al
+servidor central. Ninguna de estas acciones borra respaldos. <b>Nueva clave de alta</b> sirve para reinstalar el recolector.</p>
+<p><b>Con Alta disponibilidad</b>, los recolectores reciben las dos direcciones del par y hablan siempre con el servidor activo.</p>
+
+<h2 id="alta-disponibilidad">Alta disponibilidad</h2>
+<p>Dos servidores: uno <b>activo</b>, que respalda, recibe syslog, corre las tareas programadas y atiende la web, y otro <b>en
+espera</b>, que copia los datos del activo cada minuto y toma el control si el activo cae. Funciona con la base de fábrica
+(SQLite) y con PostgreSQL. Los dos servidores tienen que usar la misma.</p>
+<figure><img src="img/42-ha.png" style="max-height:150mm"><figcaption>Administración › Alta disponibilidad con el par protegido.</figcaption></figure>
+<p><b>Armar el par:</b> en el servidor activo, <b>Administración › Alta disponibilidad › Agregar servidor en espera</b>. Se
+muestran la clave de alta (una sola vez, 7 días) y el comando para instalar el segundo servidor (ver la Guía de instalación). El
+segundo servidor tiene que ser un Ubuntu 22.04 o 24.04 recién instalado. Al instalarse copia todo del activo (usuarios, equipos,
+configuraciones) y activa su propia licencia con la misma clave: un par cuenta como dos instalaciones de esa licencia. El activo lo
+registra en comunidad.opennccm.com como su par; si ese registro falla, la pantalla lo dice y ofrece <b>Reintentar</b>.</p>
+<p>La ventana de alta muestra, al conectarse, la <b>IP del servidor en espera</b> para copiar: agréguela a las listas de acceso de
+sus equipos. Si un equipo solo acepta SSH desde la IP del activo, el otro no podrá respaldarlo cuando le toque.</p>
+<p><b>La pantalla</b> muestra los dos servidores con su rol, versión, último latido, la réplica («Al día · retraso 38 s») y el
+disco libre, y una franja: <b>Protegido</b>, <b>Sin protección</b> (el otro no responde), <b>Conmutado</b> (hasta que alguien
+pulse <b>Revisado</b> en el historial) o <b>Aislado</b>. Lo mismo aparece en el Panel.</p>
+<p><b>Testigo:</b> una dirección que los dos servidores alcancen siempre, pero que no esté en ninguno de los dos (de fábrica, el
+gateway por defecto). El servidor en espera solo toma el control si no llega al activo <b>pero sí</b> al testigo: así no conmuta
+cuando el aislado es él. Si se escribe 127.0.0.1, localhost o la dirección de uno de los dos servidores, la pantalla avisa que no
+sirve de testigo.</p>
+<p><b>Conmutación automática:</b> si el activo deja de responder durante 90 segundos y el testigo responde, el servidor en espera
+pasa a activo, avisa en la campana y por correo y queda «Conmutado» hasta que se revise. Se necesita la licencia vigente: sin ella
+se apaga solo la conmutación automática; la réplica y la manual siguen.</p>
+<p><b>Conmutación manual:</b> <b>Conmutar a …</b> (solo el administrador maestro, escribiendo el nombre del otro servidor). El activo
+deja de respaldar, el otro copia lo último y toma el control. No se pierde nada.</p>
+<p><b>Forzar:</b> si el activo no responde y el servidor en espera no conmutó solo (por ejemplo, porque no llega al testigo), un
+administrador maestro puede entrar al servidor en espera y usar <b>Forzar en …</b>, escribiendo su nombre y marcando que entiende
+que se pueden perder hasta 60 segundos de cambios.</p>
+<p><b>La vuelta es a mano:</b> el servidor que cae nunca vuelve solo a activo. Al volver, ve que el otro tomó el control, queda en
+espera y copia lo nuevo. Para que vuelva a ser el activo, use <b>Conmutar</b> cuando le convenga.</p>
+<p><b>El servidor en espera</b> no atiende la web normal: quien entra ve «Este servidor está en espera» con un enlace al activo.
+Los administradores pueden entrar a Alta disponibilidad para revisar el par o forzar el cambio.</p>
+<figure><img src="img/43-ha-espera.png" style="max-height:80mm"><figcaption>La página de un servidor en espera.</figcaption></figure>
+<p><b>Al pasar a activo (opcional):</b> para mover una IP virtual u otra acción, cree en cada servidor, como root, el archivo
+<code>/etc/opennccm/al-pasar-a-activo.sh</code>. Tiene que ser de root y nadie más puede modificarlo. Se ejecuta como root cuando
+ese servidor pasa a activo. Por seguridad no se escribe desde la web.</p>
+<p><b>Qué no se copia:</b> las grabaciones de consola, el repositorio Git de exportación y las copias de recuperación. Cada
+servidor tiene además su propia licencia.</p>
+<p><b>Quitar el par</b> (escribiendo el nombre del otro servidor): este servidor queda solo y activo y da de baja el par en
+comunidad.opennccm.com, así que el otro servidor pierde los módulos en su próxima comprobación. No se borra ningún dato.</p>
+</section>
+
+<section class="chapter">
+<h1>30. Glosario</h1>
 <table>
   <tr><th style="width:28%">Término</th><th>Significado</th></tr>
   <tr><td>Running / startup</td><td>Configuración en ejecución (activa) / guardada para el próximo arranque.</td></tr>

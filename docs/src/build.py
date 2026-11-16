@@ -10,7 +10,8 @@ OUT = HERE.parent
 OUT.mkdir(exist_ok=True)
 EDGE = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 DOCS = {"guia-instalacion.html": "OpenNCCM-Guia-de-instalacion.pdf",
-        "manual-funciones.html": "OpenNCCM-Manual-de-funciones.pdf"}
+        "manual-funciones.html": "OpenNCCM-Manual-de-funciones.pdf",
+        "manual-pro-en.html": "OpenNCCM-Pro-Manual-EN.pdf"}
 
 for src, dst in DOCS.items():
     if not (HERE / src).exists():

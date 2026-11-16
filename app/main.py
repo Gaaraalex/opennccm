@@ -150,6 +150,14 @@ async def standby_role(request: Request, call_next):
     if prohooks.rol() != "activo":
         p = request.url.path
         if not (p.startswith("/static/") or p == "/healthz" or any(p.startswith(x) for x in prohooks.standby_allow)):
+            # va antes de LangMiddleware: el idioma sale del navegador o del de fábrica (sin sesión)
+            from .auth import cached_setting
+            from .i18n import pick_lang, set_lang
+            try:
+                default = cached_setting("default_lang", "es") or "es"
+            except Exception:  # noqa: BLE001
+                default = "es"
+            set_lang(pick_lang(None, request.headers.get("accept-language"), default))
             if prohooks.standby_page is not None:
                 try:
                     return prohooks.standby_page(request)
