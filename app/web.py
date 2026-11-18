@@ -436,7 +436,7 @@ def render(request: Request, name: str, user, **ctx):
 
 def _event_title(e) -> str:
     """Título corto de una alarma: su primera línea o, si solo dice «equipo:», el tipo de alarma y el equipo."""
-    first = (e.message or "").splitlines()[0].strip() if e.message else ""
+    first = i18n.tmsg((e.message or "").splitlines()[0].strip()) if e.message else ""  # en el idioma de quien lo lee
     if len(first) < 12 or first.endswith(":"):
         dev = e.device.name if e.device else ""
         return (i18n._(e.category) + (" · " + dev if dev else ""))[:90]

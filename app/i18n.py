@@ -81,6 +81,65 @@ def _f(text: str, *args) -> str:
     return out
 
 
+_tpl_cache: dict[tuple[str, int], list] = {}
+_PH = re.compile(r"\{(\d)\}")
+_rev: list = [-1, {}]  # catálogo inglés → español (tamaño con el que se armó, mapa)
+
+
+def _templates(lang: str) -> list:
+    """Frases con huecos del catálogo ({0}, {1}…) como expresiones para reconocer un texto ya armado. Para «es» se usa el
+    catálogo al revés (un aviso que se guardó en inglés). Se rehace si un módulo Pro sumó textos al catálogo."""
+    src = catalog("en")
+    key = (lang, len(src))
+    if key not in _tpl_cache:
+        out = []
+        for es, en in src.items():
+            frm, to = (en, es) if lang == DEFAULT else (es, en)
+            if "{0}" not in frm or not to:
+                continue
+            literal = _PH.sub("", frm)
+            if len(literal.strip()) < 8:  # «{0}: {1}» reconocería cualquier cosa
+                continue
+            parts = _PH.split(frm)  # texto, n.º, texto, n.º…
+            rx = "".join(re.escape(p) if i % 2 == 0 else f"(?P<a{p}_{i}>.+?)" for i, p in enumerate(parts))
+            out.append((len(literal), frm.split("{")[0], re.compile("^" + rx + "$", re.S), to))
+        out.sort(key=lambda t: -t[0])  # la más específica primero
+        _tpl_cache.clear()
+        _tpl_cache[key] = out
+    return _tpl_cache[key]
+
+
+def tmsg(text: str | None) -> str:
+    """Un aviso guardado con su texto original (historial de Alta disponibilidad, avisos de la campana) en el idioma de
+    quien lo lee: la frase exacta del catálogo, o una frase con huecos ({0}…) reconocida y armada de nuevo con sus valores
+    (cada valor también se traduce si es una frase conocida). Lo que no se reconoce se muestra tal cual."""
+    if not text:
+        return text or ""
+    lang = _lang.get()
+    if "\n" in text:
+        return "\n".join(tmsg(line) for line in text.split("\n"))
+    t = _norm(text)
+    if lang == DEFAULT:
+        src = catalog("en")
+        if _rev[0] != len(src):
+            _rev[:] = [len(src), {v: k for k, v in src.items()}]
+        if t in _rev[1]:
+            return _rev[1][t]
+    elif t in catalog(lang):
+        return catalog(lang)[t]
+    for _n, prefix, rx, to in _templates(lang):
+        if prefix and not t.startswith(prefix):
+            continue
+        m = rx.match(t)
+        if not m:
+            continue
+        out = to
+        for name, val in m.groupdict().items():
+            out = out.replace("{%s}" % name[1:].split("_")[0], tmsg(val) if val != t else val)
+        return out
+    return text
+
+
 def _h(text: str, *args) -> Markup:
     """Como _f pero para HTML: el texto de la plantilla es de confianza; los valores se escapan."""
     out = _(text)
@@ -295,6 +354,7 @@ class I18nLoader(FileSystemLoader):
 def install(env) -> None:
     env.loader = I18nLoader(env.loader.searchpath)
     env.globals.update(_=_, _c=_c, _h=_h, _f=_f, LANGS=LANGS, get_lang=get_lang)
+    env.filters["tmsg"] = tmsg  # avisos guardados con su texto original: en el idioma de quien los lee
     env.filters["jsq"] = jsq
     env.filters["tr_pairs"] = tr_pairs
 
