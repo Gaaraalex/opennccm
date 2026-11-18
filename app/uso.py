@@ -31,10 +31,22 @@ MIN_GAP = timedelta(hours=20)  # la tarea diaria no repite si ya se avisó (o se
 
 
 def usage_id() -> str:
-    """Número de esta instalación para la estadística: «u_» + UUID, se crea la primera vez y no cambia."""
+    """Número de esta instalación para la estadística: «u_» + UUID v4 en su forma estándar (con guiones y en
+    minúsculas, como lo exige la web), se crea la primera vez y no cambia.
+
+    Hasta 2.45.2 se guardaba sin guiones (uuid4().hex) y la web respondía 400 a todos los avisos: ese número se pasa
+    a la forma con guiones (es el mismo UUID), así la instalación conserva su número."""
     uid = get_setting("uso_id", "")
+    if uid.startswith("u_"):
+        try:
+            fixed = "u_" + str(uuid.UUID(uid[2:]))
+        except ValueError:
+            fixed = ""
+        if fixed and fixed != uid:
+            set_setting("uso_id", fixed)
+        uid = fixed
     if not uid:
-        uid = "u_" + uuid.uuid4().hex
+        uid = "u_" + str(uuid.uuid4())
         set_setting("uso_id", uid)
     return uid
 

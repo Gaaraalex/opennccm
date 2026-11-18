@@ -34,8 +34,22 @@ def check(name, cond, extra=""):
         fails.append(name)
 
 
+# el formato que exige la web (CONTRATO-USO.md): «u_» + UUID v4 estándar, con guiones y en minúsculas; si no, 400
+import re  # noqa: E402
+WEB_ID = re.compile(r"^u_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+WEB_VER = re.compile(r"^\d+\.\d+\.\d+$")
 uid = uso.usage_id()
-check("número propio «u_» + UUID, siempre el mismo", uid.startswith("u_") and len(uid) == 34 and uso.usage_id() == uid)
+check("número propio «u_» + UUID v4 con guiones, como lo acepta la web, siempre el mismo",
+      bool(WEB_ID.match(uid)) and uso.usage_id() == uid, uid)
+# instalaciones de 2.45.2 o anteriores: se guardó sin guiones (la web lo rechazaba); se corrige conservando el número
+old = "u_" + uid[2:].replace("-", "")
+set_setting("uso_id", old)
+check("número viejo sin guiones (≤ 2.45.2): pasa a la forma con guiones, mismo UUID", uso.usage_id() == uid
+      and get_setting("uso_id") == uid)
+set_setting("uso_id", "u_no-es-un-uuid")
+nuevo = uso.usage_id()
+check("número inválido guardado: se crea uno nuevo válido", bool(WEB_ID.match(nuevo)) and nuevo != "u_no-es-un-uuid")
+set_setting("uso_id", uid)
 check("…distinto del número de la licencia (inst_)", uid[2:] != licencia.install_id()[5:] and not uid.startswith("inst_"))
 p = uso.payload()
 check("se envía exactamente {instalacion, version}", set(p) == {"instalacion", "version"}
@@ -65,8 +79,14 @@ class H(BaseHTTPRequestHandler):
         pass
 
     def do_POST(self):
-        GOT.append((self.path, self.headers.get("Content-Type"), self.rfile.read(int(self.headers["Content-Length"]))))
-        self.send_response(CODE[0])
+        body = self.rfile.read(int(self.headers["Content-Length"]))
+        GOT.append((self.path, self.headers.get("Content-Type"), body))
+        try:  # valida como la web real: solo {instalacion, version}, u_ + UUID v4 con guiones, versión X.Y.Z
+            d = json.loads(body)
+            valid = set(d) == {"instalacion", "version"} and WEB_ID.match(d["instalacion"]) and WEB_VER.match(d["version"])
+        except Exception:  # noqa: BLE001
+            valid = False
+        self.send_response(CODE[0] if valid else 400)
         self.end_headers()
 
 
