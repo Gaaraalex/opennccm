@@ -192,8 +192,12 @@ jobs:
         run: sudo tail -n 120 /var/log/opennccm-install.log || true
 
   tui:
-    name: Asistente con menús (ubuntu-24.04)
+    name: Asistente con menús (ubuntu-24.04, ${{ matrix.size }})
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        size: ["100x32", "80x24"]  # 80x24: la terminal más chica habitual
     steps:
       - uses: actions/checkout@v4
         with:
@@ -204,7 +208,7 @@ jobs:
           python3 tests/cuadro_final_80x24.py "$GITHUB_WORKSPACE"
       - name: Instalar como una persona (tmux + whiptail, usuario normal con sudo)
         run: |
-          python3 tests/tui_drive.py "$GITHUB_WORKSPACE" "$RUNNER_TEMP/capturas"
+          TUI_SIZE=${{ matrix.size }} python3 tests/tui_drive.py "$GITHUB_WORKSPACE" "$RUNNER_TEMP/capturas"
       - name: Verificar
         run: |
           curl -fsk https://127.0.0.1/healthz
@@ -215,7 +219,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: capturas-asistente
+          name: capturas-asistente-${{ matrix.size }}
           path: ${{ runner.temp }}/capturas
       - name: Registro (si falla)
         if: failure()
