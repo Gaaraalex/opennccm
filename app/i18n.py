@@ -355,6 +355,7 @@ def install(env) -> None:
     env.loader = I18nLoader(env.loader.searchpath)
     env.globals.update(_=_, _c=_c, _h=_h, _f=_f, LANGS=LANGS, get_lang=get_lang)
     env.filters["tmsg"] = tmsg  # avisos guardados con su texto original: en el idioma de quien los lee
+    env.globals["tmsg"] = tmsg  # (los módulos Pro lo usan como función: «tmsg is defined» en núcleos anteriores)
     env.filters["jsq"] = jsq
     env.filters["tr_pairs"] = tr_pairs
 
