@@ -478,6 +478,19 @@ install_packages() {
     echo "Se requiere Python 3.10 o superior"; return 1; }
 }
 
+latest_release_tag() {  # latest_release_tag DIR -> etiqueta del último release publicado (GitHub releases/latest, como el aviso
+  # de la web: un borrador o prerelease nunca se ofrece). Sin GitHub o sin respuesta: la etiqueta más alta, como antes.
+  local url slug t
+  url=$(git -C "$1" remote get-url origin 2>/dev/null)
+  if [[ $url =~ github\.com[:/]([^/]+/[^/]+) ]]; then
+    slug=${BASH_REMATCH[1]%.git}
+    t=$(curl -fsS --max-time 10 -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$slug/releases/latest" 2>/dev/null \
+        | grep -oP '"tag_name"\s*:\s*"\K[^"]+' | head -1)
+    if [[ -n $t ]] && git -C "$1" rev-parse -q --verify "refs/tags/$t" >/dev/null; then echo "$t"; return 0; fi
+  fi
+  git -C "$1" tag -l 'v*' --sort=-v:refname | sed -n 1p
+}
+
 fetch_code() {
   progress 30 "Descargando OpenNCCM…"
   if [[ -n $SOURCE_DIR && ! -d $SOURCE_DIR/.git ]]; then
@@ -523,7 +536,7 @@ fetch_code() {
   elif [[ $CHANNEL == main ]]; then
     target=origin/main
   else
-    target=$(git -C "$APP_DIR" tag -l 'v*' --sort=-v:refname | sed -n 1p)
+    target=$(latest_release_tag "$APP_DIR")
     [[ -n $target ]] || target=origin/$(git -C "$APP_DIR" remote show origin 2>/dev/null | awk '/HEAD branch/{print $NF}')
     [[ $target != "origin/" ]] || target=HEAD
   fi
