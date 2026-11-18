@@ -1,5 +1,23 @@
 # Historial de versiones
 
+## 2.45.3
+- [cambio] **Pro: todo se instala solo.** Desde que la licencia es válida (al activar la clave o una prueba, o al
+  renovar), los módulos que incluye se bajan, se instalan y quedan funcionando al momento, sin reiniciar. Las versiones
+  nuevas de un módulo también se bajan solas una vez al día; si el módulo está en uso, se aplican al reiniciar o con
+  **Reiniciar ahora** en Licencia y módulos.
+- [nuevo] **Respaldo al volver a responder:** Si un respaldo falló porque el equipo no respondía, cada hora OpenNCCM mira si
+  ya responde y, cuando vuelve, lo respalda solo. Queda el evento «Respaldo al volver a responder». No se aplica a equipos
+  desactivados, en mantenimiento, de un recolector ni con errores de credenciales.
+- [arreglo] **Estadística de uso:** Los avisos diarios no llegaban a comunidad.opennccm.com (la web rechazaba el formato
+  del número de instalación). Ahora llegan; el número de cada servidor se conserva.
+- [arreglo] **Licencia:** Si a un servidor le falta el dato que lo identifica ante comunidad.opennccm.com, Licencia y
+  módulos lo explica y muestra **Activar aquí**, en lugar de «respondió 400».
+- [cambio] **Actualizar:** `opennccm update`, el aviso de `opennccm status` y el instalador ofrecen la última versión
+  publicada (como el aviso de la web), nunca una sin publicar.
+- [arreglo] **Avisos en tu idioma:** Los avisos de la campana y el historial de Alta disponibilidad se ven en el idioma
+  de quien los lee, también los que ya estaban guardados.
+- [arreglo] Instalado con `--no-nginx`, las pantallas que se actualizan solas ya no pierden la conexión entre consultas.
+
 ## 2.45.2
 - [nuevo] **OpenNCCM Pro: módulos opcionales de pago.** OpenNCCM sigue siendo gratis y de código abierto, y todo lo demás que
   ya usabas sigue igual, sin límites de equipos ni de tiempo (salvo el Documento de la red, ver abajo). Pro suma tres módulos para quien los necesite:
