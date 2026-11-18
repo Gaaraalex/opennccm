@@ -247,6 +247,8 @@ def license_refresh(request: Request):
         flash(request, _("Esta clave se liberó desde Mi cuenta; vuelve a activarla."), "error")
     elif res == "en_uso":
         flash(request, _(licencia.EN_USO_MSG), "error")
+    elif res == "falta_sello":
+        flash(request, _(licencia.FALTA_SELLO_MSG), "error")
     elif res == "sin_clave":
         flash(request, _("No hay una clave para actualizar."), "error")
     else:

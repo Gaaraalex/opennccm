@@ -6040,6 +6040,8 @@
 "No se pudo comprobar la licencia desde el {0}. Revisa que el servidor llegue a comunidad.opennccm.com.": "The license could not be checked since {0}. Make sure the server can reach comunidad.opennccm.com.",
 "Esta licencia se está usando en otro servidor. Si este es el servidor correcto, libera la instalación anterior en Mi cuenta › Licencias y vuelve a activar la clave aquí.": "This license is being used on another server. If this is the right server, release the previous installation in My account › Licenses and activate the key here again.",
 "Volver a activar aquí": "Activate here again",
+"Esta licencia necesita volver a activarse en este servidor.": "This license needs to be activated again on this server.",
+"Activar aquí": "Activate here",
 ", y las páginas no cargan nada de servidores de terceros (ni fuentes, ni scripts, ni widgets). La única estadística es el aviso diario de uso, que se explica abajo y no lleva datos de tu red.": ", and pages load nothing from third-party servers (no fonts, scripts or widgets). The only statistic is the daily usage notice, explained below, which carries no data about your network.",
 "A {0}, una vez al día. Si el servidor no tiene salida a internet, no pasa nada: no se muestra ningún error y se vuelve a intentar al día siguiente.": "To {0}, once a day. If the server has no internet access, nothing happens: no error is shown and it tries again the next day.",
 "Conexiones a servicios externos que el administrador activa": "Connections to external services that the administrator turns on",

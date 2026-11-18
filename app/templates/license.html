@@ -37,7 +37,7 @@
     {% if st.key %}
     <div class="row" style="gap:12px;flex-wrap:wrap"><span class="input mono lic-key">{{ masked }}</span>
       <form method="post" action="/license/change" class="inline"><button class="btn" onclick="return confirm('{{ _('¿Quitar esta clave? Los módulos quedarán como no incluidos hasta activar otra. No se borra nada.')|jsq }}')">{{ _('Cambiar clave') }}</button></form>
-      {% if st.paused == 'en_uso' %}<form method="post" action="/license/activate" class="inline"><input type="hidden" name="again" value="1"><button class="btn pri">{{ _('Volver a activar aquí') }}</button></form>
+      {% if st.paused in ('en_uso', 'falta_sello') %}<form method="post" action="/license/activate" class="inline"><input type="hidden" name="again" value="1"><button class="btn pri">{{ _('Volver a activar aquí') if st.paused == 'en_uso' else _('Activar aquí') }}</button></form>
       {% else %}<form method="post" action="/license/refresh" class="inline"><button class="btn">{{ icon('refresh', 's') }}{{ _('Actualizar') }}</button></form>{% endif %}
       <span class="muted sm">{% if st.checked %}{{ _('Última comprobación:') }} <span title="{{ st.checked|dt }}">{{ st.checked|ago }}</span>{% endif %}{% if st.cliente %} · {{ st.cliente }}{% endif %}</span></div>
     {% else %}

@@ -26,7 +26,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from . import licencia
 from .config import DATA_DIR
-from .db import get_setting
+from .db import get_setting, set_setting
 from .i18n import _, _f
 
 log = logging.getLogger("opennccm")
@@ -198,6 +198,9 @@ def download(mid: str, only_if_newer: bool = False) -> dict | None:
         if en_uso:  # sello viejo: esta instalación está copiada en otro servidor
             licencia.in_use()
             raise ModuleError(_(licencia.EN_USO_MSG))
+    if licencia.falta_sello(r):  # sin sello guardado: se pide volver a activar aquí, nunca «respondió 400»
+        set_setting("licencia_revocada", "falta_sello")
+        raise ModuleError(_(licencia.FALTA_SELLO_MSG))
     if r.status_code in msgs:
         raise ModuleError(msgs[r.status_code])
     if r.status_code != 200:

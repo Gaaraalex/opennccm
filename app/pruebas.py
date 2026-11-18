@@ -195,7 +195,7 @@ def activate() -> dict:
     if get_setting("licencia_clave", ""):
         res = licencia.refresh()
         if res != "ok":
-            raise TrialError(_(licencia.EN_USO_MSG) if res == "en_uso" else res if res not in ("revocada", "no_existe", "liberada", "sin_clave")
+            raise TrialError(_(licencia.EN_USO_MSG) if res == "en_uso" else _(licencia.FALTA_SELLO_MSG) if res == "falta_sello" else res if res not in ("revocada", "no_existe", "liberada", "sin_clave")
                              else _("No se pudo actualizar la licencia. Revísala arriba y vuelve a intentarlo."))
         data = licencia.verify(get_setting("licencia", ""))
     else:
