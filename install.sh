@@ -643,8 +643,10 @@ User=$SVC_USER
 Group=$SVC_USER
 WorkingDirectory=$APP_DIR
 EnvironmentFile=$ETC_DIR/opennccm.env
+# --timeout-keep-alive 75: mayor que todos los sondeos de la interfaz (el más largo, 60 s); con --no-nginx uvicorn queda expuesto
+# y con sus 5 s por omisión cortaba las conexiones entre sondeos de 6 s
 ExecStart=$(if [[ $MODO == recolector ]]; then echo "$APP_DIR/.venv/bin/python -m app.cli recolector correr"
-            else echo "$APP_DIR/.venv/bin/uvicorn app.main:app --host $listen --port 8000 --workers 1 --proxy-headers"; fi)
+            else echo "$APP_DIR/.venv/bin/uvicorn app.main:app --host $listen --port 8000 --workers 1 --proxy-headers --timeout-keep-alive 75"; fi)
 Restart=on-failure
 RestartSec=5
 # CAP_NET_RAW: ping y traceroute de Operar › Consola › Herramientas (sockets ICMP)
