@@ -2356,6 +2356,7 @@
 "Respaldo en marcha en {0} equipos.": "Backup running on {0} devices.",
 "Respaldo fallido": "Backup failed",
 "Respaldo nocturno": "Nightly backup",
+"Respaldo al volver a responder": "Backup after coming back online",
 "Respaldo programado": "Scheduled backup",
 "Respaldo realizado: se detectaron cambios": "Backup done: changes detected",
 "Respaldo realizado: sin cambios": "Backup done: no changes",
@@ -6039,6 +6040,8 @@
 "No se pudo comprobar la licencia desde el {0}. Revisa que el servidor llegue a comunidad.opennccm.com.": "The license could not be checked since {0}. Make sure the server can reach comunidad.opennccm.com.",
 "Esta licencia se está usando en otro servidor. Si este es el servidor correcto, libera la instalación anterior en Mi cuenta › Licencias y vuelve a activar la clave aquí.": "This license is being used on another server. If this is the right server, release the previous installation in My account › Licenses and activate the key here again.",
 "Volver a activar aquí": "Activate here again",
+"Esta licencia necesita volver a activarse en este servidor.": "This license needs to be activated again on this server.",
+"Activar aquí": "Activate here",
 ", y las páginas no cargan nada de servidores de terceros (ni fuentes, ni scripts, ni widgets). La única estadística es el aviso diario de uso, que se explica abajo y no lleva datos de tu red.": ", and pages load nothing from third-party servers (no fonts, scripts or widgets). The only statistic is the daily usage notice, explained below, which carries no data about your network.",
 "A {0}, una vez al día. Si el servidor no tiene salida a internet, no pasa nada: no se muestra ningún error y se vuelve a intentar al día siguiente.": "To {0}, once a day. If the server has no internet access, nothing happens: no error is shown and it tries again the next day.",
 "Conexiones a servicios externos que el administrador activa": "Connections to external services that the administrator turns on",
@@ -6136,5 +6139,11 @@
 "Términos de OpenNCCM Pro": "OpenNCCM Pro Terms",
 "OpenNCCM es gratis. Los módulos Pro son opcionales y se compran en comunidad.opennccm.com. Los pagos, las renovaciones y las cancelaciones se rigen por los": "OpenNCCM is free. Pro modules are optional and are purchased at comunidad.opennccm.com. Payments, renewals and cancellations are governed by the",
 "Este servidor está en espera: usa el servidor activo.": "This server is on standby: use the active server.",
-"Esta clave ya no existe: activa la clave nueva que recibiste por correo.": "This key no longer exists: activate the new key you received by email."
+"Esta clave ya no existe: activa la clave nueva que recibiste por correo.": "This key no longer exists: activate the new key you received by email.",
+"Hay versiones nuevas de los módulos Pro": "New versions of the Pro modules are available",
+"Se aplican al reiniciar el servicio: solo o con la próxima actualización de OpenNCCM.": "They apply when the service restarts: on its own or with the next OpenNCCM update.",
+"¿Reiniciar OpenNCCM ahora? Tarda unos segundos; los respaldos en curso se cortan y se reintentan.": "Restart OpenNCCM now? It takes a few seconds; backups in progress are cut off and retried.",
+"Reiniciar ahora": "Restart now",
+"· versión {0} lista, se aplica al reiniciar": "· version {0} ready, applies on restart",
+"OpenNCCM se está reiniciando para aplicar los módulos nuevos. Vuelva a cargar la página en unos segundos.": "OpenNCCM is restarting to apply the new modules. Reload the page in a few seconds."
 }

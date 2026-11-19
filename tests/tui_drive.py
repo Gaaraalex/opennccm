@@ -2,8 +2,9 @@
 
 Ejecuta install.sh dentro de tmux, espera cada pantalla, guarda una captura (texto con colores ANSI)
 y pulsa las teclas. Se ejecuta como usuario normal con sudo sin contraseña, igual que un administrador real.
-Uso:  python3 tests/tui_drive.py RUTA_REPO CARPETA_CAPTURAS
+Uso:  [TUI_SIZE=80x24] python3 tests/tui_drive.py RUTA_REPO CARPETA_CAPTURAS   (por omisión 100x32; la CI corre los dos)
 """
+import os
 import subprocess
 import sys
 import time
@@ -12,6 +13,7 @@ from pathlib import Path
 REPO, OUT = Path(sys.argv[1]).resolve(), Path(sys.argv[2])
 OUT.mkdir(parents=True, exist_ok=True)
 S = "inst"
+COLS, ROWS = os.environ.get("TUI_SIZE", "100x32").lower().split("x")
 PASSWORD = "Admin12345"
 
 
@@ -54,7 +56,7 @@ def keys(*k):
 
 def start(cmd):
     tmux("kill-session", "-t", S, check=False)
-    tmux("new-session", "-d", "-s", S, "-x", "100", "-y", "32", "-e", "LANG=C.UTF-8", "-e", "TERM=xterm-256color",
+    tmux("new-session", "-d", "-s", S, "-x", COLS, "-y", ROWS, "-e", "LANG=C.UTF-8", "-e", "TERM=xterm-256color",
          cmd + "; rc=$?; echo; echo FIN-INSTALADOR $rc; sleep 600")  # rc: código del instalador
 
 

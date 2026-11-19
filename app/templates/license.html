@@ -6,6 +6,7 @@
 <div class="ph"><div class="grow"><h1 style="font-size:24px">{{ _('Licencia y módulos') }}</h1>
   <div class="sub">{{ _('OpenNCCM es gratis. Los módulos Pro agregan funciones; lo gratis nunca se quita.') }}</div></div></div>
 {% if st.problem %}<div class="banner crit" role="alert">{{ icon('alert') }}<span class="grow">{{ st.problem }}</span></div>{% endif %}
+{% set pend = mods.values()|selectattr('pending')|list %}{% if pend %}<div class="banner info lic-bx" role="status">{{ icon('refresh') }}<span class="grow"><b>{{ _('Hay versiones nuevas de los módulos Pro') }}</b> · {{ _('Se aplican al reiniciar el servicio: solo o con la próxima actualización de OpenNCCM.') }}</span><form method="post" action="/license/restart"><button class="btn s" onclick="return confirm('{{ _('¿Reiniciar OpenNCCM ahora? Tarda unos segundos; los respaldos en curso se cortan y se reintentan.')|jsq }}')">{{ _('Reiniciar ahora') }}</button></form></div>{% endif %}
 {# pedido de prueba y prueba en uso (Pruebas 6, 7 y 8; contrato de pruebas, sección 6) #}
 {% if ped and ped.estado == 'en_revision' %}
 <div class="banner warn lic-bx" role="status">{{ icon('clock') }}<div><b>{{ _('Pedido de prueba en revisión') }}</b>
@@ -36,7 +37,7 @@
     {% if st.key %}
     <div class="row" style="gap:12px;flex-wrap:wrap"><span class="input mono lic-key">{{ masked }}</span>
       <form method="post" action="/license/change" class="inline"><button class="btn" onclick="return confirm('{{ _('¿Quitar esta clave? Los módulos quedarán como no incluidos hasta activar otra. No se borra nada.')|jsq }}')">{{ _('Cambiar clave') }}</button></form>
-      {% if st.paused == 'en_uso' %}<form method="post" action="/license/activate" class="inline"><input type="hidden" name="again" value="1"><button class="btn pri">{{ _('Volver a activar aquí') }}</button></form>
+      {% if st.paused in ('en_uso', 'falta_sello') %}<form method="post" action="/license/activate" class="inline"><input type="hidden" name="again" value="1"><button class="btn pri">{{ _('Volver a activar aquí') if st.paused == 'en_uso' else _('Activar aquí') }}</button></form>
       {% else %}<form method="post" action="/license/refresh" class="inline"><button class="btn">{{ icon('refresh', 's') }}{{ _('Actualizar') }}</button></form>{% endif %}
       <span class="muted sm">{% if st.checked %}{{ _('Última comprobación:') }} <span title="{{ st.checked|dt }}">{{ st.checked|ago }}</span>{% endif %}{% if st.cliente %} · {{ st.cliente }}{% endif %}</span></div>
     {% else %}
@@ -74,7 +75,7 @@
           {%- elif r.kind == 'pending' %}{{ _('en revisión') }}
           {%- elif r.kind == 'approved' %}{{ _('lista para activar') }}
           {%- elif r.kind == 'used' %}{{ _('Ya probado en este servidor') }}
-          {%- else %}{% if m.state != 'no_incluido' and soon[mid] %}{{ _('Incluido en tu licencia · se instala cuando esté disponible') }} {% elif mi.version and not mi.problem %}{{ _f('Módulo {0} instalado', mi.version) }} {% endif %}{% if m.tipo == 'manual' %}{{ _('Pro manual · no se renueva sola') }} {% endif %}{% if m.state != 'no_incluido' and m.limits %}{% for k, v in m.limits.items() %}{{ _f('{0}: {1}', _(k), v if v else _('sin límite')) }} {% endfor %}{% endif %}{% endif %}</span>
+          {%- else %}{% if m.state != 'no_incluido' and soon[mid] %}{{ _('Incluido en tu licencia · se instala cuando esté disponible') }} {% elif mi.version and not mi.problem %}{{ _f('Módulo {0} instalado', mi.version) }} {% endif %}{% if mi.pending %}{{ _f('· versión {0} lista, se aplica al reiniciar', mi.pending) }} {% endif %}{% if m.tipo == 'manual' %}{{ _('Pro manual · no se renueva sola') }} {% endif %}{% if m.state != 'no_incluido' and m.limits %}{% for k, v in m.limits.items() %}{{ _f('{0}: {1}', _(k), v if v else _('sin límite')) }} {% endfor %}{% endif %}{% endif %}</span>
         {% if r.kind == 'paused' %}<span class="lic-nobtn"></span>{# la salida está arriba: Actualizar o Volver a activar aquí #}
         {% elif r.kind == 'soon' %}<a class="btn s" href="{{ buy_url }}" target="_blank" rel="noopener">{{ _('Avísame cuando esté') }} ↗</a>
         {% elif r.kind == 'free' %}<div class="row lic-btns">{% if not ped or ped.estado == 'rechazado' %}<button type="button" class="btn s" data-dialog="lic-try" data-mod="{{ mid }}">{{ _('Probar gratis') }}</button>{% endif %}<a class="btn s pri" href="{{ buy_url }}" target="_blank" rel="noopener">{{ _('Comprar') }}</a></div>

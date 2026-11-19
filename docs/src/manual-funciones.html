@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.45.2<br>Para administradores y operadores de red<br>Noviembre de 2026</div>
+  <div class="meta">Versión del software: 2.45.3<br>Para administradores y operadores de red<br>Noviembre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -167,8 +167,10 @@ grupo.</p>
     sola al terminar. El respaldo corre en el servidor: se puede salir de la página (la píldora con el porcentaje queda junto a
     «Dispositivos» en el menú) y al terminar avisa. <b>Cancelar</b> no lanza los que faltan; al terminar, los que dieron error
     salen con su motivo y <b>Reintentar</b> respalda solo esos. Un respaldo que falla por algo pasajero (el equipo cortó la sesión
-    con el puerto respondiendo, la base de OpenNCCM ocupada) se comprueba y se reintenta solo; si el equipo no responde o rechaza
-    la contraseña, se avisa sin reintentar.</li>
+    con el puerto respondiendo, la base de OpenNCCM ocupada) se comprueba y se reintenta solo; si el equipo rechaza la
+    contraseña, se avisa sin reintentar. Si el equipo no responde (apagado, sin enlace), se avisa y, cada hora, OpenNCCM mira
+    si ya responde (ping o su puerto SSH); a medida que los equipos van volviendo, los respalda solo y lo deja en Eventos
+    («Respaldo al volver a responder»). No entran los equipos de una sede con recolector, que no se ven desde este servidor.</li>
   <li><b>Acciones de la fila:</b> al pasar el ratón aparecen respaldar, consola e interfaz web del equipo.</li>
   <li><b>Redes grandes:</b> con más de 400 equipos, la lista llega por páginas desde el servidor (15, 25, 50 o 100 por página),
   para que abra al instante aunque haya miles. El buscador busca entonces en todos los equipos al pulsar <b>Intro</b>.</li>
@@ -1808,10 +1810,18 @@ su estado y, si la licencia los incluye, hasta cuándo están activos y sus lím
 <p><b>Activar:</b> escriba la clave que recibió de comunidad.opennccm.com (forma <code>OPNC-XXXX-XXXX-XXXX-XXXX</code>) y pulse
 <b>Activar</b>. OpenNCCM pide la licencia firmada para este servidor, la guarda y baja los módulos que incluye. La clave se guarda
 cifrada.</p>
+<p><b>Todo se instala solo:</b> desde que la licencia es válida (al activar la clave o una prueba, o al renovar), los
+módulos que incluye se bajan, se instalan y quedan funcionando al momento, sin reiniciar. Las versiones nuevas de un
+módulo también se bajan solas, una vez al día o al pulsar <b>Actualizar</b>. Si el módulo está en uso, la versión nueva
+se aplica al reiniciar el servicio: solo, con la próxima actualización de OpenNCCM o al momento con <b>Reiniciar
+ahora</b> en esta pantalla.</p>
 <p><b>Necesita internet.</b> Al activar y una vez al día, el servidor comprueba la licencia con comunidad.opennccm.com. Solo se
 envían la clave, el id de esta instalación, la huella y el nombre del servidor (la huella es un código que no identifica su red);
 nunca configuraciones ni datos de los equipos. Si el servidor pasa más de 7 días sin poder comprobarla, los módulos se
 <b>pausan</b> hasta que vuelva la conexión. No se borra nada.</p>
+<p><b>«Esta licencia necesita volver a activarse en este servidor»:</b> aparece si a este servidor le falta el dato que lo
+identifica ante comunidad.opennccm.com (por ejemplo, tras restaurar una base antigua). Los módulos se pausan hasta pulsar
+<b>Activar aquí</b>, que vuelve a activar la misma clave en este servidor. No se borra nada.</p>
 <p><b>Cuando un módulo vence:</b></p>
 <ul>
   <li>Con una licencia comprada, el módulo sigue funcionando <b>15 días de gracia</b> y la pantalla lo avisa. Con

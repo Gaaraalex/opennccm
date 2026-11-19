@@ -61,6 +61,18 @@ health() {  # health [versión esperada] -> 0 si responde (y coincide la versió
 }
 
 # ----------------------------------------------------------------- versiones
+latest_release_tag() {  # latest_release_tag DIR -> etiqueta del último release publicado (GitHub releases/latest, como el aviso
+  # de la web: un borrador o prerelease nunca se ofrece). Sin GitHub o sin respuesta: la etiqueta más alta, como antes.
+  local url slug t
+  url=$(git -C "$1" remote get-url origin 2>/dev/null)
+  if [[ $url =~ github\.com[:/]([^/]+/[^/]+) ]]; then
+    slug=${BASH_REMATCH[1]%.git}
+    t=$(curl -fsS --max-time 10 -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$slug/releases/latest" 2>/dev/null \
+        | grep -oP '"tag_name"\s*:\s*"\K[^"]+' | head -1)
+    if [[ -n $t ]] && git -C "$1" rev-parse -q --verify "refs/tags/$t" >/dev/null; then echo "$t"; return 0; fi
+  fi
+  git -C "$1" tag -l 'v*' --sort=-v:refname | sed -n 1p
+}
 target_ref() {  # target_ref [versión] -> referencia git a instalar
   local req=${1:-}
   if [[ -n $req ]]; then
@@ -70,7 +82,7 @@ target_ref() {  # target_ref [versión] -> referencia git a instalar
   elif [[ ${CHANNEL:-stable} == main ]]; then
     echo origin/main
   else
-    local t; t=$(git -C $APP_DIR tag -l 'v*' --sort=-v:refname | sed -n 1p)
+    local t; t=$(latest_release_tag $APP_DIR)
     [[ -n $t ]] || t=origin/main
     echo "$t"
   fi
@@ -259,7 +271,7 @@ cmd_status() {
   echo "  Datos:      $DATA_DIR ($(du -sh $DATA_DIR 2>/dev/null | cut -f1))"
   echo "  Disco libre: $(df -h $DATA_DIR | awk 'NR==2{print $4}')"
   if [[ $EUID -eq 0 && -d $APP_DIR/.git ]] && timeout 15 git -C $APP_DIR fetch --quiet --tags origin 2>/dev/null; then
-    local latest; latest=$(git -C $APP_DIR tag -l 'v*' --sort=-v:refname | sed -n 1p)
+    local latest; latest=$(latest_release_tag $APP_DIR)
     if [[ -n $latest && $latest != "v$ver" ]]; then warn "Hay una versión nueva: $latest  →  sudo opennccm update"
     else ok "Al día"; fi
   fi

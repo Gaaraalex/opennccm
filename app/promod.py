@@ -26,7 +26,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from . import licencia
 from .config import DATA_DIR
-from .db import get_setting
+from .db import get_setting, set_setting
 from .i18n import _, _f
 
 log = logging.getLogger("opennccm")
@@ -127,8 +127,55 @@ def install(mid: str, data: bytes, signature: str, kid: str | None = None) -> di
     return man
 
 
-def download(mid: str) -> dict:
-    """Baja el módulo para esta versión de OpenNCCM con la clave guardada y lo instala."""
+def _vt(v) -> tuple:
+    try:
+        return tuple(int(x) for x in str(v or "").split(".")[:3])
+    except ValueError:
+        return ()
+
+
+def _peek(mid: str, data: bytes) -> dict:
+    """El manifest.json de un paquete, sin descomprimirlo (para saber si es más nuevo que el instalado)."""
+    try:
+        with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
+            f = tar.extractfile(f"{mid}/manifest.json")
+            return json.loads(f.read().decode("utf-8")) if f else {}
+    except (tarfile.TarError, KeyError, ValueError, OSError):
+        return {}
+
+
+def _newer(new: dict, old: dict) -> bool:
+    """Más nuevo: otra versión del módulo, o el mismo módulo armado para una versión de OpenNCCM más cercana."""
+    return (_vt(new.get("version")), _vt(new.get("nucleo"))) > (_vt(old.get("version")), _vt(old.get("nucleo")))
+
+
+def pending(mid: str) -> dict | None:
+    """Una versión nueva ya bajada y comprobada que espera al próximo arranque (el módulo estaba en uso)."""
+    pkg = DIR / f"{mid}.pendiente.tar.gz"
+    if not pkg.is_file():
+        return None
+    return _peek(mid, pkg.read_bytes()) or None
+
+
+def apply_pending() -> None:
+    """Al arrancar, antes de cargar: instala las versiones nuevas que quedaron esperando (se vuelve a comprobar la firma)."""
+    for mid in licencia.MODULES:
+        pkg, sig = DIR / f"{mid}.pendiente.tar.gz", DIR / f"{mid}.pendiente.tar.gz.firma"
+        if not pkg.is_file():
+            continue
+        try:
+            install(mid, pkg.read_bytes(), sig.read_text(encoding="utf-8") if sig.is_file() else "")
+        except (ModuleError, OSError) as e:
+            PROBLEMS[mid] = str(e)[:300]
+            log.warning("La versión nueva del módulo Pro %s no se instaló: %s", mid, e)
+        pkg.unlink(missing_ok=True)
+        sig.unlink(missing_ok=True)
+
+
+def download(mid: str, only_if_newer: bool = False) -> dict | None:
+    """Baja el módulo para esta versión de OpenNCCM con la clave guardada y lo instala. Con only_if_newer, solo si es más
+    nuevo que el instalado (si no, devuelve None); si el módulo está en uso, la versión nueva queda esperando al próximo
+    arranque (cambiar el código de un módulo cargado a medias podría mezclar dos versiones)."""
     import requests
     key = get_setting("licencia_clave", "")
     if not key:
@@ -151,11 +198,30 @@ def download(mid: str) -> dict:
         if en_uso:  # sello viejo: esta instalación está copiada en otro servidor
             licencia.in_use()
             raise ModuleError(_(licencia.EN_USO_MSG))
+    if licencia.falta_sello(r):  # sin sello guardado: se pide volver a activar aquí, nunca «respondió 400»
+        set_setting("licencia_revocada", "falta_sello")
+        raise ModuleError(_(licencia.FALTA_SELLO_MSG))
     if r.status_code in msgs:
         raise ModuleError(msgs[r.status_code])
     if r.status_code != 200:
         raise ModuleError(_f("comunidad.opennccm.com respondió {0}. Pruebe más tarde.", r.status_code))
-    return install(mid, r.content, r.headers.get("X-OPNC-Firma", ""), r.headers.get("X-OPNC-Kid") or None)
+    data, firma, kid = r.content, r.headers.get("X-OPNC-Firma", ""), r.headers.get("X-OPNC-Kid") or None
+    if only_if_newer:
+        new, old = _peek(mid, data), installed(mid) or {}
+        if not new or not _newer(new, old) or not compatible(new.get("nucleo")):
+            return None
+        if mid in LOADED:
+            if len(data) > MAX_SIZE:
+                raise ModuleError(_("El paquete es demasiado grande."))
+            verify_package(data, firma, kid)
+            DIR.mkdir(parents=True, exist_ok=True)
+            (DIR / f"{mid}.pendiente.tar.gz").write_bytes(data)
+            sig = firma.strip()
+            (DIR / f"{mid}.pendiente.tar.gz.firma").write_text(sig if sig.startswith("OPNC1.") or not kid else f"OPNC1.{kid}.{sig}",
+                                                                 encoding="utf-8")
+            log.info("Módulo Pro %s %s bajado: se aplica al próximo arranque", mid, new.get("version"))
+            return new
+    return install(mid, data, firma, kid)
 
 
 def installed(mid: str) -> dict | None:
@@ -168,8 +234,10 @@ def installed(mid: str) -> dict | None:
 def info(mid: str) -> dict:
     """Para Licencia y módulos: versión instalada, si está cargado y el problema, si lo hay."""
     man = installed(mid) or {}
+    nuevo = pending(mid) or {}
     return {"version": man.get("version"), "nucleo": man.get("nucleo"), "loaded": mid in LOADED,
-            "problem": PROBLEMS.get(mid, ""), "outdated": bool(man) and not compatible(man.get("nucleo"))}
+            "problem": PROBLEMS.get(mid, ""), "outdated": bool(man) and not compatible(man.get("nucleo")),
+            "pending": nuevo.get("version")}
 
 
 def _check_stored(mid: str) -> None:
@@ -235,6 +303,7 @@ def context() -> dict:
 def load_all(app) -> None:
     if not DIR.is_dir():
         return
+    apply_pending()
     for mid in licencia.MODULES:
         load(app, mid)
 
@@ -245,20 +314,44 @@ def page(mid: str):
     return getattr(mod, "page", None) if mod else None
 
 
-def sync(app=None) -> list[str]:
-    """Tarea diaria y botón «Actualizar»: baja los módulos de la licencia que falten o sean de otra versión."""
+def sync(app=None, updates: bool = False) -> list[str]:
+    """Con una licencia válida, todo lo Pro queda instalado y funcionando sin reiniciar: se llama al activar la clave o una
+    prueba, en «Actualizar» y en la tarea diaria. Baja los módulos de la licencia que falten o sean de otra versión de
+    OpenNCCM y los carga; carga los que ya estaban instalados pero no cargados (la licencia llegó después). Con updates,
+    además baja las versiones nuevas de los módulos (si el módulo está en uso, se aplican al próximo arranque).
+    Devuelve los módulos que quedaron funcionando ahora."""
     done = []
     for mid in licencia.MODULES:
         if licencia.module(mid)["state"] not in ("activo", "gracia"):
             continue
         man = installed(mid)
-        if man and compatible(man.get("nucleo")):
-            continue
         try:
-            download(mid)
-            done.append(mid)
-            if app is not None:
-                load(app, mid)
+            if not man or not compatible(man.get("nucleo")):
+                download(mid)
+                if app is None or load(app, mid):
+                    done.append(mid)
+            elif app is not None and mid not in LOADED:
+                if load(app, mid):
+                    done.append(mid)
+            elif updates:
+                try:
+                    download(mid, only_if_newer=True)
+                except ModuleError as e:  # el módulo instalado sigue funcionando: solo queda en el registro
+                    log.info("Módulo Pro %s: no se pudo buscar una versión nueva: %s", mid, e)
         except ModuleError as e:
             PROBLEMS[mid] = str(e)
     return done
+
+
+def restart_soon(delay: float = 1.5) -> None:
+    """«Reiniciar ahora» de Licencia y módulos: sale con 75 y systemd (Restart=on-failure) arranca el servicio de nuevo,
+    que al arrancar instala las versiones que esperaban (apply_pending)."""
+    import os
+    import threading
+    import time
+
+    def _bye():
+        time.sleep(delay)
+        log.info("Reinicio pedido desde Licencia y módulos para aplicar módulos Pro nuevos")
+        os._exit(75)
+    threading.Thread(target=_bye, daemon=True).start()

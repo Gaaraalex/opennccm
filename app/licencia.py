@@ -93,6 +93,19 @@ def public_keys() -> dict[str, str]:
 
 
 EN_USO_MSG = N_("Esta licencia se está usando en otro servidor. Si este es el servidor correcto, libera la instalación anterior en Mi cuenta › Licencias y vuelve a activar la clave aquí.")  # noqa: E501
+# la web responde 400 {"error": "falta_sello"} a actualizar/descargar sin sello guardado (web PR #6): se trata como «en_uso»,
+# con «Activar aquí» y sin cambiar el id de la instalación (decisión de UX, LANZAMIENTO-2.45 §7)
+FALTA_SELLO_MSG = N_("Esta licencia necesita volver a activarse en este servidor.")
+
+
+def falta_sello(r: requests.Response) -> bool:
+    """¿La web respondió 400 «falta_sello»?"""
+    if r.status_code != 400:
+        return False
+    try:
+        return (r.json() or {}).get("error") == "falta_sello"
+    except (ValueError, AttributeError):
+        return False
 
 
 def nombre_servidor() -> str:
@@ -348,16 +361,17 @@ def state(now: datetime | None = None) -> dict:
     elif get_setting("licencia_revocada", "") == "liberada":
         out["problem"] = _("Esta clave se liberó desde Mi cuenta; vuelve a activarla.")
         data = None
-    en_uso = get_setting("licencia_revocada", "") == "en_uso"
+    paused = get_setting("licencia_revocada", "")
+    en_uso = paused == "en_uso"
     if data and data.get("instalacion") != install_id() and not en_uso:  # en_uso: ya se cambió el id de esta instalación
         out["problem"] = _("La licencia es de otra instalación de OpenNCCM.")
         data = None
     if data:
         out["cliente"] = (data.get("cliente") or {}).get("nombre", "")
         deadline = check_before(data)
-        if en_uso:
-            out["paused"] = "en_uso"
-            out["problem"] = _(EN_USO_MSG)
+        if paused in ("en_uso", "falta_sello"):
+            out["paused"] = paused
+            out["problem"] = _(EN_USO_MSG) if en_uso else _(FALTA_SELLO_MSG)
         elif deadline and now > deadline:
             out["paused"] = "sin_comprobar"
             since = (checked or deadline - timedelta(days=CHECK_DAYS)).astimezone()
@@ -475,8 +489,8 @@ def refresh() -> str:
     key = get_setting("licencia_clave", "")
     if not key:
         return "sin_clave"
-    if get_setting("licencia_revocada", "") == "en_uso":
-        return "en_uso"  # hasta volver a activar la clave en este servidor (con su id nuevo)
+    if get_setting("licencia_revocada", "") in ("en_uso", "falta_sello"):
+        return get_setting("licencia_revocada", "")  # hasta volver a activar la clave en este servidor
     try:
         from . import __version__
         body = {"clave": key, "instalacion": install_id(), "huella": fingerprint(), "version": __version__, "nombre": nombre_servidor()}
@@ -501,6 +515,9 @@ def refresh() -> str:
                 return _(UPDATE_MSG)
             set_setting("licencia_revocada", "liberada")  # «no_activa»: se liberó desde Mi cuenta
             return "liberada"
+        if falta_sello(r):  # no hay sello guardado: hay que volver a activar la clave en este servidor
+            set_setting("licencia_revocada", "falta_sello")
+            return "falta_sello"
         if r.status_code != 200:
             return _f("comunidad.opennccm.com respondió {0}. Se sigue con la licencia guardada.", r.status_code)
         out = r.json()
@@ -529,12 +546,12 @@ def daily() -> None:
     if not get_setting("licencia_clave", "") and not get_setting("licencia", ""):
         return
     res = refresh()
-    if res not in ("ok", "sin_clave", "revocada", "no_existe", "liberada", "en_uso"):
+    if res not in ("ok", "sin_clave", "revocada", "no_existe", "liberada", "en_uso", "falta_sello"):
         log.info("Licencia: %s", res)
     try:
         from . import promod
         from .main import app
-        promod.sync(app)  # baja los módulos de la licencia que falten o sean de otra versión de OpenNCCM
+        promod.sync(app, updates=True)  # baja los módulos que falten, los carga y busca versiones nuevas
     except Exception:  # noqa: BLE001
         log.exception("No se pudieron bajar los módulos Pro")
     from .services import add_event

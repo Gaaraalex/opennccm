@@ -135,11 +135,13 @@ class H(BaseHTTPRequestHandler):
                        "sello": "sello-1"}
         elif self.path == "/api/licencias/actualizar":
             code = {"revocada": 410, "no_existe": 404, "liberada": 409, "en_uso": 409}.get(REVOKE, 200)
+            if not body.get("sello"):  # web PR #6: actualizar sin sello → 400 falta_sello
+                code = 400
             mods = [{"id": "informes_pro", "hasta": iso(now + timedelta(days=400))}]
             if REVOKE != "sin_recolectores":
                 mods.append({"id": "recolectores", "hasta": iso(now + timedelta(days=400)), "limites": {"sedes": 3}})
-            out = ({"error": "en_uso" if REVOKE == "en_uso" else "no_activa"} if code == 409 else {} if code != 200
-                   else {"licencia": lic(mods), "sello": f"sello-{len(CALLS)}"})
+            out = ({"error": "en_uso" if REVOKE == "en_uso" else "no_activa"} if code == 409 else {"error": "falta_sello"} if code == 400
+                   else {} if code != 200 else {"licencia": lic(mods), "sello": f"sello-{len(CALLS)}"})
         data = json.dumps(out).encode()
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
@@ -192,6 +194,17 @@ sent = CALLS[-1][1]
 check("volver a activar la clave aquí: con el id nuevo, y sigue solo", sent["instalacion"] == licencia.install_id()
       and licencia.state()["modules"]["informes_pro"]["state"] == "activo" and not licencia.state()["problem"]
       and licencia.refresh() == "ok")
+iid_before = licencia.install_id()
+set_setting("licencia_sello", "")
+check("400 falta_sello (sin sello guardado): pide «Activar aquí», nunca «respondió 400»", licencia.refresh() == "falta_sello"
+      and licencia.state()["paused"] == "falta_sello" and "volver a activarse en este servidor" in licencia.state()["problem"]
+      and "400" not in licencia.state()["problem"] and licencia.state()["modules"]["informes_pro"]["state"] == "pausado")
+n = len(CALLS)
+check("…no cambia el id de la instalación ni vuelve a llamar hasta activar", licencia.install_id() == iid_before
+      and licencia.refresh() == "falta_sello" and len(CALLS) == n)
+licencia.activate(get_setting("licencia_clave"))
+check("…«Activar aquí» lo deja funcionando con un sello nuevo", get_setting("licencia_sello") and licencia.refresh() == "ok"
+      and licencia.state()["modules"]["informes_pro"]["state"] == "activo" and not licencia.state()["paused"])
 REVOKE = "sin_recolectores"
 check("un módulo revocado (200 sin él): pasa a «No incluido» y los demás siguen", licencia.refresh() == "ok"
       and licencia.state()["modules"]["recolectores"]["state"] == "no_incluido"

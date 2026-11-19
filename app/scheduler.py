@@ -266,6 +266,8 @@ def start():
     # solicitudes de cambio aprobadas para una hora (ventana de mantenimiento)
     from . import services as _svc
     scheduler.add_job(_svc.run_due_changes, IntervalTrigger(minutes=1), id="due-changes", replace_existing=True)
+    # respaldos que fallaron porque el equipo no respondía: cada hora se mira si ya responde y se respalda
+    scheduler.add_job(_svc.retry_offline, IntervalTrigger(hours=1), id="offline-retry", replace_existing=True)
     # corrección automática de cumplimiento (solo hace algo si alguna política la tiene activada y está en su ventana)
     from . import autofix
     scheduler.add_job(autofix.sweep, IntervalTrigger(minutes=5), id="autofix", replace_existing=True)
