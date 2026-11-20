@@ -38,12 +38,21 @@ with SessionLocal() as d:
     dev("MANT", "192.0.2.7", OFF, maintenance_until=now() + timedelta(minutes=30))
     dev("SEDE", "192.0.2.8", OFF, recolector_id=1)           # lo respalda el recolector de su sede
     dev("FALLA", "192.0.2.9", OFF)                           # responde pero el respaldo vuelve a fallar
+    # OLT ZTE C300 por telnet: el puerto 23 responde, pero corta la sesión en los tres intentos (error real)
+    dev("CORTA", "192.0.2.10", "[Errno 104] Connection reset by peer\n\n1.er intento: [Errno 104] Connection reset by "
+        "peer\nComprobación: el puerto 23 responde; se reintenta.\n2.º intento: [Errno 104] Connection reset by peer\n"
+        "3.er intento: [Errno 104] Connection reset by peer")
+    dev("CORTA-WIN", "192.0.2.11", "[WinError 10054] Se ha forzado la interrupción de una conexión existente por el host remoto")
     d.commit()
     ids = {x.name: x.id for x in d.scalars(select(Device))}
 
 names = {r[1] for r in services.offline_devices()}
-check("entran solo los que fallaron por no responder (activos, sin mantenimiento, sin recolector)",
-      names == {"VUELVE", "SIGUE", "TIMEOUT", "FALLA"}, names)
+check("entran solo los que fallaron por no responder o porque cortaron la sesión (activos, sin mantenimiento, sin recolector)",
+      names == {"VUELVE", "SIGUE", "TIMEOUT", "FALLA", "CORTA", "CORTA-WIN"}, names)
+with SessionLocal() as d:  # el resto de la prueba sigue con los equipos de antes
+    for x in d.scalars(select(Device).where(Device.name.in_(["CORTA", "CORTA-WIN"]))):
+        x.last_status, x.last_error = "ok", None
+    d.commit()
 
 pinged, probed, backed = [], [], []
 services._ping = lambda h: pinged.append(h) or h in ("192.0.2.1", "192.0.2.9")

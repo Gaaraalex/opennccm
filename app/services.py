@@ -610,6 +610,8 @@ def _check_and_retry(device_id: int, trigger: str, username: str | None) -> str:
             with SessionLocal() as db:
                 again = (db.get(Device, device_id).last_error or "").strip().splitlines()[:1]
             steps.append(f"{n}.º intento: " + (again[0][:200] if again else "sin detalle"))
+        if result == "error" and kind == "red" and OFFLINE.search(err):
+            steps.append("Cada hora se vuelve a intentar solo, hasta que se respalde.")
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
         if result == "error":
@@ -630,9 +632,14 @@ def _check_and_retry(device_id: int, trigger: str, username: str | None) -> str:
 # solo. Cada hora se mira si esos equipos responden (ping o su puerto SSH: hay redes que filtran el ping) y, a medida que
 # van volviendo, se respaldan. Los errores que necesitan a una persona (contraseña rechazada, clave SSH cambiada, …) no
 # entran; tampoco los equipos de una sede con recolector, que no se ven desde aquí (los respalda su recolector).
+# También entra el equipo que acepta la conexión y la corta enseguida («[Errno 104] Connection reset by peer»; en
+# Windows 10054, «forzado la interrupción»): visto en una OLT ZTE C300 por telnet, con el puerto 23 respondiendo, que
+# cortaba los tres intentos y se quedaba sin respaldo hasta que alguien le daba a «Respaldar» (suele ser el tope de
+# sesiones telnet del equipo, que se libera solo).
 OFFLINE = re.compile(r"(?i)timed? ?out|timeout|TCP connection to device failed|Connection refused|No route to host|"
                      r"Network is unreachable|Host is unreachable|Unable to connect|Errno 1(10|11|13)|Errno 10060|"
-                     r"Errno 10061|No existing session|Error reading SSH protocol banner|no responde en")
+                     r"Errno 10061|No existing session|Error reading SSH protocol banner|no responde en|"
+                     r"Connection reset|Errno 104\b|Errno 10054|forzado la interrupci")
 
 
 def _ping(host: str) -> bool:
