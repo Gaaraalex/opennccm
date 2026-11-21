@@ -252,7 +252,7 @@ EVENT_CATEGORIES = [
     N_("Respaldo fallido"), N_("Respaldo programado"), N_("Reversión automática"), N_("Reversión automática fallida"),
     N_("Solicitud de cambio ejecutada"), N_("Solicitud de cambio pendiente"), N_("Syslog de cambio"),
     N_("Vulnerabilidad de firmware"), N_("Imagen .fxi sin crear"), N_("Respaldo al volver a responder"),
-    N_("Archivos .backup/.rsc sin crear"),
+    N_("Archivos .backup/.rsc sin crear"), N_("Copias protegidas por cambio de firmware"),
 ]
 
 
@@ -524,6 +524,9 @@ def versions_differ(a, b, prof) -> bool:
 
 
 # --------------------------------------------------------------------------- respaldo
+FW_CHANGED: set[int] = set()  # equipos cuyo último respaldo trajo otra versión de firmware (lo usa app/fullcopy.py)
+
+
 def backup_device(device_id: int, trigger="manual", username: str | None = None) -> str:
     with SessionLocal() as db:  # desactivado: no se toca el equipo ni se cuenta como fallo
         d = db.get(Device, device_id)
@@ -549,6 +552,7 @@ def backup_device(device_id: int, trigger="manual", username: str | None = None)
         if trigger == "push":
             end_maintenance(device_id)  # no dejar la ventana de mantenimiento abierta
         return "busy"
+    result = "error"
     try:
         result = _backup_device(device_id, trigger, username, report=False)
         if result == "error":
@@ -559,6 +563,10 @@ def backup_device(device_id: int, trigger="manual", username: str | None = None)
         if trigger == "push":
             end_maintenance(device_id)
         lock.release()
+        fw_changed = device_id in FW_CHANGED
+        FW_CHANGED.discard(device_id)
+        from . import fullcopy  # copias completas «al cambiar» (.fxi de WatchGuard, .backup/.rsc de MikroTik)
+        fullcopy.after_backup(device_id, result, fw_changed)
 
 
 # Respaldo fallido: antes de dar la alarma se comprueba qué pasó y, si tiene arreglo, se reintenta solo.
@@ -1173,6 +1181,20 @@ def _store_raw(db, dev, prof, raw: dict, trigger: str, username: str | None, rep
 
     if inventory:
         inv = parse_inventory(inventory, prof)
+        # otra versión de firmware: las últimas copias de la anterior quedan protegidas (app/fullcopy.py)
+        from . import fullcopy
+        if inv["os_version"] and dev.os_version and fullcopy.fw_key(inv["os_version"]) != fullcopy.fw_key(dev.os_version):
+            try:
+                with db.begin_nested():
+                    got = fullcopy.on_firmware_change(db, dev, dev.os_version, inv["os_version"])
+                FW_CHANGED.add(dev.id)
+                # en la misma transacción del respaldo (otra sesión esperaría a esta: «database is locked»)
+                db.add(Event(severity="info", category="Copias protegidas por cambio de firmware", device_id=dev.id,
+                             message=f"{dev.name}: el firmware pasó de {dev.os_version} a {inv['os_version']}. Quedan "
+                             "protegidas (no se borran solas) la última copia de configuración"
+                             + (" y la última copia completa" if got.get("files") else "") + " de la versión anterior."))
+            except Exception as e:  # noqa: BLE001 - nunca hace fallar el respaldo
+                log.warning("copias protegidas de %s: %s", dev.name, e)
         dev.os_version = inv["os_version"] or dev.os_version
         # sin modelo en el inventario (EdgeSwitch de chip Realtek): la cabecera de su configuración lo dice
         sysdesc = re.search(r"(?m)^! System Description:\s*(?:RTK\s+)?(\S+)", running)

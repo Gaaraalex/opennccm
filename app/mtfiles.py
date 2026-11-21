@@ -44,7 +44,7 @@ log = logging.getLogger("opennccm.mtfiles")
 DIR = DATA_DIR / "mtfiles"
 DTYPE = "mikrotik_routeros"
 KEEP = 8
-FREQS = {"weekly": N_("Semanal"), "daily": N_("Diario"), "manual": N_("Solo manual")}
+FREQS = {"change": N_("Al cambiar"), "weekly": N_("Semanal"), "daily": N_("Diario"), "manual": N_("Solo manual")}
 KEY_RE = re.compile(r"^[A-Za-z0-9._-]{8,32}$")  # va como argumento de la CLI de RouterOS: sin espacios ni comillas
 HIDDEN = "********"
 FAILS_ALARM = 2
@@ -287,7 +287,7 @@ def cfg(dev: Device) -> dict:
         perm = json.loads(dev.mtb_perm) if dev.mtb_perm else {}
     except ValueError:
         pass
-    return {"cred_id": dev.mtb_cred_id, "freq": dev.mtb_freq or "weekly", "keep": dev.mtb_keep or KEEP,
+    return {"cred_id": dev.mtb_cred_id, "freq": dev.mtb_freq or "change", "keep": dev.mtb_keep or KEEP,
             "perm": perm, "has_key": bool(dev.mtb_key_enc), "fails": dev.mtb_fails or 0, "last_at": dev.mtb_last_at}
 
 
@@ -545,9 +545,9 @@ def _store(device_id: int, got: dict, trigger: str, username: str | None, key: s
                 tmp.write_bytes(item["data"])
                 shutil.move(str(tmp), folder / f"bk-{row.id}.{kind}")
         keep = dev.mtb_keep or KEEP
-        old = db.scalars(select(MtBackup).where(MtBackup.device_id == device_id)
+        old = db.scalars(select(MtBackup).where(MtBackup.device_id == device_id, MtBackup.protected.is_not(True))
                          .order_by(MtBackup.id.desc()).offset(keep)).all()
-        for o in old:  # solo se guardan los N últimos
+        for o in old:  # solo se guardan los N últimos (los protegidos no cuentan ni se borran: app/fullcopy.py)
             for kind in ("backup", "rsc"):
                 (folder / f"bk-{o.id}.{kind}").unlink(missing_ok=True)
             db.delete(o)
@@ -565,17 +565,23 @@ def path(row: MtBackup, kind: str) -> Path:
 
 
 def due() -> list[int]:
-    """Los MikroTik que tocan hoy: semanal (si el último tiene 7 días) o diario; nunca los «Solo manual», los
-    desactivados, los retirados ni los de Telnet."""
+    """Los MikroTik que tocan hoy: semanal (si el último tiene 7 días) o diario; con «Al cambiar» solo si todavía no
+    tienen ninguno o el último tiene 30 días (los demás se hacen después de un respaldo con cambios, app/fullcopy.py);
+    nunca los «Solo manual», los desactivados, los retirados ni los de Telnet."""
+    from .fullcopy import SAFETY_DAYS
     with SessionLocal() as db:
         devs = db.scalars(select(Device).where(Device.device_type == DTYPE, Device.enabled.is_(True),
                                                Device.retired_at.is_(None))).all()
         out = []
         for d in devs:
-            if d.protocol == "telnet" or (d.mtb_freq or "weekly") == "manual" or not (d.mtb_cred_id or d.credential_id):
+            freq = d.mtb_freq or "change"
+            if d.protocol == "telnet" or freq == "manual" or not (d.mtb_cred_id or d.credential_id):
                 continue
             last = d.mtb_last_at
-            if d.mtb_freq == "daily" or not last or now() - last >= timedelta(days=6, hours=20):
+            if freq == "change":
+                if not last or now() - last >= timedelta(days=SAFETY_DAYS):
+                    out.append(d.id)
+            elif freq == "daily" or not last or now() - last >= timedelta(days=6, hours=20):
                 out.append(d.id)
         return out
 
@@ -608,8 +614,19 @@ def context(dev: Device, tl: list[dict]) -> dict:
     return {**c, "cred": cred.name if cred else "", "cred_user": cred.username if cred else "", "creds": creds,
             "own_cred": dev.credential.name if dev.credential else "", "rows": rows, "last": rows[0] if rows else None,
             "state": st, "freqs": FREQS, "levels": LEVELS, "doc": DOC_URL, "telnet": dev.protocol == "telnet",
-            "perm_text": perm_text(c["perm"]), "on": (c["freq"] != "manual"),
+            "perm_text": perm_text(c["perm"]), "on": (c["freq"] != "manual"), "triggers": _triggers(),
+            "pending": _pending(dev.id),
             "last_text": next((t for t in tl if t["kind"] == "running"), None)}
+
+
+def _triggers() -> dict:
+    from .fullcopy import TRIGGERS
+    return TRIGGERS
+
+
+def _pending(device_id: int) -> bool:
+    from .fullcopy import pending
+    return pending(device_id)
 
 
 def _dev(request: Request, dev_id: int, role: str):
@@ -642,7 +659,7 @@ async def save_config(request: Request, dev_id: int):
         cred_id = int(f.get("cred_id")) if (f.get("cred_id") or "").isdigit() else None
         if cred_id and db.get(Credential, cred_id) is None:
             cred_id = None
-        freq = f.get("freq") if f.get("freq") in FREQS else "weekly"
+        freq = f.get("freq") if f.get("freq") in FREQS else "change"
         keep = max(1, min(int(f.get("keep")) if (f.get("keep") or "").isdigit() else KEEP, 30))
         if cred_id != d.mtb_cred_id:
             d.mtb_perm = None  # otra credencial: los permisos se vuelven a comprobar
@@ -717,6 +734,44 @@ def download(request: Request, dev_id: int, row_id: int, kind: str):
     # tal cual lo entregó el equipo, con su extensión (nunca en .zip); la clave no va dentro
     return Response(path(row, kind).read_bytes(), media_type="application/octet-stream" if kind == "backup" else "text/plain",
                     headers={"Content-Disposition": f'attachment; filename="{safe}_{row.created_at:%Y%m%d-%H%M}.{kind}"'})
+
+
+@router.post("/devices/{dev_id}/mtfiles/{row_id}/protect")
+async def protect_row(request: Request, dev_id: int, row_id: int):
+    """Proteger (no se borra sola) o quitar la protección. Solo administradores; queda en Auditoría."""
+    from . import fullcopy
+    from .web import flash, go, log_action
+    user, dev = _dev(request, dev_id, "admin")
+    f = await request.form()
+    on = f.get("on") == "1"
+    with SessionLocal() as db:
+        row = db.get(MtBackup, row_id)
+        if dev is None or row is None or row.device_id != dev_id:
+            return go(f"/devices/{dev_id}#backups")
+        fullcopy.protect(row, on, user.username)
+        db.commit()
+    log_action(request, user, "mt_files_protect" if on else "mt_files_unprotect", f"{dev.name}: bk-{row_id}")
+    flash(request, "Copia protegida: no se borrará sola." if on else "Se quitó la protección de la copia.")
+    return go(f"/devices/{dev_id}#backups")
+
+
+@router.post("/devices/{dev_id}/mtfiles/{row_id}/delete")
+def delete_row(request: Request, dev_id: int, row_id: int):
+    """Borrar una copia (también una protegida). Solo administradores; queda en Auditoría."""
+    from .web import flash, go, log_action
+    user, dev = _dev(request, dev_id, "admin")
+    with SessionLocal() as db:
+        row = db.get(MtBackup, row_id)
+        if dev is None or row is None or row.device_id != dev_id:
+            return go(f"/devices/{dev_id}#backups")
+        was = bool(row.protected)
+        for kind in ("backup", "rsc"):
+            path(row, kind).unlink(missing_ok=True)
+        db.delete(row)
+        db.commit()
+    log_action(request, user, "mt_files_delete", f"{dev.name}: bk-{row_id}" + (" (protegida)" if was else ""))
+    flash(request, f"Copia bk-{row_id} borrada.")
+    return go(f"/devices/{dev_id}#backups")
 
 
 @router.post("/devices/{dev_id}/mtfiles/{row_id}/key")
