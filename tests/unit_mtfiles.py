@@ -26,7 +26,7 @@ import paramiko  # noqa: E402
 
 from app import mtfiles, services  # noqa: E402
 from app.crypto import decrypt, encrypt  # noqa: E402
-from app.db import Credential, Device, Event, MtBackup, SessionLocal, init_db, now, select  # noqa: E402
+from app.db import Credential, Device, Event, SessionLocal, init_db, now, select  # noqa: E402
 
 fails = []
 mtfiles.WAIT = 20
