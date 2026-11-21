@@ -1,0 +1,64 @@
+{% extends "base.html" %}{% block title %}{{ _f('Archivos .backup y .rsc · {0}', device.name) }}{% endblock %}
+{% block crumbs %}<a href="/devices">{{ _('Dispositivos') }}</a>{{ icon('right', 's') }}<a href="/devices/{{ device.id }}#backups">{{ device.name }}</a>{{ icon('right', 's') }}<b>{{ _('Archivos .backup y .rsc') }}</b>{% endblock %}
+{% block content %}
+<style>
+  .mtr{display:grid;grid-template-columns:1.05fr .95fr;gap:16px;margin-top:16px}
+  @media (max-width:900px){.mtr{grid-template-columns:1fr}}
+  .mtr .bar{height:6px;border-radius:99px;background:var(--surface-3);margin:12px 0 6px}.mtr .bar i{display:block;height:100%;border-radius:99px;background:var(--brand);transition:width .3s}
+  .mtr .bar.ok i{background:var(--ok)}.mtr .bar.err i{background:var(--crit)}
+  .mtr .step{display:flex;gap:12px;padding:11px 0;border-top:1px solid var(--line)}
+  .mtr .dot{flex:none;width:22px;height:22px;border-radius:99px;display:inline-flex;align-items:center;justify-content:center;font:700 11px var(--f-sans);background:var(--surface-3);color:var(--muted)}
+  .mtr .dot.ok{background:var(--ok-soft);color:var(--ok)}.mtr .dot.run{background:var(--brand-soft);color:var(--brand)}.mtr .dot.err{background:var(--crit-soft);color:var(--crit)}
+  .mtr .st-t{font:600 13.5px var(--f-sans);color:var(--ink)}.mtr .st-t.wait{color:var(--muted)}
+  .mtr .st-d{font:500 12px var(--f-mono);color:var(--muted);margin-top:2px;word-break:break-all}
+  .mtr .log{font:500 12px/1.7 var(--f-mono);color:var(--ink-2);background:var(--p-face,var(--surface-2));border:1px solid var(--line);border-radius:12px;padding:12px 14px;white-space:pre-wrap;word-break:break-all;min-height:120px}
+  .mtr .lbl{font:600 10.5px var(--f-sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .mtr .chk{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.5}
+</style>
+<div class="ph"><div><h1 style="margin:0">{{ device.name }}</h1><p class="muted" style="margin:4px 0 0">MikroTik {{ device.model or '' }}{% if device.os_version %} · RouterOS {{ device.os_version }}{% endif %} · {{ device.host }}</p></div></div>
+{% if not st %}
+  <div class="card" style="margin-top:16px"><p class="muted" style="margin:0">{{ _('No hay nada en curso para este equipo.') }} <a href="/devices/{{ device.id }}#backups">{{ _('Volver a Respaldos') }}</a></p></div>
+{% else %}
+{% set n = st.steps|length %}{% set done = st.steps|selectattr('k', 'equalto', 'ok')|list|length %}
+<div class="mtr" id="mtr" data-status="{{ st.status }}">
+  <section class="card" style="{{ 'border-color:var(--crit)' if st.status == 'error' }}">
+    <div class="row" style="gap:8px"><h2 style="margin:0">{{ _('Comprobando los permisos') if st.test else _('Creando el .backup y el .rsc') }}</h2><span class="pill {{ 'ok' if st.status == 'ok' else 'crit' if st.status == 'error' else 'info' }}">{{ _('Listo') if st.status == 'ok' else _('Falló') if st.status == 'error' else _('En curso') }}</span></div>
+    <div class="bar {{ 'ok' if st.status == 'ok' else 'err' if st.status == 'error' }}"><i id="mtr-bar" style="width:{{ (100 * done / n)|round|int if n else 0 }}%"></i></div>
+    <div id="mtr-steps">{% for s in st.steps %}<div class="step"><span class="dot {{ s.k }}">{{ '✓' if s.k == 'ok' else '✕' if s.k == 'err' else loop.index }}</span><div style="min-width:0"><div class="st-t {{ 'wait' if s.k == 'wait' }}">{{ _(s.t) }}</div><div class="st-d">{{ s.d }}</div></div></div>{% endfor %}</div>
+    {% if st.status == 'error' %}
+      <p class="sm" style="margin:12px 0 0;line-height:1.5;color:var(--crit)">{% if st.device_msg %}{{ _('RouterOS respondió:') }} <span class="mono">{{ st.device_msg[:400] }}</span>{% else %}<span class="mono">{{ st.error }}</span>{% endif %}</p>
+      <div class="row" style="gap:8px;margin-top:14px;flex-wrap:wrap">{% if can(user, 'backup') %}<form method="post" action="/devices/{{ device.id }}/mtfiles/run" class="inline"><button class="btn pri">{{ _('Reintentar') }}</button></form>{% endif %}
+        {% if can(user, 'devices') %}<a class="btn" href="/devices/{{ device.id }}?mtf=cfg#backups">{{ _('Elegir otra credencial') }}</a>{% endif %}<a class="btn" href="{{ doc }}" target="_blank" rel="noopener">{{ _('Ver en la documentación') }}</a></div>
+    {% endif %}
+    {% if st.warn %}<p class="sm" style="margin:12px 0 0;color:var(--warn)">{{ st.warn }}</p>{% endif %}
+    <div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap" id="mtr-done" {{ 'hidden' if st.status != 'ok' }}>
+      <a class="btn" href="/devices/{{ device.id }}#backups">{{ icon('check', 's') }}{{ _('Volver a Respaldos') }}</a>
+      {% if st.backup_id and can(user, 'devices') %}<a class="btn" href="/devices/{{ device.id }}/mtfiles/{{ st.backup_id }}/backup">{{ icon('dl', 's') }}.backup</a><a class="btn" href="/devices/{{ device.id }}/mtfiles/{{ st.backup_id }}/rsc">{{ icon('dl', 's') }}.rsc</a>{% endif %}</div>
+  </section>
+  <div class="stack" style="gap:12px">
+    {% if st.status == 'error' %}<div class="card" style="border-color:var(--ok)"><div class="chk"><span class="dot ok" aria-hidden="true">✓</span><span><b>{{ _('El respaldo de configuración (texto) no se ve afectado.') }}</b> {{ _('OpenNCCM no deja archivos suyos en el equipo: si algo falla, los borra; lo que quede de un corte se borra en el próximo intento.') }}</span></div></div>{% endif %}
+    <div class="lbl">{{ _('Registro') }}</div><div class="log" id="mtr-log">{{ st.log|join('\n') }}</div>
+    <div class="card sm" style="line-height:1.55"><b>{{ _('El equipo sigue funcionando.') }}</b> {{ _('Crear el .backup y el .rsc no corta el tráfico ni reinicia nada; tarda unos segundos. Queda en Auditoría con quién lo pidió.') }}</div>
+  </div>
+</div>
+{% if st.status == 'running' %}
+<script>
+(function () {
+  const T = {{ {'steps': {'Entrar al equipo por SSH': _('Entrar al equipo por SSH'), 'Comprobar los permisos de la credencial': _('Comprobar los permisos de la credencial'), 'Comprobar el espacio libre': _('Comprobar el espacio libre'), 'Crear el .backup y el .rsc en el equipo': _('Crear el .backup y el .rsc en el equipo'), 'Traer los archivos por SFTP y comprobarlos': _('Traer los archivos por SFTP y comprobarlos'), 'Borrar los archivos del equipo y guardar': _('Borrar los archivos del equipo y guardar')}}|tojson }};
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c]);
+  const tick = async () => {
+    const s = await fetch('/devices/{{ device.id }}/mtfiles/status').then(r => r.json()).catch(() => null);
+    if (!s || !s.steps) return setTimeout(tick, 2000);
+    if (s.status !== 'running') { location.reload(); return; }
+    const done = s.steps.filter(x => x.k === 'ok').length;
+    document.getElementById('mtr-bar').style.width = Math.round(100 * done / s.steps.length) + '%';
+    document.getElementById('mtr-steps').innerHTML = s.steps.map((x, i) => `<div class="step"><span class="dot ${x.k}">${x.k === 'ok' ? '✓' : x.k === 'err' ? '✕' : i + 1}</span><div style="min-width:0"><div class="st-t ${x.k === 'wait' ? 'wait' : ''}">${esc(T.steps[x.t] || x.t)}</div><div class="st-d">${esc(x.d)}</div></div></div>`).join('');
+    document.getElementById('mtr-log').textContent = (s.log || []).join('\n');
+    setTimeout(tick, 1000);
+  };
+  setTimeout(tick, 800);
+})();
+</script>
+{% endif %}
+{% endif %}
+{% endblock %}

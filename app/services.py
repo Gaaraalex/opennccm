@@ -252,6 +252,7 @@ EVENT_CATEGORIES = [
     N_("Respaldo fallido"), N_("Respaldo programado"), N_("Reversión automática"), N_("Reversión automática fallida"),
     N_("Solicitud de cambio ejecutada"), N_("Solicitud de cambio pendiente"), N_("Syslog de cambio"),
     N_("Vulnerabilidad de firmware"), N_("Imagen .fxi sin crear"), N_("Respaldo al volver a responder"),
+    N_("Archivos .backup/.rsc sin crear"),
 ]
 
 
@@ -610,6 +611,8 @@ def _check_and_retry(device_id: int, trigger: str, username: str | None) -> str:
             with SessionLocal() as db:
                 again = (db.get(Device, device_id).last_error or "").strip().splitlines()[:1]
             steps.append(f"{n}.º intento: " + (again[0][:200] if again else "sin detalle"))
+        if result == "error" and kind == "red" and OFFLINE.search(err):
+            steps.append("Cada hora se vuelve a intentar solo, hasta que se respalde.")
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
         if result == "error":
@@ -630,9 +633,14 @@ def _check_and_retry(device_id: int, trigger: str, username: str | None) -> str:
 # solo. Cada hora se mira si esos equipos responden (ping o su puerto SSH: hay redes que filtran el ping) y, a medida que
 # van volviendo, se respaldan. Los errores que necesitan a una persona (contraseña rechazada, clave SSH cambiada, …) no
 # entran; tampoco los equipos de una sede con recolector, que no se ven desde aquí (los respalda su recolector).
+# También entra el equipo que acepta la conexión y la corta enseguida («[Errno 104] Connection reset by peer»; en
+# Windows 10054, «forzado la interrupción»): visto en una OLT ZTE C300 por telnet, con el puerto 23 respondiendo, que
+# cortaba los tres intentos y se quedaba sin respaldo hasta que alguien le daba a «Respaldar» (suele ser el tope de
+# sesiones telnet del equipo, que se libera solo).
 OFFLINE = re.compile(r"(?i)timed? ?out|timeout|TCP connection to device failed|Connection refused|No route to host|"
                      r"Network is unreachable|Host is unreachable|Unable to connect|Errno 1(10|11|13)|Errno 10060|"
-                     r"Errno 10061|No existing session|Error reading SSH protocol banner|no responde en")
+                     r"Errno 10061|No existing session|Error reading SSH protocol banner|no responde en|"
+                     r"Connection reset|Errno 104\b|Errno 10054|forzado la interrupci")
 
 
 def _ping(host: str) -> bool:
@@ -682,7 +690,11 @@ def retry_offline() -> dict:
 
 def mikrotik_backup_file(device_id: int, password: str = "") -> tuple[str, bytes]:
     """RouterOS: crea un .backup en el equipo («/system backup save»), lo trae por SFTP y lo borra del equipo. El .backup
-    es binario y solo se restaura en el mismo modelo; sin contraseña va sin cifrar («dont-encrypt=yes»)."""
+    es binario y solo se restaura en el mismo modelo; sin contraseña va sin cifrar («dont-encrypt=yes»). Antes de crear
+    nada se comprueban los permisos de la cuenta, y se espera a que el equipo termine de escribirlo (app/mtfiles.py)."""
+    import paramiko
+
+    from . import mtfiles
     if password and not re.fullmatch(r"[\w.,:;!?@#%&*+=/-]{1,64}", password):
         raise ValueError("La contraseña del .backup solo admite letras, números y . , : ; ! ? @ # % & * + = / - (hasta 64)")
     lock = device_lock(device_id)
@@ -693,41 +705,23 @@ def mikrotik_backup_file(device_id: int, password: str = "") -> tuple[str, bytes
             dev = db.get(Device, device_id)
             if dev is None or dev.device_type != "mikrotik_routeros":
                 raise RuntimeError("Solo los equipos MikroTik RouterOS hacen archivos .backup")
+            username = dev.credential.username if dev.credential else ""
             conn = connect(dev)
-        name = f"opennccm-{time.strftime('%Y%m%d-%H%M%S')}"
         try:
-            out = conn.send_command(f"/system backup save name={name} " + (f"password={password}" if password else "dont-encrypt=yes"),
-                                    read_timeout=120)
-            if re.search(r"(?i)failure|error|expected end of command|bad command", out):
-                raise RuntimeError("RouterOS no pudo crear el .backup: " + out.strip()[:300])
-            import paramiko
+            perm = mtfiles.read_perms(conn, username)
+            if perm["level"] != "full":
+                raise mtfiles.PermError(perm) if perm["level"] in ("none", "unknown") else RuntimeError(
+                    f"La credencial no puede crear el .backup (grupo «{perm['group']}», le falta "
+                    f"{', '.join(perm['missing_backup'])}): no se creó nada en el equipo")
             sftp = paramiko.SFTPClient.from_transport(conn.remote_conn.get_transport())
             try:
-                path = data = None
-                for _ in range(30):  # se escribe en unos segundos; en equipos con «flash/» queda en esa carpeta
-                    for p in (f"{name}.backup", f"flash/{name}.backup"):
-                        try:
-                            if sftp.stat(p).st_size:
-                                path = p
-                        except OSError:
-                            pass
-                    if path:
-                        break
-                    time.sleep(1)
-                if not path:
-                    raise RuntimeError("El equipo no dejó el .backup a la vista por SFTP (¿el usuario tiene permiso «ftp»?)")
-                with sftp.open(path, "rb") as f:
-                    data = f.read()
-                # se borra por SFTP: en RouterOS 6 «/file remove» justo después aún no ve el archivo y lo deja
-                try:
-                    sftp.remove(path)
-                except OSError:
-                    conn.send_command(f'/file remove "{path}"', read_timeout=30)
+                got = mtfiles.make_files(conn, sftp, backup=True, rsc=False, key=password, sensitive=True, v7=False,
+                                         stamp=time.strftime("%Y%m%d-%H%M%S"))
             finally:
                 sftp.close()
         finally:
             conn.disconnect()
-        return name + ".backup", data
+        return f"opennccm-{time.strftime('%Y%m%d-%H%M%S')}.backup", got["backup"]["data"]
     finally:
         lock.release()
 

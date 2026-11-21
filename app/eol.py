@@ -66,7 +66,7 @@ def match_entry(dev: Device, entries: list[EolEntry]) -> EolEntry | None:
 # textos grandes de cada equipo que el ciclo de vida no usa: con miles de equipos (y los puertos de una OLT), leerlos era
 # lo que más tardaba en el panel, Dispositivos y Firmware (prueba de carga, 2.44)
 HEAVY = (Device.inventory_raw_enc, Device.neighbors, Device.ports, Device.port_seen, Device.license_enc,
-         Device.fxi_key_enc, Device.custom_backup_cmd, Device.notes, Device.retired_note)
+         Device.fxi_key_enc, Device.mtb_key_enc, Device.mtb_perm, Device.custom_backup_cmd, Device.notes, Device.retired_note)
 
 
 def report(device_ids: set[int] | None = None) -> list[tuple[Device, EolEntry | None, str]]:
