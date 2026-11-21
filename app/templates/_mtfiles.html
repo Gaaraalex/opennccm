@@ -1,0 +1,234 @@
+{# Pestaña Respaldos de un MikroTik RouterOS (app/mtfiles.py): aviso de los tres tipos de respaldo, las dos tarjetas, la
+   tabla (texto y archivos .backup/.rsc), las descargas (cada archivo en su formato, nunca en .zip), «Cómo restaurar» y
+   el diálogo de configuración. #}
+<style>
+  .mtf-two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media (max-width:900px){.mtf-two{grid-template-columns:1fr}}
+  .mtf-kv{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+  .mtf-kv .l{font:600 10.5px var(--f-sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .mtf-kv .v{font:600 14px var(--f-sans);color:var(--ink);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  @media (max-width:700px){.mtf-kv{grid-template-columns:1fr}}
+  .mtf-req{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+  .mtf-req>div{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.45}
+  .mtf-dot{flex:none;width:20px;height:20px;border-radius:99px;display:inline-flex;align-items:center;justify-content:center;font:700 11px var(--f-sans);background:var(--surface-3);color:var(--muted)}
+  .mtf-dot.bad{background:var(--crit-soft);color:var(--crit)}.mtf-dot.ok{background:var(--ok-soft);color:var(--ok)}.mtf-dot.warn{background:var(--warn-soft,var(--surface-3));color:var(--warn)}
+  .mtf-tb td.a{text-align:right;white-space:nowrap}.mtf-tb td.a .btn{margin-left:4px}
+  .mtf-tag{font:600 10.5px var(--f-sans);border-radius:99px;padding:2px 8px;background:var(--surface-3);color:var(--ink-2);white-space:nowrap}
+  .mtf-tag.f{background:var(--brand-soft);color:var(--brand)}
+  .mtf-seg{display:inline-flex;padding:3px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line)}
+  .mtf-seg button{height:28px;padding:0 10px;border:0;border-radius:7px;background:transparent;color:var(--ink-2);font:600 12px var(--f-sans);cursor:pointer}
+  .mtf-seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 0 0 1px var(--line)}
+  .dlg.mtf-pane{width:min(820px,calc(100vw - 24px));max-width:none;max-height:85vh;overflow:hidden;padding:0;gap:0}
+  .mtf-pane>form,.mtf-pane>.mtf-in{display:flex;flex-direction:column;min-height:0;max-height:85vh;gap:0;margin:0}
+  .mtf-pane .mtf-h{flex:none;flex-wrap:nowrap;align-items:flex-start;padding:20px 24px 12px}
+  .mtf-pane .mtf-h>div{min-width:0}
+  .mtf-pane .mtf-b{flex:1 1 auto;min-height:0;overflow:auto;padding:4px 24px 16px}
+  .mtf-pane .mtf-f{flex:none;padding:14px 24px;border-top:1px solid var(--line)}
+  @media (max-width:600px){.mtf-pane .mtf-h{padding:16px 16px 10px}.mtf-pane .mtf-b{padding:4px 16px 14px}.mtf-pane .mtf-f{padding:12px 16px}
+    .mtf-pane .mtf-f .btn{flex:1 1 100%;justify-content:center;margin-left:0 !important}}
+  .mtf-dlg .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 22px;align-content:start}
+  .mtf-dlg .full{grid-column:1/-1}
+  @media (max-width:760px){.mtf-dlg .grid{grid-template-columns:1fr}}
+  .mtf-note .mtf-cols{display:grid;grid-template-columns:repeat(3,1fr);gap:6px 24px;margin-top:8px}
+  .mtf-note .mtf-cols p{margin:2px 0 0;line-height:1.5}
+  @media (max-width:900px){.mtf-note .mtf-cols{grid-template-columns:1fr}}
+  .mtf-key{font:600 15px var(--f-mono);letter-spacing:.04em;padding:10px 12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line);word-break:break-all}
+  .mtf-code{font:500 12.5px/1.6 var(--f-mono);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:8px 12px;white-space:pre-wrap;word-break:break-all;margin:4px 0 0}
+  .mtf-pol{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .mtf-pol span{font:600 11px var(--f-mono);border-radius:6px;padding:2px 7px;background:var(--ok-soft);color:var(--ok)}
+  .mtf-pol span.no{background:var(--crit-soft);color:var(--crit)}
+</style>
+{% set c = mtf %}{% set p = c.perm %}
+<div class="banner info mtf-note" role="note">{{ icon('info') }}<div class="grow"><b>{{ _('MikroTik tiene tres formas de respaldo y OpenNCCM guarda las tres.') }}</b>
+  <div class="mtf-cols"><div><b>{{ _('Configuración (texto)') }}</b><p>{{ _('«/export terse» en cada respaldo: se compara versión a versión y avisa de cada cambio.') }}</p></div>
+    <div><b>.backup</b><p>{{ _('Copia binaria y cifrada de TODO el equipo, con usuarios, contraseñas y certificados. Solo para este mismo equipo o uno idéntico.') }}</p></div>
+    <div><b>.rsc</b><p>{{ _('El script de «/export file=». Se lee como texto y sirve también para otro equipo (revise los nombres de las interfaces).') }}</p></div></div></div></div>
+
+<div class="mtf-two">
+  <section class="card">
+    <div class="row" style="gap:8px"><h2 style="margin:0">{{ _('Configuración (texto)') }}</h2>{% if c.last_text %}<span class="pill ok">{{ _('Activo') }}</span>{% endif %}<span class="grow"></span><span class="muted sm">{{ _f('{0} versiones', total_v) }}</span></div>
+    <div class="mtf-kv"><div><div class="l">{{ _('Último') }}</div><div class="v">{{ device.last_backup_at|ago if device.last_backup_at else '—' }}</div></div>
+      <div><div class="l">{{ _('Cuándo') }}</div><div class="v">{{ _('En cada respaldo') }}</div></div>
+      <div><div class="l">{{ _('Credencial') }}</div><div class="v" title="{{ device.credential.username if device.credential }}">{{ device.credential.name if device.credential else '—' }}</div></div></div>
+    <p class="muted sm" style="margin:12px 0 0;line-height:1.5">{{ _f('Se baja por SSH (puerto {0}) con el comando', device.port) }} <code>/export terse</code>. {{ _('Basta una cuenta de solo lectura.') }}</p>
+  </section>
+  {% set lvl = p.level if p else '' %}
+  <section class="card" style="{{ 'border-color:var(--crit)' if lvl in ('none', 'unknown') or c.telnet else 'border-color:var(--warn)' if lvl == 'rsc' else '' }}">
+    <div class="row" style="gap:8px;flex-wrap:wrap"><h2 style="margin:0">{{ _('Archivos del equipo (.backup y .rsc)') }}</h2>
+      {% if c.telnet %}<span class="pill crit">{{ _('Necesita SSH') }}</span>
+      {% elif lvl in ('none', 'unknown') %}<span class="pill crit">{{ _('Sin permiso') }}</span>
+      {% elif lvl == 'rsc' %}<span class="pill warn">{{ _('Solo .rsc') }}</span>
+      {% elif not c.on %}<span class="pill">{{ _('Solo manual') }}</span>
+      {% else %}<span class="pill ok">{{ _('Activo') }}</span>{% endif %}<span class="pill info">{{ _('nuevo') }}</span></div>
+    <div class="mtf-kv"><div><div class="l">{{ _('Último') }}</div><div class="v">{{ c.last.created_at|ago if c.last else _('todavía ninguno') }}</div></div>
+      <div><div class="l">{{ _('Cuándo') }}</div><div class="v">{{ _(c.freqs[c.freq]) }}</div></div>
+      <div><div class="l">{{ _('Credencial') }}</div><div class="v" title="{{ c.cred_user }}">{{ icon('lock', 's') }} {{ c.cred or '—' }}</div></div></div>
+    <div class="mtf-req">
+      {% if c.telnet %}<div><span class="mtf-dot bad" aria-hidden="true">✕</span><span>{{ _('El equipo se gestiona por Telnet. Los archivos se traen por SFTP, que va dentro de SSH: cambie el equipo a SSH.') }}</span></div>
+      {% elif not p %}<div><span class="mtf-dot" aria-hidden="true">?</span><span><b>{{ _('Permisos sin comprobar.') }}</b> {{ _('Antes de crear nada, OpenNCCM lee los permisos (policy) del grupo de la cuenta en el equipo.') }}</span></div>
+      {% elif lvl == 'full' %}<div><span class="mtf-dot ok" aria-hidden="true">✓</span><span><b>{{ _('La credencial puede crear el .backup y el .rsc.') }}</b> {{ _f('Grupo «{0}» en el equipo.', p.group) }}</span></div>
+      {% elif lvl == 'rsc' %}<div><span class="mtf-dot warn" aria-hidden="true">!</span><span><b>{{ _('Solo se trae el .rsc.') }}</b> {{ _f('Al grupo «{0}» le falta, para el .backup:', p.group) }} <span class="mono">{{ p.missing_backup|join(', ') }}</span></span></div>
+      {% elif lvl == 'none' %}<div><span class="mtf-dot bad" aria-hidden="true">✕</span><span><b>{{ _('Credencial de solo lectura: no se crea nada en el equipo.') }}</b> {{ _f('Al grupo «{0}» le falta:', p.group) }} <span class="mono">{{ (p.missing_rsc or p.missing_backup)|join(', ') }}</span>. {{ _('Elija una credencial con más permisos.') }}</span></div>
+      {% else %}<div><span class="mtf-dot bad" aria-hidden="true">✕</span><span>{{ _('No se pudieron leer los permisos de la cuenta; por seguridad no se creó nada.') }}</span></div>{% endif %}
+      {% if p and p.at %}<div class="muted sm" style="margin-left:30px">{{ _('Comprobado') }} {{ p.at|replace('T', ' ') }}</div>{% endif %}
+    </div>
+    <div class="row" style="margin-top:12px;gap:8px;flex-wrap:wrap"><span class="muted sm grow">{{ _f('Se guardan los {0} últimos, el .backup cifrado con su clave.', c.keep) }}</span>
+      {% if is_admin %}<button type="button" class="btn s" data-mtf-cfg>{{ _('Cambiar') }}</button>{% endif %}
+      {% if can_run and not c.telnet %}<form method="post" action="/devices/{{ device.id }}/mtfiles/run" class="inline"><button class="btn s pri">{{ _('Crear ahora') }}</button></form>{% endif %}</div>
+    {% if c.state and c.state.status == 'error' and not c.state.test %}<p class="sm" style="margin:10px 0 0;color:var(--crit)">{{ _('La última vez falló.') }} <a href="/devices/{{ device.id }}/mtfiles/run">{{ _('Ver qué pasó') }}</a></p>{% endif %}
+  </section>
+</div>
+
+<section class="card flush">
+  <div class="card-h" style="flex-wrap:wrap;gap:8px"><h2>{{ _('Respaldos') }}</h2><span class="grow"></span>
+    <div class="mtf-seg" role="group" aria-label="{{ _('Tipo de respaldo') }}"><button type="button" data-mtf-f="all" aria-pressed="true">{{ _('Todos') }}</button><button type="button" data-mtf-f="txt" aria-pressed="false">{{ _('Texto') }}</button><button type="button" data-mtf-f="file" aria-pressed="false">.backup / .rsc</button></div>
+  </div>
+  <div class="tw"><table class="t mtf-tb"><thead><tr><th>{{ _('Tipo') }}</th><th>{{ _('Cuándo') }}</th><th>{{ _('Origen') }}</th><th>{{ _('Tamaño') }}</th><th>{{ _('Versión') }}</th><th class="a" style="text-align:right">{{ _('Acciones') }}</th></tr></thead><tbody>
+    {% set ns = namespace(n=0) %}
+    {% for r in c.rows %}{% set ns.n = ns.n + 1 %}
+    <tr data-k="file"><td>{% if r.backup_size %}<span class="mtf-tag f">.backup</span> {% endif %}<span class="mtf-tag f">.rsc</span></td><td title="{{ r.created_at|dt }}">{{ r.created_at|ago }}</td>
+      <td>{{ {'manual': _('Manual'), 'scheduled': _('Programado')}.get(r.trigger, r.trigger) }}{% if r.trigger == 'scheduled' %} ({{ _(c.freqs[c.freq])|lower }}){% elif r.username %} · <span class="muted">{{ r.username }}</span>{% endif %}</td>
+      <td>{% if r.backup_size %}{{ r.backup_size|filesizeformat }} + {% endif %}{{ r.rsc_size|filesizeformat }}</td><td class="mono muted">bk-{{ r.id }}{% if r.ros_version %} · {{ r.ros_version.split(' ')[0] }}{% endif %}</td>
+      <td class="a">{% if is_admin %}{% if r.backup_size %}<a class="btn s" href="/devices/{{ device.id }}/mtfiles/{{ r.id }}/backup">{{ icon('dl', 's') }}.backup</a>{% endif %}<a class="btn s" href="/devices/{{ device.id }}/mtfiles/{{ r.id }}/rsc">{{ icon('dl', 's') }}.rsc</a><button type="button" class="btn s" data-mtf-how="{{ r.id }}" data-has-backup="{{ 1 if r.backup_size else 0 }}">{{ _('Cómo restaurar') }}</button>{% else %}<span class="muted sm">{{ _('Solo administradores') }}</span>{% endif %}</td></tr>
+    {% endfor %}
+    {% for t in tl if t.kind == 'running' %}{% if loop.index <= 40 %}
+    <tr data-k="txt"><td><span class="mtf-tag">{{ _('Texto') }}</span></td><td title="{{ t.when|dt }}">{{ t.when|ago }}</td><td>{{ t.src }}{% if t.who and t.who != t.src %} · <span class="muted">{{ t.who }}</span>{% endif %}</td><td>{{ (t.size or 0)|filesizeformat }}</td><td class="mono muted">v{{ t.n }}</td>
+      <td class="a"><a class="btn s" href="/versions/{{ t.id }}" data-sheet data-wide>{{ _('Ver') }}</a><a class="btn s" href="/devices/{{ device.id }}?b={{ t.id }}#versions">{{ _('Comparar') }}</a><a class="btn s" href="/versions/{{ t.id }}?raw=1">{{ icon('dl', 's') }}{{ _('Descargar') }}</a></td></tr>
+    {% endif %}{% endfor %}
+    {% if not c.rows and not c.last_text %}<tr><td colspan="6" class="muted">{{ _('Todavía no hay respaldos.') }}</td></tr>{% endif %}
+  </tbody></table></div>
+</section>
+
+<dialog class="dlg wide mtf-pane" id="mtf-how" aria-labelledby="mtf-how-h"><div class="mtf-in">
+  <div class="mtf-h row"><h2 id="mtf-how-h" style="margin:0">{{ _('Cómo restaurar') }}</h2><span class="grow"></span><button type="button" class="btn s ghost" data-close aria-label="{{ _('Cerrar') }}">✕</button></div>
+  <div class="mtf-b stack" style="gap:16px;line-height:1.55">
+    <div data-how="backup" class="stack" style="gap:8px">
+      <b>.backup · {{ _('el mismo equipo (o uno idéntico)') }}</b>
+      <ol style="margin:0;padding-left:20px"><li>{{ _('Suba el .backup al equipo: en WinBox, arrástrelo a Files (o por SFTP).') }}</li>
+        <li>{{ _('Cárguelo con la clave de abajo. El equipo se reinicia con esa configuración:') }}<div class="mtf-code">/system backup load name=ARCHIVO.backup password=CLAVE</div></li></ol>
+      <p class="muted sm" style="margin:0">{{ _('Trae también las direcciones MAC, usuarios y certificados del equipo original: no lo use en otro equipo que siga en la misma red.') }}</p>
+      <div><div class="l muted sm" style="font-weight:600">{{ _('Clave del .backup') }}</div><div class="row" style="gap:8px;margin-top:6px"><div class="mtf-key grow" id="mtf-key" aria-live="polite">••••••••••••</div><button type="button" class="btn s" id="mtf-key-show" aria-pressed="false">{{ _('Mostrar la clave') }}</button><button type="button" class="btn s" id="mtf-key-copy">{{ _('Copiar') }}</button></div>
+        <p class="muted sm" style="margin:6px 0 0">{{ _('Queda en Auditoría quién la vio. La clave nunca va dentro de ningún archivo descargado.') }}</p></div></div>
+    <div class="stack" style="gap:8px">
+      <b>.rsc · {{ _('este equipo u otro') }}</b>
+      <ol style="margin:0;padding-left:20px"><li>{{ _('Para otro modelo, abra el .rsc y revise los nombres de las interfaces (ether1, sfp1…) antes de usarlo.') }}</li>
+        <li>{{ _('Súbalo al equipo y aplíquelo sobre una configuración vacía:') }}<div class="mtf-code">/system reset-configuration no-defaults=yes skip-backup=yes run-after-reset=ARCHIVO.rsc</div></li></ol>
+      <p class="muted sm" style="margin:0">{{ _('O, sin borrar lo que tiene, solo agregar lo del archivo:') }} <code>/import file-name=ARCHIVO.rsc</code></p>
+      <p class="muted sm" style="margin:0">{{ _('Si una línea choca con algo que el equipo ya tiene (por ejemplo, el cliente DHCP que algunos modelos crean solos), RouterOS detiene el script ahí: el registro (/log) dice en qué línea. Borre eso o quite la línea del .rsc y vuelva a aplicarlo.') }}</p></div>
+  </div>
+  <div class="row end mtf-f"><a class="btn ghost" href="{{ c.doc }}" target="_blank" rel="noopener">{{ _('Ver en la documentación') }}</a><button type="button" class="btn" data-close>{{ _('Cerrar') }}</button></div>
+</div></dialog>
+
+{% if is_admin %}
+<dialog class="dlg wide mtf-dlg mtf-pane" id="mtf-cfg" aria-labelledby="mtf-cfg-h">
+  <form method="post" action="/devices/{{ device.id }}/mtfiles/config" id="mtf-form">
+  <div class="row mtf-h"><div><h2 id="mtf-cfg-h" style="margin:0">{{ _f('Archivos .backup y .rsc · {0}', device.name) }}</h2><div class="muted sm">{{ device.model or 'MikroTik' }}{% if device.os_version %} · RouterOS {{ device.os_version }}{% endif %}</div></div><span class="grow"></span><button type="button" class="btn s ghost" data-close aria-label="{{ _('Cerrar') }}">✕</button></div>
+  <div class="mtf-b"><div class="grid">
+    <div class="field"><label for="mtf-cred">1 · {{ _('Credencial') }}</label><div class="input"><select id="mtf-cred" name="cred_id"><option value="">{{ _f('La del equipo ({0})', c.own_cred or '—') }}</option>{% for i, n, u in c.creds %}<option value="{{ i }}" {{ 'selected' if i == c.cred_id }}>{{ n }} · {{ u }}</option>{% endfor %}</select></div>
+      <span class="help">{{ _('El grupo de esa cuenta en el equipo necesita, para el .backup:') }} <span class="mono">read, write, policy, test, sensitive, ftp</span>; {{ _('para el .rsc:') }} <span class="mono">read, write, ftp</span>. {{ _('Se comprueba antes de crear nada.') }}</span></div>
+    <div class="field"><label for="mtf-keyin">2 · {{ _('Clave del .backup') }}</label><div class="row" style="gap:6px"><div class="input grow"><input id="mtf-keyin" name="key" type="password" autocomplete="new-password" minlength="8" maxlength="32" pattern="[A-Za-z0-9._\-]{8,32}" placeholder="{{ _('(sin cambiar)') if c.has_key else _('(se genera sola)') }}"><button type="button" class="btn s ghost" id="mtf-eye" aria-pressed="false" aria-label="{{ _('Mostrar u ocultar la clave') }}" title="{{ _('Mostrar u ocultar la clave') }}" style="margin-right:4px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+      <div class="row" style="gap:6px;margin-top:6px"><button type="button" class="btn s" id="mtf-gen">{{ _('Generar') }}</button><button type="button" class="btn s" id="mtf-gen-copy" hidden>{{ _('Copiar') }}</button></div>
+      <span class="help">{{ _('RouterOS cifra el .backup con esta clave (8 a 32 letras, números, . _ -). Si la deja vacía, OpenNCCM genera una.') }} <b style="color:var(--warn)">{{ _('Sin ella no se puede restaurar:') }}</b> {{ _('se guarda cifrada junto a cada .backup.') }}</span></div>
+    <div class="field"><span class="fl" style="font-weight:600">3 · {{ _('Cuándo') }}</span><div class="mtf-seg" role="radiogroup" aria-label="{{ _('Cuándo') }}" style="align-self:flex-start">{% for k, l in c.freqs.items() %}<label style="display:contents"><input type="radio" name="freq" value="{{ k }}" {{ 'checked' if k == c.freq }} hidden><button type="button" data-freq="{{ k }}" aria-pressed="{{ 'true' if k == c.freq else 'false' }}">{{ _(l) }}</button></label>{% endfor %}</div>
+      <span class="help">{{ _('Los automáticos se crean a las 03:30, de a tres equipos a la vez.') }}</span></div>
+    <div class="field"><label for="mtf-keep">{{ _('Guardar') }}</label><div class="input"><select id="mtf-keep" name="keep">{% for n in (3, 5, 8, 10, 15, 20, 30) %}<option value="{{ n }}" {{ 'selected' if n == c.keep }}>{{ _f('Los {0} últimos', n) }}</option>{% endfor %}</select></div>
+      <span class="help">{{ _('Los más viejos se borran solos.') }}</span></div>
+    <div class="card full" style="background:var(--surface-2)"><b>{{ _('Qué hace en el equipo') }}</b>
+      <div class="mtf-req"><div><span class="mtf-dot ok" aria-hidden="true">✓</span><span>{{ _('Lee los permisos y el espacio libre antes de crear nada; con una cuenta de solo lectura no toca el equipo.') }}</span></div>
+        <div><span class="mtf-dot ok" aria-hidden="true">✓</span><span>{{ _('Crea los dos archivos, espera a que terminen de escribirse y los trae por SFTP (dentro de SSH: no abre puertos).') }}</span></div>
+        <div><span class="mtf-dot ok" aria-hidden="true">✓</span><span>{{ _f('Los borra del equipo y comprueba que no quedó nada. Solo borra archivos «{0}…», los suyos.', 'opennccm-bk-') }}</span></div></div></div>
+  </div></div>
+  <div class="row mtf-f" style="gap:8px;flex-wrap:wrap"><span class="muted sm" id="mtf-test-msg" aria-live="polite" style="flex:1 1 100%">{{ _('La comprobación entra al equipo y lee los permisos y el espacio libre: no crea ningún archivo.') }}</span>
+    <button type="button" class="btn" id="mtf-test" style="margin-left:auto">{{ _('Comprobar permisos') }}</button>
+    <button class="btn" name="go" value="save">{{ _('Guardar') }}</button>
+    <button class="btn pri" name="go" value="run">{{ _('Guardar y crear ahora') }}</button></div>
+  </form>
+</dialog>
+{% endif %}
+<script>
+(function () {
+  const T = {{ {'fail': _('No se pudo:'), 'run': _('Comprobando…'), 'err': _('No se pudo'),
+    'full': _('Bien: la credencial puede crear el .backup y el .rsc.'), 'rsc': _('Solo podrá traer el .rsc. Para el .backup le falta:'),
+    'none': _('Solo lectura: no se creará nada en el equipo. Le falta:'), 'free': _('Espacio libre:'),
+    'show': _('Mostrar la clave'), 'hide': _('Ocultar'), 'copy': _('Copiar'), 'copied': _('Copiada'),
+    'unsaved': _('Hay cambios sin guardar. ¿Cerrar sin guardarlos?')}|tojson }};
+  const cfg = document.getElementById('mtf-cfg'), how = document.getElementById('mtf-how');
+  let dirty = false;
+  const leave = () => !dirty || confirm(T.unsaved);
+  if (how) how.addEventListener('click', e => { if (e.target === how) how.close(); });
+  if (cfg) {
+    const form = document.getElementById('mtf-form');
+    form.addEventListener('input', () => { dirty = true; });
+    form.addEventListener('change', () => { dirty = true; });
+    form.addEventListener('submit', () => { dirty = false; });
+    cfg.addEventListener('cancel', e => { if (!leave()) e.preventDefault(); });
+    cfg.addEventListener('click', e => {
+      if (e.target === cfg) { if (leave()) cfg.close(); return; }
+      if (e.target.closest('[data-close]') && !leave()) e.stopImmediatePropagation();
+    }, true);
+    cfg.addEventListener('close', () => { dirty = false; });
+  }
+  document.querySelectorAll('[data-mtf-cfg]').forEach(b => b.addEventListener('click', () => cfg && cfg.showModal()));
+  if (cfg && new URLSearchParams(location.search).get('mtf') === 'cfg') cfg.showModal();
+  document.querySelectorAll('[data-mtf-f]').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('[data-mtf-f]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    document.querySelectorAll('.mtf-tb tbody tr[data-k]').forEach(r => { r.hidden = b.dataset.mtfF !== 'all' && r.dataset.k !== b.dataset.mtfF; });
+  }));
+  // la clave no está en la página: se pide al servidor al mostrarla o copiarla (queda en Auditoría) y se borra de la
+  // página al ocultarla, al cerrar el diálogo o a los 60 s
+  let row = null, hideT = 0;
+  const kbox = document.getElementById('mtf-key'), show = document.getElementById('mtf-key-show'), copy = document.getElementById('mtf-key-copy');
+  const DOTS = '••••••••••••';
+  const hide = () => { clearTimeout(hideT); if (kbox) kbox.textContent = DOTS; if (show) { show.textContent = T.show; show.setAttribute('aria-pressed', 'false'); } };
+  const fetchKey = async () => { const r = await fetch(`/devices/{{ device.id }}/mtfiles/${row}/key`, {method: 'POST'}); return (await r.json().catch(() => ({}))).key || ''; };
+  document.querySelectorAll('[data-mtf-how]').forEach(b => b.addEventListener('click', () => {
+    row = b.dataset.mtfHow; how.querySelector('[data-how=backup]').hidden = b.dataset.hasBackup !== '1';
+    hide(); how.showModal();
+  }));
+  if (how) how.addEventListener('close', hide);
+  if (show) show.addEventListener('click', async () => {
+    if (show.getAttribute('aria-pressed') === 'true') return hide();
+    const k = await fetchKey(); if (!k) { kbox.textContent = T.err; return; }
+    kbox.textContent = k; show.textContent = T.hide; show.setAttribute('aria-pressed', 'true');
+    clearTimeout(hideT); hideT = setTimeout(hide, 60000);
+  });
+  if (copy) copy.addEventListener('click', async () => {
+    const shown = show.getAttribute('aria-pressed') === 'true', k = shown ? kbox.textContent : await fetchKey();
+    if (k) { await navigator.clipboard.writeText(k).catch(() => {}); copy.textContent = T.copied; setTimeout(() => { copy.textContent = T.copy; }, 1500); }
+  });
+  if (!cfg) return;
+  const kin = document.getElementById('mtf-keyin'), eye = document.getElementById('mtf-eye'), gcopy = document.getElementById('mtf-gen-copy');
+  eye.addEventListener('click', () => { const on = kin.type === 'password'; kin.type = on ? 'text' : 'password'; eye.setAttribute('aria-pressed', String(on)); });
+  document.getElementById('mtf-gen').addEventListener('click', () => {
+    const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789', r = crypto.getRandomValues(new Uint32Array(20));
+    kin.value = Array.from(r, x => abc[x % abc.length]).join(''); kin.type = 'password'; eye.setAttribute('aria-pressed', 'false'); gcopy.hidden = false; dirty = true;
+  });
+  gcopy.addEventListener('click', async () => { await navigator.clipboard.writeText(kin.value).catch(() => {}); gcopy.textContent = T.copied; setTimeout(() => { gcopy.textContent = T.copy; }, 1500); });
+  cfg.addEventListener('close', () => { kin.type = 'password'; eye.setAttribute('aria-pressed', 'false'); });
+  cfg.querySelectorAll('[data-freq]').forEach(b => b.addEventListener('click', () => {
+    cfg.querySelectorAll('[data-freq]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    cfg.querySelector(`input[name=freq][value="${b.dataset.freq}"]`).checked = true;
+  }));
+  // comprobar permisos con la credencial elegida (sin guardar): entra y lee el grupo, sus permisos y el espacio libre
+  const tb = document.getElementById('mtf-test'), msg = document.getElementById('mtf-test-msg');
+  tb.addEventListener('click', async () => {
+    tb.disabled = true; msg.textContent = T.run;
+    const fd = new FormData(); fd.append('cred_id', document.getElementById('mtf-cred').value);
+    await fetch('/devices/{{ device.id }}/mtfiles/test', {method: 'POST', body: fd});
+    for (let i = 0; i < 120; i++) {
+      await new Promise(r => setTimeout(r, 1000));
+      const s = await fetch('/devices/{{ device.id }}/mtfiles/status').then(r => r.json()).catch(() => ({}));
+      if (s.status && s.status !== 'running') {
+        const p = s.perm || {}, free = ((s.steps || [])[2] || {}).d;
+        if (p.level === 'full') msg.textContent = '✓ ' + T.full + (free ? ' ' + T.free + ' ' + free : '');
+        else if (p.level === 'rsc') msg.textContent = '! ' + T.rsc + ' ' + (p.missing_backup || []).join(', ');
+        else if (p.level === 'none') msg.textContent = '✕ ' + T.none + ' ' + ((p.missing_rsc || []).length ? p.missing_rsc : p.missing_backup || []).join(', ');
+        else msg.textContent = '✕ ' + T.fail + ' ' + (s.device_msg || s.error);
+        if (s.status === 'error' && p.level === 'full') msg.textContent = '✕ ' + T.fail + ' ' + (s.device_msg || s.error);
+        break;
+      }
+    }
+    tb.disabled = false;
+  });
+})();
+</script>

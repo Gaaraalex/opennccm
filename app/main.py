@@ -699,7 +699,7 @@ def _server_panel() -> dict:
 # --------------------------------------------------------------------------- dispositivos
 # columnas con textos grandes que las listas de equipos no muestran (se leen solo en la ficha del equipo)
 LIST_DEFER = (Device.inventory_raw_enc, Device.neighbors, Device.ports, Device.port_seen, Device.license_enc,
-              Device.fxi_key_enc, Device.custom_backup_cmd, Device.notes, Device.retired_note)
+              Device.fxi_key_enc, Device.mtb_key_enc, Device.mtb_perm, Device.custom_backup_cmd, Device.notes, Device.retired_note)
 
 
 # Dispositivos: hasta BIG_LIST equipos la lista va entera y se pagina en el navegador (filtro al escribir); con más, se
@@ -1293,7 +1293,8 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
                   fwu=_fwu.for_device(dev.id), fw_state=_fwu.state(dev.id), fw_dl=_fwu.download_state(dev.id), fw_sources=_FW_SOURCES,
                   fw_have=_fwu.in_library(dev.device_type, (_fwu.for_device(dev.id) or {}).get("target")),
                   latest_run=next((t["id"] for t in tl if t["kind"] == "running"), None),
-                  fxi=fxi.context(dev, tl) if dev.device_type == "watchguard_fireware" else None)
+                  fxi=fxi.context(dev, tl) if dev.device_type == "watchguard_fireware" else None,
+                  mtf=mtfiles.context(dev, tl) if dev.device_type == "mikrotik_routeros" else None)
 
 
 @app.post("/devices/{dev_id}/backup")
@@ -3948,6 +3949,9 @@ app.include_router(kb.router)
 from . import fxi  # noqa: E402  (imagen .fxi de WatchGuard)
 
 app.include_router(fxi.router)
+from . import mtfiles  # noqa: E402  (archivos .backup y .rsc de MikroTik)
+
+app.include_router(mtfiles.router)
 from . import credview  # noqa: E402  (ver credenciales con MFA y contraseña)
 
 app.include_router(credview.router)

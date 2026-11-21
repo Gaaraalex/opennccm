@@ -158,6 +158,15 @@ class Device(Base):
     fxi_pasv: Mapped[str | None] = mapped_column(String(16))
     fxi_fails: Mapped[int] = mapped_column(Integer, default=0)
     fxi_last_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # archivos .backup y .rsc de MikroTik (app/mtfiles.py): otra credencial (vacío = la del equipo), clave del .backup,
+    # frecuencia, cuántos guardar, fallos seguidos, último bien y el último resultado de permisos (JSON)
+    mtb_cred_id: Mapped[int | None] = mapped_column(ForeignKey("credentials.id", ondelete="SET NULL"))
+    mtb_key_enc: Mapped[str | None] = mapped_column(Text)
+    mtb_freq: Mapped[str | None] = mapped_column(String(16))
+    mtb_keep: Mapped[int | None] = mapped_column(Integer)
+    mtb_fails: Mapped[int] = mapped_column(Integer, default=0)
+    mtb_last_at: Mapped[datetime | None] = mapped_column(DateTime)
+    mtb_perm: Mapped[str | None] = mapped_column(Text)
     # tablas MAC y ARP (app/macfind.py): cuándo se leyeron por última vez y, si no se pudo, por qué
     tables_at: Mapped[datetime | None] = mapped_column(DateTime)
     tables_note: Mapped[str | None] = mapped_column(String(255))
@@ -214,6 +223,25 @@ class FxiImage(Base):
     trigger: Mapped[str] = mapped_column(String(16), default="manual")  # manual | scheduled
     username: Mapped[str | None] = mapped_column(String(64))
     key_enc: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now, index=True)
+
+
+class MtBackup(Base):
+    """Archivos .backup y .rsc de un MikroTik (app/mtfiles.py), traídos juntos: están en DATA_DIR/mtfiles/<equipo>/
+    como bk-<id>.backup y bk-<id>.rsc; la clave del .backup, cifrada aquí. Sin .backup (cuenta que solo puede el .rsc):
+    backup_size 0 y key_enc vacío."""
+    __tablename__ = "mt_backups"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    device_id: Mapped[int] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"), index=True)
+    backup_size: Mapped[int] = mapped_column(Integer, default=0)
+    backup_sha256: Mapped[str | None] = mapped_column(String(64))
+    encryption: Mapped[str | None] = mapped_column(String(8))  # AES | RC4 | "" (sin cifrar)
+    rsc_size: Mapped[int] = mapped_column(Integer, default=0)
+    rsc_sha256: Mapped[str | None] = mapped_column(String(64))
+    ros_version: Mapped[str | None] = mapped_column(String(32))
+    trigger: Mapped[str] = mapped_column(String(16), default="manual")  # manual | scheduled
+    username: Mapped[str | None] = mapped_column(String(64))
+    key_enc: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now, index=True)
 
 
