@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.45.3<br>Para administradores y operadores de red<br>Noviembre de 2026</div>
+  <div class="meta">Versión del software: 2.45.4<br>Para administradores y operadores de red<br>Noviembre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -1742,6 +1742,31 @@ veces seguidas, se abre la alarma «Imagen .fxi sin crear»; el respaldo XML no 
 formato (<code>EQUIPO_v48.xml</code>, <code>EQUIPO_img-12.fxi</code>), nunca en .zip; la clave no va dentro de ninguno y se ve,
 solo para administradores, en <b>Cómo restaurar</b> (queda en Auditoría quién la vio). Para restaurar la imagen: Fireware Web UI ›
 Sistema › Backup and Restore Image, importar el .fxi y escribir su clave.</p>
+<h3>MikroTik: configuración (texto), .backup y .rsc</h3>
+<p>Desde la 2.45.4, la ficha de un MikroTik RouterOS tiene la pestaña <b>Respaldos</b> con sus tres tipos de respaldo:</p>
+<table>
+  <tr><th></th><th>Configuración (texto)</th><th>.backup</th><th>.rsc</th></tr>
+  <tr><td>Qué es</td><td><code>/export terse</code>, en cada respaldo</td><td>Copia binaria y cifrada de todo el equipo: usuarios,
+  contraseñas, certificados, direcciones MAC</td><td>El script de <code>/export file=</code> (en RouterOS 7, con las claves:
+  <code>show-sensitive</code>)</td></tr>
+  <tr><td>Credencial (grupo en el equipo)</td><td>Solo lectura basta</td><td>read, write, policy, test, sensitive y ftp</td>
+  <td>read, write y ftp</td></tr>
+  <tr><td>Úsela para</td><td>Ver qué cambió y auditar</td><td>Recuperar <b>el mismo</b> equipo (o uno idéntico)</td><td>Este
+  equipo u <b>otro</b> (revise los nombres de las interfaces)</td></tr>
+</table>
+<p>Los archivos se traen por SFTP, dentro del mismo SSH: no se abre ningún puerto en OpenNCCM. Antes de crear nada, OpenNCCM
+lee los permisos (policy) del grupo de la cuenta: con una de solo lectura no toca el equipo y avisa una vez; si a la cuenta le
+falta <code>policy</code>, <code>test</code> o <code>sensitive</code>, trae solo el .rsc. Después mira el espacio libre, crea el
+.backup (cifrado con una clave que OpenNCCM genera para cada equipo y guarda junto a cada .backup), espera a que termine de
+escribirse, lo trae, y recién entonces crea y trae el .rsc (en RouterOS 6, un <code>/export</code> lanzado mientras se escribe el
+.backup lo deja cortado). Comprueba tamaño, cabecera y SHA-256, borra los dos archivos del equipo y verifica que no quedó nada;
+solo borra archivos <code>opennccm-bk-…</code>, los suyos. Por omisión se hace una vez por semana (a las 03:30, de a tres equipos);
+se puede pasar a diario o solo a mano, elegir otra credencial solo para esto y cuántos guardar. <b>Comprobar permisos</b> entra y
+lee permisos y espacio sin crear nada. Dos fallos seguidos abren la alarma «Archivos .backup/.rsc sin crear». Los equipos por
+Telnet o de un recolector no entran (necesitan SSH desde este servidor). Para restaurar el .backup: subirlo al equipo y
+<code>/system backup load name=ARCHIVO.backup password=CLAVE</code> (la clave se ve en <b>Cómo restaurar</b>, solo
+administradores, queda en Auditoría); el .rsc, con <code>/import</code> o sobre una configuración vacía con
+<code>/system reset-configuration no-defaults=yes run-after-reset=ARCHIVO.rsc</code>.</p>
 <p><b>pfSense y OPNsense</b> tienen perfil propio: OpenNCCM atraviesa el menú de consola (opción «8) Shell») y respalda el archivo
 <code>config.xml</code> completo, el mismo que exporta la web. Use el usuario <code>admin</code>/<code>root</code> (el archivo solo lo lee
 root); el inventario trae versión, modelo y número de serie. Los cambios se siguen haciendo desde la web del cortafuegos.

@@ -1,5 +1,17 @@
 # Historial de versiones
 
+## 2.45.4
+- [nuevo] **MikroTik: .backup y .rsc guardados en OpenNCCM.** La ficha de cada MikroTik tiene la pestaña **Respaldos**: además
+  de la configuración en texto, OpenNCCM trae una vez por semana (o a diario, o a mano) el **.backup** cifrado y el **.rsc** del
+  equipo por SFTP, los borra del equipo y los guarda, el .backup junto a su clave (se ve en **Cómo restaurar**, queda en
+  Auditoría). Antes de crear nada lee los permisos de la cuenta en el equipo: con una de solo lectura no toca el equipo y lo
+  avisa; si solo puede el .rsc, trae ese. Se puede elegir otra credencial solo para esto y **Comprobar permisos** sin crear
+  nada. Probado con RouterOS 6.49 y 7.24, restaurando el .backup en el equipo.
+- [arreglo] **MikroTik, «Descargar .backup del equipo…»:** en RouterOS 6 podía bajar un .backup incompleto (el equipo
+  contesta «saved» antes de terminar); ahora espera a que termine y comprueba los permisos antes de crearlo.
+- [arreglo] **Respaldo al volver a responder:** también reintenta cada hora los equipos que aceptan la conexión y la cortan
+  enseguida («Connection reset», visto en una OLT ZTE C300 por Telnet), que antes quedaban sin respaldo hasta respaldarlos a mano.
+
 ## 2.45.3
 - [cambio] **Pro: todo se instala solo.** Desde que la licencia es válida (al activar la clave o una prueba, o al
   renovar), los módulos que incluye se bajan, se instalan y quedan funcionando al momento, sin reiniciar. Las versiones
