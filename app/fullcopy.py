@@ -2,7 +2,8 @@
 (app/mtfiles.py). Aquí se decide CUÁNDO se hacen y qué copias quedan protegidas.
 
 «Al cambiar» (la frecuencia por omisión desde la 2.45.5): después de cada respaldo de configuración,
-  * si el respaldo encontró cambios (o es el primero, o cambió el firmware) → se hacen las copias completas;
+  * si el respaldo encontró cambios (o es el primero, o cambió el firmware o el aparato) → se hacen las copias
+    completas;
   * si no hubo cambios, no se hacen, salvo que el equipo todavía no tenga ninguna (la primera) o la última tenga
     30 días (la de seguridad: el .backup y el .fxi guardan contraseñas, certificados y la feature key, que el respaldo
     de texto no ve cambiar);
@@ -13,7 +14,9 @@ Copias protegidas: cuando un respaldo trae otra versión de firmware (RouterOS 7
 la última copia de texto de la versión anterior queda etiquetada («Antes de firmware …») y la última copia completa
 de esa versión queda protegida. Ninguna se borra sola (ni por «Guardar los N últimos» ni por la retención de
 versiones): un equipo de reemplazo puede venir con otra versión y conviene restaurar la copia de la misma. Solo un
-administrador las quita."""
+administrador las quita.
+
+Otro aparato en la misma ficha (intercambio o reemplazo) no es un cambio de firmware: lo protege app/units.py."""
 from __future__ import annotations
 
 import logging
@@ -22,7 +25,7 @@ import threading
 import time
 from datetime import timedelta
 
-from .db import ConfigVersion, Device, FxiImage, MtBackup, SessionLocal, now, select
+from .db import ConfigVersion, Device, Event, FxiImage, MtBackup, SessionLocal, now, select
 from .i18n import N_
 
 log = logging.getLogger("opennccm.fullcopy")
@@ -53,25 +56,38 @@ def fw_key(v: str | None) -> str:
 
 
 # --------------------------------------------------------------------------- copias protegidas (firmware)
-def on_firmware_change(db, dev: Device, old: str, new: str) -> dict:
+def firmware_changed(db, dev: Device, old: str, new: str, serial: str | None = None):
+    """Protege las copias de la versión anterior y deja el aviso, en la misma transacción de quien lo detectó (otra
+    sesión esperaría a esta: «database is locked»). La categoría de un evento admite 32 letras (PostgreSQL)."""
+    got = on_firmware_change(db, dev, old, new, serial)
+    db.add(Event(severity="info", category="Copias protegidas (firmware)", device_id=dev.id,
+                 message=f"{dev.name}: el firmware pasó de {old} a {new}. Quedan protegidas (no se borran solas) la "
+                 "última copia de configuración" + (" y la última copia completa" if got.get("files") else "")
+                 + " de la versión anterior."))
+
+
+def on_firmware_change(db, dev: Device, old: str, new: str, serial: str | None = None) -> dict:
     """El respaldo de este equipo trae otra versión de firmware: se etiqueta la última copia de texto de la versión
     anterior y se protege su última copia completa. Se llama dentro de la transacción del respaldo."""
     note = f"Antes de firmware {new} (era {old})"[:160]
     out = {"label": None, "files": None}
+    from . import units
+    unit = serial or dev.serial  # solo las copias de este aparato
     db.flush()  # la versión recién agregada en este respaldo (si cambió algo) ya es de la versión nueva
     prev = db.scalars(select(ConfigVersion).where(ConfigVersion.device_id == dev.id, ConfigVersion.kind == "running")
                       .order_by(ConfigVersion.id.desc()).limit(5)).all()
-    v = next((x for x in prev if fw_key(x.fw_version) != fw_key(new)), None)
+    v = next((x for x in prev if not units.differ(x.serial, unit) and fw_key(x.fw_version) != fw_key(new)), None)
     if v is not None:
+        v.protected = True
         if not v.label:
             v.label = note[:128]
         out["label"] = v.id
     if dev.device_type == "mikrotik_routeros":
         rows = db.scalars(select(MtBackup).where(MtBackup.device_id == dev.id).order_by(MtBackup.id.desc())).all()
-        target = next((r for r in rows if fw_key(r.ros_version) != fw_key(new)), None)
+        target = next((r for r in rows if not units.differ(r.serial, unit) and fw_key(r.ros_version) != fw_key(new)), None)
     elif dev.device_type == "watchguard_fireware":
         rows = db.scalars(select(FxiImage).where(FxiImage.device_id == dev.id).order_by(FxiImage.id.desc())).all()
-        target = next((r for r in rows if fw_key(r.fw_version or old) != fw_key(new)), None)
+        target = next((r for r in rows if not units.differ(r.serial, unit) and fw_key(r.fw_version or old) != fw_key(new)), None)
     else:
         target = None
     if target is not None and not target.protected:
@@ -103,15 +119,18 @@ def _info(dev: Device, mod) -> dict:
                 "attempt": dev.mtb_last_at, "perm": perm, "cred": dev.mtb_cred_id or dev.credential_id}
 
 
-def reason(dev: Device, result: str, fw_changed: bool) -> str | None:
-    """Por qué toca una copia completa después de este respaldo («cambio», «primera», «seguridad», «firmware») o None."""
+def reason(dev: Device, result: str, fw_changed: bool, replaced: bool = False) -> str | None:
+    """Por qué toca una copia completa después de este respaldo («cambio», «primera», «seguridad», «firmware»,
+    «equipo») o None."""
     mod = module_for(dev.device_type)
     if mod is None or not dev.enabled or dev.retired_at is not None:
         return None
     i = _info(dev, mod)
     if i["freq"] != "change" or not i["ready"]:
         return None
-    if fw_changed:
+    if replaced:
+        why = "equipo"
+    elif fw_changed:
         why = "firmware"
     elif result in ("changed", "first"):
         why = "cambio"
@@ -132,7 +151,7 @@ def reason(dev: Device, result: str, fw_changed: bool) -> str | None:
     return why
 
 
-def after_backup(device_id: int, result: str, fw_changed: bool = False):
+def after_backup(device_id: int, result: str, fw_changed: bool = False, replaced: bool = False):
     """Lo llama services.backup_device después de cada respaldo hecho desde aquí. Nunca hace fallar el respaldo."""
     try:
         with SessionLocal() as db:
@@ -143,7 +162,7 @@ def after_backup(device_id: int, result: str, fw_changed: bool = False):
             db.expunge(dev)
         if result not in ("changed", "first", "unchanged"):
             return
-        why = reason(dev, result, fw_changed)
+        why = reason(dev, result, fw_changed, replaced)
         if why:
             request(device_id, why)
     except Exception:  # noqa: BLE001
@@ -192,4 +211,4 @@ def pending(device_id: int) -> bool:
 
 TRIGGERS = {"manual": N_("Manual"), "scheduled": N_("Programado"), "change:cambio": N_("Al cambiar"),
             "change:primera": N_("La primera"), "change:seguridad": N_("De seguridad (30 días)"),
-            "change:firmware": N_("Cambio de firmware")}
+            "change:firmware": N_("Cambio de firmware"), "change:equipo": N_("Otro aparato")}

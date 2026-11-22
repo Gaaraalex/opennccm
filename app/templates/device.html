@@ -61,6 +61,14 @@
   {% if device.retired_note %}<br><span class="muted">{{ device.retired_note }}</span>{% endif %}
   {% if ret.rep %}<br>{{ _('Lo reemplaza') }} <a href="/devices/{{ ret.rep.id }}">{{ ret.rep.name }}</a>{% if ret.cmp %} · <a href="{{ ret.cmp }}">{{ _('Comparar su último respaldo con el del reemplazo') }}</a>{% endif %}{% endif %}</span></div>
 {% elif ret.prev %}<div class="banner info" role="status" style="margin-bottom:14px">{{ icon('info') }}<span class="grow">{{ _('Reemplaza a') }} <a href="/devices/{{ ret.prev.id }}">{{ ret.prev.name }}</a> ({{ _('retirado') }}){% if ret.cmp %} · <a href="{{ ret.cmp }}">{{ _('Comparar su último respaldo con el de este equipo') }}</a>{% endif %}</span></div>{% endif %}
+{% if unit %}<div class="banner warn" role="status" id="unit-notice" style="margin-bottom:14px">{{ icon('alert') }}<span class="grow">
+  {% if unit.kind == 'gone' %}<b>{{ _('El aparato de esta ficha ya está en otro lugar.') }}</b>
+  <br>{{ _f('La serie {0} se leyó en otra ficha después del último respaldo de esta.', unit.new) }}{% if unit.src %} <a href="/devices/{{ unit.src.id }}">{{ unit.src.name }}</a>.{% endif %} {{ _('Respalde este equipo para saber qué aparato quedó aquí.') }}
+  {% else %}<b>{{ _f('Otro aparato en este lugar {0}: serie {1} → {2}.', unit.at|ago, unit.old or '—', unit.new or '—') }}</b>
+  <br>{{ _('El historial sigue siendo el del lugar. Las últimas copias del aparato anterior quedan protegidas y no se puede revertir a ellas en este.') }}
+  {% if unit.kind == 'swap' %}<br>{{ _('Intercambiado con') }} <a href="/devices/{{ unit.src.id }}">{{ unit.src.name }}</a>.
+  {% elif unit.kind == 'stale' %}<br>{{ _('Viene de') }} <a href="/devices/{{ unit.src.id }}">{{ unit.src.name }}</a>. {{ _('Esa ficha todavía figura con esta serie: respáldela para saber qué aparato quedó allá.') }}
+  {% elif unit.kind == 'from' %}<br>{{ _('Viene de') }} <a href="/devices/{{ unit.src.id }}">{{ unit.src.name }}</a>.{% endif %}{% endif %}</span></div>{% endif %}
 {% if ports %}{% include "_ports.html" %}{% endif %}
 
 <nav class="tabs" data-tabs aria-label="Secciones del equipo">
@@ -333,6 +341,7 @@
 <dialog class="dlg" id="rev-dlg" aria-labelledby="rev-t"><form method="post" id="rev-form">
   <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi major">{{ icon('undo') }}</span><div><h2 id="rev-t"></h2>
     <p class="muted" style="margin-top:6px">Se enviará esa configuración al equipo. Antes se hace un respaldo. Se creará una solicitud de cambio para revisar los comandos.</p></div></div>
+  <div class="banner crit" id="rev-other" role="alert" hidden>{{ icon('alert') }}<span>{{ _('Esa versión es de otro aparato: no se puede revertir a ella en este equipo.') }}</span></div>
   <div class="banner crit" id="rev-inc" hidden>{{ icon('alert') }}<span>Esta versión parece incompleta. Revertir podría dejar el equipo sin parte de su configuración.</span></div>
   <label class="ck" id="rev-gate" hidden><input type="checkbox" name="confirm" value="1"> Entiendo el riesgo: revertir de todas formas</label>
   <div class="row end"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn pri" id="rev-ok">Crear solicitud</button></div>
@@ -379,6 +388,7 @@
 (function () {
   const T = {{ {'rev': _('¿Revertir {0} a la versión {1}?')}|tojson }}, name = {{ device.name|tojson }};
   const INC = {{ tl|selectattr('inc')|map(attribute='id')|list|tojson }};
+  const OTHER = {{ tl|selectattr('other')|map(attribute='id')|list|tojson }};
   // línea de tiempo: primer clic = A, siguiente = B (se guarda cuál toca en la sesión del navegador)
   const key = 'oc-pick-' + {{ device.id }};
   document.querySelectorAll('.tl[data-tl] li[data-id]').forEach(li => {
@@ -405,8 +415,10 @@
     document.getElementById('rev-t').textContent = T.rev.replace('{0}', name).replace('{1}', b.dataset.n || id);
     document.getElementById('rev-inc').hidden = !inc; document.getElementById('rev-gate').hidden = !inc;
     const gate = dlg.querySelector('#rev-gate input'); gate.checked = false;
-    document.getElementById('rev-ok').disabled = inc;
-    gate.onchange = () => { document.getElementById('rev-ok').disabled = !gate.checked; };
+    const other = OTHER.includes(id);
+    document.getElementById('rev-other').hidden = !other;
+    document.getElementById('rev-ok').disabled = inc || other;
+    gate.onchange = () => { document.getElementById('rev-ok').disabled = other || !gate.checked; };
     const dd = document.querySelector('.drop[data-open]'); if (dd) dd.hidden = true;
     dlg.showModal();
   });

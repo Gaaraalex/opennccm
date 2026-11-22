@@ -401,7 +401,7 @@ FAIL_RE = re.compile(r"(?i)(% ?Invalid|% ?Error|\berror\b|fail(ed|ure)?|denied|n
 def _run(device_id: int, trigger: str, username: str | None, test: bool, over: dict | None = None):
     from .crypto import decrypt
     from .services import add_event, connect, device_lock
-    rx, conn, fname, key = None, None, "", ""
+    rx, conn, fname, key, live = None, None, "", "", None
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
         c = {**cfg(dev), **{k: v for k, v in (over or {}).items() if v}}
@@ -438,6 +438,8 @@ def _run(device_id: int, trigger: str, username: str | None, test: bool, over: d
             conn = connect(target)
             _log(device_id, f"ssh {cred.username}@{host} -p {target.port} · OK")
             _step(device_id, 1, "ok", f"como {cred.username}")
+            if not test:
+                live = live_serial(conn)
             url = f"ftp://{rx.user}:{rx.password}@{addr}:{c['port']}/"
             secrets_ = (key, rx.password)
             # 3) la imagen
@@ -500,7 +502,7 @@ def _run(device_id: int, trigger: str, username: str | None, test: bool, over: d
         _step(device_id, 4, "run")
         rx.close()
         firewall("close")
-        img_id = _store(device_id, got, trigger, username, key)
+        img_id = _store(device_id, got, trigger, username, key, live)
         _step(device_id, 4, "ok", "SHA-256 comprobado · guardada junto a su clave")
         _log(device_id, f"receptor cerrado · imagen img-{img_id} guardada")
         with SessionLocal() as db:
@@ -557,12 +559,26 @@ def _progress(device_id: int, rx: Receiver, stop: threading.Event):
             _step(device_id, 3, "run", f"{got / 1048576:.1f} MB recibidos".replace(".", ","))
 
 
-def _store(device_id: int, got: dict, trigger: str, username: str | None, key: str) -> int:
+def live_serial(conn) -> str | None:
+    """La serie del Firebox que está creando la imagen (la de la ficha puede ser la del aparato anterior)."""
+    from . import units
+    from .drivers import get_profile, parse_inventory
+    prof = get_profile("watchguard_fireware")
+    try:
+        return units.clean(parse_inventory(conn.send_command(prof.inventory, read_timeout=60), prof)["serial"])
+    except Exception as e:  # noqa: BLE001 - la imagen no depende de esto
+        log.info("serie del Firebox: %s", e)
+        return None
+
+
+def _store(device_id: int, got: dict, trigger: str, username: str | None, key: str, serial: str | None = None) -> int:
+    from . import units
     from .crypto import encrypt
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
         img = FxiImage(device_id=device_id, filename="", size=got["size"], sha256=got["sha256"], trigger=trigger,
-                       username=username, key_enc=encrypt(key), created_at=now(), fw_version=dev.os_version)
+                       username=username, key_enc=encrypt(key), created_at=now(), serial=serial,
+                       fw_version=None if units.differ(serial, dev.serial) else dev.os_version)
         db.add(img)
         db.flush()
         dest = FXI_DIR / str(device_id) / f"img-{img.id}.fxi"
@@ -571,6 +587,8 @@ def _store(device_id: int, got: dict, trigger: str, username: str | None, key: s
         keep = dev.fxi_keep or KEEP
         old = db.scalars(select(FxiImage).where(FxiImage.device_id == device_id, FxiImage.protected.is_not(True))
                          .order_by(FxiImage.id.desc()).offset(keep)).all()
+        if units.differ(serial, dev.serial):  # otro aparato aún sin registrar: no se borra nada del anterior
+            old = []
         for o in old:  # solo se guardan las N últimas (las protegidas no cuentan ni se borran: app/fullcopy.py)
             (FXI_DIR / str(device_id) / o.filename).unlink(missing_ok=True)
             db.delete(o)
@@ -623,11 +641,13 @@ def context(dev: Device, tl: list[dict]) -> dict:
         creds = [(c.id, c.name, c.username) for c in db.scalars(select(Credential).order_by(Credential.name))]
         cred = db.get(Credential, dev.fxi_cred_id) if dev.fxi_cred_id else None
     imgs = images(dev.id)
+    from . import units
     rows = [{"k": "xml", "id": t["id"], "n": t["n"], "when": t["when"], "src": t["src"],
              "who": t["who"] if t["who"].lower() not in (t["src"].lower(), "scheduled", "syslog", "push", "api", "console") else "",
-             "size": t.get("size") or 0, "label": t.get("label"), "fw": t.get("fw")} for t in tl if t["kind"] == "running"]
+             "size": t.get("size") or 0, "label": t.get("label"), "fw": t.get("fw"), "other": t.get("other")} for t in tl if t["kind"] == "running"]
     rows += [{"k": "fxi", "id": i.id, "n": i.id, "when": i.created_at, "src": i.trigger, "who": i.username or "",
-              "size": i.size, "fw": i.fw_version or "", "protected": bool(i.protected), "note": i.protect_note or ""}
+              "size": i.size, "fw": i.fw_version or "", "protected": bool(i.protected), "note": i.protect_note or "",
+              "other": i.serial if units.other_unit(dev, i) else ""}
              for i in imgs]
     rows.sort(key=lambda r: r["when"], reverse=True)
     c = cfg(dev)

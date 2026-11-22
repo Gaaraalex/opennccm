@@ -213,7 +213,7 @@ def start_syslog():
 
 
 def purge_old_versions():
-    """Conserva las N versiones más recientes por equipo y tipo (las etiquetadas nunca se borran)."""
+    """Conserva las N versiones más recientes por equipo y tipo (las etiquetadas y las protegidas nunca se borran)."""
     keep = int(get_setting("retention_versions", "0") or 0)
     if keep <= 0:
         return
@@ -221,7 +221,8 @@ def purge_old_versions():
         for dev_id in db.scalars(select(Device.id).where(Device.retired_at.is_(None))):
             for kind in ("running", "startup"):
                 old = db.scalars(select(ConfigVersion).where(
-                    ConfigVersion.device_id == dev_id, ConfigVersion.kind == kind, ConfigVersion.label.is_(None))
+                    ConfigVersion.device_id == dev_id, ConfigVersion.kind == kind, ConfigVersion.label.is_(None),
+                    ConfigVersion.protected.is_not(True))
                     .order_by(ConfigVersion.id.desc()).offset(keep)).all()
                 for v in old:
                     db.delete(v)

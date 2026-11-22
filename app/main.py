@@ -1202,11 +1202,15 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
         total_v = db.scalar(select(func.count(ConfigVersion.id)).where(ConfigVersion.device_id == dev_id)) or 0
         trig = {"manual": _("Manual"), "scheduled": _("Programado"), "syslog": "Syslog", "push": "Push", "api": "API", "console": _("Consola")}
         tl = []
+        from . import units
         for i, v in enumerate(versions):
             prev = next((x for x in versions[i + 1:] if x.kind == v.kind), None)
+            same_unit = prev is not None and not units.differ(prev.serial, v.serial)
             tl.append({"id": v.id, "n": total_v - i, "kind": v.kind, "src": trig.get(v.trigger, v.trigger),
                        "who": v.username or "", "when": v.created_at, "label": v.label,
-                       "base": v.id == dev.baseline_version_id, "inc": bool(prev and prev.size and v.size < prev.size * 0.5),
+                       "base": v.id == dev.baseline_version_id, "inc": bool(same_unit and prev.size and v.size < prev.size * 0.5),
+                       "serial": v.serial, "other": v.serial if units.other_unit(dev, v) else "",
+                       "locked": bool(v.protected), "swap": bool(prev and not same_unit), "prev_serial": prev.serial if prev else "",
                        "added": v.added, "removed": v.removed, "first": i == total_v - 1, "size": v.size, "fw": v.fw_version})
         vnum = {t["id"]: t["n"] for t in tl}
         fw_of = {t["id"]: t["fw"] for t in tl}
@@ -1234,6 +1238,9 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
             cmp.update({"fwa": va.fw_version, "fwb": vb.fw_version, "fwrows": fwtag.mark_rows(rows, va.fw_version, vb.fw_version),
                         "fw_diff": bool(va.fw_version and vb.fw_version and not fwtag.same(va.fw_version, vb.fw_version)),
                         "fw_same": fwtag.same(va.fw_version, vb.fw_version)})
+            if units.differ(va.serial, vb.serial):  # dos aparatos: sus diferencias no son de una actualización
+                cmp.update({"units": (va.serial, vb.serial), "fw_diff": False, "fw_same": False,
+                            "fwrows": fwtag.mark_rows(rows, None, None)})
         drift_n = 0
         if dev.baseline_drift and dev.baseline_version_id and versions:
             base_v = db.get(ConfigVersion, dev.baseline_version_id)
@@ -1243,6 +1250,7 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
         from . import ports as ports_mod
         last_run = next((v for v in versions if v.kind == "running"), None)
         pinfo = ports_mod.view(dev, try_decrypt(last_run.content_enc, "") if last_run else "")
+        unit = units.notice(db, dev, device_scope(user)) if dev.retired_at is None else None
         audit_rows = db.scalars(select(AuditLog).where(or_(AuditLog.detail.like(f"%{dev.name}%"),
                                                            AuditLog.detail.like(f"%device={dev_id}%")))
                                 .order_by(AuditLog.id.desc()).limit(20)).all()
@@ -1275,7 +1283,7 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
     from . import zbxcorr
     return render(request, "device.html", user, key_error=key_error, can_console=console_allowed(user, dev.id), device=dev,
                   zbx_on=zbxcorr.enabled(),
-                  ret=_ret.links(dev),
+                  ret=_ret.links(dev), unit=unit,
                   fw_of=fw_of, last_fw=last_fw,
                   ports=pinfo, license_partial=license_partial, license_groups=license_groups, license_soon=_lic.SOON,
                   versions=versions, comp=comp, vulns=vulns, comp_groups=comp_groups,
@@ -1427,11 +1435,13 @@ def version_view(request: Request, ver_id: int, raw: int = 0):
                                                       ConfigVersion.kind == v.kind, ConfigVersion.id < v.id)
                           .order_by(ConfigVersion.id.desc()).limit(1)).first()
         current = services.latest_version(db, v.device_id, v.kind)
-        small = _suspiciously_small(v, current)
+        from . import units
+        other = units.other_unit(v.device, v)
+        small = not other and _suspiciously_small(v, current)
         n = db.scalar(select(func.count(ConfigVersion.id)).where(ConfigVersion.device_id == v.device_id,
                                                                   ConfigVersion.id <= v.id)) or 1
     from . import fwtag
-    return render(request, "version.html", user, v=v, text=text, prev=prev, is_baseline=is_baseline,
+    return render(request, "version.html", user, v=v, text=text, prev=prev, is_baseline=is_baseline, other=other,
                   small=small, current=current, n=n, lines=text.splitlines(), fw_line=fwtag.source_line(text, v.fw_version),
                   fw_old=bool(v.fw_version and v.device.os_version and not fwtag.same(v.fw_version, v.device.os_version)))
 
@@ -1448,7 +1458,13 @@ async def version_label(request: Request, ver_id: int):
     with SessionLocal() as db:
         v = db.get(ConfigVersion, ver_id)
         check_device(user, v.device_id)
-        v.label = (form.get("label") or "").strip() or None
+        label = (form.get("label") or "").strip() or None
+        if v.protected and label is None:
+            if user.role != "admin":
+                flash(request, _("Esta copia está protegida: solo un administrador puede quitarle la etiqueta."), "error")
+                return go(f"/versions/{ver_id}")
+            v.protected = False  # sin etiqueta vuelve a contar para la retención
+        v.label = label
         db.commit()
     log_action(request, user, "version_label", f"v{ver_id}={form.get('label')}")
     return go(f"/versions/{ver_id}")
@@ -1465,6 +1481,10 @@ def version_baseline(request: Request, ver_id: int):
             flash(request, _("Solo una configuración en ejecución puede ser línea base"), "error")
             return go(f"/versions/{ver_id}")
         dev = v.device
+        from . import units
+        if units.other_unit(dev, v):
+            flash(request, _("Una copia de otro aparato no puede ser la línea base de este equipo."), "error")
+            return go(f"/versions/{ver_id}")
         dev.baseline_version_id = v.id
         v.label = v.label or "baseline"
         latest = services.latest_version(db, dev.id)
@@ -1534,6 +1554,10 @@ def diff_view(request: Request, a: int = 0, b: int = 0, ctx: int = 3, view: str 
     cmp.update({"fwa": va.fw_version, "fwb": vb.fw_version, "fwrows": fwtag.mark_rows(rows, va.fw_version, vb.fw_version),
                 "fw_diff": bool(va.fw_version and vb.fw_version and not fwtag.same(va.fw_version, vb.fw_version)),
                 "fw_same": fwtag.same(va.fw_version, vb.fw_version)})
+    from . import units
+    if va.device_id == vb.device_id and units.differ(va.serial, vb.serial):
+        cmp.update({"units": (va.serial, vb.serial), "fw_diff": False, "fw_same": False,
+                    "fwrows": fwtag.mark_rows(rows, None, None)})
     return render(request, "diff.html", user, va=va, vb=vb, cmp=cmp, ctx=ctx, view=view, devs=devs, vers=vers, vn=vn,
                   mode="u" if view == "unified" else "sbs", vers_js={str(k): [x["id"] for x in v] for k, v in vers.items()})
 
@@ -1546,7 +1570,13 @@ async def version_rollback(request: Request, ver_id: int):
         v = db.get(ConfigVersion, ver_id)
         check_device(user, v.device_id)
         dev_id, name = v.device_id, v.device.name
+        from . import units
+        blocked = units.rollback_block(v.device, v)
         small = _suspiciously_small(v, services.latest_version(db, dev_id, v.kind))
+    if blocked:
+        flash(request, blocked, "error")
+        log_action(request, user, "rollback_blocked", f"{name} -> v{ver_id}: otro aparato")
+        return go(f"/versions/{ver_id}")
     if small and form.get("confirm") != "1":
         flash(request, _f("No se creó la reversión: la versión #{0} es mucho más pequeña que la actual y probablemente es un respaldo incompleto. Revise el aviso de esta página.", ver_id), "error")
         return go(f"/versions/{ver_id}")
@@ -1560,7 +1590,7 @@ async def version_rollback(request: Request, ver_id: int):
             flash(request, n, "error")
         return go(f"/versions/{ver_id}")
     cr_id = _create_cr(user, f"Reversión de {name} a la versión #{ver_id}", "\n".join(cmds), {}, [dev_id],
-                       is_rollback=True, notes=notes)
+                       is_rollback=True, notes=notes, rollback_version_id=ver_id)
     log_action(request, user, "rollback_request", f"{name} -> v{ver_id}")
     flash(request, _("Se generó la solicitud de reversión. Revise los comandos antes de aprobar."))
     return go(f"/changes/{cr_id}")
@@ -2359,7 +2389,7 @@ async def configlet_run(request: Request, cid: int):
 
 # --------------------------------------------------------------------------- solicitudes de cambio
 def _create_cr(user, title, body, variables, ids, is_rollback=False, kind="config", firmware_id=None,
-               reload=False, notes: list[str] | None = None) -> int:
+               reload=False, notes: list[str] | None = None, rollback_version_id: int | None = None) -> int:
     # la actualización de firmware siempre requiere aprobación
     auto = get_setting("require_approval", "1") != "1" and kind == "config"
     if services.example_addresses(body + " " + json.dumps(variables)):
@@ -2386,6 +2416,7 @@ def _create_cr(user, title, body, variables, ids, is_rollback=False, kind="confi
         cr = ChangeRequest(title=title, body=body, variables=json.dumps(variables), device_ids=json.dumps(ids),
                            requested_by=user.username, is_rollback=is_rollback, kind=kind,
                            firmware_id=firmware_id, reload=reload, notes="\n".join(notes) if notes else None,
+                           rollback_version_id=rollback_version_id,
                            status="approved" if auto else "pending",
                            reviewed_by="(aprobación desactivada)" if auto else None)
         db.add(cr)
@@ -2508,6 +2539,11 @@ def review_change(user: User, cr_id: int, decision: str, comment: str, run_at=No
         risks = []
         if decision == "approve" and cr.kind != "firmware":
             devs = list(db.scalars(select(Device).where(Device.id.in_(json.loads(cr.device_ids or "[]")))))
+            from . import units
+            for d in devs:
+                blocked = units.change_block(db, cr, d)
+                if blocked:
+                    return False, blocked
             risks = services.lockout_risks(cr.body, [(d, d.credential)[0] for d in devs])
         if risks:
             return False, _("No se puede aprobar:") + " " + " ".join(risks)

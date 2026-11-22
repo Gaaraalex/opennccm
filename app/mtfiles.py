@@ -432,6 +432,7 @@ def _run(device_id: int, trigger: str, username: str | None, test: bool, over: d
             return
         # 4) y 5) crear, esperar, traer y comprobar
         import paramiko
+        live = live_serial(conn)
         _step(device_id, 3, "run")
         sftp = paramiko.SFTPClient.from_transport(conn.remote_conn.get_transport())
         stamp = now().strftime("%Y%m%d-%H%M%S")
@@ -450,7 +451,7 @@ def _run(device_id: int, trigger: str, username: str | None, test: bool, over: d
         _step(device_id, 4, "ok", " · ".join(parts) + " · SHA-256 y tamaño comprobados")
         # 6) borrar (make_files ya lo hizo) y guardar
         _step(device_id, 5, "run")
-        bid = _store(device_id, got, trigger, username, key if "backup" in got else "", ver)
+        bid = _store(device_id, got, trigger, username, key if "backup" in got else "", ver, live)
         if got.get("left"):
             _set(device_id, warn=f"Quedaron {got['left']} archivos {PREFIX}{stamp} en el equipo: bórrelos a mano.")
         _step(device_id, 5, "ok", ("el equipo quedó limpio" if not got.get("left") else f"¡quedaron {got['left']} en el equipo!")
@@ -525,7 +526,22 @@ def _save_perm(device_id: int, perm: dict | None, notify: bool = False, name: st
                   "No se creó nada en el equipo. Elija una credencial con permisos en la pestaña Respaldos.", device_id)
 
 
-def _store(device_id: int, got: dict, trigger: str, username: str | None, key: str, ver: str) -> int:
+def live_serial(conn) -> str | None:
+    """La serie del MikroTik que está creando los archivos (la de la ficha puede ser la del aparato anterior). Un CHR
+    no tiene."""
+    from . import units
+    from .drivers import get_profile, parse_inventory
+    try:
+        text = _cmd(conn, "/system routerboard print", 60)
+        return units.clean(parse_inventory(text, get_profile(DTYPE))["serial"])
+    except Exception as e:  # noqa: BLE001 - los archivos no dependen de esto
+        log.info("serie del MikroTik: %s", e)
+        return None
+
+
+def _store(device_id: int, got: dict, trigger: str, username: str | None, key: str, ver: str,
+           serial: str | None = None) -> int:
+    from . import units
     from .crypto import encrypt
     folder = DIR / str(device_id)
     folder.mkdir(parents=True, exist_ok=True)
@@ -535,7 +551,7 @@ def _store(device_id: int, got: dict, trigger: str, username: str | None, key: s
         row = MtBackup(device_id=device_id, backup_size=len(b["data"]) if b else 0,
                        backup_sha256=hashlib.sha256(b["data"]).hexdigest() if b else None,
                        encryption=b["enc"] if b else None, rsc_size=len(r["data"]),
-                       rsc_sha256=hashlib.sha256(r["data"]).hexdigest(), ros_version=(ver or "")[:32],
+                       rsc_sha256=hashlib.sha256(r["data"]).hexdigest(), ros_version=(ver or "")[:32], serial=serial,
                        trigger=trigger, username=username, key_enc=encrypt(key) if key else None, created_at=now())
         db.add(row)
         db.flush()
@@ -547,6 +563,8 @@ def _store(device_id: int, got: dict, trigger: str, username: str | None, key: s
         keep = dev.mtb_keep or KEEP
         old = db.scalars(select(MtBackup).where(MtBackup.device_id == device_id, MtBackup.protected.is_not(True))
                          .order_by(MtBackup.id.desc()).offset(keep)).all()
+        if units.differ(serial, dev.serial):  # otro aparato aún sin registrar: no se borra nada del anterior
+            old = []
         for o in old:  # solo se guardan los N últimos (los protegidos no cuentan ni se borran: app/fullcopy.py)
             for kind in ("backup", "rsc"):
                 (folder / f"bk-{o.id}.{kind}").unlink(missing_ok=True)
@@ -610,8 +628,10 @@ def context(dev: Device, tl: list[dict]) -> dict:
         cred = db.get(Credential, d.mtb_cred_id) if d.mtb_cred_id else d.credential
         c = cfg(d)
     rows = files(dev.id)
+    from . import units
+    others = {r.id for r in rows if units.other_unit(dev, r)}
     st = state(dev.id)
-    return {**c, "cred": cred.name if cred else "", "cred_user": cred.username if cred else "", "creds": creds,
+    return {**c, "others": others, "cred": cred.name if cred else "", "cred_user": cred.username if cred else "", "creds": creds,
             "own_cred": dev.credential.name if dev.credential else "", "rows": rows, "last": rows[0] if rows else None,
             "state": st, "freqs": FREQS, "levels": LEVELS, "doc": DOC_URL, "telnet": dev.protocol == "telnet",
             "perm_text": perm_text(c["perm"]), "on": (c["freq"] != "manual"), "triggers": _triggers(),

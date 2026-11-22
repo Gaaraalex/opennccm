@@ -171,8 +171,8 @@ check("respaldo: termina bien, con los 5 pasos en verde", st["status"] == "ok" a
       (st["status"], st["error"], [s["k"] for s in st["steps"]]))
 check("imagen guardada con su tamaño, SHA-256 y su clave cifrada", len(imgs) == 1 and imgs[0].size == len(DATA)
       and fxi.path(imgs[0]).read_bytes() == DATA and decrypt(imgs[0].key_enc) == KEY)
-check("órdenes: backup image, export image y delete backup", [c.split()[0] + " " + c.split()[1] for c in SENT] ==
-      ["backup image", "export image", "delete backup"], SENT)
+check("órdenes: show sysinfo (la serie), backup image, export image y delete backup",
+      [c.split()[0] + " " + c.split()[1] for c in SENT] == ["show sysinfo", "backup image", "export image", "delete backup"], SENT)
 check("no queda la imagen en el Firebox", FB.images == {})
 check("el paso 4 muestra el archivo con su punto y el tamaño con coma", re.search(r"\.fxi · \d+,\d MB$", st["steps"][3]["d"]),
       st["steps"][3]["d"])

@@ -123,14 +123,14 @@ check("ráfaga: ya no queda nada en espera", not fullcopy.pending(ID["MT"]))
 # --- 4) el respaldo llama a las copias completas, también con otro firmware
 seen = []
 real_after = fullcopy.after_backup
-fullcopy.after_backup = lambda i, r, fw=False: seen.append((i, r, fw))  # noqa: E731
+fullcopy.after_backup = lambda i, r, fw=False, other=False: seen.append((i, r, fw, other))  # noqa: E731
 services._backup_device = lambda i, t, u, report=False: "changed"  # noqa: E731
 services.backup_device(ID["MT"], "manual", "admin")
-check("después de cada respaldo se decide la copia completa", seen == [(ID["MT"], "changed", False)], seen)
+check("después de cada respaldo se decide la copia completa", seen == [(ID["MT"], "changed", False, False)], seen)
 services.FW_CHANGED.add(ID["MT"])
 services._backup_device = lambda i, t, u, report=False: "unchanged"  # noqa: E731
 services.backup_device(ID["MT"], "manual", "admin")
-check("con otro firmware se avisa a las copias completas", seen[-1] == (ID["MT"], "unchanged", True), seen)
+check("con otro firmware se avisa a las copias completas", seen[-1] == (ID["MT"], "unchanged", True, False), seen)
 fullcopy.after_backup = real_after
 calls.clear()
 fullcopy._last.clear()
@@ -170,7 +170,7 @@ with SessionLocal() as db:
     d = db.get(Device, ID["MT"])
     vers = db.scalars(select(ConfigVersion).where(ConfigVersion.device_id == ID["MT"]).order_by(ConfigVersion.id)).all()
     rows = {r.id: r for r in db.scalars(select(MtBackup))}
-    ev = db.scalars(select(Event).where(Event.device_id == ID["MT"], Event.category == "Copias protegidas por cambio de firmware")).all()
+    ev = db.scalars(select(Event).where(Event.device_id == ID["MT"], Event.category == "Copias protegidas (firmware)")).all()
     check("firmware nuevo registrado", "7.25.1" in (d.os_version or ""), d.os_version)
     check("se avisa a las copias completas", ID["MT"] in services.FW_CHANGED)
     check("la última copia de texto de la versión anterior queda etiquetada",
