@@ -96,6 +96,19 @@ for _ in range(30):  # el respaldo de después del cambio corre aparte: en una m
     if "difiere de la línea base" not in s.get(B + "/devices/1").text:
         break
 check("equipo vuelve a coincidir con baseline", "difiere de la línea base" not in s.get(B + "/devices/1").text)
+html = s.get(B + "/devices/1").text
+check("ficha: «Quitar línea base…» con su confirmación", 'data-dialog="unbase-dlg"' in html and 'id="unbase-dlg"' in html)
+base_id = re.search(r'data-revert="(\d+)"', html).group(1)
+r = s.post(B + "/devices/1/baseline/clear")
+html = s.get(B + "/devices/1").text
+check("quitar la línea base", "Se quitó la línea base de R1" in r.text and 'id="unbase-dlg"' not in html
+      and "difiere de la línea base" not in html and "Marcar la última versión como línea base" in html)
+check("la versión que era la base sigue en el historial", s.get(f"{B}/versions/{base_id}").status_code == 200)
+check("queda en Auditoría", "baseline_cleared" in s.get(B + "/audit").text)
+r = s.post(B + "/devices/1/baseline/clear")
+check("sin línea base: no hay nada que quitar", "no tiene línea base" in r.text)
+r = s.post(f"{B}/versions/{base_id}/baseline")
+check("se puede volver a marcar", "marcada como línea base" in r.text)
 
 # ---------------------------------------------------------------- paquetes de cumplimiento
 comp = s.get(B + "/compliance").text

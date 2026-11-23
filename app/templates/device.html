@@ -49,6 +49,7 @@
       <hr>
       {% if device.baseline_version_id %}<a href="?a={{ device.baseline_version_id }}&b={{ latest_run }}#versions">{{ icon('flag', 's') }}Ver diferencias con la línea base</a>
       {% if can(user, 'rollback') %}<button type="button" data-revert="{{ device.baseline_version_id }}" data-n="{{ base_n }}">{{ icon('undo', 's') }}Volver a la línea base…</button>{% endif %}
+      {% if can(user, 'versions') %}<button type="button" data-dialog="unbase-dlg">{{ icon('x', 's') }}{{ _('Quitar línea base…') }}</button>{% endif %}
       {% else %}{# sin línea base: las mismas opciones del prototipo; la primera la crea con la última versión #}
       {% if latest_run and can(user, 'versions') %}<form method="post" action="/versions/{{ latest_run }}/baseline"><button>{{ icon('flag', 's') }}Marcar la última versión como línea base</button></form>
       {% else %}<button type="button" disabled title="{{ _('Este equipo aún no tiene línea base') }}">{{ icon('flag', 's') }}Ver diferencias con la línea base</button>{% endif %}
@@ -86,7 +87,8 @@
 <section id="resumen" class="stack" aria-label="Resumen">
   {% if device.baseline_drift %}<div class="banner crit">{{ icon('alert') }}<span class="grow">La configuración actual <b>difiere de la línea base</b>{% if base_n %} (v{{ base_n }}){% endif %}{% if drift_n %} {{ _f('en {0} líneas', drift_n) }}{% endif %}.</span>
     <a class="btn s" href="?a={{ device.baseline_version_id }}&b={{ latest_run }}#versions">Ver diferencias</a>
-    {% if can(user, 'rollback') %}<button type="button" class="btn s dz" data-revert="{{ device.baseline_version_id }}" data-n="{{ base_n }}">Volver a la línea base…</button>{% endif %}</div>{% endif %}
+    {% if can(user, 'rollback') %}<button type="button" class="btn s dz" data-revert="{{ device.baseline_version_id }}" data-n="{{ base_n }}">Volver a la línea base…</button>{% endif %}
+    {% if can(user, 'versions') %}<button type="button" class="btn s ghost" data-dialog="unbase-dlg">{{ _('Quitar línea base…') }}</button>{% endif %}</div>{% endif %}
   {% if device.startup_conflict %}<div class="banner warn">{{ icon('save') }}<span class="grow">La configuración en ejecución tiene cambios que <b>no se guardaron</b> en startup. Si el equipo se reinicia, se perderán.</span></div>{% endif %}
   {% if eol_bad %}<div class="banner warn">{{ icon('clock') }}<span class="grow">Este equipo está <b>{{ _('sin soporte del fabricante') if eol_status == 'sin_soporte' else _('sin parches de software') }}</b>{% if eol_entry and eol_entry.end_of_support %} {{ _f('desde el {0}', eol_entry.end_of_support|fecha) }}{% endif %}.{% if eol_entry and eol_entry.replacement %} {{ _f('Reemplazo sugerido: {0}.', eol_entry.replacement) }}{% endif %}</span>
     <a class="btn s" href="/eol">Ver ciclo de vida</a></div>{% endif %}
@@ -337,6 +339,13 @@
     {% for r in audit_rows %}<tr><td class="muted" style="white-space:nowrap" title="{{ r.created_at|dt }}">{{ r.created_at|ago }}</td><td>{{ r.username }}</td><td>{{ r.action }}{% if r.detail %} · <span class="muted">{{ r.detail[:160] }}</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
 </section>
 
+{% if device.baseline_version_id and can(user, 'versions') %}
+<dialog class="dlg" id="unbase-dlg" aria-labelledby="unbase-t"><form method="post" action="/devices/{{ device.id }}/baseline/clear">
+  <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi minor">{{ icon('flag') }}</span><div><h2 id="unbase-t">{{ _f('¿Quitar la línea base de {0}?', device.name) }}</h2>
+    <p class="muted" style="margin-top:6px">{{ _f('El equipo queda sin línea base y deja de avisar «Difiere de la base» hasta que marque otra. No se borra nada: la versión {0} sigue en el historial y en el equipo no se cambia nada.', base_n or device.baseline_version_id) }}</p></div></div>
+  <div class="row end"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn pri">{{ _('Quitar línea base') }}</button></div>
+</form></dialog>
+{% endif %}
 {% if can(user, 'rollback') %}
 <dialog class="dlg" id="rev-dlg" aria-labelledby="rev-t"><form method="post" id="rev-form">
   <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi major">{{ icon('undo') }}</span><div><h2 id="rev-t"></h2>

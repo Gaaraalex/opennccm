@@ -1496,6 +1496,29 @@ def version_baseline(request: Request, ver_id: int):
     return go(f"/versions/{ver_id}")
 
 
+@app.post("/devices/{dev_id}/baseline/clear")
+def baseline_clear(request: Request, dev_id: int):
+    """Quita la línea base del equipo (la desactiva, como se activó: a mano). No borra nada: la versión que era la base
+    sigue en el historial con su etiqueta; el equipo deja de avisar «Difiere de la base» hasta que se marque otra."""
+    user = require(request, "operator")
+    check_device(user, dev_id)
+    with SessionLocal() as db:
+        dev = db.get(Device, dev_id)
+        if dev is None:
+            return go("/devices")
+        old, name = dev.baseline_version_id, dev.name
+        if not old:
+            flash(request, _("El equipo no tiene línea base definida"), "error")
+            return go(f"/devices/{dev_id}")
+        n = db.scalar(select(func.count(ConfigVersion.id)).where(ConfigVersion.device_id == dev_id,
+                                                                  ConfigVersion.id <= old))
+        dev.baseline_version_id, dev.baseline_drift = None, False
+        db.commit()
+    log_action(request, user, "baseline_cleared", f"{name}: era v{n} (#{old})")
+    flash(request, _f("Se quitó la línea base de {0}. La versión {1} sigue en el historial.", name, n))
+    return go(f"/devices/{dev_id}")
+
+
 @app.get("/devices/{dev_id}/baseline-diff")
 def baseline_diff(request: Request, dev_id: int):
     user = require(request)
