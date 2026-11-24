@@ -15,7 +15,7 @@
     <p class="sub">Qué hace cada módulo, cómo funciona por dentro y cómo usarlo paso a paso: respaldos, cambios,
     reversión, cumplimiento, firmware, ciclo de vida, análisis, informes y administración.</p>
   </div>
-  <div class="meta">Versión del software: 2.45.4<br>Para administradores y operadores de red<br>Noviembre de 2026</div>
+  <div class="meta">Versión del software: 2.45.5<br>Para administradores y operadores de red<br>Noviembre de 2026</div>
 </div>
 
 <section class="chapter">
@@ -262,6 +262,25 @@ devuelto u otro) y, si se quiere, una nota.</p>
 qué equipo lo reemplazó. Un retirado no se edita: con <b>Reincorporar</b> vuelve al servicio con el nombre y la IP que se
 indiquen (por omisión, los originales, si están libres) y, si se marca, activado.</p>
 <figure><img src="img/05-dispositivo.png"><figcaption>Ficha del dispositivo R1, pestaña Resumen.</figcaption></figure>
+<h3>Intercambio o reemplazo de un equipo (otro aparato en la misma ficha)</h3>
+<p>La ficha es la del lugar (nombre, IP, ubicación) y conserva todo su historial. El aparato se reconoce por su <b>número de
+serie</b>, que se guarda en cada copia (versiones, .fxi, .backup/.rsc). Si en un respaldo cambia la serie (un RMA, o dos equipos
+que se cambiaron de lugar):</p>
+<ul>
+  <li>La versión nueva se guarda aunque la configuración sea la misma, marcada «equipo nuevo · serie …», y sale el aviso
+  <b>Equipo reemplazado</b>. Si esa serie estuvo en otra ficha, el aviso y la ficha dicen <b>de dónde viene</b>; cuando se respalda
+  la otra, las dos dicen <b>intercambiado con</b>. En la línea de tiempo se ve dónde cambió el aparato.</li>
+  <li>La última copia de texto y la última copia completa del aparato anterior quedan <b>protegidas</b>.</li>
+  <li><b>No se puede revertir a una copia de otro aparato</b>: ni al pedirlo, ni al aprobar una solicitud que ya estaba, ni
+  automáticamente. Antes de enviar una reversión, OpenNCCM vuelve a leer la serie del equipo: si contesta otro aparato, no envía
+  nada. Las copias del anterior se pueden ver, descargar y comparar.</li>
+  <li>No se hereda lo del aparato anterior: la línea base (si ese aparato vuelve, vuelve la suya), los puertos vistos, la licencia
+  y los permisos comprobados. Se hace enseguida una copia completa del aparato nuevo.</li>
+  <li>Si en un respaldo no se pudo leer la serie, la reversión automática espera y la manual pide comprobarlo antes de aprobar.</li>
+  <li>En una OLT ZTE C300/C320 la serie es la de la tarjeta de control: OpenNCCM guarda también las de las demás tarjetas, y si
+  la mayoría sigue igual avisa «Tarjeta de control cambiada» y lo trata como la misma OLT.</li>
+</ul>
+<p>Al actualizar a la 2.45.5, los reemplazos que ya se habían detectado reparten su serie entre las copias existentes.</p>
 <h3>Puertos del equipo</h3>
 <p>Entre la cabecera y las pestañas, una <b>franja de puertos</b> dibuja el frente del equipo con un icono por puerto en su orden
 físico: RJ45 para cobre y jaula SFP para fibra (vacía si no tiene módulo). En los equipos grandes van en dos filas, los impares
@@ -584,7 +603,7 @@ usuario de solo lectura que vea los hosts; el token se guarda cifrado). <b>Proba
 cuántos hosts ve el token. Funciona con Zabbix 6.0 a 7.4 y solo lee: OpenNCCM no cambia nada en Zabbix.</p>
 <figure><img src="img/05d-zabbix-cambios.png"><figcaption>Cambios y problemas en Zabbix: el problema «Link down» empezó 15 minutos después del cambio v4.</figcaption></figure>
 <div class="tip"><b>Retención</b>En Ajustes puede limitar cuántas versiones guardar por equipo. Las versiones etiquetadas (incluida la
-línea base) nunca se borran.</div>
+línea base) y las protegidas (candado) nunca se borran.</div>
 </section>
 
 <section class="chapter">
@@ -623,6 +642,8 @@ poder volver a ella en un paso (por ejemplo, tras un incidente).</p>
   <li>Abra la versión aprobada y pulse <b>Marcar como línea base</b>.</li>
   <li>Si el equipo se desvía, su ficha mostrará un aviso con <b>Ver diferencias</b> (comparación lado a lado línea base ↔ actual)
   y, en el menú <b>⋯</b>, <b>Volver a la línea base…</b>, que genera una solicitud de reversión para aprobar.</li>
+  <li>Para desactivarla, en el mismo menú (o en el aviso) <b>Quitar línea base…</b>: el equipo queda sin línea base y deja de
+  avisar hasta que se marque otra. No se borra ninguna versión ni se toca el equipo; queda en Auditoría.</li>
   <li>Use <b>Dispositivos → estado «fuera de línea base»</b> o <b>Informes → Fuera de línea base</b> para ver todos los afectados.</li>
 </ol>
 <h2 id="referencia">Configuración de referencia por modelo</h2>
@@ -1723,7 +1744,7 @@ equipos sin perfil propio (SonicWall, Riverbed, Infoblox…) use <b>Genérico SS
   no lo incluye, y por eso pesa alrededor de 1 MB)</td></tr>
   <tr><td>Qué no guarda</td><td>La feature key (OpenNCCM la guarda aparte), los certificados con sus claves, las contraseñas
   propias del equipo y el Fireware OS</td><td>—</td></tr>
-  <tr><td>Cuándo</td><td>En cada respaldo; no cambia nada en el Firebox</td><td>Semanal, diaria o solo a mano (a las 03:00)</td></tr>
+  <tr><td>Cuándo</td><td>En cada respaldo; no cambia nada en el Firebox</td><td>Al cambiar (por omisión): después de cada respaldo que encuentre cambios. También semanal, diaria (a las 03:00) o solo a mano</td></tr>
   <tr><td>Credencial</td><td>Solo lectura (Device Monitor) basta</td><td>De administrador (Device Administrator)</td></tr>
   <tr><td>Úsela para</td><td>Ver qué cambió, auditar el cumplimiento y llevar la configuración a <b>otro</b> Firebox (de
   reemplazo o de otro modelo) con Policy Manager</td><td>Recuperar <b>el mismo</b> Firebox tras un fallo, un restablecimiento de
@@ -1760,13 +1781,25 @@ falta <code>policy</code>, <code>test</code> o <code>sensitive</code>, trae solo
 .backup (cifrado con una clave que OpenNCCM genera para cada equipo y guarda junto a cada .backup), espera a que termine de
 escribirse, lo trae, y recién entonces crea y trae el .rsc (en RouterOS 6, un <code>/export</code> lanzado mientras se escribe el
 .backup lo deja cortado). Comprueba tamaño, cabecera y SHA-256, borra los dos archivos del equipo y verifica que no quedó nada;
-solo borra archivos <code>opennccm-bk-…</code>, los suyos. Por omisión se hace una vez por semana (a las 03:30, de a tres equipos);
-se puede pasar a diario o solo a mano, elegir otra credencial solo para esto y cuántos guardar. <b>Comprobar permisos</b> entra y
+solo borra archivos <code>opennccm-bk-…</code>, los suyos. Por omisión se hace «Al cambiar» (ver más abajo);
+se puede pasar a semanal o diario (a las 03:30, de a tres equipos) o solo a mano, elegir otra credencial solo para esto y cuántos guardar. <b>Comprobar permisos</b> entra y
 lee permisos y espacio sin crear nada. Dos fallos seguidos abren la alarma «Archivos .backup/.rsc sin crear». Los equipos por
 Telnet o de un recolector no entran (necesitan SSH desde este servidor). Para restaurar el .backup: subirlo al equipo y
 <code>/system backup load name=ARCHIVO.backup password=CLAVE</code> (la clave se ve en <b>Cómo restaurar</b>, solo
 administradores, queda en Auditoría); el .rsc, con <code>/import</code> o sobre una configuración vacía con
 <code>/system reset-configuration no-defaults=yes run-after-reset=ARCHIVO.rsc</code>.</p>
+<h3>Copias completas «Al cambiar» y copias protegidas</h3>
+<p>Desde la 2.45.5, el .fxi de WatchGuard y el .backup/.rsc de MikroTik se hacen por omisión <b>Al cambiar</b>: después de
+cada respaldo de configuración que encuentra cambios (o el primero, o con otro firmware u otro aparato). Si no hubo cambios no se
+hacen, salvo que el equipo todavía no tenga ninguna (la primera) o la última tenga 30 días (una de seguridad: estos archivos
+guardan contraseñas, certificados y la feature key, que el respaldo de texto no ve cambiar). Nunca se hacen dos en menos de 10
+minutos: varios cambios seguidos dan una sola copia. Los equipos que tenían «Semanal» pasaron una sola vez a «Al cambiar»;
+«Diario» y «Solo manual» se respetan.</p>
+<p>Cuando un respaldo trae <b>otra versión de firmware</b>, la última copia de texto de la versión anterior queda etiquetada
+(«Antes de firmware …») y protegida, y su última copia completa también. Las protegidas llevan un candado, no cuentan para
+«Guardar los N últimos» ni se borran con la retención de versiones: un equipo de reemplazo puede venir con otra versión y conviene
+restaurar la copia de la misma. Solo un administrador las protege, les quita la protección o las borra (queda en Auditoría).
+Esto vale también cuando el firmware se actualiza desde OpenNCCM.</p>
 <p><b>pfSense y OPNsense</b> tienen perfil propio: OpenNCCM atraviesa el menú de consola (opción «8) Shell») y respalda el archivo
 <code>config.xml</code> completo, el mismo que exporta la web. Use el usuario <code>admin</code>/<code>root</code> (el archivo solo lo lee
 root); el inventario trae versión, modelo y número de serie. Los cambios se siguen haciendo desde la web del cortafuegos.
