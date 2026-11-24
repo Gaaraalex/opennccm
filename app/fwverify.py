@@ -15,7 +15,7 @@ import time
 
 from .crypto import encrypt
 from .db import ChangeRequest, Device, SessionLocal
-from .drivers import get_profile, parse_inventory
+from .drivers import get_profile, inventory_followup, parse_inventory
 
 log = logging.getLogger("opennccm")
 
@@ -46,15 +46,28 @@ def read_inventory(device_id: int) -> dict:
             else:
                 with services.connect(dev) as conn:
                     inventory = "\n\n".join(conn.send_command(c, read_timeout=60) for c in prof.inventory.split("\n") if c.strip())
+                    more = inventory_followup(prof, inventory)  # la serie de una OLT ZTE sale de un segundo comando
+                    if more:
+                        inventory += "\n\n" + conn.send_command(more, read_timeout=60)
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "before": before, "version": before, "error": str(e) or type(e).__name__}
         if inventory:
             inv = parse_inventory(inventory, prof)
+            from . import fullcopy, units
+            if units.differ(dev.serial, inv["serial"]):  # otro aparato: lo registra el próximo respaldo (app/units.py)
+                return {"ok": True, "before": before, "version": inv["os_version"] or before, "error": None}
+            fw_changed = bool(inv["os_version"] and before
+                              and fullcopy.fw_key(inv["os_version"]) != fullcopy.fw_key(before))
+            if fw_changed:  # el respaldo ya vería la versión nueva: las copias de la anterior se protegen aquí
+                services._take_write_lock(db, dev.id)
+                fullcopy.firmware_changed(db, dev, before, inv["os_version"], units.clean(inv["serial"]))
             dev.os_version = inv["os_version"] or dev.os_version
             dev.model = inv["model"] or dev.model
-            dev.serial = inv["serial"] or dev.serial
+            dev.serial = units.clean(inv["serial"]) or dev.serial
             dev.inventory_raw_enc = encrypt(inventory)
             db.commit()
+            if fw_changed:
+                services.FW_CHANGED.add(device_id)  # el próximo respaldo hace la copia completa de la versión nueva
         return {"ok": True, "before": before, "version": dev.os_version, "error": None}
 
 

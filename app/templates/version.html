@@ -7,8 +7,9 @@
 <h1>{{ _f('{0} · versión {1}', v.device.name, n) }}</h1>
 <p class="muted sm" data-sheet-sub>{{ v.kind }} · {{ trig.get(v.trigger, v.trigger) }}{% if v.username %} · {{ v.username }}{% endif %} · <span title="{{ v.created_at|dt }}">{{ v.created_at|ago }}</span> · {{ _f('{0} líneas', lines|length) }} · {{ _f('firmware {0}', fw_label(v.fw_version)) if v.fw_version else _('firmware sin registrar') }}</p>
 {% if fw_old %}<div class="banner warn">{{ icon('alert') }}<span class="grow">{{ _f('Esta copia se hizo con {0} y el equipo hoy tiene {1}. Si reviertes a esta versión, revisa la vista previa: algunos comandos pueden haber cambiado con la actualización.', fw_label(v.fw_version), fw_label(v.device.os_version)) }}</span></div>{% endif %}
+{% if other %}<div class="banner crit" role="alert">{{ icon('alert') }}<span class="grow"><b>{{ _('Esta copia es de otro aparato.') }}</b> {{ _f('Se hizo con la serie {0} y hoy este equipo es el de serie {1}. Puede verla, descargarla y compararla, pero no revertir a ella.', v.serial, v.device.serial) }}</span></div>{% endif %}
 {% if small and v.kind == 'running' %}<div class="banner crit">{{ icon('alert') }}<span class="grow"><b>Esta versión parece incompleta.</b> Tiene muchas menos líneas que la actual ({{ v.size }} frente a {{ current.size }} bytes); puede que el respaldo se cortara. No conviene restaurarla.</span></div>{% endif %}
-<div class="row">{% if is_baseline %}<span class="tag sig" title="Línea base del equipo">línea base</span>{% endif %}{% if v.label %}<span class="tag info">{{ icon('tag', 's') }}{{ v.label }}</span>{% endif %}<span class="tag" title="SHA-256 {{ v.sha256 }}">{{ v.kind }}</span>{{ fwpill(v.fw_version, v.device.os_version, _('firmware') ~ ' ') }}</div>
+<div class="row">{% if is_baseline %}<span class="tag sig" title="Línea base del equipo">línea base</span>{% endif %}{% if v.label %}<span class="tag info">{{ icon('tag', 's') }}{{ v.label }}</span>{% endif %}{% if v.protected %}<span class="tag" title="{{ _('Una copia protegida no se borra sola.') }}">{{ icon('lock', 's') }}{{ _('Protegida') }}</span>{% endif %}{% if v.serial %}<span class="tag mono">{{ _f('serie {0}', v.serial) }}</span>{% endif %}<span class="tag" title="SHA-256 {{ v.sha256 }}">{{ v.kind }}</span>{{ fwpill(v.fw_version, v.device.os_version, _('firmware') ~ ' ') }}</div>
 {% if can_run %}<form class="row" method="post" action="/versions/{{ v.id }}/label"><label class="input grow" style="min-width:200px">{{ icon('tag', 's') }}<input name="label" value="{{ v.label or '' }}" placeholder="Etiqueta, p. ej. «antes de la migración»" aria-label="Etiqueta"></label><button class="btn">Etiquetar</button></form>{% endif %}
 <div class="row cvf-bar" role="search"><label class="input grow" style="min-width:200px">{{ icon('search', 's') }}<input type="search" data-cvf placeholder="{{ _('Buscar en esta versión (texto o IP)') }}" aria-label="{{ _('Buscar en esta versión') }}" autocomplete="off"></label>
   <span class="muted sm" data-cvf-n aria-live="polite"></span>
@@ -23,12 +24,12 @@
   {% if prev %}<a class="btn ghost" href="/devices/{{ v.device_id }}?a={{ prev.id }}&b={{ v.id }}#versions">{{ icon('branch', 's') }}Comparar con anterior</a>{% endif %}
   <span class="grow"></span>
   {% if can_run and v.kind == 'running' %}
-  {% if not is_baseline %}<form method="post" action="/versions/{{ v.id }}/baseline"><button class="btn">{{ icon('flag', 's') }}Marcar como línea base</button></form>{% endif %}
+  {% if not is_baseline and not other %}<form method="post" action="/versions/{{ v.id }}/baseline"><button class="btn">{{ icon('flag', 's') }}Marcar como línea base</button></form>{% endif %}
   {% if can(user, 'restore') %}<a class="btn" href="/versions/{{ v.id }}/restore">{{ icon('server', 's') }}{{ _('Restaurar en otro equipo…') }}</a>{% endif %}
-  <button type="button" class="btn dz" data-dialog="vrev-dlg">{{ icon('undo', 's') }}Revertir a esta versión…</button>
+  <button type="button" class="btn dz" data-dialog="vrev-dlg"{% if other %} disabled title="{{ _('Esta copia es de otro aparato.') }}"{% endif %}>{{ icon('undo', 's') }}Revertir a esta versión…</button>
   {% endif %}
 </div>
-{% if can_run and v.kind == 'running' %}
+{% if can_run and v.kind == 'running' and not other %}
 <dialog class="dlg" id="vrev-dlg" aria-labelledby="vrev-t"><form method="post" action="/versions/{{ v.id }}/rollback">
   <div class="row nowrap" style="align-items:flex-start;gap:14px"><span class="qi major">{{ icon('undo') }}</span><div><h2 id="vrev-t">{{ _f('¿Revertir {0} a la versión {1}?', v.device.name, n) }}</h2>
     <p class="muted" style="margin-top:6px">Se enviará esa configuración al equipo. Antes se hace un respaldo. Se creará una solicitud de cambio para revisar los comandos.</p></div></div>

@@ -252,7 +252,8 @@ EVENT_CATEGORIES = [
     N_("Respaldo fallido"), N_("Respaldo programado"), N_("Reversión automática"), N_("Reversión automática fallida"),
     N_("Solicitud de cambio ejecutada"), N_("Solicitud de cambio pendiente"), N_("Syslog de cambio"),
     N_("Vulnerabilidad de firmware"), N_("Imagen .fxi sin crear"), N_("Respaldo al volver a responder"),
-    N_("Archivos .backup/.rsc sin crear"),
+    N_("Archivos .backup/.rsc sin crear"), N_("Copias protegidas (firmware)"),
+    N_("Equipo reemplazado"), N_("Tarjeta de control cambiada"), N_("Reversión automática en pausa"),
 ]
 
 
@@ -524,6 +525,10 @@ def versions_differ(a, b, prof) -> bool:
 
 
 # --------------------------------------------------------------------------- respaldo
+FW_CHANGED: set[int] = set()  # equipos cuyo último respaldo trajo otra versión de firmware (lo usa app/fullcopy.py)
+REPLACED: set[int] = set()  # otro aparato en la ficha en el respaldo en curso (app/units.py)
+
+
 def backup_device(device_id: int, trigger="manual", username: str | None = None) -> str:
     with SessionLocal() as db:  # desactivado: no se toca el equipo ni se cuenta como fallo
         d = db.get(Device, device_id)
@@ -549,6 +554,7 @@ def backup_device(device_id: int, trigger="manual", username: str | None = None)
         if trigger == "push":
             end_maintenance(device_id)  # no dejar la ventana de mantenimiento abierta
         return "busy"
+    result = "error"
     try:
         result = _backup_device(device_id, trigger, username, report=False)
         if result == "error":
@@ -559,6 +565,13 @@ def backup_device(device_id: int, trigger="manual", username: str | None = None)
         if trigger == "push":
             end_maintenance(device_id)
         lock.release()
+        fw_changed = device_id in FW_CHANGED
+        replaced = device_id in REPLACED
+        if result in ("first", "changed", "unchanged"):  # si no salió se conservan para el respaldo que sí salga
+            FW_CHANGED.discard(device_id)
+            REPLACED.discard(device_id)
+        from . import fullcopy  # copias completas «al cambiar» (.fxi de WatchGuard, .backup/.rsc de MikroTik)
+        fullcopy.after_backup(device_id, result, fw_changed, replaced)
 
 
 # Respaldo fallido: antes de dar la alarma se comprueba qué pasó y, si tiene arreglo, se reintenta solo.
@@ -744,7 +757,11 @@ def refresh_inventory_from_raw() -> int:
                 if old and not re.search(r"[A-Za-z0-9]", old):  # valores basura previos («.......»)
                     old = None
                 new[field] = inv[key] or old
+            from . import units
+            if units.key(dev.serial) and not units.key(new["serial"]):
+                new["serial"] = dev.serial  # un valor de relleno no borra la serie buena
             if any(getattr(dev, f) != v for f, v in new.items()):
+                units.rename(db, dev.id, dev.serial, new["serial"])  # el lector corregido: es el mismo aparato
                 for f, v in new.items():
                     setattr(dev, f, v)
                 changed += 1
@@ -829,11 +846,8 @@ def access_denied(text: str) -> str:
 
 def replaced_serial(old: str | None, new: str | None) -> bool:
     """¿Es otro aparato? Las dos series se leyeron y no coinciden (sin contar mayúsculas ni espacios)."""
-    def norm(s):
-        s = re.sub(r"\s+", "", s or "").upper()
-        return s if len(s) >= 4 and re.search(r"[A-Z0-9]", s) else ""
-    a, b = norm(old), norm(new)
-    return bool(a and b and a != b)
+    from . import units
+    return units.differ(old, new)
 
 
 def _read_license(conn, prof) -> str | None:
@@ -877,12 +891,12 @@ def _license_missing(dev, prof) -> bool:
     return time.time() - tried >= wait
 
 
-def _fireware_license(dev, detail: str | None) -> tuple[str | None, str | None]:
+def _fireware_license(dev, detail: str | None, other_unit: bool = False) -> tuple[str | None, str | None]:
     """WatchGuard: la feature key como se pega para restaurarla, con la firma de la Web UI (app.fireware_web), y el
     aviso si no se pudo (solo la primera vez que falla por ese motivo, para no repetirlo en cada reintento). Sin firma
     devuelve el detalle de la CLI, para no perder lo que sí se leyó, y se reintenta más tarde."""
     from . import fireware_web
-    detail = detail or (try_decrypt(dev.license_enc) if dev.license_enc else None)
+    detail = detail or (try_decrypt(dev.license_enc) if dev.license_enc and not other_unit else None)
     if not detail or not fireware_web.parse_detail(detail):
         return detail, None
     try:
@@ -1008,6 +1022,7 @@ def _read_raw(db, dev, prof) -> dict:
     """Conectarse al equipo y leer todo lo que guarda un respaldo, sin guardar nada (lo usa también el recolector de una
     sede: lee allá y el servidor central guarda con _store_raw). Lanza la excepción si algo falla."""
     license_warn = None
+    parts_raw = None
     if prof.key in HTTP_ONLY:  # SwitchOS: por HTTP, sin SSH
         from . import swos
         if dev.credential is None:
@@ -1028,22 +1043,29 @@ def _read_raw(db, dev, prof) -> dict:
             more = inventory_followup(prof, inventory)
             if more:
                 inventory += "\n\n" + conn.send_command(more, read_timeout=60)
+            from . import units
+            serial_now = parse_inventory(inventory, prof)["serial"] if inventory else None
+            other_unit = units.differ(dev.serial, serial_now)
+            parts_raw = units.read_parts(conn, dev, inventory, serial_now)  # OLT ZTE: las series de sus tarjetas
             neighbors_raw = _read_neighbors(conn, dev.device_type)
             ports_raw = _read_ports(conn, dev.device_type, running or "")
             from . import macfind
             tables_raw = macfind.read(conn, dev.device_type)  # tablas MAC y ARP (buscar una MAC o una IP)
-            want_license = _license_missing(dev, prof)
+            if other_unit:  # otro aparato: la licencia guardada es del anterior
+                _LICENSE_TRIED.pop(dev.id, None)
+            want_license = other_unit or _license_missing(dev, prof)
             license_raw = _read_license(conn, prof) if want_license else None
         if want_license and prof.key == "watchguard_fireware":  # la firma, por la Web UI (ya sin SSH)
             from . import fireware_web
-            saved = try_decrypt(dev.license_enc) if dev.license_enc else None
+            saved = try_decrypt(dev.license_enc) if dev.license_enc and not other_unit else None
             if license_raw and saved and re.search(prof.license_mark, saved) \
                     and fireware_web.same_key(license_raw, saved):
                 license_raw = None  # sigue la misma, ya firmada: no hace falta entrar a la Web UI
             else:
-                license_raw, license_warn = _fireware_license(dev, license_raw)
+                license_raw, license_warn = _fireware_license(dev, license_raw, other_unit)
     return {"running": running, "startup": startup, "inventory": inventory, "neighbors_raw": neighbors_raw,
-            "ports_raw": ports_raw, "tables_raw": tables_raw, "license_raw": license_raw, "license_warn": license_warn}
+            "ports_raw": ports_raw, "tables_raw": tables_raw, "license_raw": license_raw, "license_warn": license_warn,
+            "parts_raw": parts_raw}
 
 
 def _store_raw(db, dev, prof, raw: dict, trigger: str, username: str | None, report: bool = True) -> str:
@@ -1090,32 +1112,51 @@ def _store_raw(db, dev, prof, raw: dict, trigger: str, username: str | None, rep
                   dev.id)
     changed = prev is None or (prev.sha256 != sha and not same_config(prev_text, running, prof))
     # otro aparato con la misma dirección (RMA o cambio de equipo): el número de serie ya no es el guardado
+    from . import units
     old_serial = dev.serial
-    new_serial = (parse_inventory(inventory, prof)["serial"] if inventory else None) or config_serial(running)
-    replaced = replaced_serial(old_serial, new_serial)
+    new_serial = units.clean((parse_inventory(inventory, prof)["serial"] if inventory else None) or config_serial(running))
+    parts_raw = raw.get("parts_raw")
+    serial_changed = replaced_serial(old_serial, new_serial)
+    source = units.find_source(db, dev, new_serial) if serial_changed else None
+    # la serie de una OLT ZTE es la de su tarjeta de control: con las demás tarjetas iguales es la misma OLT (y si esa
+    # serie ya estaba en otra ficha, es un traslado: se trata como otro aparato)
+    card_changed = serial_changed and source is None and units.only_control_card(dev, old_serial, new_serial, parts_raw)
+    replaced = serial_changed and not card_changed
+    # aparato sin confirmar: la plataforma informa su serie y esta vez no se leyó, o se lee por primera vez
+    unread = bool(units.key(old_serial)) and not new_serial and bool(
+        (prev is not None and prev.serial is not None) or units.stored_serial(dev) or config_serial(prev_text))
+    first_read = bool(prev is not None and new_serial and not units.key(old_serial))
+    unproven_prev = bool(new_serial and prev is not None and not replaced and not card_changed and (
+        prev.serial == "" or units.differ(prev.serial, new_serial)))
+    copy_serial = new_serial or ("" if unread else None)
     # firmware con el que se hizo esta copia: del inventario de esta misma conexión o de la configuración (app/fwtag.py)
     from . import fwtag
     fw_now = (parse_inventory(inventory, prof)["os_version"] if inventory else None) or fwtag.config_fw(running)
     result = "unchanged"
-    if changed:
+    prev_id = prev.id if prev is not None else None
+    if changed or replaced:  # otro aparato: su primera copia se guarda aunque tenga la misma configuración
         added, removed = diff_stats(prev_text, running) if prev else (len(running.splitlines()), 0)
         db.add(ConfigVersion(device_id=dev.id, kind="running", content_enc=encrypt(running), sha256=sha,
                              size=len(running), added=added, removed=removed, trigger=trigger,
-                             username=username, label=f"equipo nuevo · serie {new_serial}"[:128] if replaced else None,
-                             fw_version=fw_now))
-        result = "changed" if prev else "first"
+                             username=username, label=f"{units.NEW_LABEL}{new_serial}"[:128] if replaced else None,
+                             fw_version=fw_now, serial=copy_serial))
+        if changed:
+            result = "changed" if prev else "first"
     elif prev is not None and not prev.fw_version and fw_now:
         # la configuración es la misma de la última copia y esa copia es de antes de registrar el firmware: se le
         # apunta el que se acaba de leer en esta misma conexión (las copias más viejas siguen «sin registrar»)
         prev.fw_version = fw_now
+    if not (changed or replaced) and prev is not None and new_serial and not prev.serial:
+        prev.serial = new_serial  # misma configuración y serie leída: se le apunta, como el firmware
 
     if startup is not None:
         startup = clean_config(startup, prof)
         ssha = hashlib.sha256(compare_text(startup).encode()).hexdigest()
         sprev = latest_version(db, dev.id, "startup")
-        if sprev is None or sprev.sha256 != ssha:
+        if sprev is None or sprev.sha256 != ssha or replaced:
             db.add(ConfigVersion(device_id=dev.id, kind="startup", content_enc=encrypt(startup),
-                                 sha256=ssha, size=len(startup), trigger=trigger, username=username, fw_version=fw_now))
+                                 sha256=ssha, size=len(startup), trigger=trigger, username=username, fw_version=fw_now,
+                                 serial=copy_serial))
         conflict = _normalize_for_compare(startup) != _normalize_for_compare(running)
         new_conflict = conflict and not dev.startup_conflict
         dev.startup_conflict = conflict
@@ -1124,6 +1165,17 @@ def _store_raw(db, dev, prof, raw: dict, trigger: str, username: str | None, rep
 
     name = dev.name
     _take_write_lock(db, dev.id)
+    unit = {}
+    if replaced:  # antes de guardar puertos, licencia e inventario: los que había son del aparato anterior
+        if license_raw and dev.license_enc and license_raw == try_decrypt(dev.license_enc):
+            license_raw = None
+        unit = units.replace(db, dev, old_serial, new_serial, source, prev_id)
+        REPLACED.add(dev.id)
+    elif card_changed:
+        db.flush()
+        units.rename(db, dev.id, old_serial, new_serial)
+    if parts_raw:
+        dev.unit_parts = parts_raw
     if tables_raw:
         try:
             from . import macfind
@@ -1173,12 +1225,24 @@ def _store_raw(db, dev, prof, raw: dict, trigger: str, username: str | None, rep
 
     if inventory:
         inv = parse_inventory(inventory, prof)
+        # otra versión de firmware: las últimas copias de la anterior quedan protegidas (app/fullcopy.py)
+        from . import fullcopy
+        if not replaced and inv["os_version"] and dev.os_version and fullcopy.fw_key(inv["os_version"]) != fullcopy.fw_key(dev.os_version):
+            try:
+                with db.begin_nested():
+                    fullcopy.firmware_changed(db, dev, dev.os_version, inv["os_version"], new_serial)
+                FW_CHANGED.add(dev.id)
+            except Exception as e:  # noqa: BLE001 - nunca hace fallar el respaldo
+                log.warning("copias protegidas de %s: %s", dev.name, e)
         dev.os_version = inv["os_version"] or dev.os_version
         # sin modelo en el inventario (EdgeSwitch de chip Realtek): la cabecera de su configuración lo dice
         sysdesc = re.search(r"(?m)^! System Description:\s*(?:RTK\s+)?(\S+)", running)
         dev.model = inv["model"] or (sysdesc.group(1) if sysdesc else None) or dev.model
-        dev.serial = inv["serial"] or config_serial(running) or dev.serial
         dev.inventory_raw_enc = encrypt(inventory)
+    elif replaced:
+        dev.inventory_raw_enc = None
+    if new_serial:  # una lectura sin valor («N/A», «00000000») no borra la serie buena
+        dev.serial = new_serial
 
     new_drift = False
     if dev.baseline_version_id:
@@ -1193,11 +1257,25 @@ def _store_raw(db, dev, prof, raw: dict, trigger: str, username: str | None, rep
     if replaced:
         add_event("warning", "Equipo reemplazado",
                   f"{dev.name} ({dev.host}): cambió el número de serie {old_serial} → {new_serial}. Es otro aparato "
-                  "con la misma dirección (RMA o cambio de equipo). "
-                  + ("Su configuración se guardó como una versión nueva, marcada «equipo nuevo»: la diferencia con "
-                     "la anterior es entre dos aparatos distintos. " if result == "changed" else "")
-                  + "Revise que tenga la configuración que corresponde.", dev.id)
-        audit(username or "sistema", "device_replaced", f"{dev.name}: serie {old_serial} → {new_serial}")
+                  "con la misma dirección (RMA o cambio de equipo)."
+                  + units.origin_text(dev, source, old_serial, new_serial)
+                  + " Su configuración se guardó como una versión nueva, marcada «equipo nuevo»"
+                  + (": la diferencia con la anterior es entre dos aparatos distintos." if result == "changed" else ".")
+                  + " La última copia de configuración" + (" y la última copia completa" if unit.get("files") else "")
+                  + " del aparato anterior quedan protegidas, y no se puede revertir a ellas en este."
+                  + {"cleared": " La línea base era del anterior: marque una para este.",
+                     "restored": " Volvió la línea base que tenía este aparato."}.get(unit.get("baseline"), "")
+                  + " Revise que tenga la configuración que corresponde.", dev.id)
+        audit(username or "sistema", "device_replaced", f"{dev.name}: serie {old_serial} → {new_serial}"
+              + (f" (de «{source.name}»)" if source is not None else ""))
+        if prof.license_cmd:
+            from .db import set_setting
+            set_setting(f"license_warned_{dev.id}", "{}")  # los avisos de vencimiento dados eran de la otra licencia
+    if card_changed:
+        add_event("warning", "Tarjeta de control cambiada",
+                  f"{dev.name} ({dev.host}): la serie pasó de {old_serial} a {new_serial}, pero sus otras tarjetas son "
+                  "las mismas: es la misma OLT con otra tarjeta de control. Su historial y su línea base siguen.", dev.id)
+        audit(username or "sistema", "device_card_changed", f"{dev.name}: serie {old_serial} → {new_serial}")
     if new_license:
         add_event("info", f"{prof.license_label} guardada",
                   f"{dev.name}: se guardó su {prof.license_label.lower()} (una sola vez; se descarga desde la ficha).",
@@ -1227,11 +1305,19 @@ def _store_raw(db, dev, prof, raw: dict, trigger: str, username: str | None, rep
         # equipo reemplazado: no se le aplica sola la configuración del aparato anterior; lo decide el operador
         from . import prohooks
         site = prohooks.site_of(dev.id)
-        if site and dev.auto_rollback and trigger in ("syslog", "scheduled") and not in_maintenance and not replaced:
+        would_revert = dev.auto_rollback and trigger in ("syslog", "scheduled") and not in_maintenance and not replaced
+        why = ("no se pudo leer su número de serie en este respaldo" if unread
+               else "su número de serie se leyó por primera vez" if first_read
+               else "cambió su tarjeta de control" if card_changed
+               else "la copia anterior no se sabe si es de este mismo aparato" if unproven_prev else "")
+        if would_revert and why:  # sin saber que es el mismo aparato no se le aplica sola la configuración anterior
+            add_event("warning", "Reversión automática en pausa",
+                      f"{dev.name}: hubo un cambio y no se revirtió solo porque {why}. Revise el cambio a mano.", dev.id)
+        elif site and would_revert:
             add_event("warning", "Reversión automática no disponible",
                       f"{dev.name}: se respalda desde el recolector de {site}; la reversión automática necesita llegar al "
                       "equipo desde este servidor. Revise el cambio a mano.", dev.id)
-        elif dev.auto_rollback and trigger in ("syslog", "scheduled") and not in_maintenance and not replaced:
+        elif would_revert:
             # se ejecuta en otro hilo: este todavía tiene el lock del dispositivo
             jobs.submit(_auto_rollback, dev.id, dev.name, dev.device_type, dev.host, running, prev_text)
     if result in ("changed", "first"):  # copia en Git (si está activada en Ajustes)
@@ -1291,7 +1377,8 @@ def store_remote(device_id: int, raw: dict, trigger: str = "scheduled", username
                 add_event("major", "Respaldo fallido", f"{dev.name} ({dev.host}): {err}", dev.id)
                 return "error"
             clean = {k: (v if isinstance(v, str) else None) for k, v in raw.items() if k in (
-                "running", "startup", "inventory", "neighbors_raw", "ports_raw", "tables_raw", "license_raw", "license_warn")}
+                "running", "startup", "inventory", "neighbors_raw", "ports_raw", "tables_raw", "license_raw", "license_warn",
+                "parts_raw")}
             result = _store_raw(db, dev, get_profile(dev.device_type), clean, trigger, username, True)
         if result != "error":
             run_compliance(device_id)
@@ -1711,6 +1798,22 @@ def run_due_changes():
         jobs.submit(execute_change_request, cid)
 
 
+class UnitChanged(RuntimeError):
+    """La reversión era para otro aparato: no se envía."""
+
+
+def _push_rollback(device_id: int, commands: list[str]) -> str:
+    from . import units
+    lock = device_lock(device_id)  # una sola sesión a la vez en el equipo (una OLT admite pocas por Telnet)
+    if not lock.acquire(timeout=300):
+        raise RuntimeError("El equipo está ocupado con otra tarea")
+    try:
+        units.verify_live(device_id)  # relee la serie: pudo cambiarse el aparato sin que haya habido un respaldo
+    finally:
+        lock.release()
+    return push_commands(device_id, commands)
+
+
 def execute_change_request(cr_id: int):
     with SessionLocal() as db:
         cr = db.get(ChangeRequest, cr_id)
@@ -1725,18 +1828,24 @@ def execute_change_request(cr_id: int):
         ids = json.loads(cr.device_ids)
         devices = list(db.scalars(select(Device).where(Device.id.in_(ids))))
         jobs = {}
+        from . import units
         for dev in devices:
             try:
+                blocked = units.change_block(db, cr, dev)
+                if blocked:
+                    jobs[dev.name] = UnitChanged(blocked)
+                    continue
                 cmds = render_commands(cr.body, dev, variables)
             except Exception as e:  # noqa: BLE001
                 jobs[dev.name] = e
                 continue
-            jobs[dev.name] = (dev.id, pool.submit(push_commands, dev.id, cmds))
+            jobs[dev.name] = (dev.id, pool.submit(_push_rollback if cr.is_rollback else push_commands, dev.id, cmds))
         report, ok, fail = [], 0, 0
         for name, job in jobs.items():
             if isinstance(job, Exception):
                 fail += 1
-                report.append(f"===== {name}: ERROR de plantilla: {job}")
+                report.append(f"===== {name}: " + ("ERROR: " if isinstance(job, UnitChanged) else "ERROR de plantilla: ")
+                              + str(job))
                 continue
             dev_id, fut = job
             try:
@@ -1769,8 +1878,15 @@ def rollback_commands(device_id: int, version_id: int) -> tuple[list[str] | None
         current = latest_version(db, device_id)
         if not target or not current:
             return [], []
-        return rollback_plan(decrypt(current.content_enc), decrypt(target.content_enc), get_profile(dev.device_type),
-                             dev.host)
+        from . import units
+        blocked = units.rollback_block(dev, target)
+        if blocked:
+            return None, [blocked]
+        cmds, notes = rollback_plan(decrypt(current.content_enc), decrypt(target.content_enc),
+                                    get_profile(dev.device_type), dev.host)
+        if cmds is None:
+            return None, notes
+        return cmds, units.rollback_notes(current, target) + notes
 
 
 # --------------------------------------------------------------------------- cumplimiento

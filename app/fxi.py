@@ -44,7 +44,7 @@ PASV = (50000, 50010)
 TIMEOUT = 300            # el receptor se cierra a los 5 minutos aunque no llegue nada
 MAX_BYTES = 2 * 1024 ** 3  # una imagen con el sistema operativo pasa de los 100 MB; 2 GB es el tope
 KEEP = 8
-FREQS = {"weekly": N_("Semanal"), "daily": N_("Diario"), "manual": N_("Solo manual")}
+FREQS = {"change": N_("Al cambiar"), "weekly": N_("Semanal"), "daily": N_("Diario"), "manual": N_("Solo manual")}
 KEY_RE = re.compile(r"^[A-Za-z0-9._+=,#%-]{8,15}$")  # sin espacios ni comillas: va como argumento de la CLI; Fireware admite de 8 a 15
 HIDDEN = "********"
 FAILS_ALARM = 2
@@ -337,7 +337,7 @@ def busy(device_id: int) -> bool:
 
 
 def cfg(dev: Device) -> dict:
-    return {"cred_id": dev.fxi_cred_id, "freq": dev.fxi_freq or "weekly", "keep": dev.fxi_keep or KEEP,
+    return {"cred_id": dev.fxi_cred_id, "freq": dev.fxi_freq or "change", "keep": dev.fxi_keep or KEEP,
             "addr": dev.fxi_addr or "", "port": dev.fxi_port or PORT, "pasv": dev.fxi_pasv or f"{PASV[0]}-{PASV[1]}",
             "on": bool(dev.fxi_cred_id and dev.fxi_key_enc)}
 
@@ -401,7 +401,7 @@ FAIL_RE = re.compile(r"(?i)(% ?Invalid|% ?Error|\berror\b|fail(ed|ure)?|denied|n
 def _run(device_id: int, trigger: str, username: str | None, test: bool, over: dict | None = None):
     from .crypto import decrypt
     from .services import add_event, connect, device_lock
-    rx, conn, fname, key = None, None, "", ""
+    rx, conn, fname, key, live = None, None, "", "", None
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
         c = {**cfg(dev), **{k: v for k, v in (over or {}).items() if v}}
@@ -438,6 +438,8 @@ def _run(device_id: int, trigger: str, username: str | None, test: bool, over: d
             conn = connect(target)
             _log(device_id, f"ssh {cred.username}@{host} -p {target.port} · OK")
             _step(device_id, 1, "ok", f"como {cred.username}")
+            if not test:
+                live = live_serial(conn)
             url = f"ftp://{rx.user}:{rx.password}@{addr}:{c['port']}/"
             secrets_ = (key, rx.password)
             # 3) la imagen
@@ -500,7 +502,7 @@ def _run(device_id: int, trigger: str, username: str | None, test: bool, over: d
         _step(device_id, 4, "run")
         rx.close()
         firewall("close")
-        img_id = _store(device_id, got, trigger, username, key)
+        img_id = _store(device_id, got, trigger, username, key, live)
         _step(device_id, 4, "ok", "SHA-256 comprobado · guardada junto a su clave")
         _log(device_id, f"receptor cerrado · imagen img-{img_id} guardada")
         with SessionLocal() as db:
@@ -557,21 +559,37 @@ def _progress(device_id: int, rx: Receiver, stop: threading.Event):
             _step(device_id, 3, "run", f"{got / 1048576:.1f} MB recibidos".replace(".", ","))
 
 
-def _store(device_id: int, got: dict, trigger: str, username: str | None, key: str) -> int:
+def live_serial(conn) -> str | None:
+    """La serie del Firebox que está creando la imagen (la de la ficha puede ser la del aparato anterior)."""
+    from . import units
+    from .drivers import get_profile, parse_inventory
+    prof = get_profile("watchguard_fireware")
+    try:
+        return units.clean(parse_inventory(conn.send_command(prof.inventory, read_timeout=60), prof)["serial"])
+    except Exception as e:  # noqa: BLE001 - la imagen no depende de esto
+        log.info("serie del Firebox: %s", e)
+        return None
+
+
+def _store(device_id: int, got: dict, trigger: str, username: str | None, key: str, serial: str | None = None) -> int:
+    from . import units
     from .crypto import encrypt
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
         img = FxiImage(device_id=device_id, filename="", size=got["size"], sha256=got["sha256"], trigger=trigger,
-                       username=username, key_enc=encrypt(key), created_at=now())
+                       username=username, key_enc=encrypt(key), created_at=now(), serial=serial,
+                       fw_version=None if units.differ(serial, dev.serial) else dev.os_version)
         db.add(img)
         db.flush()
         dest = FXI_DIR / str(device_id) / f"img-{img.id}.fxi"
         shutil.move(str(got["path"]), dest)
         img.filename = dest.name
         keep = dev.fxi_keep or KEEP
-        old = db.scalars(select(FxiImage).where(FxiImage.device_id == device_id)
+        old = db.scalars(select(FxiImage).where(FxiImage.device_id == device_id, FxiImage.protected.is_not(True))
                          .order_by(FxiImage.id.desc()).offset(keep)).all()
-        for o in old:  # solo se guardan las N últimas
+        if units.differ(serial, dev.serial):  # otro aparato aún sin registrar: no se borra nada del anterior
+            old = []
+        for o in old:  # solo se guardan las N últimas (las protegidas no cuentan ni se borran: app/fullcopy.py)
             (FXI_DIR / str(device_id) / o.filename).unlink(missing_ok=True)
             db.delete(o)
         db.commit()
@@ -588,14 +606,21 @@ def path(img: FxiImage) -> Path:
 
 
 def scheduled():
-    """Cada día a las 03:00: los Firebox con imagen semanal (si la última tiene 7 días) o diaria."""
+    """Cada día a las 03:00: los Firebox con imagen semanal (si la última tiene 7 días) o diaria; con «Al cambiar»,
+    solo si todavía no tienen ninguna o la última tiene 30 días (las demás se crean después de un respaldo con
+    cambios, app/fullcopy.py)."""
+    from .fullcopy import SAFETY_DAYS
     with SessionLocal() as db:
         devs = db.scalars(select(Device).where(Device.fxi_cred_id.is_not(None), Device.fxi_key_enc.is_not(None),
                                                Device.enabled.is_(True))).all()
         due = []
         for d in devs:
             last = d.fxi_last_at
-            if d.fxi_freq == "daily" or (d.fxi_freq in (None, "weekly") and (not last or now() - last >= timedelta(days=6, hours=20))):
+            freq = d.fxi_freq or "change"
+            if freq == "change":
+                if not last or now() - last >= timedelta(days=SAFETY_DAYS):
+                    due.append(d.id)
+            elif freq == "daily" or (freq == "weekly" and (not last or now() - last >= timedelta(days=6, hours=20))):
                 due.append(d.id)
     for i in due:
         start(i, "scheduled")
@@ -616,17 +641,30 @@ def context(dev: Device, tl: list[dict]) -> dict:
         creds = [(c.id, c.name, c.username) for c in db.scalars(select(Credential).order_by(Credential.name))]
         cred = db.get(Credential, dev.fxi_cred_id) if dev.fxi_cred_id else None
     imgs = images(dev.id)
+    from . import units
     rows = [{"k": "xml", "id": t["id"], "n": t["n"], "when": t["when"], "src": t["src"],
              "who": t["who"] if t["who"].lower() not in (t["src"].lower(), "scheduled", "syslog", "push", "api", "console") else "",
-             "size": t.get("size") or 0} for t in tl if t["kind"] == "running"]
+             "size": t.get("size") or 0, "label": t.get("label"), "fw": t.get("fw"), "other": t.get("other")} for t in tl if t["kind"] == "running"]
     rows += [{"k": "fxi", "id": i.id, "n": i.id, "when": i.created_at, "src": i.trigger, "who": i.username or "",
-              "size": i.size} for i in imgs]
+              "size": i.size, "fw": i.fw_version or "", "protected": bool(i.protected), "note": i.protect_note or "",
+              "other": i.serial if units.other_unit(dev, i) else ""}
+             for i in imgs]
     rows.sort(key=lambda r: r["when"], reverse=True)
     c = cfg(dev)
     return {**c, "cred": cred.name if cred else "", "cred_user": cred.username if cred else "", "creds": creds,
             "images": imgs, "rows": rows[:60], "last_xml": next((r for r in rows if r["k"] == "xml"), None),
             "last_fxi": imgs[0] if imgs else None, "detected": local_addr(dev.host, dev.port), "state": state(dev.id),
-            "freqs": FREQS, "doc": DOC_URL, "avg_mb": (sum(i.size for i in imgs) / len(imgs) / 1048576) if imgs else 0}
+            "freqs": FREQS, "doc": DOC_URL, "triggers": _triggers(), "pending": _pending(dev.id), "avg_mb": (sum(i.size for i in imgs) / len(imgs) / 1048576) if imgs else 0}
+
+
+def _triggers() -> dict:
+    from .fullcopy import TRIGGERS
+    return TRIGGERS
+
+
+def _pending(device_id: int) -> bool:
+    from .fullcopy import pending
+    return pending(device_id)
 
 
 def _dev(request: Request, dev_id: int, role: str):
@@ -671,7 +709,7 @@ async def save_config(request: Request, dev_id: int):
         if errors:
             flash(request, " ".join(errors), "error")
             return go(f"/devices/{dev_id}?fxi=cfg#backups")
-        freq = f.get("freq") if f.get("freq") in FREQS else "weekly"
+        freq = f.get("freq") if f.get("freq") in FREQS else "change"
         keep = max(1, min(int(f.get("keep")) if (f.get("keep") or "").isdigit() else KEEP, 30))
         d.fxi_cred_id, d.fxi_freq, d.fxi_keep = cred_id, freq, keep
         d.fxi_addr, d.fxi_port, d.fxi_pasv = addr or None, port, f"{pasv[0]}-{pasv[1]}"
@@ -757,6 +795,43 @@ def download(request: Request, dev_id: int, img_id: int):
     log_action(request, user, "fxi_download", f"{dev.name}: img-{img.id}")
     # tal cual la entregó el Firebox, con su extensión (nunca en .zip); la clave no va dentro
     return FileResponse(path(img), media_type="application/octet-stream", filename=f"{dev.name}_img-{img.id}.fxi")
+
+
+@router.post("/devices/{dev_id}/fxi/{img_id}/protect")
+async def protect_img(request: Request, dev_id: int, img_id: int):
+    """Proteger (no se borra sola) o quitar la protección. Solo administradores; queda en Auditoría."""
+    from . import fullcopy
+    from .web import flash, go, log_action
+    user, dev = _dev(request, dev_id, "admin")
+    f = await request.form()
+    on = f.get("on") == "1"
+    with SessionLocal() as db:
+        img = db.get(FxiImage, img_id)
+        if dev is None or img is None or img.device_id != dev_id:
+            return go(f"/devices/{dev_id}#backups")
+        fullcopy.protect(img, on, user.username)
+        db.commit()
+    log_action(request, user, "fxi_protect" if on else "fxi_unprotect", f"{dev.name}: img-{img_id}")
+    flash(request, "Imagen protegida: no se borrará sola." if on else "Se quitó la protección de la imagen.")
+    return go(f"/devices/{dev_id}#backups")
+
+
+@router.post("/devices/{dev_id}/fxi/{img_id}/delete")
+def delete_img(request: Request, dev_id: int, img_id: int):
+    """Borrar una imagen (también una protegida). Solo administradores; queda en Auditoría."""
+    from .web import flash, go, log_action
+    user, dev = _dev(request, dev_id, "admin")
+    with SessionLocal() as db:
+        img = db.get(FxiImage, img_id)
+        if dev is None or img is None or img.device_id != dev_id:
+            return go(f"/devices/{dev_id}#backups")
+        was = bool(img.protected)
+        path(img).unlink(missing_ok=True)
+        db.delete(img)
+        db.commit()
+    log_action(request, user, "fxi_delete", f"{dev.name}: img-{img_id}" + (" (protegida)" if was else ""))
+    flash(request, f"Imagen img-{img_id} borrada.")
+    return go(f"/devices/{dev_id}#backups")
 
 
 @router.post("/devices/{dev_id}/fxi/{img_id}/key")

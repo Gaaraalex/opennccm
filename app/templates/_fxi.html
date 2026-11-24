@@ -35,6 +35,7 @@
   .fxi-note .fxi-cols{display:grid;grid-template-columns:1fr 1fr;gap:6px 28px;margin-top:8px}
   .fxi-note .fxi-cols p{margin:2px 0 0;line-height:1.5}
   @media (max-width:760px){.fxi-note .fxi-cols{grid-template-columns:1fr}}
+  .fxi-lock{color:var(--warn)}.fxi-lock svg{vertical-align:-2px}
   .fxi-key{font:600 15px var(--f-mono);letter-spacing:.04em;padding:10px 12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line);word-break:break-all}
 </style>
 {% set c = fxi %}
@@ -61,7 +62,7 @@
       <div class="fxi-kv"><div><div class="l">{{ _('Última') }}</div><div class="v">{{ c.last_fxi.created_at|ago if c.last_fxi else _('todavía ninguna') }}</div></div>
         <div><div class="l">{{ _('Cuándo') }}</div><div class="v">{{ _(c.freqs[c.freq]) }}</div></div>
         <div><div class="l">{{ _('Credencial') }}</div><div class="v">{{ icon('lock', 's') }} {{ c.cred }}</div></div></div>
-      <div class="row" style="margin-top:12px;gap:8px;flex-wrap:wrap"><span class="muted sm grow">{{ _f('Se guardan las {0} últimas imágenes, cifradas con su clave.', c.keep) }}</span>
+      <div class="row" style="margin-top:12px;gap:8px;flex-wrap:wrap"><span class="muted sm grow">{% if c.freq == 'change' %}{{ _('Después de cada respaldo que encuentre cambios (y la primera, y una de seguridad cada 30 días).') }} {% endif %}{{ _f('Se guardan las {0} últimas imágenes, cifradas con su clave; las protegidas, aparte.', c.keep) }}{% if c.pending %} <b>{{ _('Hay una copia en espera: se hace en unos minutos.') }}</b>{% endif %}</span>
         {% if is_admin %}<button type="button" class="btn s" data-fxi-cfg>{{ _('Cambiar') }}</button>
         <form method="post" action="/devices/{{ device.id }}/fxi/run" class="inline"><button class="btn s pri">{{ _('Crear imagen ahora') }}</button></form>{% endif %}</div>
       {% if c.state and c.state.status == 'error' %}<p class="sm" style="margin:10px 0 0;color:var(--crit)">{{ _('La última imagen falló.') }} <a href="/devices/{{ device.id }}/fxi/run">{{ _('Ver qué pasó') }}</a></p>{% endif %}
@@ -78,11 +79,13 @@
   {% if not both %}<p class="muted sm" style="margin:-4px 16px 10px">{{ _('Para descargar los dos, primero configure la imagen .fxi.') if not c.on else _('Todavía no hay ninguna imagen .fxi.') }}</p>{% endif %}
   <div class="tw"><table class="t fxi-tb"><thead><tr><th>{{ _('Tipo') }}</th><th>{{ _('Cuándo') }}</th><th>{{ _('Origen') }}</th><th>{{ _('Tamaño') }}</th><th>{{ _('Versión') }}</th><th class="a" style="text-align:right">{{ _('Acciones') }}</th></tr></thead><tbody>
     {% for r in c.rows %}{% if r.k == 'xml' %}
-    <tr data-k="xml"><td><span class="fxi-tag">XML</span></td><td title="{{ r.when|dt }}">{{ r.when|ago }}</td><td>{{ r.src }}{% if r.who and r.who != r.src %} · <span class="muted">{{ r.who }}</span>{% endif %}</td><td>{{ (r.size or 0)|filesizeformat }}</td><td class="mono muted">v{{ r.n }}</td>
+    <tr data-k="xml"><td><span class="fxi-tag">XML</span></td><td title="{{ r.when|dt }}">{{ r.when|ago }}</td><td>{{ r.src }}{% if r.who and r.who != r.src %} · <span class="muted">{{ r.who }}</span>{% endif %}</td><td>{{ (r.size or 0)|filesizeformat }}</td><td class="mono muted">{% if r.label %}<span class="fxi-lock" title="{{ r.label }}">{{ icon('lock', 's') }}</span> {% endif %}v{{ r.n }}{% if r.fw %} · Fireware {{ r.fw }}{% endif %}{% if r.other %}<div class="sm" style="font-family:var(--f-sans);color:var(--crit)">{{ _f('otro aparato · {0}', r.other) }}</div>{% endif %}{% if r.label %}<div class="sm" style="font-family:var(--f-sans);color:var(--warn)">{{ r.label }}</div>{% endif %}</td>
       <td class="a"><a class="btn s" href="/versions/{{ r.id }}" data-sheet data-wide>{{ _('Ver') }}</a><a class="btn s" href="/devices/{{ device.id }}?b={{ r.id }}#versions">{{ _('Comparar') }}</a><a class="btn s" href="/versions/{{ r.id }}?raw=1">{{ icon('dl', 's') }}{{ _('Descargar .xml') }}</a><button type="button" class="btn s" data-fxi-how="xml">{{ _('Cómo restaurar') }}</button></td></tr>
     {% else %}
-    <tr data-k="fxi"><td><span class="fxi-tag img">.fxi</span></td><td title="{{ r.when|dt }}">{{ r.when|ago }}</td><td>{{ {'manual': _('Manual'), 'scheduled': _('Programado')}.get(r.src, r.src) }}{% if r.src == 'scheduled' %} ({{ _(c.freqs[c.freq])|lower }}){% elif r.who %} · <span class="muted">{{ r.who }}</span>{% endif %}</td><td>{{ r.size|filesizeformat }}</td><td class="mono muted">img-{{ r.id }}</td>
-      <td class="a">{% if is_admin %}<a class="btn s" href="/devices/{{ device.id }}/fxi/{{ r.id }}/download">{{ icon('dl', 's') }}{{ _('Descargar .fxi') }}</a><button type="button" class="btn s" data-fxi-how="{{ r.id }}">{{ _('Cómo restaurar') }}</button>{% else %}<span class="muted sm">{{ _('Solo administradores') }}</span>{% endif %}</td></tr>
+    <tr data-k="fxi"><td><span class="fxi-tag img">.fxi</span></td><td title="{{ r.when|dt }}">{{ r.when|ago }}</td><td>{{ _(c.triggers.get(r.src, r.src)) }}{% if r.src == 'scheduled' %} ({{ _(c.freqs[c.freq])|lower }}){% elif r.who %} · <span class="muted">{{ r.who }}</span>{% endif %}</td><td>{{ r.size|filesizeformat }}</td><td class="mono muted">{% if r.protected %}<span class="fxi-lock" title="{{ r.note or _('Protegida') }}">{{ icon('lock', 's') }}</span> {% endif %}img-{{ r.id }}{% if r.fw %} · Fireware {{ r.fw }}{% endif %}{% if r.other %}<div class="sm" style="font-family:var(--f-sans);color:var(--crit)">{{ _f('otro aparato · {0}', r.other) }}</div>{% endif %}{% if r.protected and r.note %}<div class="sm" style="font-family:var(--f-sans);color:var(--warn)">{{ r.note }}</div>{% endif %}</td>
+      <td class="a">{% if is_admin %}<a class="btn s" href="/devices/{{ device.id }}/fxi/{{ r.id }}/download">{{ icon('dl', 's') }}{{ _('Descargar .fxi') }}</a><button type="button" class="btn s" data-fxi-how="{{ r.id }}">{{ _('Cómo restaurar') }}</button>
+        <form method="post" action="/devices/{{ device.id }}/fxi/{{ r.id }}/protect" class="inline"><input type="hidden" name="on" value="{{ 0 if r.protected else 1 }}"><button class="btn s" title="{{ _('Una copia protegida no se borra sola.') }}">{{ icon('lock', 's') }}{{ _('Quitar protección') if r.protected else _('Proteger') }}</button></form>
+        <form method="post" action="/devices/{{ device.id }}/fxi/{{ r.id }}/delete" class="inline" data-fxi-del="{{ 1 if r.protected else 0 }}"><button class="btn s ghost" aria-label="{{ _('Borrar') }}" title="{{ _('Borrar') }}">{{ icon('trash', 's') }}</button></form>{% else %}<span class="muted sm">{{ _('Solo administradores') }}</span>{% endif %}</td></tr>
     {% endif %}{% else %}<tr><td colspan="6" class="muted">{{ _('Todavía no hay respaldos.') }}</td></tr>{% endfor %}
   </tbody></table></div>
 </section>
@@ -94,6 +97,7 @@
     <p style="margin:0">{{ _('Abra el .xml con Policy Manager (WatchGuard System Manager) y guárdelo en el Firebox. Sirve también para un Firebox de reemplazo o de otro modelo.') }}</p>
     <p class="muted sm" style="margin:0">{{ _('No trae la feature key, los certificados con sus claves ni las contraseñas propias del equipo: vuelva a cargarlos en el Firebox.') }} {{ _('OpenNCCM no aplica configuraciones en Fireware: la restauración se hace con las herramientas de WatchGuard.') }}</p></div>
   <div data-how="fxi" class="stack" style="gap:10px;line-height:1.55" hidden>
+    <div class="banner warn" role="note" style="margin:0">{{ icon('info') }}<span class="grow">{{ _('Use la imagen de la misma versión de Fireware que tenga el Firebox donde va a restaurar (la columna Versión la dice). Si no la hay, actualice o baje ese Firebox a esa versión antes de restaurar. Las imágenes con candado son la última de cada versión y no se borran solas.') }}</span></div>
     <ol style="margin:0;padding-left:20px"><li>{{ _('En Fireware Web UI, abra Sistema › Backup and Restore Image e importe el archivo .fxi.') }}</li>
       <li>{{ _('Escriba la clave de cifrado de esa imagen (abajo) y pulse Restaurar. El Firebox se reinicia.') }}</li></ol>
     <p class="muted sm" style="margin:0">{{ _('Solo para este mismo Firebox. Para otro equipo, use la configuración (XML).') }}</p>
@@ -125,7 +129,7 @@
       <p class="muted sm" style="margin:10px 0 0">{{ _f('Si entre el Firebox y OpenNCCM hay otro cortafuegos, permita TCP {0} y {1} desde {2} hacia {3}.', c.port, c.pasv, device.host, c.addr or c.detected or '—') }}</p>
     </div>
     <div class="field"><span class="fl" style="font-weight:600">4 · {{ _('Cuándo') }}</span><div class="fxi-seg" role="radiogroup" aria-label="{{ _('Cuándo') }}" style="align-self:flex-start">{% for k, l in c.freqs.items() %}<label style="display:contents"><input type="radio" name="freq" value="{{ k }}" {{ 'checked' if k == c.freq }} hidden><button type="button" data-freq="{{ k }}" aria-pressed="{{ 'true' if k == c.freq else 'false' }}">{{ _(l) }}</button></label>{% endfor %}</div>
-      <span class="help">{{ _('Las automáticas se crean a las 03:00.') }}</span></div>
+      <span class="help">{{ _('«Al cambiar»: después de cada respaldo que encuentre cambios en la configuración o en el firmware, más la primera y una de seguridad cada 30 días; nunca dos en menos de 10 minutos. «Semanal» y «Diario», a las 03:00.') }}</span></div>
     <div class="field"><label for="fxi-keep">{{ _('Guardar') }}</label><div class="input"><select id="fxi-keep" name="keep">{% for n in (3, 5, 8, 10, 15, 20, 30) %}<option value="{{ n }}" {{ 'selected' if n == c.keep }}>{{ _f('Las {0} últimas imágenes', n) }}</option>{% endfor %}</select></div>
       <span class="help">{% if c.avg_mb %}{{ _f('Unos {0} MB por imagen en este equipo.', '%.0f'|format(c.avg_mb)) }}{% else %}{{ _('El tamaño depende del modelo; las más viejas se borran solas.') }}{% endif %}</span></div>
   </div></div>
@@ -142,7 +146,10 @@
     'show': _('Mostrar la clave'), 'hide': _('Ocultar'), 'copy': _('Copiar'), 'copied': _('Copiada'),
     'need': _('Elija la credencial de administrador para probar.'),
     'unsaved': _('Hay cambios sin guardar en la imagen .fxi. ¿Cerrar sin guardarlos?'),
-    'intro': _('La prueba abre el receptor un momento y le pide al Firebox que suba su configuración: no crea ninguna imagen.')}|tojson }};
+    'intro': _('La prueba abre el receptor un momento y le pide al Firebox que suba su configuración: no crea ninguna imagen.'),
+    'del': _('¿Borrar esta imagen .fxi? No se puede deshacer.'),
+    'delp': _('Esta imagen está protegida (la última de una versión de firmware). ¿Borrarla igual? No se puede deshacer.')}|tojson }};
+  document.querySelectorAll('[data-fxi-del]').forEach(f => f.addEventListener('submit', e => { if (!confirm(f.dataset.fxiDel === '1' ? T.delp : T.del)) e.preventDefault(); }));
   const cfg = document.getElementById('fxi-cfg'), how = document.getElementById('fxi-how');
   // cerrar: Esc, clic fuera y ✕; en «Configurar», con cambios sin guardar se pregunta antes
   let dirty = false;

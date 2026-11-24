@@ -37,6 +37,7 @@
   .mtf-pol{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
   .mtf-pol span{font:600 11px var(--f-mono);border-radius:6px;padding:2px 7px;background:var(--ok-soft);color:var(--ok)}
   .mtf-pol span.no{background:var(--crit-soft);color:var(--crit)}
+  .mtf-lock{color:var(--warn)}.mtf-lock svg{vertical-align:-2px}
 </style>
 {% set c = mtf %}{% set p = c.perm %}
 <div class="banner info mtf-note" role="note">{{ icon('info') }}<div class="grow"><b>{{ _('MikroTik tiene tres formas de respaldo y OpenNCCM guarda las tres.') }}</b>
@@ -72,7 +73,7 @@
       {% else %}<div><span class="mtf-dot bad" aria-hidden="true">✕</span><span>{{ _('No se pudieron leer los permisos de la cuenta; por seguridad no se creó nada.') }}</span></div>{% endif %}
       {% if p and p.at %}<div class="muted sm" style="margin-left:30px">{{ _('Comprobado') }} {{ p.at|replace('T', ' ') }}</div>{% endif %}
     </div>
-    <div class="row" style="margin-top:12px;gap:8px;flex-wrap:wrap"><span class="muted sm grow">{{ _f('Se guardan los {0} últimos, el .backup cifrado con su clave.', c.keep) }}</span>
+    <div class="row" style="margin-top:12px;gap:8px;flex-wrap:wrap"><span class="muted sm grow">{% if c.freq == 'change' %}{{ _('Después de cada respaldo que encuentre cambios (y la primera, y una de seguridad cada 30 días).') }} {% endif %}{{ _f('Se guardan los {0} últimos, el .backup cifrado con su clave; los protegidos, aparte.', c.keep) }}{% if c.pending %} <b>{{ _('Hay una copia en espera: se hace en unos minutos.') }}</b>{% endif %}</span>
       {% if is_admin %}<button type="button" class="btn s" data-mtf-cfg>{{ _('Cambiar') }}</button>{% endif %}
       {% if can_run and not c.telnet %}<form method="post" action="/devices/{{ device.id }}/mtfiles/run" class="inline"><button class="btn s pri">{{ _('Crear ahora') }}</button></form>{% endif %}</div>
     {% if c.state and c.state.status == 'error' and not c.state.test %}<p class="sm" style="margin:10px 0 0;color:var(--crit)">{{ _('La última vez falló.') }} <a href="/devices/{{ device.id }}/mtfiles/run">{{ _('Ver qué pasó') }}</a></p>{% endif %}
@@ -87,12 +88,14 @@
     {% set ns = namespace(n=0) %}
     {% for r in c.rows %}{% set ns.n = ns.n + 1 %}
     <tr data-k="file"><td>{% if r.backup_size %}<span class="mtf-tag f">.backup</span> {% endif %}<span class="mtf-tag f">.rsc</span></td><td title="{{ r.created_at|dt }}">{{ r.created_at|ago }}</td>
-      <td>{{ {'manual': _('Manual'), 'scheduled': _('Programado')}.get(r.trigger, r.trigger) }}{% if r.trigger == 'scheduled' %} ({{ _(c.freqs[c.freq])|lower }}){% elif r.username %} · <span class="muted">{{ r.username }}</span>{% endif %}</td>
-      <td>{% if r.backup_size %}{{ r.backup_size|filesizeformat }} + {% endif %}{{ r.rsc_size|filesizeformat }}</td><td class="mono muted">bk-{{ r.id }}{% if r.ros_version %} · {{ r.ros_version.split(' ')[0] }}{% endif %}</td>
-      <td class="a">{% if is_admin %}{% if r.backup_size %}<a class="btn s" href="/devices/{{ device.id }}/mtfiles/{{ r.id }}/backup">{{ icon('dl', 's') }}.backup</a>{% endif %}<a class="btn s" href="/devices/{{ device.id }}/mtfiles/{{ r.id }}/rsc">{{ icon('dl', 's') }}.rsc</a><button type="button" class="btn s" data-mtf-how="{{ r.id }}" data-has-backup="{{ 1 if r.backup_size else 0 }}">{{ _('Cómo restaurar') }}</button>{% else %}<span class="muted sm">{{ _('Solo administradores') }}</span>{% endif %}</td></tr>
+      <td>{{ _(c.triggers.get(r.trigger, r.trigger)) }}{% if r.trigger == 'scheduled' %} ({{ _(c.freqs[c.freq])|lower }}){% elif r.username %} · <span class="muted">{{ r.username }}</span>{% endif %}</td>
+      <td>{% if r.backup_size %}{{ r.backup_size|filesizeformat }} + {% endif %}{{ r.rsc_size|filesizeformat }}</td><td class="mono muted">{% if r.protected %}<span class="mtf-lock" title="{{ r.protect_note or _('Protegida') }}">{{ icon('lock', 's') }}</span> {% endif %}bk-{{ r.id }}{% if r.ros_version %} · RouterOS {{ r.ros_version.split(' ')[0] }}{% endif %}{% if r.id in mtf.others %}<div class="sm" style="font-family:var(--f-sans);color:var(--crit)">{{ _f('otro aparato · {0}', r.serial) }}</div>{% endif %}{% if r.protected and r.protect_note %}<div class="sm" style="font-family:var(--f-sans);color:var(--warn)">{{ r.protect_note }}</div>{% endif %}</td>
+      <td class="a">{% if is_admin %}{% if r.backup_size %}<a class="btn s" href="/devices/{{ device.id }}/mtfiles/{{ r.id }}/backup">{{ icon('dl', 's') }}.backup</a>{% endif %}<a class="btn s" href="/devices/{{ device.id }}/mtfiles/{{ r.id }}/rsc">{{ icon('dl', 's') }}.rsc</a><button type="button" class="btn s" data-mtf-how="{{ r.id }}" data-has-backup="{{ 1 if r.backup_size else 0 }}">{{ _('Cómo restaurar') }}</button>
+        <form method="post" action="/devices/{{ device.id }}/mtfiles/{{ r.id }}/protect" class="inline"><input type="hidden" name="on" value="{{ 0 if r.protected else 1 }}"><button class="btn s" title="{{ _('Una copia protegida no se borra sola.') }}">{{ icon('lock', 's') }}{{ _('Quitar protección') if r.protected else _('Proteger') }}</button></form>
+        <form method="post" action="/devices/{{ device.id }}/mtfiles/{{ r.id }}/delete" class="inline" data-mtf-del="{{ 1 if r.protected else 0 }}"><button class="btn s ghost" aria-label="{{ _('Borrar') }}" title="{{ _('Borrar') }}">{{ icon('trash', 's') }}</button></form>{% else %}<span class="muted sm">{{ _('Solo administradores') }}</span>{% endif %}</td></tr>
     {% endfor %}
     {% for t in tl if t.kind == 'running' %}{% if loop.index <= 40 %}
-    <tr data-k="txt"><td><span class="mtf-tag">{{ _('Texto') }}</span></td><td title="{{ t.when|dt }}">{{ t.when|ago }}</td><td>{{ t.src }}{% if t.who and t.who != t.src %} · <span class="muted">{{ t.who }}</span>{% endif %}</td><td>{{ (t.size or 0)|filesizeformat }}</td><td class="mono muted">v{{ t.n }}</td>
+    <tr data-k="txt"><td><span class="mtf-tag">{{ _('Texto') }}</span></td><td title="{{ t.when|dt }}">{{ t.when|ago }}</td><td>{{ t.src }}{% if t.who and t.who != t.src %} · <span class="muted">{{ t.who }}</span>{% endif %}</td><td>{{ (t.size or 0)|filesizeformat }}</td><td class="mono muted">{% if t.label %}<span class="mtf-lock" title="{{ t.label }}">{{ icon('lock', 's') }}</span> {% endif %}v{{ t.n }}{% if t.fw %} · RouterOS {{ t.fw.split(' ')[0] }}{% endif %}{% if t.label %}<div class="sm" style="font-family:var(--f-sans);color:var(--warn)">{{ t.label }}</div>{% endif %}</td>
       <td class="a"><a class="btn s" href="/versions/{{ t.id }}" data-sheet data-wide>{{ _('Ver') }}</a><a class="btn s" href="/devices/{{ device.id }}?b={{ t.id }}#versions">{{ _('Comparar') }}</a><a class="btn s" href="/versions/{{ t.id }}?raw=1">{{ icon('dl', 's') }}{{ _('Descargar') }}</a></td></tr>
     {% endif %}{% endfor %}
     {% if not c.rows and not c.last_text %}<tr><td colspan="6" class="muted">{{ _('Todavía no hay respaldos.') }}</td></tr>{% endif %}
@@ -102,6 +105,7 @@
 <dialog class="dlg wide mtf-pane" id="mtf-how" aria-labelledby="mtf-how-h"><div class="mtf-in">
   <div class="mtf-h row"><h2 id="mtf-how-h" style="margin:0">{{ _('Cómo restaurar') }}</h2><span class="grow"></span><button type="button" class="btn s ghost" data-close aria-label="{{ _('Cerrar') }}">✕</button></div>
   <div class="mtf-b stack" style="gap:16px;line-height:1.55">
+    <div class="banner warn" role="note" style="margin:0">{{ icon('info') }}<span class="grow">{{ _('Use la copia de la misma versión de firmware que tenga el equipo donde va a restaurar (la columna Versión la dice). Si no la hay, actualice o baje ese equipo a esa versión antes de restaurar: entre versiones distintas, RouterOS puede no cargarla entera. Las copias con candado son la última de cada versión y no se borran solas.') }}</span></div>
     <div data-how="backup" class="stack" style="gap:8px">
       <b>.backup · {{ _('el mismo equipo (o uno idéntico)') }}</b>
       <ol style="margin:0;padding-left:20px"><li>{{ _('Suba el .backup al equipo: en WinBox, arrástrelo a Files (o por SFTP).') }}</li>
@@ -130,7 +134,7 @@
       <div class="row" style="gap:6px;margin-top:6px"><button type="button" class="btn s" id="mtf-gen">{{ _('Generar') }}</button><button type="button" class="btn s" id="mtf-gen-copy" hidden>{{ _('Copiar') }}</button></div>
       <span class="help">{{ _('RouterOS cifra el .backup con esta clave (8 a 32 letras, números, . _ -). Si la deja vacía, OpenNCCM genera una.') }} <b style="color:var(--warn)">{{ _('Sin ella no se puede restaurar:') }}</b> {{ _('se guarda cifrada junto a cada .backup.') }}</span></div>
     <div class="field"><span class="fl" style="font-weight:600">3 · {{ _('Cuándo') }}</span><div class="mtf-seg" role="radiogroup" aria-label="{{ _('Cuándo') }}" style="align-self:flex-start">{% for k, l in c.freqs.items() %}<label style="display:contents"><input type="radio" name="freq" value="{{ k }}" {{ 'checked' if k == c.freq }} hidden><button type="button" data-freq="{{ k }}" aria-pressed="{{ 'true' if k == c.freq else 'false' }}">{{ _(l) }}</button></label>{% endfor %}</div>
-      <span class="help">{{ _('Los automáticos se crean a las 03:30, de a tres equipos a la vez.') }}</span></div>
+      <span class="help">{{ _('«Al cambiar»: después de cada respaldo que encuentre cambios en la configuración o en el firmware, más la primera y una de seguridad cada 30 días; nunca dos en menos de 10 minutos. «Semanal» y «Diario», a las 03:30.') }}</span></div>
     <div class="field"><label for="mtf-keep">{{ _('Guardar') }}</label><div class="input"><select id="mtf-keep" name="keep">{% for n in (3, 5, 8, 10, 15, 20, 30) %}<option value="{{ n }}" {{ 'selected' if n == c.keep }}>{{ _f('Los {0} últimos', n) }}</option>{% endfor %}</select></div>
       <span class="help">{{ _('Los más viejos se borran solos.') }}</span></div>
     <div class="card full" style="background:var(--surface-2)"><b>{{ _('Qué hace en el equipo') }}</b>
@@ -151,7 +155,10 @@
     'full': _('Bien: la credencial puede crear el .backup y el .rsc.'), 'rsc': _('Solo podrá traer el .rsc. Para el .backup le falta:'),
     'none': _('Solo lectura: no se creará nada en el equipo. Le falta:'), 'free': _('Espacio libre:'),
     'show': _('Mostrar la clave'), 'hide': _('Ocultar'), 'copy': _('Copiar'), 'copied': _('Copiada'),
-    'unsaved': _('Hay cambios sin guardar. ¿Cerrar sin guardarlos?')}|tojson }};
+    'unsaved': _('Hay cambios sin guardar. ¿Cerrar sin guardarlos?'),
+    'del': _('¿Borrar esta copia (.backup y .rsc)? No se puede deshacer.'),
+    'delp': _('Esta copia está protegida (la última de una versión de firmware). ¿Borrarla igual? No se puede deshacer.')}|tojson }};
+  document.querySelectorAll('[data-mtf-del]').forEach(f => f.addEventListener('submit', e => { if (!confirm(f.dataset.mtfDel === '1' ? T.delp : T.del)) e.preventDefault(); }));
   const cfg = document.getElementById('mtf-cfg'), how = document.getElementById('mtf-how');
   let dirty = false;
   const leave = () => !dirty || confirm(T.unsaved);

@@ -51,7 +51,7 @@ _LEVEL = {"viewer": 0, "operator": 1, "admin": 2}
 # ruta (sin el método) -> función. La primera que coincide; se comprueban en orden.
 ROUTES = [
     (r"^/(api/mobile/)?devices/\d+/backup$|^/api/devices/\d+/backup$|^/devices/\d+/mikrotik-backup$|^/backup/(all|job/(cancel|retry))$", "backup"),
-    (r"^/versions/\d+/(label|baseline)$", "versions"),
+    (r"^/versions/\d+/(label|baseline)$|^/devices/\d+/baseline/clear$", "versions"),
     (r"^/versions/\d+/rollback$", "rollback"),
     (r"^/versions/\d+/restore|^/restore/", "restore"),
     (r"^/(api/mobile/)?events(/\d+)?/(un)?ack$", "events"),

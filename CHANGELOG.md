@@ -1,5 +1,17 @@
 # Historial de versiones
 
+## 2.45.5
+- [nuevo] **Intercambio o reemplazo de equipos.** Cada copia guarda la serie del aparato. Si en un respaldo cambia, la ficha
+  dice de dónde viene el aparato (o que se intercambió con otra ficha), protege las últimas copias del anterior y **no deja
+  revertir a la configuración de otro aparato** (ni al pedirlo, ni al aprobarlo, ni sola; antes de enviar una reversión vuelve
+  a leer la serie). No se heredan la línea base, los puertos vistos ni la licencia. En las OLT ZTE C300/C320 distingue un
+  cambio de la tarjeta de control.
+- [nuevo] **Copias completas «Al cambiar»** (.fxi de WatchGuard, .backup/.rsc de MikroTik), por omisión: después de cada
+  respaldo con cambios; sin cambios, solo la primera y una de seguridad cada 30 días. Los que tenían «Semanal» pasan a esto.
+- [nuevo] **Copias protegidas por cambio de firmware:** la última copia de la versión anterior no se borra sola; solo un
+  administrador decide.
+- [nuevo] **Quitar línea base…** en la ficha: se desactiva como se activa, a mano.
+
 ## 2.45.4
 - [nuevo] **MikroTik: .backup y .rsc guardados en OpenNCCM.** La ficha de cada MikroTik tiene la pestaña **Respaldos**: además
   de la configuración en texto, OpenNCCM trae una vez por semana (o a diario, o a mano) el **.backup** cifrado y el **.rsc** del

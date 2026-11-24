@@ -182,6 +182,13 @@ class Device(Base):
     orig_host: Mapped[str | None] = mapped_column(String(255))
     replaced_by_id: Mapped[int | None] = mapped_column(Integer)  # el equipo que lo reemplazó
     replaces_id: Mapped[int | None] = mapped_column(Integer)     # (en el reemplazo) el retirado al que reemplaza
+    # otro aparato en la misma ficha (app/units.py): cuándo, la serie anterior, la ficha de donde vino, la línea base
+    # de cada aparato que estuvo (JSON) y, en las OLT ZTE, la serie de cada tarjeta (JSON)
+    replaced_at: Mapped[datetime | None] = mapped_column(DateTime)
+    replaced_serial: Mapped[str | None] = mapped_column(String(128))
+    moved_from_id: Mapped[int | None] = mapped_column(Integer)
+    unit_baselines: Mapped[str | None] = mapped_column(Text)
+    unit_parts: Mapped[str | None] = mapped_column(Text)
 
     credential = relationship("Credential", foreign_keys=[credential_id])
     group = relationship("DeviceGroup")
@@ -208,6 +215,9 @@ class ConfigVersion(Base):
     username: Mapped[str | None] = mapped_column(String(64))
     label: Mapped[str | None] = mapped_column(String(128))  # p.ej. "baseline"
     fw_version: Mapped[str | None] = mapped_column(String(64))  # firmware del equipo en esa copia (app/fwtag.py)
+    # serie del aparato de esa copia (None: sin registrar; "": no se pudo leer) y protegida de la retención (app/units.py)
+    serial: Mapped[str | None] = mapped_column(String(128), index=True)
+    protected: Mapped[bool | None] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now, index=True)
     device = relationship("Device", back_populates="versions")
 
@@ -224,6 +234,11 @@ class FxiImage(Base):
     username: Mapped[str | None] = mapped_column(String(64))
     key_enc: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now, index=True)
+    fw_version: Mapped[str | None] = mapped_column(String(64))  # Fireware con el que se creó (desde 2.45.5)
+    serial: Mapped[str | None] = mapped_column(String(128))  # del aparato que lo creó (app/units.py)
+    # protegida (app/fullcopy.py): no se borra sola; la última de cada versión de firmware, o a mano por un administrador
+    protected: Mapped[bool | None] = mapped_column(Boolean, default=False)
+    protect_note: Mapped[str | None] = mapped_column(String(160))
 
 
 class MtBackup(Base):
@@ -239,10 +254,14 @@ class MtBackup(Base):
     rsc_size: Mapped[int] = mapped_column(Integer, default=0)
     rsc_sha256: Mapped[str | None] = mapped_column(String(64))
     ros_version: Mapped[str | None] = mapped_column(String(32))
+    serial: Mapped[str | None] = mapped_column(String(128))  # del aparato que los creó (app/units.py)
     trigger: Mapped[str] = mapped_column(String(16), default="manual")  # manual | scheduled
     username: Mapped[str | None] = mapped_column(String(64))
     key_enc: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now, index=True)
+    # protegida (app/fullcopy.py): no se borra sola; la última de cada versión de firmware, o a mano por un administrador
+    protected: Mapped[bool | None] = mapped_column(Boolean, default=False)
+    protect_note: Mapped[str | None] = mapped_column(String(160))
 
 
 class Policy(Base):
@@ -339,6 +358,7 @@ class ChangeRequest(Base):
     kind: Mapped[str] = mapped_column(String(16), default="config")  # config | firmware
     firmware_id: Mapped[int | None] = mapped_column(Integer)
     reload: Mapped[bool] = mapped_column(Boolean, default=False)
+    rollback_version_id: Mapped[int | None] = mapped_column(Integer)  # reversión: a qué versión vuelve
     notes: Mapped[str | None] = mapped_column(Text)  # avisos de la reversión: lo que hay que revisar a mano
     run_at: Mapped[datetime | None] = mapped_column(DateTime)  # aprobada para ejecutarse a esa hora (ventana de mantenimiento)
 
@@ -700,6 +720,9 @@ def init_db():
     _add_missing_columns()
     _add_missing_indexes()
     _migrate_themes()
+    _migrate_fullcopy_freq()
+    from . import units
+    units.migrate()
     _ensure_master()
 
 
@@ -718,6 +741,21 @@ def _ensure_master():
 OLD_THEMES = {"noche": ("oscuro", "cobalto"), "bosque": ("claro", "bosque"), "arena": ("claro", "arena"),
               "lavanda": ("claro", "lavanda"), "oceano": ("oscuro", "oceano"), "atardecer": ("oscuro", "atardecer"),
               "grafito": ("oscuro", "grafito")}
+
+
+def _migrate_fullcopy_freq():
+    """2.45.5: las copias completas (.fxi, .backup/.rsc) pasan a «Al cambiar» por omisión. Los equipos que tenían la
+    semanal (la de antes por omisión) pasan una sola vez a «Al cambiar»; «Diario» y «Solo manual» se respetan."""
+    if get_setting("fullcopy_freq_migrated") == "1":
+        return
+    with SessionLocal() as db:
+        for d in db.scalars(select(Device).where((Device.fxi_freq == "weekly") | (Device.mtb_freq == "weekly"))):
+            if d.fxi_freq == "weekly":
+                d.fxi_freq = "change"
+            if d.mtb_freq == "weekly":
+                d.mtb_freq = "change"
+        db.commit()
+    set_setting("fullcopy_freq_migrated", "1")
 
 
 def _migrate_themes():

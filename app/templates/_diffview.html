@@ -7,7 +7,8 @@
 {% else %}
 <div class="summ" style="margin-bottom:12px">{{ icon('check') }}<div><b>Idénticas</b><div class="muted sm">No hay diferencias entre A y B.</div></div></div>
 {% endif %}
-{% if cmp.fw_diff %}<div class="banner warn">{{ icon('chip') }}<span class="grow">{{ _f('Firmware distinto: A es {0} y B es {1}. Entre las dos copias se actualizó el equipo. Las diferencias que trajo la actualización salen en ámbar con «por el firmware».', fw_label(cmp.fwa), fw_label(cmp.fwb)) }}</span></div>
+{% if cmp.units %}<div class="banner warn">{{ icon('alert') }}<span class="grow">{{ _f('Son dos aparatos distintos: A tiene la serie {0} y B la {1}. Las diferencias no son cambios hechos a un mismo equipo.', cmp.units[0], cmp.units[1]) }}</span></div>
+{% elif cmp.fw_diff %}<div class="banner warn">{{ icon('chip') }}<span class="grow">{{ _f('Firmware distinto: A es {0} y B es {1}. Entre las dos copias se actualizó el equipo. Las diferencias que trajo la actualización salen en ámbar con «por el firmware».', fw_label(cmp.fwa), fw_label(cmp.fwb)) }}</span></div>
 {% elif cmp.fw_same and cmp.n %}<div class="muted sm" style="margin:-4px 0 10px">{{ icon('check', 's') }} {{ _f('Mismo firmware en A y B ({0}). Todas las diferencias son cambios de configuración.', fw_label(cmp.fwa)) }}</div>{% endif %}
 <div class="diffv" data-diff>
   {% if mode == 'u' %}
