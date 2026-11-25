@@ -254,6 +254,7 @@ EVENT_CATEGORIES = [
     N_("Vulnerabilidad de firmware"), N_("Imagen .fxi sin crear"), N_("Respaldo al volver a responder"),
     N_("Archivos .backup/.rsc sin crear"), N_("Copias protegidas (firmware)"),
     N_("Equipo reemplazado"), N_("Tarjeta de control cambiada"), N_("Reversión automática en pausa"),
+    N_("Tarea programada sin aplicar"),
 ]
 
 
@@ -1775,6 +1776,27 @@ def apply_config(dev: Device, commands: list[str]) -> str:
 _jinja = SandboxedEnvironment(trim_blocks=True, lstrip_blocks=True)
 
 
+def template_vars(body: str) -> list[str]:
+    """Variables propias de una plantilla (las que no da OpenNCCM, como «device»): «interface {{ puerto }}» → ["puerto"].
+    [] si no es Jinja válido (eso lo avisa quien la ejecuta)."""
+    from jinja2 import meta
+    try:
+        return sorted(meta.find_undeclared_variables(_jinja.parse(body or "")) - {"device"})
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def render_strict(body: str, dev: Device, variables: dict) -> str:
+    """Como render_commands, pero una variable sin valor es un error (jinja2.UndefinedError) y no queda en blanco."""
+    from jinja2 import StrictUndefined
+    env = SandboxedEnvironment(trim_blocks=True, lstrip_blocks=True, undefined=StrictUndefined)
+    return env.from_string(body).render(
+        device={"name": dev.name, "host": dev.host, "model": dev.model, "os_version": dev.os_version,
+                "serial": dev.serial, "location": dev.location, "device_type": dev.device_type,
+                "group": dev.group.name if dev.group else ""},
+        **variables)
+
+
 def render_commands(body: str, dev: Device, variables: dict) -> list[str]:
     text = _jinja.from_string(body).render(
         device={"name": dev.name, "host": dev.host, "model": dev.model, "os_version": dev.os_version,
@@ -2130,9 +2152,17 @@ def scan_cves(device_id: int) -> int:
         crit = db.scalars(select(Vulnerability).where(Vulnerability.device_id == device_id,
                                                       Vulnerability.severity == "CRITICAL")).all()
         if crit:
-            add_event("critical", "Vulnerabilidad de firmware",
-                      f"{dev.name} ({dev.os_version}) tiene {len(crit)} CVE críticos: "
-                      + ", ".join(v.cve_id for v in crit[:10]), device_id)
+            msg = (f"{dev.name} ({dev.os_version}) tiene {len(crit)} CVE críticos: "
+                   + ", ".join(v.cve_id for v in crit[:10]))
+            # cada búsqueda (semanal, manual) no abre otra alarma igual: si la anterior sigue sin reconocer y dice lo
+            # mismo, queda esa; si cambió la lista, se actualiza su texto sin volver a notificar
+            open_ev = db.scalar(select(Event).where(Event.device_id == device_id, Event.category == "Vulnerabilidad de firmware",
+                                                    Event.acknowledged.is_(False)).order_by(Event.id.desc()).limit(1))
+            if open_ev is None:
+                add_event("critical", "Vulnerabilidad de firmware", msg, device_id)
+            elif open_ev.message != msg:
+                open_ev.message = msg
+                db.commit()
     _cve_mark_scanned(device_id)
     return count
 

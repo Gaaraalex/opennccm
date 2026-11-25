@@ -63,6 +63,7 @@
       info = j;
       if (!j.on) return;
       el.querySelector('.ai-who').textContent = j.model + ' · ' + j.who;
+      var ck = el.querySelector('.ai-cloud'); if (ck && j.local) ck.textContent = T.local || 'local';  // modelo en su red
       var chips = [];
       if (el.dataset.name) chips.push(el.dataset.name);
       if (el.dataset.os) chips.push(el.dataset.os);
@@ -117,7 +118,7 @@
     if (!b) return;
     if (b.dataset.q) ask(b.dataset.q);
     else if (b.dataset.copy != null) navigator.clipboard.writeText(b.dataset.copy).then(function () { note(T.copied); });
-    else if (b.dataset.ins != null) { (window.CXinsert || window.ocAiInsert)(b.dataset.ins.split('\n')[0]); }
+    else if (b.dataset.ins != null) { (window.CXinsert || window.ocAiInsert)(b.dataset.ins); }
     else if (b.dataset.cr != null) {
       var dev = +(opts.device_id || panel.dataset.device || 0);
       fetch('/console/change-request', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'},

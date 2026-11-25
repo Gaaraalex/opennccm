@@ -16,12 +16,15 @@ SVC_USER=opennccm
 PRE_DIR=$DATA_DIR/pre-update
 KEEP_PRE=5
 HEALTH_URL=http://127.0.0.1:8000/healthz
+HEALTH_WAIT=${NCM_HEALTH_WAIT:-240}  # segundos: en una VM chica (2 núcleos, 4 GB) arrancar tarda más de minuto y medio
 
 c_ok=$'\e[32m'; c_warn=$'\e[33m'; c_err=$'\e[31m'; c_b=$'\e[1m'; c_dim=$'\e[2m'; c_0=$'\e[0m'
 step() { echo "${c_b}==>${c_0} $*"; }
-ok()   { echo "${c_ok}✓${c_0} $*"; }
+# la consola de texto de Linux (TERM=linux) no tiene «✓»/«✗» en su fuente y los dibuja como «♦»: ahí, en ASCII
+if [[ ${TERM:-} == linux || $(locale charmap 2>/dev/null) != UTF-8 ]]; then CK='OK'; CX='X'; else CK='✓'; CX='✗'; fi
+ok()   { echo "${c_ok}${CK}${c_0} $*"; }
 warn() { echo "${c_warn}!${c_0} $*"; }
-die()  { echo "${c_err}✗ $*${c_0}" >&2; exit 1; }
+die()  { echo "${c_err}${CX} $*${c_0}" >&2; exit 1; }
 
 need_root() { [[ $EUID -eq 0 ]] || die "Este comando requiere privilegios: sudo opennccm $*"; }
 load_conf() {
@@ -51,7 +54,8 @@ health() {  # health [versión esperada] -> 0 si responde (y coincide la versió
     systemctl is-active --quiet $SVC && [[ -z $want || $(current_version) == "$want" ]]
     return
   fi
-  for _ in $(seq 1 90); do
+  local t0=$SECONDS
+  while (( SECONDS - t0 < HEALTH_WAIT )); do
     if out=$(curl -fsS --max-time 3 "$HEALTH_URL" 2>/dev/null); then
       [[ -z $want || $out == *"\"version\":\"$want\""* ]] && return 0
     fi
@@ -201,7 +205,7 @@ cmd_update() {
     warn "Falló la configuración de la versión nueva: volviendo a $cur_ver"
     restore_pre "$pre"; return 1
   fi
-  step "Iniciando y verificando"
+  step "Iniciando y verificando (en servidores chicos puede tardar unos minutos)"
   systemctl start $SVC
   if health "$new_ver"; then
     ok "OpenNCCM actualizado: $cur_ver → $new_ver"
@@ -375,11 +379,13 @@ case $cmd in
   backup|system-backup) need_root backup; pycli system-backup "$@" ;;
   restore)
     need_root restore; [[ -n ${1:-} ]] || die "Uso: opennccm restore ARCHIVO"
-    systemctl stop $SVC; rc=0; pycli restore "$(readlink -f "$1")" || rc=$?; systemctl start $SVC
+    systemctl stop $SVC; rc=0; pycli restore "$(readlink -f "$1")" --by-wrapper || rc=$?; systemctl start $SVC
     # 3: base restaurada, pero la clave de este servidor no descifra sus datos (el aviso ya se mostró)
     if [[ $rc -eq 3 ]]; then die "Restaurado, pero las configuraciones y contraseñas no se pueden leer: copie el secret.key original (vea el aviso de arriba)."; fi
     [[ $rc -eq 0 ]] || die "No se pudo restaurar la copia."
-    health && ok "Restaurado." ;;
+    step "Esperando a que OpenNCCM responda (en servidores chicos puede tardar unos minutos)…"
+    health || die "OpenNCCM no respondió en $HEALTH_WAIT s después de restaurar: revise 'opennccm logs'."
+    ok "Restaurado." ;;
   reset-password|create-admin) need_root "$cmd"; pycli create-admin "$@" ;;
   reset-2fa) need_root "$cmd"; pycli reset-2fa "$@" ;;
   set-master) need_root "$cmd"; pycli set-master "$@" ;;

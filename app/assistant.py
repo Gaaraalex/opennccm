@@ -145,7 +145,7 @@ def quick_on(user) -> dict | None:
 
 
 def texts() -> dict:
-    return {"title": _("Asistente de red"), "cloud": _("nube"), "backup": _("respaldo"), "console": _("salida de la consola"),
+    return {"title": _("Asistente de red"), "cloud": _("nube"), "local": _("local"), "backup": _("respaldo"), "console": _("salida de la consola"),
             "secrets": _("secretos ocultos"), "sugg": _("PREGUNTAS SUGERIDAS"), "ph": _("Pregunta al asistente…"),
             "note": _("Sugiere; nunca ejecuta. Antes de enviar se ocultan contraseñas y claves. Cada pregunta queda en Auditoría."),
             "thinking": _("Pensando…"), "copy": _("Copiar"), "insert": _("Insertar"), "cr": _("Enviar como solicitud de cambio"),
@@ -162,12 +162,31 @@ def texts() -> dict:
             "modelset": _("Ahora usa {0}.")}
 
 
+def is_local(c: dict) -> bool:
+    """El modelo corre en la red del usuario (Ollama, LM Studio…): «Compatible con OpenAI» con una dirección local o
+    privada. Entonces no es «nube» ni sale «fuera de tu red»."""
+    if c.get("provider") != "compat":
+        return False
+    import ipaddress
+    from urllib.parse import urlsplit
+    host = (urlsplit(c.get("base") or "").hostname or "").lower()
+    if not host:
+        return False
+    if host == "localhost" or host.endswith((".localhost", ".local", ".lan", ".internal", ".home.arpa")) or "." not in host:
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return ip.is_private or ip.is_loopback or ip.is_link_local
+
+
 def panel_info(user) -> dict:
     """Lo que muestran el botón «Asistente» y los paneles: proveedor activo y modelo (o nada si no está disponible)."""
     if not allowed(user):
         return {"on": False}
     c = cfg(user)
-    return {"on": True, "provider": c["provider"], "who": provider_name(c["provider"]), "model": c["model"],
+    return {"on": True, "provider": c["provider"], "who": provider_name(c["provider"]), "model": c["model"], "local": is_local(c),
             "models": models_for(user), "backup": c["backup"], "console": c["console"]}
 
 
@@ -589,7 +608,7 @@ def settings_values() -> dict:
     c = cfg()
     return {"cfg": c, "keys_set": {p: bool(get_setting(f"ai_key_{p}", "")) for p in PROVIDERS},
             "models": {p: models_for(None) if p == c["provider"] and c["enabled"] else models_cached(p) for p in PROVIDERS},
-            "usage": usage_month(), "preview": preview(), "providers": PROVIDERS}
+            "usage": usage_month(), "preview": preview(), "providers": PROVIDERS, "local": is_local(c)}
 
 
 def save_settings(form) -> None:

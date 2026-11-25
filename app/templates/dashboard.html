@@ -18,7 +18,7 @@
   <svg class="ring" viewBox="0 0 150 150" role="img" aria-label="{{ _f('Salud de la red: {0} de 100', sc) }}"><circle class="tr" cx="75" cy="75" r="62" fill="none" stroke-width="14"/><circle class="vl" id="ringv" cx="75" cy="75" r="62" fill="none" stroke-width="14" stroke-linecap="round" stroke-dasharray="389.6" stroke-dashoffset="{{ '%.1f'|format(389.6 * (1 - sc / 100)) }}" transform="rotate(-90 75 75)"/><text class="big" x="75" y="83" text-anchor="middle" data-count="{{ sc }}">{{ sc }}</text><text class="cap" x="75" y="105" text-anchor="middle">SALUD</text></svg>
   <div><div class="row"><div class="t" id="salud-t">{{ h.phrase }}</div></div>
     <p>{{ _f('{0} de {1} equipos respaldados en las últimas 24 h.', h.backed, h.total) }}
-      {% if h.queue_total %}{% if h.queue_total == 1 %}Hay <b>1 cosa</b> que necesita tu atención antes de que se complique.{% else %}Hay <b>{{ h.queue_total }} cosas</b> que necesitan tu atención antes de que se compliquen.{% endif %}{% else %}Todo respaldado y cumpliendo. Buen trabajo.{% endif %}</p>
+      {% if h.queue_total %}{% if h.queue_total == 1 %}Hay <b>1 cosa</b> que necesita tu atención antes de que se complique.{% else %}Hay <b>{{ h.queue_total }} cosas</b> que necesitan tu atención antes de que se compliquen.{% endif %}{% elif h.backed == h.total %}Todo respaldado y cumpliendo. Buen trabajo.{% endif %}</p>
     {% if h.chips %}<div class="hchips">{% for cls, n, text, href in h.chips %}<a class="hchip {{ cls }}" href="{{ href }}"><b>{{ n }}</b> {{ text }}</a>{% endfor %}</div>{% endif %}
   </div>
 </section>

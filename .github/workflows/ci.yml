@@ -153,6 +153,8 @@ jobs:
           sudo opennccm status
           systemctl is-active opennccm nginx
           sudo ss -lunp | grep -q ':514 '
+          # la contraseña la eligió el usuario (--admin-pass): no se guarda en ningún archivo
+          sudo test ! -e /root/opennccm-credenciales.txt
       - name: Certificado propio, cookie segura y consola SSH por nginx
         run: bash tests/install-checks.sh tls
       - name: Cambiar zona horaria y NTP desde la interfaz (servicio sin root + polkit)

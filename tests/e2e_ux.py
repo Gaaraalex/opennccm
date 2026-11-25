@@ -26,14 +26,16 @@ s.post(B + "/login", data={"username": "admin", "password": "Admin12345"})
 
 # 1. «Nueva tarea»: el nombre propuesto corresponde a la acción y cambia con ella mientras no se haya escrito
 page = s.get(B + "/schedules/new").text
-check("Nueva tarea: respaldo con «Respaldo nocturno»", 'id="t-name" name="name" required value="Respaldo nocturno"' in page)
+check("Nueva tarea: respaldo con «Respaldo de configuración»", 'id="t-name" name="name" required value="Respaldo de configuración"' in page)
 m = re.search(r"const NAMES = (\{.*?\}), name", page)
 names = json.loads(m.group(1)) if m else {}
 check("el formulario conoce un nombre para cada acción",
-      names.get("compliance") == "Auditoría semanal" and names.get("system_backup") == "Copia de recuperación semanal", names)
+      names.get("compliance") == "Auditoría de cumplimiento" and names.get("system_backup") == "Copia de recuperación", names)
+check("ningún nombre propuesto dice la frecuencia (la elige el formulario)",
+      not any(w in v.lower() for v in names.values() for w in ("semanal", "nocturno", "diario", "mensual")), names)
 page = s.get(B + "/schedules/new?action=cve").text
-check("Nueva tarea desde «Buscar CVE»: nombre propio, no «Respaldo nocturno»",
-      'value="Búsqueda semanal de CVE"' in page and 'value="Respaldo nocturno"' not in page)
+check("Nueva tarea desde «Buscar CVE»: nombre propio, no el del respaldo",
+      'value="Búsqueda de CVE"' in page and 'value="Respaldo de configuración"' not in page)
 
 # 2. Cumplimiento: una regla que incumplen varios equipos tiene un solo botón con la lista de equipos
 with SessionLocal() as db:

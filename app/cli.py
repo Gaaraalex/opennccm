@@ -222,7 +222,8 @@ def main():
         except KeyWarning as e:  # la base quedó restaurada, pero sus datos cifrados no se pueden leer
             print(e)
             sys.exit(3)
-        print("Reinicie el servicio: sudo systemctl start opennccm")
+        if "--by-wrapper" not in args:  # «opennccm restore» ya arranca el servicio y espera a que responda
+            print("Reinicie el servicio: sudo systemctl start opennccm")
     elif cmd == "backup-all":
         from . import services
         print(services.backup_many(services.device_ids(), "manual", "cli"))

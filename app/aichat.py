@@ -104,10 +104,14 @@ def f_respaldos_fallidos(user, dias: int = 7) -> dict:
                                          for e in ev if e.device_id in ids][:40]}
 
 
-def f_alarmas(user, limite: int = 20) -> dict:
+def f_alarmas(user, limite: int = 20, severidad: str = "") -> dict:
+    sev = str(severidad or "").strip().lower()
     with SessionLocal() as db:
         ids = {d.id: d.name for d in _devs(db, user)}
-        rows = db.scalars(select(Event).where(Event.acknowledged.is_(False)).order_by(Event.id.desc()).limit(300)).all()
+        q = select(Event).where(Event.acknowledged.is_(False))
+        if sev in ("critical", "major", "minor", "warning", "info"):  # «¿qué alarmas críticas hay?»: en la base, no
+            q = q.where(Event.severity == sev)                         # entre las 300 últimas de todas
+        rows = db.scalars(q.order_by(Event.id.desc()).limit(300)).all()
         out = [{"severidad": e.severity, "tipo": e.category, "equipo": ids.get(e.device_id), "equipo_id": e.device_id,
                 "fecha": _ago(e.created_at), "texto": e.message[:160]}
                for e in rows if e.device_id is None or e.device_id in ids]
@@ -283,7 +287,9 @@ FUNCS = {
                {"nombre": {"type": "string"}}),
     "respaldos_fallidos": (f_respaldos_fallidos, "Equipos con el último respaldo en error y fallos de respaldo de los últimos días.",
                            {"dias": {"type": "integer"}}),
-    "alarmas": (f_alarmas, "Alarmas abiertas (no reconocidas).", {"limite": {"type": "integer"}}),
+    "alarmas": (f_alarmas, "Alarmas abiertas (no reconocidas), de una severidad si se pide.",
+                {"limite": {"type": "integer"},
+                 "severidad": {"type": "string", "enum": ["", "critical", "major", "minor", "warning", "info"]}}),
     "cambios": (f_cambios, "Configuraciones que cambiaron y solicitudes de cambio en las últimas horas.", {"horas": {"type": "integer"}}),
     "diferencias": (f_diferencias, "Diferencias de una versión con la anterior (secretos ocultos).", {"version_id": {"type": "integer"}}),
     "cumplimiento": (f_cumplimiento, "Porcentaje de reglas cumplidas e infracciones de Cumplimiento.", {}),
@@ -313,6 +319,7 @@ ANSWER = {
             "comandos": {"type": "string"},
             "accion_tarea": {"type": "string", "enum": ["backup", "compliance", "cve", "system_backup"]},
             "cron": {"type": "string"}, "nombre_tarea": {"type": "string"},
+            "grupo": {"type": "string", "description": "tarea: nombre del grupo de equipos; vacío = todos los equipos"},
             "nombre": {"type": "string", "description": "configlet: nombre único"},
             "descripcion": {"type": "string"}, "tipo_configlet": {"type": "string", "enum": ["config", "exec"]},
             "tipos_de_equipo": {"type": "string", "description": "configlet: claves device_type separadas por coma"},
@@ -345,7 +352,8 @@ def _system(lang: str, page: dict) -> str:
             "corto; como mucho 4 «acciones», la primera la principal; «fuente» en pocas palabras (por ejemplo «Respaldos "
             "de los últimos 7 días» o «Manual › Tareas programadas»). Acciones: «ir» con una url interna de OpenNCCM "
             "(/devices/ID, /devices/ID/console, /diff?a=ID&b=ID, /changes, /compliance, /events, /schedules, /search?q=…); "
-            "«respaldar» con los equipos; «tarea» (accion_tarea, cron de 5 campos, nombre_tarea); «solicitud_cambio» "
+            "«respaldar» con los equipos; «tarea» (accion_tarea, cron de 5 campos, nombre_tarea y «grupo» si no es para todos "
+            "los equipos); «solicitud_cambio» "
             "(equipos y comandos); «configlet» (nombre, descripcion, tipo_configlet, tipos_de_equipo y en «comandos» la "
             "plantilla Jinja2 con {{ variables }}) para scripts y configuraciones que se repiten; «caso_kb» (caso con "
             "titulo, categoria, sintoma, causa, pasos con su comando, verificar y prevenir) para documentar en la Base de "
@@ -523,14 +531,37 @@ def _resolve(user, raw: list, listed: list[str] | None = None) -> list[dict]:
                     desc = cronutil.describe(cron) if len(cron.split()) == 5 else ""
                 except Exception:  # noqa: BLE001
                     desc = ""
-                if desc:
+                gid, scope_txt = _schedule_scope(db, user, a)
+                if desc and scope_txt:
                     name = str(a.get("nombre_tarea") or label)[:120]
                     out.append({"kind": "schedule", "label": label, "cron": cron, "action": a["accion_tarea"], "name": name,
-                                "title": _("Crear la tarea"), "summary": f"{name} · {desc}"})
+                                "group_id": gid, "title": _("Crear la tarea"), "summary": f"{name} · {desc} · {scope_txt}"})
     for x in out:
         if x["kind"] != "go":
             x["id"] = secrets.token_hex(6)
     return out
+
+
+def _schedule_scope(db, user, a: dict) -> tuple[int | None, str]:
+    """A qué equipos va una tarea que prepara la IA: el grupo que nombró o, sin grupo, todos (dicho en el resumen). Un
+    usuario limitado a sus grupos solo puede crearla sobre uno de ellos. Devuelve (group_id, texto) o (None, "") si no
+    se puede ofrecer."""
+    if a.get("accion_tarea") == "system_backup":
+        return None, _("copia de OpenNCCM")
+    scope = device_scope(user)
+    gname = str(a.get("grupo") or "").strip().lower()
+    if not gname:
+        if scope is not None:
+            return None, ""
+        n = db.scalar(select(func.count()).select_from(Device).where(Device.retired_at.is_(None))) or 0
+        return None, _f("Todos los equipos ({0})", n)
+    g = next((x for x in db.scalars(select(DeviceGroup)) if x.name.lower() == gname), None)
+    if g is None:
+        return None, ""
+    devs = list(db.scalars(select(Device).where(Device.group_id == g.id, Device.retired_at.is_(None))))
+    if scope is not None and any(d.id not in scope for d in devs):
+        return None, ""
+    return g.id, _f("Grupo «{0}» ({1} equipos)", g.name, len(devs))
 
 
 def _chat(username: str, create=False) -> AiChat | None:
@@ -641,7 +672,14 @@ def act(user, action_id: str) -> dict:
             raise Forbidden()
         from . import scheduler
         with SessionLocal() as db:
-            db.add(Schedule(name=a["name"], action=a["action"], cron=a["cron"]))
+            gid = a.get("group_id")
+            if a["action"] != "system_backup":  # con los permisos de hoy: el grupo sigue existiendo y es suyo
+                scope = device_scope(user)
+                g = db.get(DeviceGroup, gid) if gid else None
+                gdevs = db.scalars(select(Device.id).where(Device.group_id == gid)).all() if gid else []
+                if (gid and g is None) or (scope is not None and (g is None or any(i not in scope for i in gdevs))):
+                    raise Forbidden()
+            db.add(Schedule(name=a["name"], action=a["action"], cron=a["cron"], group_id=gid))
             db.commit()
         scheduler.reload_jobs()
         res = {"ok": True, "msg": _f("Tarea «{0}» creada.", a["name"]), "url": "/schedules"}
@@ -700,7 +738,8 @@ def api_chat_get(request: Request, path: str = "/"):
         ngroups = db.scalar(select(func.count()).select_from(DeviceGroup)) or 0
     return JSONResponse({"on": True, "messages": _public(json.loads(ch.messages)) if ch else [], "devices": n, "suggest": suggestions(path),
                          "groups": ngroups, "who": assistant.provider_name(assistant.cfg()["provider"]),
-                         "model": assistant.cfg(user)["model"], "models": assistant.models_for(user)})
+                         "model": assistant.cfg(user)["model"], "models": assistant.models_for(user),
+                         "local": assistant.is_local(assistant.cfg())})
 
 
 @router.post("/api/ai/chat")

@@ -291,9 +291,9 @@ def normalize_key(key: str) -> str:
 
 
 def mask_key(key: str) -> str:
-    """OPNC-7F3K-····-····-Q2LM"""
+    """OPNC-····-····-····-Q2LM (solo los 4 últimos: con 8 de 16 caracteres a la vista la clave quedaba a medias)"""
     p = (key or "").split("-")
-    return f"{p[0]}-{p[1]}-····-····-{p[4]}" if len(p) == 5 else "····"
+    return f"{p[0]}-····-····-····-{p[4]}" if len(p) == 5 else "····"
 
 
 def verify(token: str) -> dict:

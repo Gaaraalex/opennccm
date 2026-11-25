@@ -63,13 +63,22 @@ def run_schedule(schedule_id: int):
             c = db.get(Configlet, configlet_id)
             if c is None:
                 return
+            # una tarea programada no tiene dónde guardar valores: un configlet con variables propias saldría con esos
+            # huecos en blanco («interface » + «shutdown»). No se aplica y queda la alarma.
+            need = services.template_vars(c.body)
+            if need:
+                services.add_event("major", "Tarea programada sin aplicar",
+                                   f"«{name}»: el configlet «{c.name}» necesita valores para {', '.join(need)} y una tarea "
+                                   "programada no los tiene. No se aplicó: use una solicitud de cambio.")
+                return
+            if c.kind == "exec":  # el formulario solo ofrece configlets de configuración; uno de ejecución no se envía a ciegas
+                services.add_event("major", "Tarea programada sin aplicar",
+                                   f"«{name}»: el configlet «{c.name}» es de ejecución y las tareas solo aplican configlets "
+                                   "de configuración. No se aplicó.")
+                return
             cr = ChangeRequest(title=f"[Programada] {name}: {c.name}", body=c.body, variables="{}",
                                device_ids=json.dumps(ids), requested_by="scheduler", reviewed_by="scheduler",
                                status="approved")
-            if c.kind == "exec":
-                for i in ids:
-                    services.pool.submit(services.push_commands, i, c.body.splitlines(), True)
-                return
             db.add(cr)
             db.commit()
             cr_id = cr.id

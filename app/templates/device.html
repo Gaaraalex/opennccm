@@ -238,11 +238,12 @@
   {% elif cve_last and cve_last.ok %}<div class="banner info" role="status">{{ icon('check') }}<span class="grow">{{ _f('{0} CVE encontrados en NVD', cve_last.n) }}</span></div>{% endif %}
   {% if profile.cve_note %}{% set note = {'extreme': _('NVD casi no registra vulnerabilidades de VOSS/Fabric Engine: Extreme las publica en sus propios avisos de seguridad. Revíselos también.'),
                     'ubiquiti': _('NVD no tiene un producto para este firmware: Ubiquiti publica sus avisos de seguridad junto a sus versiones. Revíselos también.'),
+                    'huawei': _('NVD registra los equipos Huawei por modelo y casi no reconoce estas versiones de VRP: un «0» aquí no significa que no tenga vulnerabilidades. Huawei publica sus avisos de seguridad en su web; revíselos también.'),
                     'zte': _('NVD casi no tiene registradas las OLT ZTE (de la C320, ninguna): un «0» aquí no significa que no tenga vulnerabilidades. ZTE publica sus avisos de seguridad en su web; revíselos también.')} %}<div class="banner info">{{ icon('info') }}<span class="grow">{{ note[profile.cve_note[0]] }} <a href="{{ profile.cve_note[1] }}" target="_blank" rel="noopener">{{ _f('Avisos de seguridad de {0}', profile.vendor) }}</a></span></div>{% endif %}
   {% if vulns %}
   <section class="card flush"><div class="tw"><table class="t"><thead><tr><th>CVE</th><th>CVSS</th><th>Severidad</th><th>Afecta a</th><th>Qué permite</th><th>Solución</th></tr></thead><tbody>
   {% for v in vulns %}{% set sc = v.score or 0 %}
-  <tr><td class="mono" style="white-space:nowrap"><a href="{{ v.url }}" target="_blank" rel="noopener" style="color:var(--ink)">{{ v.cve_id }}</a>{% if v.kev %}<div style="margin-top:4px"><span class="tag crit">explotado activamente</span></div>{% endif %}</td>
+  <tr><td class="mono" style="white-space:nowrap"><a href="{{ v.url }}" target="_blank" rel="noopener" style="color:var(--ink)">{{ v.cve_id }}</a>{% if v.cve_id in kev %}<div style="margin-top:4px"><span class="tag crit">explotado activamente</span></div>{% endif %}</td>
     <td><span class="mc num {{ 'crit' if sc >= 9 else 'major' if sc >= 7 else 'warn' }}">{{ '%.1f'|format(sc) if v.score else '—' }}</span></td>
     <td>{{ sevtag(v.severity) }}</td><td style="white-space:nowrap"><a href="/devices/{{ device.id }}">{{ device.name }}</a></td>
     <td style="min-width:260px" class="sm" title="{{ v.description or '' }}">{{ (v.description or '')|truncate(160) }}</td><td class="sm" style="min-width:120px">{% if v.url %}<a href="{{ v.url }}" target="_blank" rel="noopener">Ver en NVD</a>{% else %}—{% endif %}</td></tr>
@@ -303,7 +304,7 @@
   <form method="post" action="/firmware/upgrade"><input type="hidden" name="device_ids" value="{{ device.id }}">
   <div class="bento"><div class="c6 stack">
     <div class="field"><label for="fwimg">Imagen</label><div class="input"><select id="fwimg" name="image_id">{% for i in images %}<option value="{{ i.id }}">{{ i.filename }}{% if i.version %} · {{ i.version }}{% endif %}</option>{% endfor %}</select></div>
-      <span class="help">{{ _f('Se transfiere por SCP a {0}, se verifica el MD5 en el equipo y se configura el arranque. Requiere aprobación.', profile.firmware.fs) }}</span></div>
+      <span class="help">{% set fwm = profile.firmware.method %}{% if fwm == 'routeros' %}{{ _('Se copia por SFTP al equipo comprobando el tamaño y RouterOS la instala al reiniciar. Requiere aprobación.') }}{% elif fwm == 'airos' %}{{ _('Se copia por SCP a /tmp/fwupdate.bin, se verifica la suma en el equipo y se instala con fwupdate. Requiere aprobación.') }}{% elif fwm == 'edgeos' %}{{ _('Se copia por SCP a /tmp, se verifica la suma en el equipo y se agrega como imagen del sistema. Requiere aprobación.') }}{% else %}{{ _f('Se transfiere por SCP a {0}, se verifica el MD5 en el equipo y se configura el arranque. Requiere aprobación.', profile.firmware.fs) }}{% endif %}</span></div>
     <label class="ck"><input type="checkbox" name="reload" id="fw-reload"> Reiniciar al terminar</label>
     <div class="banner sm" id="fw-imp" hidden role="status"></div>
     <script>
@@ -319,7 +320,7 @@
     })();
     </script>
     <div><button class="btn pri">Solicitar actualización…</button></div></div>
-  <div class="c6"><div class="summ">{{ icon('shield') }}<div><b>Antes de actualizar</b><div class="muted sm">Se hace un respaldo automático. Si el equipo no vuelve en 10 minutos, aparece en Alarmas.{% if crit_cves %} {{ _f('Hay {0} CVE críticos en la versión instalada.', crit_cves) }}{% endif %}</div></div></div></div></div>
+  <div class="c6"><div class="summ">{{ icon('shield') }}<div><b>Antes de actualizar</b><div class="muted sm">{{ _f('Se hace un respaldo automático. Si el equipo no vuelve en unos {0} minutos, aparece en Alarmas.', fw_wait_min) }}{% if crit_cves %} {{ _f('Hay {0} CVE críticos en la versión instalada.', crit_cves) }}{% endif %}</div></div></div></div></div>
   </form>
   {% elif not profile.firmware %}{% if fwu and fwu.status == 'update' %}<div class="row" style="gap:10px;align-items:baseline;margin-bottom:8px"><span class="muted sm">{{ _('Versión disponible') }}</span><b class="mono">{{ fwu.target }}</b><span class="pill info">{{ _('Disponible') }}</span></div>
     <p class="muted">{{ _f('OpenNCCM no puede instalarla en {0}: instálela desde la interfaz web del equipo o la herramienta del fabricante, después de un respaldo.', profile.label) }}</p>

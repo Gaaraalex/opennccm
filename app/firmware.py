@@ -415,7 +415,7 @@ def upgrade_device(device_id: int, image_id: int, reload: bool, channel: str = "
         db.expunge(img) if img else None
     log = [f"Imagen {img.filename} ({img.size} bytes, MD5 {img.md5})" + (f" -> {fw['fs']}" if fw.get("fs") else "")
            if img else f"Actualización en línea desde MikroTik (canal {channel or 'stable'})"]
-    if method:
+    if True:  # todas las plataformas (también Cisco, Arista y Junos por SCP), como dicen las pantallas
         # respaldo antes de tocar el firmware: si algo sale mal, la configuración está guardada
         progress("backup")
         pre = services.backup_device(device_id, "push", "firmware")

@@ -99,8 +99,23 @@ def mask(text: str) -> tuple[str, int]:
     # comandos sueltos que las reglas por línea no ven: «password=…», «-p clave», «secret clave» en medio de la línea
     out = re.sub(r"(?i)\b((?:[\w-]*password|passwd|secret|community|psk|passphrase|api[-_]?key|token)\s*[=:]\s*)"
                  r"(?!\*{6}|•{6})(\"[^\"]*\"|\S+)", r"\1******", out)
+    # «secret X», «password 7 X», «username a privilege 15 secret X» en medio de la línea (eco del prompt, «no username…»,
+    # mensajes de alarma): las reglas de Git solo ven estas palabras al principio de la línea
+    out = _MID_SECRET.sub(_mid_secret, out)
     n = max(0, out.count("******") - before)
     return out.replace("******", HIDDEN), n
+
+
+_MID_SECRET = re.compile(r"(?i)(?<![\w-])((?:enable\s+)?(?:secret|password)\s+)(\d{1,2}\s+)?(\S+)")
+_NOT_A_SECRET = {"cipher", "irreversible-cipher", "simple", "encryption", "encrypted", "hash", "is", "es", "de", "del",
+                 "para", "the", "for", "of", "to", "y", "o", "and", "or"}
+
+
+def _mid_secret(m):
+    val = m.group(3)
+    if val.startswith(("*", "•", "<oculto>", '"')) or val.lower().strip(".,;:") in _NOT_A_SECRET:
+        return m.group(0)
+    return f"{m.group(1)}{m.group(2) or ''}******"
 
 
 def _clean_steps(raw) -> tuple[list[dict], int]:

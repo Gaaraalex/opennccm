@@ -299,6 +299,7 @@ def varmark(text: str):
 
 
 templates.env.filters["varmark"] = varmark
+templates.env.filters["template_vars"] = lambda body: __import__("app.services", fromlist=["x"]).template_vars(body)
 
 
 def unified_rows(rows):

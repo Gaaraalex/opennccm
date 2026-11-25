@@ -44,6 +44,7 @@
       sel.hidden = list.length < 2;  // con varios modelos en la cuenta se elige aquí; si no, solo se muestra
       sel.innerHTML = list.map(function (m) { return '<option' + (m === j.model ? ' selected' : '') + '>' + esc(m) + '</option>'; }).join('');
       panel.querySelector('.ai-who').textContent = sel.hidden ? j.model + ' · ' + j.who : j.who;
+      var ck = panel.querySelector('.ai-cloud'); if (ck) ck.textContent = j.local ? (T.local || 'local') : T.cloud;  // modelo en su red
       panel.querySelector('.ai-view').innerHTML = esc(T.viewing.replace('{0}', title()).replace('{1}', j.devices)) + ' · <span class="ok">' + esc(T.secrets) + '</span>';
       panel.querySelector('.ai-chips').innerHTML = (j.suggest || []).map(function (q) { return '<button type="button" data-q="' + esc(q) + '">' + esc(q) + '</button>'; }).join('');
       var box = panel.querySelector('.ai-msgs'); box.innerHTML = '';

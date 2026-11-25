@@ -131,7 +131,7 @@ def ca_certificate():
 @router.get("/certificado")
 def certificate_help(request: Request):
     from .auth import current_user
-    return render(request, "certificado.html", current_user(request), ca_available=TLS_CA.is_file())
+    return render(request, "certificado.html", current_user(request), ca_available=TLS_CA.is_file(), pub=True)
 
 
 @router.get("/acerca")
@@ -140,4 +140,4 @@ def about(request: Request):
     from .db import get_setting
     org = {"name": get_setting("org_name"), "contact": get_setting("org_contact"), "address": get_setting("org_address")}
     from .licencia import TERMS_URL
-    return render(request, "acerca.html", current_user(request), org=org, terms_url=TERMS_URL)
+    return render(request, "acerca.html", current_user(request), org=org, terms_url=TERMS_URL, pub=True)

@@ -24,7 +24,8 @@ _lock = threading.Lock()
 
 # contraseñas, claves y comunidades (lo que va detrás de la palabra clave se sustituye por «<oculto>»)
 MASKS = [
-    (re.compile(r"(?im)^(\s*(?:enable\s+)?(?:secret|password)\s+(?:\d+\s+)?)\S+"), r"\1<oculto>"),
+    (re.compile(r"(?im)^(\s*(?:enable\s+)?(?:secret|password)\s+(?:\d+\s+)?)(?!(?:cipher|irreversible-cipher|simple)\s)\S+"),
+     r"\1<oculto>"),
     (re.compile(r"(?im)^(\s*username\s+\S+.*?\b(?:secret|password)\s+(?:\d+\s+)?)\S+"), r"\1<oculto>"),
     (re.compile(r"(?im)^(\s*snmp-server\s+community\s+)\S+"), r"\1<oculto>"),
     (re.compile(r"(?im)\b((?:key|server-key|pre-shared-key|authentication-key)\s+(?:\d+\s+)?)(?!<)\S+"), r"\1<oculto>"),

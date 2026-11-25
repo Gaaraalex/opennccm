@@ -116,12 +116,19 @@ def import_csv(text: str) -> tuple[int, list[str]]:
                 if not pattern:
                     raise ValueError("model_pattern vacío")
                 re.compile(pattern)
-                db.add(EolEntry(vendor=(row.get("vendor") or "").strip() or None, model_pattern=pattern,
-                                end_of_sale=_date(row.get("end_of_sale")),
-                                end_of_sw_maintenance=_date(row.get("end_of_sw_maintenance")),
-                                end_of_support=_date(row.get("end_of_support")),
-                                replacement=(row.get("replacement") or "").strip() or None,
-                                url=(row.get("url") or "").strip() or None, source="csv"))
+                vendor = (row.get("vendor") or "").strip() or None
+                # volver a importar la misma planilla actualiza la fila (mismo fabricante y patrón), no la duplica
+                e = db.scalars(select(EolEntry).where(EolEntry.model_pattern == pattern,
+                                                      EolEntry.vendor.is_(None) if vendor is None else EolEntry.vendor == vendor)).first()
+                if e is None:
+                    e = EolEntry(vendor=vendor, model_pattern=pattern)
+                    db.add(e)
+                e.end_of_sale = _date(row.get("end_of_sale"))
+                e.end_of_sw_maintenance = _date(row.get("end_of_sw_maintenance"))
+                e.end_of_support = _date(row.get("end_of_support"))
+                e.replacement = (row.get("replacement") or "").strip() or None
+                e.url = (row.get("url") or "").strip() or None
+                e.source = "csv"
                 db.commit()
                 created += 1
             except Exception as e:  # noqa: BLE001
