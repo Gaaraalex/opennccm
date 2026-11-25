@@ -3,7 +3,6 @@ Seguridad (contraseñas en la base de conocimiento, máscara de la licencia, tar
 firmware (respaldo previo en todas las marcas, espera real), impacto con variables, tareas con configlets, CVE (KEV,
 alarmas repetidas, Aruba CX, Huawei, imagen más nueva), ciclo de vida, asistente (modelo local, severidad), panel,
 análisis, nombres de tareas e instalador."""
-import io
 import json
 import os
 import re
@@ -21,7 +20,7 @@ sys.path.insert(0, str(ROOT))
 
 from app import aichat, assistant, eol, firmware, fwverify, health, impact, licencia, reports, scheduler, services  # noqa: E402
 from app.db import (ChangeRequest, ConfigVersion, Configlet, Device, DeviceGroup, EolEntry, Event, Schedule,  # noqa: E402
-                    SessionLocal, User, UserGroup, Vulnerability, init_db, now, select, set_setting)
+                    SessionLocal, User, UserGroup, init_db, now, select)
 from app.drivers import get_profile  # noqa: E402
 from app.fwupdates import device_cpe_version  # noqa: E402
 from app.kb import mask  # noqa: E402
