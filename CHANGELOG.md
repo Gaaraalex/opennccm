@@ -1,7 +1,7 @@
 # Historial de versiones
 
 ## 2.45.6
-Arreglos de lo visto al grabar el curso «OpenNCCM desde cero» (33 de los 35 que se revisaron; los otros 2 no eran fallos).
+Versión de correcciones: seguridad, firmware, tareas programadas, vulnerabilidades, asistente IA, pantallas y el comando `opennccm`.
 - [seguridad] **Base de conocimiento:** ya no muestra en claro «secret …» ni «password …» en medio de una línea (el eco del
   equipo en una reversión, «no username … secret …», el texto de una alarma). Los «password cipher …» de Huawei ocultan la
   clave y no la palabra «cipher» (también en la copia en Git).
