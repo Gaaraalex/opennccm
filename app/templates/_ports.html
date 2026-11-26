@@ -112,6 +112,10 @@
   .zsl[aria-pressed="true"],.zsh[aria-pressed="true"]{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
   .zsl:focus-visible,.zsh:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
   .zsl.empty,.zsh.empty{background:transparent;border-style:dashed;opacity:.6}
+  /* .empty también es el «estado vacío» general (style.css y senal.css: columna centrada con mucho relleno): en una ranura
+     vacía no debe aplicarse, o el «vacía» se sale de la fila y se monta sobre la ranura siguiente */
+  .zch .zsl.empty{padding:6px 0;text-align:inherit;flex-direction:column;align-items:center;gap:6px}
+  .zch .zsh.empty{padding:0 10px;text-align:left;flex-direction:row;align-items:center;gap:12px}
   .zc .sn{font:700 10px var(--f-sans);color:var(--ink-2)}.zc .warn .sn{color:var(--crit)}
   .zpc{display:grid;grid-template-columns:10px;grid-auto-rows:10px;gap:3px}.zpr{display:flex;gap:4px}
   .zp{display:block;width:10px;height:10px;border-radius:2.5px;box-sizing:border-box;flex:none;border:1.5px solid var(--p-down-e)}
