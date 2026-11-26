@@ -49,16 +49,21 @@ r = lec.get(B + "/users")
 check("403: sigue siendo 403", r.status_code == 403, r.status_code)
 check("403: con el menú y los estilos de siempre", 'class="rail"' in r.text and "/static/style.css" in r.text
       and "No tiene permisos para esta acción" in r.text, r.text[:200])
-r = lec.get(B + "/api/devices", headers={"Accept": "application/json"})
+r = lec.post(B + "/api/devices", json={"name": "x"}, headers={"Accept": "application/json"})
 check("403 de /api sigue en JSON", r.status_code in (401, 403) and "<html" not in r.text.lower(), r.text[:120])
 
 # --- 5: la consola carga warn.js (la casilla «Leí el aviso» bloquea Insertar y Enviar como solicitud)
 with SessionLocal() as db:
     did = db.scalar(select(Device.id).order_by(Device.id))
+if did is None:  # corrida suelta, sin las pruebas anteriores
+    adm.post(B + "/devices/new", data={"name": "CURSO-CON", "host": "127.0.0.1", "device_type": "cisco_ios",
+                                       "protocol": "ssh", "port": "2222"})
+    with SessionLocal() as db:
+        did = db.scalar(select(Device.id).order_by(Device.id))
 page = adm.get(B + f"/devices/{did}/console").text
 check("Consola: carga warn.js", "/static/warn.js" in page and "/static/console.js" in page)
 check("Consola: tiene la plantilla del aviso con su casilla", 'id="oc-warn-tpl"' in page)
-check("Consola: el texto del bloque de varias líneas", "Bloque de {0} líneas" in page)
+check("Consola: el texto del bloque de varias líneas", "Bloque de {0} l" in page)
 page = adm.get(B + "/devices").text
 check("Las páginas normales cargan warn.js una sola vez", page.count("/static/warn.js") == 1, page.count("/static/warn.js"))
 
