@@ -81,6 +81,7 @@ FASTPATH_SERIAL = [r"Serial Number\s*:\s*(\S+)"]
 SEMVER3 = r"^v?(\d+\.\d+\.\d+)"  # «1.9.3.5263085» o «v2.0.9-hotfix.7» → «1.9.3», «2.0.9», como las publica NVD
 VOSS_CVE_NOTE = ("extreme", "https://www.extremenetworks.com/support/security-advisories")  # (aviso, enlace)
 ZTE_OLT_CVE_NOTE = ("zte", "https://www.zte.com.cn/global/cybersecurity/ztepsirt/security-bulletins")
+HUAWEI_CVE_NOTE = ("huawei", "https://www.huawei.com/en/psirt/all-bulletins")
 
 PROFILES: list[Profile] = [
     # ---------------- Cisco ----------------
@@ -140,7 +141,7 @@ PROFILES: list[Profile] = [
             version_re=[r"Version (\S+),"], model_re=[r"(?:HPE|H3C) (\S+) uptime"]),
     Profile("aruba_aoscx", "Aruba AOS-CX", "HPE Aruba", "show running-config", "show startup-config",
             ignore=[r"^Current configuration:", r"^!Version ArubaOS-CX", r"^!export-password"],
-            cpe="cpe:2.3:o:arubanetworks:arubaos-cx",
+            cpe="cpe:2.3:o:arubanetworks:arubaos-cx", cpe_version=r"(\d+\.\d+\.\d+)",  # «FL.10.10.1000» → NVD «10.10.1000»
             version_re=[r"Version\s*:\s*(\S+)"], serial_re=[r"Serial Number\s*:\s*(\S+)"]),
     # ArubaOS: controladoras y Mobility Access Switch (S2500, S3500…). «show version» trae «ArubaOS (MODEL: ArubaS2500-48P),
     # Version 7.4.0.7»; la serie sale de «show inventory» («System Serial#» o, en controladoras, «SC Serial#»)
@@ -154,10 +155,11 @@ PROFILES: list[Profile] = [
             inventory="display version", family=HUAWEI, telnet=True,
             ignore=[r"^!Software Version", r"^!Last configuration was", r"^!Last configuration was saved"],
             version_re=[r"VRP \(R\) software, Version (\S+ \([^)]+\))", r"Version (\S+)"],
-            model_re=[r"HUAWEI (\S+) (?:uptime|Routing Switch)"]),
+            model_re=[r"HUAWEI (\S+) (?:uptime|Routing Switch)"], cve_note=HUAWEI_CVE_NOTE),
     Profile("huawei_vrpv8", "Huawei VRP v8 (CE/NE)", "Huawei", "display current-configuration", None,
             inventory="display version", family=HUAWEI, commit=True,
-            ignore=[r"^!Software Version", r"^!Last configuration was"], version_re=[r"Version (\S+)"]),
+            ignore=[r"^!Software Version", r"^!Last configuration was"], version_re=[r"Version (\S+)"],
+            cve_note=HUAWEI_CVE_NOTE),
     # ---------------- Firewalls ----------------
     Profile("fortinet", "Fortinet FortiGate (FortiOS)", "Fortinet", "show", None,
             inventory="get system status", family=MERGE, save=False,

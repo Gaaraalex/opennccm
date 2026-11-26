@@ -130,7 +130,8 @@ def analytics(scope: set[int] | None, days: int = 30, eol_rows=None) -> dict:
 
     def scoped(stmt, col):
         return stmt if in_scope is None else stmt.where(in_scope(col))
-    run = (ConfigVersion.kind == "running",)
+    # solo equipos en servicio, como el total («16 equipos con cambios de 15» sumaba uno retirado)
+    run = (ConfigVersion.kind == "running", ConfigVersion.device_id.in_(select(Device.id).where(Device.retired_at.is_(None))))
     with SessionLocal() as db:
         dev_rows = db.execute(scoped(select(Device.device_type, Device.os_version, func.count(Device.id),
                                             func.sum(case((Device.startup_conflict.is_(True), 1), else_=0)),

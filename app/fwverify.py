@@ -117,8 +117,17 @@ def _note(cr_id: int | None, text: str):
             db.commit()
 
 
+FIRST_WAIT_REBOOT = 90  # segundos antes del primer intento, si reinicia
+GIVE_UP = 1200          # segundos de reintentos hasta dar por perdido el equipo
+
+
+def wait_minutes() -> int:
+    """Lo que de verdad se espera a que vuelva un equipo que reinicia (para las pantallas)."""
+    return round((FIRST_WAIT_REBOOT + GIVE_UP) / 60)
+
+
 def verify_after_upgrade(device_id: int, before: str | None, target: str | None, reload: bool, cr_id: int | None = None,
-                         wait_first: int | None = None, every: int = 60, give_up: int = 1200, progress=None):
+                         wait_first: int | None = None, every: int = 60, give_up: int = GIVE_UP, progress=None):
     """Espera a que el equipo responda, lee la versión y avisa si quedó en la nueva o no (con su registro). «progress»
     (app.firmware.Progress) deja el paso en el avance de la solicitud."""
     from . import fwupdates, services
@@ -127,7 +136,7 @@ def verify_after_upgrade(device_id: int, before: str | None, target: str | None,
     with SessionLocal() as db:
         dev = db.get(Device, device_id)
         name = dev.name if dev else str(device_id)
-    time.sleep(wait_first if wait_first is not None else (90 if reload else 5))
+    time.sleep(wait_first if wait_first is not None else (FIRST_WAIT_REBOOT if reload else 5))
     start, res = time.monotonic(), None
     while True:
         res = read_inventory(device_id)

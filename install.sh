@@ -203,6 +203,8 @@ if [[ $UNATTENDED -eq 0 ]] && { : </dev/tty; } 2>/dev/null && [[ -t 1 || -w /dev
 fi
 
 c_ok=$'\e[32m'; c_warn=$'\e[33m'; c_err=$'\e[31m'; c_b=$'\e[1m'; c_0=$'\e[0m'
+# la consola de texto de Linux (TERM=linux) no tiene «✓»/«✗» en su fuente y los dibuja como «♦»: ahí, en ASCII
+if [[ ${TERM:-} == linux || $(locale charmap 2>/dev/null) != UTF-8 ]]; then CK='OK'; CX='X'; else CK='✓'; CX='✗'; fi
 say()  { echo -e "${c_b}==>${c_0} $*"; }
 warn() { echo -e "${c_warn}AVISO:${c_0} $*"; }
 
@@ -430,13 +432,13 @@ ask_smtp() {
 wizard() {
   msg "\nBienvenido al instalador de OpenNCCM.\n\nEste asistente:\n  •  comprobará que el servidor cumpla los requisitos,\n  •  actualizará Ubuntu e instalará lo necesario,\n  •  le hará unas pocas preguntas,\n  •  y dejará OpenNCCM funcionando con HTTPS.\n\nUse las flechas y TAB para moverse, ESPACIO para marcar y ENTER para aceptar." "Bienvenido" 19
   local report="" p
-  for p in "${PRE_PROBLEMS[@]+"${PRE_PROBLEMS[@]}"}"; do report+="  ✗  $p\n"; done
+  for p in "${PRE_PROBLEMS[@]+"${PRE_PROBLEMS[@]}"}"; do report+="  $CX  $p\n"; done
   for p in "${PRE_NOTES[@]+"${PRE_NOTES[@]}"}"; do report+="  !  $p\n"; done
   if [[ ${#PRE_PROBLEMS[@]} -gt 0 ]]; then
     msg "Se encontraron problemas que impiden instalar:\n\n$report\nCorríjalos y vuelva a ejecutar el instalador." "Comprobación del servidor" 18
     exit 1
   fi
-  msg "Comprobación del servidor: correcta.\n\n  ✓  ${PRETTY_NAME}\n  ✓  Arquitectura $ARCH\n  ✓  Conexión a internet\n  ✓  Espacio en disco y memoria\n${report:+\n$report}" "Comprobación del servidor" 16
+  msg "Comprobación del servidor: correcta.\n\n  $CK  ${PRETTY_NAME}\n  $CK  Arquitectura $ARCH\n  $CK  Conexión a internet\n  $CK  Espacio en disco y memoria\n${report:+\n$report}" "Comprobación del servidor" 16
   if yesno "\n¿Actualizar Ubuntu ahora (apt upgrade)?\n\nRecomendado en servidores nuevos. Puede tardar varios minutos." "Actualizaciones del sistema" 12; then
     UPGRADE_OS=1; else UPGRADE_OS=0; fi
   ask_host && ask_timezone && ask_tls && ask_db && ask_firewall && ask_admin && ask_smtp || { msg "Instalación cancelada." "Cancelado" 8; exit 1; }
@@ -546,9 +548,19 @@ fetch_code() {
 setup_python() {
   progress 40 "Preparando el entorno de Python (dependencias de OpenNCCM)…"
   [[ -x $APP_DIR/.venv/bin/python ]] || run python3 -m venv "$APP_DIR/.venv"
+  # en cada actualización: si requirements.txt no cambió y el entorno ya tiene todo, no se vuelve a pasar por pip
+  # (en una VM chica eran casi 4 minutos de «Preparando el entorno de Python» sin instalar nada nuevo)
+  local want have=""
+  want=$(sha256sum "$APP_DIR/requirements.txt" | cut -d' ' -f1)-$DB_MODE
+  [[ -r $APP_DIR/.venv/.opennccm-req ]] && have=$(cat "$APP_DIR/.venv/.opennccm-req")
+  if [[ $want == "$have" ]] && "$APP_DIR/.venv/bin/python" -c "import fastapi, netmiko, sqlalchemy" >>"$LOG" 2>&1; then
+    echo "Dependencias de Python sin cambios: no se reinstalan" >>"$LOG"
+    return 0
+  fi
   run "$APP_DIR/.venv/bin/pip" install --quiet --upgrade pip
   run "$APP_DIR/.venv/bin/pip" install --quiet -r "$APP_DIR/requirements.txt"
   [[ $DB_MODE == postgresql ]] && run "$APP_DIR/.venv/bin/pip" install --quiet psycopg2-binary
+  echo "$want" > "$APP_DIR/.venv/.opennccm-req"
   return 0
 }
 
@@ -919,7 +931,8 @@ cli() { as_app "$APP_DIR/.venv/bin/python" -m app.cli "$@"; }
 initial_data() {
   [[ -f $DATA_DIR/.admin_created || $MODO == recolector || $MODO == espera ]] && return 0  # en espera: llegan del activo
   progress 92 "Creando el administrador y los datos de ejemplo…"
-  [[ -n $ADMIN_PASS ]] || ADMIN_PASS=$(openssl rand -base64 18 | tr -d '/+=' | cut -c1-14)
+  GEN_PASS=0  # solo se muestra y se guarda la contraseña que generó el instalador, nunca la que escribió el usuario
+  [[ -n $ADMIN_PASS ]] || { ADMIN_PASS=$(openssl rand -base64 18 | tr -d '/+=' | cut -c1-14); GEN_PASS=1; }
   run cli create-admin "$ADMIN_USER" "$ADMIN_PASS"
   run cli seed
   if [[ -n $SMTP_HOST ]]; then
@@ -938,6 +951,7 @@ PY
   fi
   touch $DATA_DIR/.admin_created; chown $SVC_USER:$SVC_USER $DATA_DIR/.admin_created
   umask 077
+  if [[ $GEN_PASS -eq 1 ]]; then
   cat > /root/opennccm-credenciales.txt <<EOF
 OpenNCCM - acceso inicial ($(date '+%F %T'))
 URL:        $URL
@@ -945,6 +959,7 @@ Usuario:    $ADMIN_USER
 Contraseña: $ADMIN_PASS
 Cambie la contraseña en «Mi cuenta» y luego borre este archivo:  sudo rm /root/opennccm-credenciales.txt
 EOF
+  fi
   NEW_ADMIN=1
 }
 
@@ -974,13 +989,18 @@ finish() {
   progress 100 "¡Listo! OpenNCCM $ver instalado."
   sleep 0.6; gauge_stop
   local creds=""
-  if [[ ${NEW_ADMIN:-0} -eq 1 ]]; then
+  if [[ ${NEW_ADMIN:-0} -eq 1 && ${GEN_PASS:-0} -eq 1 ]]; then
     creds="\n  Usuario:     $ADMIN_USER\n  Contraseña:  $ADMIN_PASS\n\n(guardados también en /root/opennccm-credenciales.txt)\n"
+  elif [[ ${NEW_ADMIN:-0} -eq 1 ]]; then
+    creds="\n  Usuario:     $ADMIN_USER\n  Contraseña:  la que usted eligió\n"
   fi
   echo
   echo "${c_ok}${c_b}  OpenNCCM $ver está funcionando${c_0}"
   echo "  Acceso:      $URL"
-  [[ ${NEW_ADMIN:-0} -eq 1 ]] && { echo "  Usuario:     $ADMIN_USER"; echo "  Contraseña:  $ADMIN_PASS"; }
+  if [[ ${NEW_ADMIN:-0} -eq 1 ]]; then
+    echo "  Usuario:     $ADMIN_USER"
+    if [[ ${GEN_PASS:-0} -eq 1 ]]; then echo "  Contraseña:  $ADMIN_PASS"; else echo "  Contraseña:  la que usted eligió"; fi
+  fi
   echo "  Comandos:    opennccm status | opennccm update | opennccm help"
   echo "  Registro:    $LOG"
   echo "  Respalde SIEMPRE $ETC_DIR/secret.key junto con $DATA_DIR"
@@ -1006,7 +1026,7 @@ if [[ $APPLY_ONLY -eq 0 ]]; then
     wizard
   else
     if [[ ${#PRE_PROBLEMS[@]} -gt 0 ]]; then
-      for p in "${PRE_PROBLEMS[@]}"; do echo "${c_err}✗${c_0} $p"; done; exit 1
+      for p in "${PRE_PROBLEMS[@]}"; do echo "${c_err}${CX}${c_0} $p"; done; exit 1
     fi
     for p in "${PRE_NOTES[@]+"${PRE_NOTES[@]}"}"; do warn "$p"; done
     [[ $UNATTENDED -eq 0 ]] && warn "Sin terminal interactiva: instalación desatendida con valores por defecto."

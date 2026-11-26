@@ -111,7 +111,8 @@
   function setTheme(t) {
     document.documentElement.dataset.theme = t;
     savePref({theme: t});
-    $$('[data-set-theme]').forEach(function (b) {
+    // solo el menú de la barra (botones): las tarjetas de Mi cuenta (.tcard) tienen su miniatura con <span style>
+    $$('button[data-set-theme]').forEach(function (b) {
       var chk = $('.chk-on', b); if (chk) chk.remove();
       if (b.dataset.setTheme === t) b.insertAdjacentHTML('beforeend', '<span class="chk-on" style="margin-left:auto;color:var(--brand)">' + icon('check', 's') + '</span>');
     });
@@ -121,7 +122,7 @@
     document.dispatchEvent(new CustomEvent('oc-theme'));
   }
   window.ocSetTheme = setTheme;
-  $$('[data-set-theme] span[style]').forEach(function (s) { s.classList.add('chk-on'); });
+  $$('button[data-set-theme] > span[style]').forEach(function (s) { s.classList.add('chk-on'); });
   document.addEventListener('click', function (e) {
     var t = e.target.closest('[data-set-theme]');
     if (t) { setTheme(t.dataset.setTheme); return; }

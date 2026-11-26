@@ -177,8 +177,11 @@
     if (cmd.trim() && hist[hist.length - 1] !== cmd) { hist.push(cmd); hist = hist.slice(-200); store(HK, JSON.stringify(hist)); }
     hpos = -1;
     send({t: 'c', d: cmd, force: !!force, ro: $('cx-ro').checked});
-    inp.value = ''; hideSug(); showGhost();
+    inp.value = ''; hideSug();
+    if (insQ.length) inp.value = insQ.shift();  // bloque insertado: la línea siguiente, para revisarla antes de Enter
+    showGhost();
   }
+  var insQ = [];
   function matches(v) {
     if (!v || waitingSecret) return [];
     var low = v.toLowerCase(), seen = {}, res = [];
@@ -220,7 +223,7 @@
       if (hpos >= hist.length) hpos = -1;
       inp.value = hpos < 0 ? '' : hist[hpos]; showGhost();
     }
-    else if (e.key === 'Escape') hideSug();
+    else if (e.key === 'Escape') { if (sug.hidden && insQ.length) { insQ = []; inp.value = ''; showGhost(); } hideSug(); }
     else if (e.key === 'c' && e.ctrlKey && !inp.value) { e.preventDefault(); send({t: 'd', d: '\x03'}); }
   });
   inp.addEventListener('blur', function () { setTimeout(hideSug, 120); });
@@ -328,7 +331,14 @@
     store('ai', on ? '1' : '0'); if (on && window.ocAi) window.ocAi.focus();
   });
   if (aiBtn && store('ai') === '1' && !C.embed) aiBtn.click();
-  window.CXinsert = function (text) { inp.value = text; showGhost(); inp.focus(); };
+  // un bloque de varias líneas (asistente, recetas): va entero, una línea por vez; Enter envía cada una y trae la
+  // siguiente, Esc descarta las que faltan
+  window.CXinsert = function (text) {
+    var ls = String(text || '').split('\n').filter(function (l) { return l.trim(); });
+    inp.value = ls.shift() || ''; insQ = ls;
+    if (ls.length && T.insq) noteLine(T.insq.replace('{0}', ls.length + 1), 'info');
+    showGhost(); inp.focus();
+  };
   try { var pre = new URLSearchParams(location.search).get('cmd'); if (pre) window.CXinsert(pre.split('\n')[0]); } catch (e) { /* sin parámetro */ }
   window.CXcolor = colorCmd;
   window.addEventListener('message', function (e) {  // diálogo de la página o centro de consola

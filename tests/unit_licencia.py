@@ -52,7 +52,7 @@ now = datetime.now(timezone.utc)
 iid = licencia.install_id()
 check("id de instalación inst_ + UUID, siempre el mismo", iid.startswith("inst_") and len(iid) == 37 and licencia.install_id() == iid)
 check("clave: normaliza y enmascara", licencia.normalize_key("opnc 7f3k-abcd efgh q2km") == "OPNC-7F3K-ABCD-EFGH-Q2KM"
-      and licencia.mask_key("OPNC-7F3K-ABCD-EFGH-Q2LM") == "OPNC-7F3K-····-····-Q2LM")
+      and licencia.mask_key("OPNC-7F3K-ABCD-EFGH-Q2LM") == "OPNC-····-····-····-Q2LM")
 check("clave: base32 Crockford (O→0, I y L→1)", licencia.normalize_key("OPNC-OOOO-IIII-LLLL-AAAA") == "OPNC-0000-1111-1111-AAAA")
 
 st = licencia.state()

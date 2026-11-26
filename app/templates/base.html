@@ -109,7 +109,11 @@ window.ocWarn = function (o) {
   <button type="button" class="tbtn kb" data-help aria-label="Atajos de teclado" title="Atajos de teclado (?)">{{ icon('kbd') }}</button>
 </header>
 {% endif %}
-<main id="contenido" tabindex="-1" class="{{ 'view' if user and not compact }}">
+{% if pub and not user %}{# páginas públicas (Certificado, Acerca de) sin sesión: cabecera con la marca, en vez del menú #}
+<header class="pubh" style="display:flex;align-items:center;gap:12px;padding:14px max(16px,calc((100% - 1440px)/2 + 24px));border-bottom:1px solid var(--line);background:var(--surface)">
+  <a class="brand dark" href="/login" style="color:var(--ink)">{{ logo() }}<span>Open<em>NCCM</em></span></a><span style="flex:1"></span>
+  <a class="btn s" href="/login">{{ _('Iniciar sesión') }}</a></header>{% endif %}
+<main id="contenido" tabindex="-1" class="{{ 'view' if (user and not compact) or (pub and not user) }}">
 {% block flashes %}<div class="toasts" role="status" aria-live="polite">{% for kind, msg in flashes %}<div class="flash {{ kind }}">{{ msg }}</div>{% endfor %}
 {% if undo %}<form class="undo-form" method="post" action="{{ undo.url }}" hidden><input type="hidden" name="ids" value="{{ undo.ids }}"><button class="lnk">Deshacer</button></form>{% endif %}
 {% if donate_toast %}<div class="toast" role="status" id="don-toast"><span class="bd">{{ icon('heart', 's') }}</span><div><b>{{ _f('OpenNCCM {0} instalado', donate_toast) }}</b>
@@ -191,6 +195,8 @@ window.ocWarn = function (o) {
   'open': _('Ver el progreso')}|tojson }}</script>
 <script src="/static/bulkbk.js?v={{ VERSION }}-{{ WARN_HASH }}" defer></script>{% endif %}
 {% if ai_top %}<link rel="stylesheet" href="/static/console.css?v={{ VERSION }}-{{ CX_HASH }}"><script type="application/json" id="ai-t">{{ ai_top.t|tojson }}</script><template id="ai-logo">{{ ai_logo(ai_top.p, 36) }}</template><script src="/static/chat.js?v={{ VERSION }}-{{ CX_HASH }}" defer></script>{% endif %}
+{% elif user %}{# consola y su ventana (compact): el aviso «Leí el aviso» también bloquea Insertar y Enviar como solicitud #}
+<script src="/static/warn.js?v={{ VERSION }}-{{ WARN_HASH }}" defer></script>
 {% endif %}
 {% if update_popup %}
 <dialog class="dlg" id="upd-popup" aria-labelledby="upd-title">
@@ -264,5 +270,21 @@ window.ocLabels = function (root) {
 window.ocLabels(document);
 </script>
 <script src="/static/viz.js?v={{ VERSION }}" defer></script>
+{% if pub and not user %}<script>/* sin sesión no se carga shell.js: las pestañas (#win, #mac…) de las páginas públicas */
+document.querySelectorAll('[data-tabs]').forEach(function (nav) {
+  var links = [].slice.call(nav.querySelectorAll('a[href^="#"]'));
+  var panels = links.map(function (a) { return document.getElementById(a.getAttribute('href').slice(1)); }).filter(Boolean);
+  if (!panels.length) return;
+  nav.setAttribute('role', 'tablist');
+  function show(id, push) {
+    var t = panels.filter(function (p) { return p.id === id; })[0] || panels[0];
+    panels.forEach(function (p) { p.hidden = p !== t; });
+    links.forEach(function (a) { var on = a.getAttribute('href') === '#' + t.id; a.setAttribute('aria-selected', String(on)); a.classList.toggle('on', on); });
+    if (push) history.replaceState(null, '', '#' + t.id);
+  }
+  links.forEach(function (a) { a.setAttribute('role', 'tab'); a.addEventListener('click', function (e) { e.preventDefault(); show(a.getAttribute('href').slice(1), true); }); });
+  show(location.hash.slice(1));
+});
+document.documentElement.classList.remove('tabs-wait');</script>{% endif %}
 </body>
 </html>

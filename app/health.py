@@ -93,6 +93,15 @@ def summary(scope: set[int] | None, is_admin: bool = False, server: dict | None 
         queue.append({"sev": "crit", "icon": "alert", "title": _f("El respaldo de {0} falló", d.name),
                       "sub": short_error(d.last_error) if d.last_error else d.host,
                       "action": _("Reintentar"), "post": f"/devices/{d.id}/backup", "href": f"/devices/{d.id}"})
+    # sin respaldo reciente y sin error (nunca se respaldaron, o el último tiene más de 24 h): también piden atención
+    stale = [d for d in devs if d.last_status != "error"
+             and not (d.last_status == "ok" and d.last_backup_at and d.last_backup_at >= since)]
+    if stale:
+        queue.append({"sev": "major", "icon": "save",
+                      "title": _f("{0} equipos sin respaldo en las últimas 24 h", len(stale)) if len(stale) != 1
+                      else _f("{0} no tiene respaldo en las últimas 24 h", stale[0].name),
+                      "sub": _("Nunca se respaldaron o su último respaldo es anterior"), "action": _("Revisar"),
+                      "href": "/devices" if len(stale) != 1 else f"/devices/{stale[0].id}"})
     for dev_id, sevs in sorted(fails.items(), key=lambda kv: (-kv[1].count("critical"), -len(kv[1]))):
         d = names.get(dev_id)
         if not d:

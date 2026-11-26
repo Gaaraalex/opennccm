@@ -1,0 +1,6 @@
+{# Páginas de error (403 sin permiso, 409 datos cifrados con otra clave) con el menú y los estilos de siempre #}
+{% extends "base.html" %}{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<section class="card"><div class="empty">{{ icon(err_icon or 'lock') }}<h2>{{ title }}</h2>{% if msg %}<p>{{ msg }}</p>{% endif %}
+  <div class="row" style="justify-content:center"><a class="btn" href="{{ back or '/' }}"{% if back == 'javascript:history.back()' %} onclick="history.back();return false"{% endif %}>{{ _('Volver') }}</a></div></div></section>
+{% endblock %}

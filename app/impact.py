@@ -365,6 +365,26 @@ def interfaces_shut(body: str) -> list[str]:
     return out
 
 
+def _ports_per_device(body: str, ids: list[int], variables: dict) -> tuple[dict[int, list[str]], bool]:
+    """Puertos que apaga la plantilla en cada equipo, ya con sus valores. True si en algún equipo no se pudo saber
+    (una variable sin valor o Jinja inválido) y la plantilla apaga algo."""
+    from . import services
+    vals = {k: v for k, v in (variables or {}).items() if not k.startswith("_")}
+    if "{" not in (body or ""):
+        return {i: interfaces_shut(body) for i in ids}, False
+    out, unknown = {}, False
+    with SessionLocal() as db:
+        for i in ids:
+            dev = db.get(Device, i)
+            if dev is None:
+                continue
+            try:
+                out[i] = interfaces_shut(services.render_strict(body, dev, vals))
+            except Exception:  # noqa: BLE001
+                unknown = unknown or bool(interfaces_shut(body))
+    return out, unknown
+
+
 def for_change(cr, user=None) -> dict | None:
     """Impacto de una solicitud de cambio: reinicio (firmware con reinicio o comandos que reinician) o puertos que se
     apagan. None si no reinicia nada ni apaga puertos conocidos."""
@@ -401,8 +421,17 @@ def for_change(cr, user=None) -> dict | None:
         res["kind"] = "reboot"
         return res
     shut = variables.get("_shutdown") or {}
-    ports = {int(k): v for k, v in shut.items()} if shut else {i: interfaces_shut(cr.body) for i in ids}
+    unknown = False
+    if shut:
+        ports = {int(k): v for k, v in shut.items()}
+    else:  # la plantilla con los valores de cada equipo («interface {{ puerto }}» → «interface Gi0/1»)
+        ports, unknown = _ports_per_device(cr.body, ids, variables)
     ports = {k: v for k, v in ports.items() if v}
+    if unknown:
+        res = analyze(g, [], ports, user=user)
+        res.update(kind="ports", level="nodata", label=_("Impacto desconocido"),
+                   sentence=_("La plantilla usa variables sin valor: no se puede saber qué puertos se apagan."))
+        return res
     if ports:
         res = analyze(g, [], ports, user=user)
         res["kind"] = "ports"

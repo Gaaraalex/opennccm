@@ -82,7 +82,7 @@ window.CX = {{ {'dev': dev, 'profile': profile, 'mode': access.mode, 'embed': em
   'nocred': (('admin' if user.role == 'admin' else 'user') if (not autologin and dev.has_cred) else ''),
   't': {'connecting': _('conectando…'), 'connected': _('conectado'), 'disconnected': _('desconectado'), 'closed': _('Desconectado'),
         'denied': _('Desconectado: sin permiso para abrir esta consola'), 'copied': _('Copiado.'), 'share': _('Enlace de solo lectura copiado: quien lo abra ve la sesión sin poder escribir.'),
-        'watching': _('{0} mira'), 'hits': _('{0} coincidencias'), 'nosess': _('La sesión no está abierta.'),
+        'watching': _('{0} mira'), 'hits': _('{0} coincidencias'), 'insq': _('Bloque de {0} líneas: revise cada una y pulse Enter para enviarla; Esc descarta las que faltan.'), 'nosess': _('La sesión no está abierta.'),
         'themes': [_('Sala de control'), _('Grafito'), _('Alto contraste')], 'rolocked': _('Su rol solo permite la consola en modo solo lectura.'),
         'nows': _('No se pudo abrir la conexión con el servidor. Compruebe que OpenNCCM sigue en marcha y, si hay un proxy o un antivirus entre el navegador y el servidor, que permita conexiones WebSocket (wss://).')}}|tojson }};
 </script>

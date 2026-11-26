@@ -1,5 +1,41 @@
 # Historial de versiones
 
+## 2.45.6
+Arreglos de lo visto al grabar el curso «OpenNCCM desde cero» (33 de los 35 que se revisaron; los otros 2 no eran fallos).
+- [seguridad] **Base de conocimiento:** ya no muestra en claro «secret …» ni «password …» en medio de una línea (el eco del
+  equipo en una reversión, «no username … secret …», el texto de una alarma). Los «password cipher …» de Huawei ocultan la
+  clave y no la palabra «cipher» (también en la copia en Git).
+- [seguridad] **Instalador:** la contraseña del administrador solo se muestra y se guarda en
+  `/root/opennccm-credenciales.txt` si la generó el instalador; si la escribiste tú, dice «la que usted eligió».
+- [seguridad] **Licencia:** la clave se ve como `OPNC-····-····-····-Q2LM` (solo los 4 últimos caracteres, también en Auditoría).
+- [seguridad] **Asistente IA:** una tarea que prepara el chat dice a qué equipos va (un grupo o «Todos los equipos (N)») y un
+  usuario limitado a sus grupos solo puede crearla sobre uno de ellos. Antes quedaba sobre todos los equipos sin decirlo.
+- [seguridad] **Consola:** la casilla «Leí el aviso» vuelve a bloquear «Insertar» y «Enviar como solicitud de cambio».
+- [arreglo] **Firmware:** el respaldo previo también se hace en Cisco, Arista y Junos (como decía la pantalla). La ficha dice
+  la espera real (unos 22 minutos, no 10) y, en MikroTik, EdgeOS y airOS, cómo se copia de verdad (no «SCP a ,»).
+- [arreglo] **Importar equipos (CSV):** el servidor rechaza lo mismo que la vista previa (credencial que no existe,
+  protocolo inválido, puerto inválido, nombre repetido o vacío) y dice por qué en cada línea.
+- [arreglo] **Impacto de un cambio:** se calcula con los valores de las variables («interface {{ puerto }}» → el puerto
+  real); si falta un valor, «Impacto desconocido» en vez de «Sin impacto».
+- [arreglo] **Ajustes:** guardar ya no congela las demás páginas mientras la base está ocupada.
+- [arreglo] **Tareas programadas:** un configlet con variables propias (que una tarea no tiene dónde guardar) no se puede
+  elegir ni se aplica con huecos en blanco; uno de ejecución tampoco. Queda la alarma «Tarea programada sin aplicar».
+  Los nombres propuestos ya no dicen la frecuencia («Copia de recuperación», no «…semanal» de lunes a viernes).
+- [arreglo] **Vulnerabilidades:** la ficha marca «explotado activamente» (KEV); cada búsqueda no repite la alarma de CVE
+  críticos si la anterior sigue abierta; «con imagen corregida» solo cuenta imágenes más nuevas que la instalada; Aruba
+  AOS-CX se busca en NVD con su versión real («FL.10.10.1000» → «10.10.1000») y Huawei avisa que un 0 no es fiable.
+- [arreglo] **Ciclo de vida:** volver a importar la misma planilla actualiza las filas en vez de duplicarlas.
+- [arreglo] **Asistente IA:** con un modelo local (Ollama, LM Studio en tu red) ya no dice «nube» ni «fuera de tu red»;
+  «Cargar de la cuenta» no elige el primer modelo por usted; «Insertar» pone el bloque entero en la consola, una línea por
+  vez (Enter envía cada una, Esc descarta el resto); «¿qué alarmas críticas hay?» busca por severidad en toda la base.
+- [arreglo] **Pantallas:** /certificado y Acerca de sin sesión con su diseño y pestañas; la página «No tiene permisos» con el
+  menú; Acerca de bien colocada; el panel ya no dice «Todo respaldado» con equipos sin respaldar (y los muestra en la
+  bandeja); Análisis no cuenta equipos retirados; elegir el tema en Mi cuenta ya no borra las miniaturas.
+- [arreglo] **Comando `opennccm`:** `restore` ya no pide reiniciar a mano y avisa mientras espera; `update` y `restore`
+  esperan hasta 4 minutos (servidores chicos) en vez de 90 s; una actualización sin dependencias nuevas no vuelve a pasar por
+  pip; en la consola de texto de Linux se ve «OK»/«X» en vez de «♦».
+- [Pro] **Alta disponibilidad 1.0.3:** tras «Conmutar», el aviso «Listo» sale en el servidor que quedó activo.
+
 ## 2.45.5
 - [nuevo] **Intercambio o reemplazo de equipos.** Cada copia guarda la serie del aparato. Si en un respaldo cambia, la ficha
   dice de dónde viene el aparato (o que se intercambió con otra ficha), protege las últimas copias del anterior y **no deja

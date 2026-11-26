@@ -146,7 +146,7 @@
     </div>
     <div class="row"><button type="button" class="btn s" id="ai-test">{{ icon('refresh', 's') }}{{ _('Probar conexión') }}</button><span id="ai-res" class="sm grow"></span></div>
     <div class="sec"><h3>{{ icon('lock', 's') }}{{ _('Privacidad') }}</h3>
-      <p class="muted sm">{{ _('Lo que preguntas y el contexto del equipo se envían al proveedor elegido, fuera de tu red. Revisa sus condiciones de uso de datos para cuentas de API.') }}</p>
+      <p class="muted sm">{% if ai.local %}{{ _('El modelo corre en tu red: lo que preguntas y el contexto del equipo no salen de ella.') }}{% else %}{{ _('Lo que preguntas y el contexto del equipo se envían al proveedor elegido, fuera de tu red. Revisa sus condiciones de uso de datos para cuentas de API.') }}{% endif %}</p>
       <label class="swrow"><span><b>{{ _('Ocultar secretos antes de enviar') }}</b><div class="muted sm">{{ _('Contraseñas, comunidades SNMP, claves de VPN y de wifi. Siempre activado.') }}</div></span><input type="checkbox" class="sw" checked disabled></label>
       <label class="swrow"><span><b>{{ _('Incluir el respaldo del equipo') }}</b><div class="muted sm">{{ _('La última configuración guardada, con los secretos ocultos.') }}</div></span><input type="checkbox" class="sw" name="ai_include_backup" {{ 'checked' if ai.cfg.backup }}></label>
       <label class="swrow"><span><b>{{ _('Incluir la salida de la consola (últimas 200 líneas)') }}</b></span><input type="checkbox" class="sw" name="ai_include_console" {{ 'checked' if ai.cfg.console }}></label>
@@ -245,7 +245,9 @@
   const fillModels = () => {
     const list = (aiModels[prov()] || []).slice();
     if (aiCur && prov() === {{ ai.cfg.provider|tojson }} && list.indexOf(aiCur) < 0) list.unshift(aiCur);
-    aiSel.innerHTML = list.length ? list.map(m => { const o = document.createElement('option'); o.value = o.textContent = m; o.defaultSelected = m === aiCur; return o.outerHTML; }).join('')
+    // sin modelo elegido, la lista no elige uno por usted (el primero por orden alfabético no suele ser el indicado)
+    aiSel.innerHTML = list.length ? (list.indexOf(aiCur) < 0 ? '<option value="" selected>' + {{ _('— Elija un modelo —')|tojson }} + '</option>' : '') +
+      list.map(m => { const o = document.createElement('option'); o.value = o.textContent = m; o.defaultSelected = m === aiCur; return o.outerHTML; }).join('')
       : '<option value="">' + {{ _('— Pulse «Cargar de la cuenta» —')|tojson }} + '</option>';
   };
   aiSel.addEventListener('change', () => { aiCur = aiSel.value; });
@@ -261,7 +263,6 @@
     const j = await aiPost('/settings/ai/models');
     if (!j.ok) { air.textContent = j.msg; air.style.color = 'var(--crit)'; return; }
     aiModels[prov()] = j.models;
-    if (j.models.length && j.models.indexOf(aiCur) < 0 && !aiSel.value) aiCur = j.models[0];
     fillModels();
     air.textContent = {{ _('{0} modelos en la cuenta. Elija uno en la lista.')|tojson }}.replace('{0}', j.models.length); air.style.color = 'var(--ok)';
     aiSel.focus();

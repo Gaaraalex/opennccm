@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+import html
 import io
 import json
 import logging
@@ -201,18 +202,30 @@ async def _setup_2fa(request, _exc):
     return go("/account#dospasos")
 
 
+def _error_page(request, code: int, title: str, msg: str, back: str, err_icon: str = "lock"):
+    """La página de error con el menú y los estilos de siempre; si no se puede dibujar (base caída…), texto simple."""
+    try:
+        from .auth import current_user
+        resp = render(request, "error.html", current_user(request), title=title, msg=msg, back=back, err_icon=err_icon)
+        resp.status_code = code
+        return resp
+    except Exception:  # noqa: BLE001
+        log.exception("No se pudo dibujar la página de error %s", code)
+        return HTMLResponse(f"<h2>{html.escape(title)}</h2><p>{html.escape(msg)}</p><a href='{back}'>{_('Volver')}</a>", code)
+
+
 @app.exception_handler(KeyMismatch)
 async def _key_mismatch(request, _exc):
-    return HTMLResponse(
-        f"<h2>{_('Estos datos se cifraron con otra clave')}</h2><p>{_('Algunas configuraciones o contraseñas guardadas se cifraron con un secret.key distinto del de este servidor (por ejemplo, al restaurar una copia sin su clave). Restaure el secret.key del servidor original para poder leerlas; el resto de OpenNCCM funciona con normalidad.')}</p><a href='javascript:history.back()'>{_('Volver')}</a>",
-        409)
+    return _error_page(request, 409, _('Estos datos se cifraron con otra clave'),
+                       _('Algunas configuraciones o contraseñas guardadas se cifraron con un secret.key distinto del de este servidor (por ejemplo, al restaurar una copia sin su clave). Restaure el secret.key del servidor original para poder leerlas; el resto de OpenNCCM funciona con normalidad.'),
+                       "javascript:history.back()", "alert")
 
 
 @app.exception_handler(Forbidden)
 async def _forbidden(request, _exc):
     if request.url.path.startswith("/api/"):
         return JSONResponse({"error": "forbidden", "detail": "El usuario del token no tiene permiso para esto"}, 403)
-    return HTMLResponse(f"<h2>403 — {_('No tiene permisos para esta acción')}</h2><a href='/'>{_('Volver')}</a>", 403)
+    return _error_page(request, 403, "403 — " + _('No tiene permisos para esta acción'), "", "/")
 
 
 # --------------------------------------------------------------------------- login
@@ -1023,10 +1036,25 @@ async def device_import(request: Request):
     with SessionLocal() as db:
         creds = {c.name: c.id for c in db.scalars(select(Credential))}
         groups = {g.name: g.id for g in db.scalars(select(DeviceGroup))}
+        seen = set()
         for i, row in enumerate(csv.DictReader(io.StringIO(raw)), start=2):
             try:
+                # las mismas comprobaciones que la vista previa (devices_import.html): una fila con error se omite entera
+                row = {(k or "").strip(): (v or "").strip() for k, v in row.items() if isinstance(v, str) or v is None}
+                for k in ("name", "host", "device_type"):
+                    if not row.get(k):
+                        raise ValueError(f"falta {k}")
                 if row["device_type"] not in PROFILE_MAP:
                     raise ValueError(f"device_type desconocido '{row['device_type']}'")
+                if row.get("credential") and row["credential"] not in creds:
+                    raise ValueError(f"la credencial '{row['credential']}' no existe")
+                if (row.get("protocol") or "ssh") not in ("ssh", "telnet"):
+                    raise ValueError(f"protocolo inválido '{row['protocol']}' (ssh o telnet)")
+                if row.get("port") and not re.fullmatch(r"\d{1,5}", row["port"]):
+                    raise ValueError("puerto inválido")
+                if row["name"] in seen:
+                    raise ValueError(f"nombre repetido '{row['name']}'")
+                seen.add(row["name"])
                 gname = (row.get("group") or "").strip()
                 if gname and gname not in groups:
                     g = DeviceGroup(name=gname)
@@ -1286,7 +1314,8 @@ def device_detail(request: Request, dev_id: int, a: int = 0, b: int = 0, mode: s
                   ret=_ret.links(dev), unit=unit,
                   fw_of=fw_of, last_fw=last_fw,
                   ports=pinfo, license_partial=license_partial, license_groups=license_groups, license_soon=_lic.SOON,
-                  versions=versions, comp=comp, vulns=vulns, comp_groups=comp_groups,
+                  versions=versions, comp=comp, vulns=vulns, kev=services.kev_ids(), comp_groups=comp_groups,
+                  fw_wait_min=__import__("app.fwverify", fromlist=["x"]).wait_minutes(),
                   comp_fails=sum(g["fails"] for g in comp_groups),
                   vuln_high=sum(1 for v in vulns if (v.severity or "").upper() in ("CRITICAL", "HIGH")),
                   events=events, inventory=inventory, profile=get_profile(dev.device_type), images=images,
@@ -2511,7 +2540,7 @@ def change_detail(request: Request, cr_id: int):
                     steps = ["# respaldo previo", "# espacio libre (df -k)", f"# SCP {name} -> /tmp/{name}",
                              "# suma SHA-256 o MD5 calculada en el equipo", f"add system image /tmp/{name}"] + (["reboot"] if cr.reload else [])
                 else:
-                    steps = [f"# espacio libre (dir {fw.get('fs', '?')})", f"# SCP {name} -> {fw.get('fs', '?')} (verificación MD5)"]
+                    steps = ["# respaldo previo", f"# espacio libre (dir {fw.get('fs', '?')})", f"# SCP {name} -> {fw.get('fs', '?')} (verificación MD5)"]
                     steps += [c.format(file=name) for c in fw.get("boot", []) + fw.get("exec", [])]
                     if cr.reload:
                         steps.append(fw.get("reload", "reload"))
@@ -3154,7 +3183,7 @@ def schedules(request: Request):
         except Exception:  # noqa: BLE001
             log.exception("análisis de impacto de las tareas")
     from . import cronutil
-    sf = {"name": "Respaldo nocturno", "action": "backup", "group_id": None, "configlet_id": None,
+    sf = {"name": _(SCHEDULE_NAMES["backup"]), "action": "backup", "group_id": None, "configlet_id": None,
           **cronutil.to_form("0 2 * * *")}
     return render(request, "schedules.html", user, items=items, groups=groups, configlets=configlets, jobs=jobs,
                   DAYS=cronutil.DAYS, FREQS=cronutil.FREQS, ACTIONS=SCHEDULE_ACTIONS, sf=sf,
@@ -3165,9 +3194,10 @@ SCHEDULE_ACTIONS = {"backup": N_("Respaldo de configuración"), "compliance": N_
                     "cve": N_("Escaneo de vulnerabilidades"), "configlet": N_("Ejecutar configlet"),
                     "report_email": N_("Informes por correo"), "system_backup": N_("Copia de recuperación")}
 # nombre propuesto en «Nueva tarea» para cada acción (con su horario por omisión: respaldo a diario, el resto semanal)
-SCHEDULE_NAMES = {"backup": N_("Respaldo nocturno"), "compliance": N_("Auditoría semanal"),
-                  "cve": N_("Búsqueda semanal de CVE"), "configlet": N_("Configlet semanal"),
-                  "report_email": N_("Informe semanal por correo"), "system_backup": N_("Copia de recuperación semanal")}
+# sin la frecuencia en el nombre: la decide el formulario («Copia de recuperación semanal» de lunes a viernes no lo era)
+SCHEDULE_NAMES = {"backup": N_("Respaldo de configuración"), "compliance": N_("Auditoría de cumplimiento"),
+                  "cve": N_("Búsqueda de CVE"), "configlet": N_("Configlet programado"),
+                  "report_email": N_("Informes por correo"), "system_backup": N_("Copia de recuperación")}
 
 
 @app.get("/schedules/new")
@@ -3201,6 +3231,26 @@ def schedule_edit_form(request: Request, sid: int):
                   DAYS=cronutil.DAYS, FREQS=cronutil.FREQS)
 
 
+def _schedule_configlet_error(form) -> str:
+    """Una tarea programada solo aplica configlets de configuración sin variables propias (no tiene dónde guardar sus
+    valores: quedarían en blanco)."""
+    if form.get("action") != "configlet":
+        return ""
+    if not form.get("configlet_id"):
+        return _("Elija el configlet que ejecuta la tarea.")
+    with SessionLocal() as db:
+        c = db.get(Configlet, int(form["configlet_id"]))
+        if c is None:
+            return _("Ese configlet ya no existe.")
+        if c.kind != "config":
+            return _("Las tareas programadas solo aplican configlets de configuración.")
+        need = services.template_vars(c.body)
+        if need:
+            return _f("El configlet «{0}» necesita valores para {1}: una tarea programada no los tiene. Use una solicitud de cambio.",
+                      c.name, ", ".join(need))
+    return ""
+
+
 @app.post("/schedules/{sid}/edit")
 async def schedule_edit_save(request: Request, sid: int):
     user = require(request, "admin")
@@ -3210,6 +3260,9 @@ async def schedule_edit_save(request: Request, sid: int):
         cron = cronutil.from_form(form)
     except ValueError as e:
         flash(request, _f("Programación inválida: {0}", e), "error")
+        return go(f"/schedules/{sid}/edit")
+    if err := _schedule_configlet_error(form):
+        flash(request, err, "error")
         return go(f"/schedules/{sid}/edit")
     with SessionLocal() as db:
         s = db.get(Schedule, sid)
@@ -3238,6 +3291,9 @@ async def schedule_save(request: Request):
         cron = cronutil.from_form(form)
     except ValueError as e:
         flash(request, _f("Programación inválida: {0}", e), "error")
+        return go("/schedules")
+    if err := _schedule_configlet_error(form):
+        flash(request, err, "error")
         return go("/schedules")
     with SessionLocal() as db:
         db.add(Schedule(name=form["name"], action=form["action"], cron=cron,
@@ -3406,11 +3462,13 @@ def vulns(request: Request, f: str = "all"):
         images = db.scalars(select(FirmwareImage).order_by(FirmwareImage.uploaded_at.desc())).all()
         last = max((v.found_at for v in items), default=None)
 
-    def fixed_image(d):  # imagen cargada para el tipo del equipo con otra versión
+    from .fwupdates import vkey
+
+    def fixed_image(d):  # imagen cargada para el tipo del equipo con una versión MÁS NUEVA que la instalada
         for img in images:
             try:
                 if (not img.device_type_filter or re.search(img.device_type_filter, d.device_type)) \
-                        and img.version and img.version != d.os_version:
+                        and img.version and (not d.os_version or vkey(img.version) > vkey(d.os_version)):
                     return img
             except re.error:
                 continue
@@ -3759,6 +3817,13 @@ async def settings_ldap_test(request: Request):
 async def settings_save(request: Request):
     user = require(request, "admin")
     form = await request.form()
+    # ~70 escrituras en la base: fuera del bucle de eventos, para que una base ocupada (un respaldo masivo, SQLite)
+    # no congele todas las demás páginas mientras se guarda
+    from starlette.concurrency import run_in_threadpool
+    return await run_in_threadpool(_settings_apply, request, user, form)
+
+
+def _settings_apply(request: Request, user, form):
     for k in SETTING_KEYS:
         if k == "require_2fa_admins" and form.get(k) == "on" and not user.totp_enabled:
             # exigirla sin tenerla dejaría a este administrador fuera de todo salvo «Mi cuenta»
